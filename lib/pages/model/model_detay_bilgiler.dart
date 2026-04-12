@@ -242,37 +242,37 @@ extension _BilgilerExt on _ModelDetayState {
     );
   }
 
-  // Beden dağılımını gösteren widget
-  Widget _buildBedenDagilimi(dynamic bedenler) {
-    if (bedenler == null) {
-      return const Text('Beden bilgisi yok', style: TextStyle(color: Colors.grey));
-    }
-    
+  Map<String, dynamic> _parseBedenMap(dynamic bedenler) {
     Map<String, dynamic> bedenMap = {};
-    
-    // bedenler JSONB formatını parse et
     if (bedenler is Map) {
       bedenMap = Map<String, dynamic>.from(bedenler);
     } else if (bedenler is String) {
       try {
-        // JSON string ise parse et
         bedenMap = Map<String, dynamic>.from(
           (bedenler).isNotEmpty 
             ? Map<String, dynamic>.from(bedenler as dynamic) 
             : {}
         );
-      } catch (e) {
-        return Text(bedenler, style: const TextStyle(fontSize: 13));
-      }
+      } catch (_) {}
     } else if (bedenler is List) {
-      // Liste formatındaysa
       for (var item in bedenler) {
         if (item is Map && item['beden'] != null) {
           bedenMap[item['beden'].toString()] = item['adet'] ?? 0;
         }
       }
     }
-    
+    return bedenMap;
+  }
+
+  // Beden dağılımını gösteren widget
+  Widget _buildBedenDagilimi(dynamic bedenler) {
+    final bedenMap = _parseBedenMap(bedenler);
+
+    // Düzenleme modu
+    if (_isEditing && kullaniciRolu == 'admin') {
+      return _buildEditableBedenDagilimi(bedenMap);
+    }
+
     if (bedenMap.isEmpty) {
       return const Text('Beden bilgisi yok', style: TextStyle(color: Colors.grey));
     }
@@ -339,6 +339,122 @@ extension _BilgilerExt on _ModelDetayState {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEditableBedenDagilimi(Map<String, dynamic> bedenMap) {
+    void _updateBedenlerData() {
+      // bedenler verisini currentModelData'ya yaz + toplam_adet güncelle
+      currentModelData?['bedenler'] = Map<String, dynamic>.from(bedenMap);
+      int toplam = 0;
+      bedenMap.forEach((_, v) {
+        toplam += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
+      });
+      currentModelData?['toplam_adet'] = toplam;
+    }
+
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        int toplamAdet = 0;
+        bedenMap.forEach((_, v) {
+          toplamAdet += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
+        });
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...bedenMap.entries.toList().map((entry) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 80,
+                      child: TextFormField(
+                        initialValue: entry.key,
+                        decoration: const InputDecoration(
+                          labelText: 'Beden',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        ),
+                        onChanged: (newKey) {
+                          if (newKey.trim().isNotEmpty && newKey.trim() != entry.key) {
+                            setLocalState(() {
+                              final val = bedenMap.remove(entry.key);
+                              bedenMap[newKey.trim()] = val ?? 0;
+                              _updateBedenlerData();
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 100,
+                      child: TextFormField(
+                        initialValue: entry.value.toString(),
+                        decoration: const InputDecoration(
+                          labelText: 'Adet',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (val) {
+                          setLocalState(() {
+                            bedenMap[entry.key] = int.tryParse(val) ?? 0;
+                            _updateBedenlerData();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle, color: Colors.red, size: 22),
+                      onPressed: () {
+                        setLocalState(() {
+                          bedenMap.remove(entry.key);
+                          _updateBedenlerData();
+                        });
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () {
+                    setLocalState(() {
+                      // Yeni beden ekle - benzersiz isim üret
+                      String yeniBeden = 'YENİ';
+                      int i = 1;
+                      while (bedenMap.containsKey(yeniBeden)) {
+                        yeniBeden = 'YENİ$i';
+                        i++;
+                      }
+                      bedenMap[yeniBeden] = 0;
+                      _updateBedenlerData();
+                    });
+                  },
+                  icon: const Icon(Icons.add_circle, color: Colors.green),
+                  label: const Text('Beden Ekle', style: TextStyle(color: Colors.green)),
+                ),
+                const Spacer(),
+                Text(
+                  'Toplam: $toplamAdet adet',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
