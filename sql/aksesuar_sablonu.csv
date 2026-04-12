@@ -1,0 +1,46 @@
+Aksesuar Toplu Ekleme Formu - Excel Şablonu
+
+GENEL BİLGİLER:
+Ekleme Tarihi:,=TODAY()
+Ekleyen:,[Kullanıcı adı yazın]
+
+AKSESUAR DETAYLARI:
+Aksesuar Kodu,Aksesuar Adı,Marka,Model,Renk,Stok Adet,Birim,Açıklama
+AKS001,Düğme - Beyaz 12mm,Generic,Standart,Beyaz,1000,Adet,Beyaz plastik düğme
+AKS002,Fermuvar - Siyah 20cm,YKK,Standart,Siyah,500,Adet,20cm siyah fermuvar
+AKS003,Etiket - Marka Logosu,Custom,Logo,Renkli,200,Adet,Dokuma marka etiketi
+AKS004,,,,,,Adet,
+AKS005,,,,,,Adet,
+AKS006,,,,,,Adet,
+AKS007,,,,,,Adet,
+AKS008,,,,,,Adet,
+AKS009,,,,,,Adet,
+AKS010,,,,,,Adet,
+AKS011,,,,,,Adet,
+AKS012,,,,,,Adet,
+AKS013,,,,,,Adet,
+AKS014,,,,,,Adet,
+AKS015,,,,,,Adet,
+AKS016,,,,,,Adet,
+AKS017,,,,,,Adet,
+AKS018,,,,,,Adet,
+AKS019,,,,,,Adet,
+AKS020,,,,,,Adet,
+
+KULLANIM TALİMATLARI:
+1. Yukarıdaki 'Aksesuar Detayları' tablosunu doldurun
+2. Her aksesuar için benzersiz bir kod kullanın
+3. Stok adet alanına sayısal değer girin
+4. Birim alanına 'Adet', 'Kg', 'Metre' gibi birimler yazın
+5. Dosyayı kaydedin ve uygulamaya yükleyin
+
+NOTLAR:
+- Boş satırları doldurmak zorunda değilsiniz
+- Aksesuar kodu alanını mutlaka doldurun
+- Stok adet alanına sadece sayı girin
+- Marka ve model bilgileri isteğe bağlıdır
+
+DİKKAT:
+- Bu şablon formatını değiştirmeyin
+- Sadece veri alanlarını doldurun
+- Aynı kodlu aksesuarlar varsa stoklar toplanacaktır

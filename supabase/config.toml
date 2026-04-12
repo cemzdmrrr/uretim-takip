@@ -1,0 +1,42 @@
+
+[functions.delete_user]
+enabled = true
+verify_jwt = true
+import_map = "./functions/delete_user/deno.json"
+entrypoint = "./functions/delete_user/index.ts"
+
+[functions.firma-olustur]
+enabled = true
+verify_jwt = true
+import_map = "./functions/firma-olustur/deno.json"
+entrypoint = "./functions/firma-olustur/index.ts"
+
+[functions.kullanici-davet]
+enabled = true
+verify_jwt = true
+import_map = "./functions/kullanici-davet/deno.json"
+entrypoint = "./functions/kullanici-davet/index.ts"
+
+[functions.abonelik-kontrol]
+enabled = true
+verify_jwt = false
+import_map = "./functions/abonelik-kontrol/deno.json"
+entrypoint = "./functions/abonelik-kontrol/index.ts"
+
+[functions.odeme-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/odeme-webhook/deno.json"
+entrypoint = "./functions/odeme-webhook/index.ts"
+
+[functions.modul-aktivasyon]
+enabled = true
+verify_jwt = true
+import_map = "./functions/modul-aktivasyon/deno.json"
+entrypoint = "./functions/modul-aktivasyon/index.ts"
+
+[functions.platform-rapor]
+enabled = true
+verify_jwt = true
+import_map = "./functions/platform-rapor/deno.json"
+entrypoint = "./functions/platform-rapor/index.ts"

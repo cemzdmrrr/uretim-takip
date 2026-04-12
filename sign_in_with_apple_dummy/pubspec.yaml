@@ -1,0 +1,10 @@
+name: sign_in_with_apple
+description: Dummy plugin to override real one
+version: 0.0.1
+
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: DummyApplePlugin
+        fileName: dummy.dart

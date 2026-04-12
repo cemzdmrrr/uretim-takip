@@ -1,0 +1,57 @@
+İplik Sipariş Formu - Excel Şablonu
+
+SIPARIŞ GENEL BİLGİLERİ:
+Sipariş Tarihi:,=TODAY()
+Tedarikçi Firma:,[Tedarikçi adını buraya yazın]
+Tedarikçi Telefon:,[Telefon numarası]
+Sipariş Veren:,[Firma adınız]
+Termin Tarihi:,[Örn: 2025-08-15]
+Açıklama:,[Genel açıklama]
+
+SİPARİŞ DETAYLARI:
+Sıra No,İplik Adı/Türü,Renk,Miktar (kg),Birim Fiyat,Para Birimi,Toplam Tutar,Açıklama
+1,Pamuk İplik 30/1,Ekru,100,15.50,TL,=D9*E9,[İsteğe bağlı not]
+2,Polyester İplik 20/1,Siyah,50,18.75,TL,=D10*E10,
+3,Viskon İplik 32/1,Beyaz,75,22.00,TL,=D11*E11,
+4,,,,,,=D12*E12,
+5,,,,,,=D13*E13,
+6,,,,,,=D14*E14,
+7,,,,,,=D15*E15,
+8,,,,,,=D16*E16,
+9,,,,,,=D17*E17,
+10,,,,,,=D18*E18,
+11,,,,,,=D19*E19,
+12,,,,,,=D20*E20,
+13,,,,,,=D21*E21,
+14,,,,,,=D22*E22,
+15,,,,,,=D23*E23,
+16,,,,,,=D24*E24,
+17,,,,,,=D25*E25,
+18,,,,,,=D26*E26,
+19,,,,,,=D27*E27,
+20,,,,,,=D28*E28,
+
+ÖZET:
+Toplam Kalem Sayısı:,=COUNTA(B9:B28)-COUNTBLANK(B9:B28)
+Toplam Miktar (kg):,=SUM(D9:D28)
+Genel Toplam (TL):,=SUMIF(F9:F28,"TL",G9:G28)
+Genel Toplam (USD):,=SUMIF(F9:F28,"USD",G9:G28)
+Genel Toplam (EUR):,=SUMIF(F9:F28,"EUR",G9:G28)
+
+KULLANIM TALİMATLARI:
+1. Yukarıdaki 'Sipariş Genel Bilgileri' bölümünü doldurun
+2. 'Sipariş Detayları' tablosuna ürün bilgilerini girin
+3. Para birimi olarak TL, USD veya EUR kullanın
+4. Toplam tutar otomatik hesaplanacaktır
+5. Dosyayı kaydedin ve uygulamaya yükleyin
+
+NOTLAR:
+- Boş satırları doldurmak zorunda değilsiniz
+- Miktar alanına sadece sayı girin
+- Para birimi alanına TL, USD veya EUR yazın
+- Excel formülleri otomatik hesaplama yapar
+
+DİKKAT:
+- Bu şablon formatını değiştirmeyin
+- Sadece sarı renkli hücreleri doldurun
+- Formülleri silmeyin
