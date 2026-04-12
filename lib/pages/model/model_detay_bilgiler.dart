@@ -242,8 +242,15 @@ extension _BilgilerExt on _ModelDetayState {
     );
   }
 
-  Map<String, dynamic> _parseBedenMap(dynamic bedenler) {
+  // Beden dağılımını gösteren widget
+  Widget _buildBedenDagilimi(dynamic bedenler) {
+    if (bedenler == null && !_isEditing) {
+      return const Text('Beden bilgisi yok', style: TextStyle(color: Colors.grey));
+    }
+    
     Map<String, dynamic> bedenMap = {};
+    
+    // bedenler JSONB formatını parse et
     if (bedenler is Map) {
       bedenMap = Map<String, dynamic>.from(bedenler);
     } else if (bedenler is String) {
@@ -253,7 +260,9 @@ extension _BilgilerExt on _ModelDetayState {
             ? Map<String, dynamic>.from(bedenler as dynamic) 
             : {}
         );
-      } catch (_) {}
+      } catch (e) {
+        if (!_isEditing) return Text(bedenler, style: const TextStyle(fontSize: 13));
+      }
     } else if (bedenler is List) {
       for (var item in bedenler) {
         if (item is Map && item['beden'] != null) {
@@ -261,20 +270,14 @@ extension _BilgilerExt on _ModelDetayState {
         }
       }
     }
-    return bedenMap;
-  }
-
-  // Beden dağılımını gösteren widget
-  Widget _buildBedenDagilimi(dynamic bedenler) {
-    final bedenMap = _parseBedenMap(bedenler);
+    
+    if (bedenMap.isEmpty && !_isEditing) {
+      return const Text('Beden bilgisi yok', style: TextStyle(color: Colors.grey));
+    }
 
     // Düzenleme modu
     if (_isEditing && kullaniciRolu == 'admin') {
       return _buildEditableBedenDagilimi(bedenMap);
-    }
-
-    if (bedenMap.isEmpty) {
-      return const Text('Beden bilgisi yok', style: TextStyle(color: Colors.grey));
     }
     
     // Toplam adeti hesapla
@@ -343,118 +346,148 @@ extension _BilgilerExt on _ModelDetayState {
   }
 
   Widget _buildEditableBedenDagilimi(Map<String, dynamic> bedenMap) {
-    void _updateBedenlerData() {
-      // bedenler verisini currentModelData'ya yaz + toplam_adet güncelle
-      currentModelData?['bedenler'] = Map<String, dynamic>.from(bedenMap);
-      int toplam = 0;
-      bedenMap.forEach((_, v) {
-        toplam += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
-      });
-      currentModelData?['toplam_adet'] = toplam;
-    }
+    // Toplam adeti hesapla
+    int toplamAdet = 0;
+    bedenMap.forEach((key, value) {
+      toplamAdet += (value is int) ? value : (int.tryParse(value.toString()) ?? 0);
+    });
 
-    return StatefulBuilder(
-      builder: (context, setLocalState) {
-        int toplamAdet = 0;
-        bedenMap.forEach((_, v) {
-          toplamAdet += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
-        });
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...bedenMap.entries.toList().map((entry) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 80,
-                      child: TextFormField(
-                        initialValue: entry.key,
-                        decoration: const InputDecoration(
-                          labelText: 'Beden',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        ),
-                        onChanged: (newKey) {
-                          if (newKey.trim().isNotEmpty && newKey.trim() != entry.key) {
-                            setLocalState(() {
-                              final val = bedenMap.remove(entry.key);
-                              bedenMap[newKey.trim()] = val ?? 0;
-                              _updateBedenlerData();
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 100,
-                      child: TextFormField(
-                        initialValue: entry.value.toString(),
-                        decoration: const InputDecoration(
-                          labelText: 'Adet',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        ),
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) {
-                          setLocalState(() {
-                            bedenMap[entry.key] = int.tryParse(val) ?? 0;
-                            _updateBedenlerData();
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle, color: Colors.red, size: 22),
-                      onPressed: () {
-                        setLocalState(() {
-                          bedenMap.remove(entry.key);
-                          _updateBedenlerData();
-                        });
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              );
-            }),
-            const SizedBox(height: 8),
-            Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ...bedenMap.entries.map((entry) {
+          final adet = (entry.value is int) ? entry.value : (int.tryParse(entry.value.toString()) ?? 0);
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Row(
               children: [
-                TextButton.icon(
-                  onPressed: () {
-                    setLocalState(() {
-                      // Yeni beden ekle - benzersiz isim üret
-                      String yeniBeden = 'YENİ';
-                      int i = 1;
-                      while (bedenMap.containsKey(yeniBeden)) {
-                        yeniBeden = 'YENİ$i';
-                        i++;
+                SizedBox(
+                  width: 80,
+                  child: Text(
+                    entry.key,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 120,
+                  child: TextFormField(
+                    initialValue: adet.toString(),
+                    decoration: InputDecoration(
+                      labelText: 'Adet',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      final yeniAdet = int.tryParse(value) ?? 0;
+                      if (currentModelData?['bedenler'] is Map) {
+                        (currentModelData!['bedenler'] as Map)[entry.key] = yeniAdet;
                       }
-                      bedenMap[yeniBeden] = 0;
-                      _updateBedenlerData();
+                      // Toplam adeti güncelle
+                      int yeniToplam = 0;
+                      if (currentModelData?['bedenler'] is Map) {
+                        (currentModelData!['bedenler'] as Map).forEach((k, v) {
+                          yeniToplam += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
+                        });
+                      }
+                      currentModelData?['toplam_adet'] = yeniToplam;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (currentModelData?['bedenler'] is Map) {
+                        (currentModelData!['bedenler'] as Map).remove(entry.key);
+                        // Toplam güncelle
+                        int yeniToplam = 0;
+                        (currentModelData!['bedenler'] as Map).forEach((k, v) {
+                          yeniToplam += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
+                        });
+                        currentModelData?['toplam_adet'] = yeniToplam;
+                      }
                     });
                   },
-                  icon: const Icon(Icons.add_circle, color: Colors.green),
-                  label: const Text('Beden Ekle', style: TextStyle(color: Colors.green)),
-                ),
-                const Spacer(),
-                Text(
-                  'Toplam: $toplamAdet adet',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+                  child: const Icon(Icons.remove_circle, color: Colors.red, size: 22),
                 ),
               ],
             ),
-          ],
-        );
-      },
+          );
+        }),
+        const SizedBox(height: 8),
+        Text(
+          'Toplam: $toplamAdet adet',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final bedenController = TextEditingController();
+            final adetController = TextEditingController();
+            final result = await showDialog<Map<String, int>>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Yeni Beden Ekle'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: bedenController,
+                      decoration: const InputDecoration(labelText: 'Beden (ör: XL)', border: OutlineInputBorder()),
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: adetController,
+                      decoration: const InputDecoration(labelText: 'Adet', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+                  ElevatedButton(
+                    onPressed: () {
+                      final beden = bedenController.text.trim();
+                      final adet = int.tryParse(adetController.text) ?? 0;
+                      if (beden.isNotEmpty) {
+                        Navigator.pop(ctx, {beden: adet});
+                      }
+                    },
+                    child: const Text('Ekle'),
+                  ),
+                ],
+              ),
+            );
+            if (result != null) {
+              setState(() {
+                if (currentModelData?['bedenler'] == null) {
+                  currentModelData?['bedenler'] = <String, dynamic>{};
+                }
+                if (currentModelData?['bedenler'] is Map) {
+                  (currentModelData!['bedenler'] as Map).addAll(result);
+                  int yeniToplam = 0;
+                  (currentModelData!['bedenler'] as Map).forEach((k, v) {
+                    yeniToplam += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
+                  });
+                  currentModelData?['toplam_adet'] = yeniToplam;
+                }
+              });
+            }
+          },
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Beden Ekle'),
+        ),
+      ],
     );
   }
 
