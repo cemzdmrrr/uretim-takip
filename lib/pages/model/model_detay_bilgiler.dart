@@ -20,8 +20,21 @@ extension _BilgilerExt on _ModelDetayState {
                 _buildEditableField('marka', 'Marka', currentModelData?['marka']),
                 _buildEditableField('item_no', 'Item No', currentModelData?['item_no']),
                 _buildEditableField('model_adi', 'Model Adı', currentModelData?['model_adi']),
+                _buildEditableField('uretim_dali', 'Üretim Dalı', currentModelData?['uretim_dali']),
                 _buildEditableField('toplam_adet', 'Toplam Adet', currentModelData?['toplam_adet']?.toString(), isNumber: true),
                 _buildEditableField('durum', 'Durum', currentModelData?['durum']),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Beden Dağılımı
+            _buildSectionCard(
+              'Beden Dağılımı',
+              Icons.straighten,
+              Colors.green,
+              [
+                _buildBedenDagilimi(currentModelData?['bedenler']),
               ],
             ),
             
@@ -54,6 +67,7 @@ extension _BilgilerExt on _ModelDetayState {
                 _buildEditableField('kol_tipi', 'Kol Tipi', currentModelData?['kol_tipi']),
                 _buildEditableField('desen_tipi', 'Desen Tipi', currentModelData?['desen_tipi']),
                 _buildEditableField('desen_detayi', 'Desen Detayı', currentModelData?['desen_detayi']),
+                _buildEditableField('renk', 'Renk', currentModelData?['renk']),
                 _buildEditableField('renk_kombinasyonu', 'Renk Kombinasyonu', currentModelData?['renk_kombinasyonu']),
               ],
             ),
@@ -98,10 +112,11 @@ extension _BilgilerExt on _ModelDetayState {
             
             // Termin ve Notlar
             _buildSectionCard(
-              'Termin & Notlar',
+              'Tarihler & Notlar',
               Icons.event,
               Colors.red,
               [
+                _buildEditableField('siparis_tarihi', 'Sipariş Tarihi', utils.formatDate(currentModelData?['siparis_tarihi'])),
                 _buildEditableField('termin_tarihi', 'Termin Tarihi', utils.formatDate(currentModelData?['termin_tarihi'])),
                 _buildEditableField('ozel_talimatlar', 'Özel Talimatlar', currentModelData?['ozel_talimatlar'], isMultiline: true),
                 _buildEditableField('genel_notlar', 'Genel Notlar', currentModelData?['genel_notlar'], isMultiline: true),
