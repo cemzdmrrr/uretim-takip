@@ -116,8 +116,8 @@ extension _BilgilerExt on _ModelDetayState {
               Icons.event,
               Colors.red,
               [
-                _buildEditableField('siparis_tarihi', 'Sipariş Tarihi', utils.formatDate(currentModelData?['siparis_tarihi'])),
-                _buildEditableField('termin_tarihi', 'Termin Tarihi', utils.formatDate(currentModelData?['termin_tarihi'])),
+                _buildDateField('siparis_tarihi', 'Sipariş Tarihi'),
+                _buildDateField('termin_tarihi', 'Termin Tarihi'),
                 _buildEditableField('ozel_talimatlar', 'Özel Talimatlar', currentModelData?['ozel_talimatlar'], isMultiline: true),
                 _buildEditableField('genel_notlar', 'Genel Notlar', currentModelData?['genel_notlar'], isMultiline: true),
               ],
@@ -189,6 +189,60 @@ extension _BilgilerExt on _ModelDetayState {
       );
     }
     return _buildInfoRow(label, value);
+  }
+
+  /// Tarih alanları için gün/ay/yıl formatında date picker
+  Widget _buildDateField(String key, String label) {
+    final rawValue = currentModelData?[key];
+    final DateTime? currentDate = rawValue != null ? DateTime.tryParse(rawValue.toString()) : null;
+    final String displayValue = currentDate != null
+        ? DateFormat('dd.MM.yyyy').format(currentDate)
+        : '-';
+
+    if (_isEditing && kullaniciRolu == 'admin') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: InkWell(
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: currentDate ?? DateTime.now(),
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2030),
+              locale: const Locale('tr'),
+            );
+            if (date != null) {
+              setState(() {
+                currentModelData?[key] = date.toIso8601String();
+              });
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey[50],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  currentDate != null
+                      ? DateFormat('dd.MM.yyyy').format(currentDate)
+                      : label,
+                  style: TextStyle(
+                    color: currentDate != null ? Colors.black : Colors.grey,
+                  ),
+                ),
+                const Icon(Icons.calendar_today, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return _buildInfoRow(label, displayValue);
   }
 
   Future<void> _saveModelBilgileri() async {
@@ -391,14 +445,16 @@ extension _BilgilerExt on _ModelDetayState {
                       if (currentModelData?['bedenler'] is Map) {
                         (currentModelData!['bedenler'] as Map)[entry.key] = yeniAdet;
                       }
-                      // Toplam adeti güncelle
+                      // Toplam adeti güncelle ve UI'yi yenile
                       int yeniToplam = 0;
                       if (currentModelData?['bedenler'] is Map) {
                         (currentModelData!['bedenler'] as Map).forEach((k, v) {
                           yeniToplam += (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
                         });
                       }
-                      currentModelData?['toplam_adet'] = yeniToplam;
+                      setState(() {
+                        currentModelData?['toplam_adet'] = yeniToplam;
+                      });
                     },
                   ),
                 ),

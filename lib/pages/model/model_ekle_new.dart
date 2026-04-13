@@ -551,6 +551,7 @@ class _ModelEkleState extends State<ModelEkle> {
             initialDate: selectedDate ?? DateTime.now(),
             firstDate: DateTime(2020),
             lastDate: DateTime(2030),
+            locale: const Locale('tr'),
           );
           if (date != null) {
             onDateSelected(date);
@@ -567,7 +568,7 @@ class _ModelEkleState extends State<ModelEkle> {
             children: [
               Text(
                 selectedDate != null
-                    ? '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'
+                    ? '${selectedDate.day.toString().padLeft(2, '0')}.${selectedDate.month.toString().padLeft(2, '0')}.${selectedDate.year}'
                     : label,
                 style: TextStyle(
                   color: selectedDate != null ? Colors.black : Colors.grey,

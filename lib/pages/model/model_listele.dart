@@ -366,7 +366,7 @@ class _ModelListeleState extends State<ModelListele> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Not: Durum "Beklemede" olarak, tarihler sıfırlanarak kopyalanacaktır.',
+              'Not: Durum "Beklemede" olarak kopyalanacaktır. Tarihler korunacaktır.',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
@@ -411,8 +411,7 @@ class _ModelListeleState extends State<ModelListele> {
       yeniModel['item_no'] = result; // Yeni benzersiz model kodu
       yeniModel['durum'] = 'Beklemede';
       yeniModel['tamamlandi'] = false;
-      yeniModel['siparis_tarihi'] = null;
-      yeniModel['termin_tarihi'] = null;
+      // siparis_tarihi ve termin_tarihi orijinalden kopyalanır
       yeniModel['iplik_geldi'] = false;
       yeniModel['kase_onayi'] = false;
 
@@ -985,34 +984,55 @@ class _ModelListeleState extends State<ModelListele> {
                                           ),
                                           const SizedBox(height: 8),
                                           
-                                          // Alt bilgiler
+                                          // Özet bilgiler: Model Adı, Renk, Adet, Termin
                                           if (model['model_adi'] != null)
                                             Text(
                                               model['model_adi'],
-                                              style: const TextStyle(fontSize: 14),
+                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                                             ),
-                                          Text(
-                                            'Kategori: ${model['urun_kategorisi'] ?? 'Belirtilmemiş'}',
-                                            style: const TextStyle(fontSize: 12),
+                                          const SizedBox(height: 4),
+                                          Wrap(
+                                            spacing: 12,
+                                            runSpacing: 4,
+                                            children: [
+                                              if (model['renk'] != null && model['renk'].toString().isNotEmpty)
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.palette, size: 14, color: Colors.grey[600]),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      model['renk'],
+                                                      style: TextStyle(fontSize: 13, color: Colors.grey[800]),
+                                                    ),
+                                                  ],
+                                                ),
+                                              if (model['toplam_adet'] != null)
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.inventory_2, size: 14, color: Colors.grey[600]),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '${model['toplam_adet']} adet',
+                                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ],
+                                                ),
+                                              if (model['termin_tarihi'] != null)
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.event, size: 14, color: Colors.grey[600]),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      formatTarih(model['termin_tarihi']),
+                                                      style: const TextStyle(fontSize: 13),
+                                                    ),
+                                                  ],
+                                                ),
+                                            ],
                                           ),
-                                          Text(
-                                            '${DalFormConfig.urunTipiEtiketi(model['uretim_dali'] ?? DalFormConfig.birincilDal)}: ${model['triko_tipi'] ?? 'Belirtilmemiş'}',
-                                            style: const TextStyle(fontSize: 12),
-                                          ),
-                                          Text(
-                                            'İplik: ${model['ana_iplik_turu'] ?? 'Belirtilmemiş'}',
-                                            style: const TextStyle(fontSize: 12),
-                                          ),
-                                          if (model['toplam_adet'] != null)
-                                            Text(
-                                              'Toplam Adet: ${model['toplam_adet']}',
-                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                            ),
-                                          if (model['termin_tarihi'] != null)
-                                            Text(
-                                              'Termin: ${formatTarih(model['termin_tarihi'])}',
-                                              style: const TextStyle(fontSize: 12),
-                                            ),
                                         ],
                                       ),
                                     ),
