@@ -60,3 +60,6 @@ app.*.map.json
 # Temporary working files
 *.ps1
 *.bak
+
+.vercel
+.env*.local
