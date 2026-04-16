@@ -44,6 +44,8 @@ import 'package:uretim_takip/pages/platform_admin/platform_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/migrasyon_durumu_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
+import 'package:uretim_takip/services/sayfa_yetki_service.dart';
+import 'package:uretim_takip/pages/ayarlar/sayfa_yetki_yonetimi_page.dart';
 
 class AnaSayfa extends StatefulWidget {
   const AnaSayfa({super.key});
@@ -57,6 +59,8 @@ class _AnaSayfaState extends State<AnaSayfa> {
   bool yukleniyor = true;
   String get _firmaId => TenantManager.instance.requireFirmaId;
   Timer? _refreshTimer;
+  Set<String> _sayfaYetkileri = {};
+  bool _yetkilerYuklendi = false;
   
   // Canlı dashboard verileri
   Map<String, int> _dashboardStats = {
@@ -100,6 +104,11 @@ class _AnaSayfaState extends State<AnaSayfa> {
       });
       
       debugPrint('✅ Kullanıcı rolü alındı: $kullaniciRolu (RLS kapalı)');
+      
+      // Sayfa yetkilerini yükle (admin değilse)
+      if (!RoleUtils.isAdmin(kullaniciRolu)) {
+        await _sayfaYetkileriniYukle(user.id);
+      }
       
       // Dashboard verilerini yükle
       if (_isBackofficeUser) {
@@ -652,26 +661,32 @@ class _AnaSayfaState extends State<AnaSayfa> {
   }
 
   Widget _buildQuickActionsRow() {
-    final actions = <Widget>[
-      _buildQuickAction(
+    final actions = <Widget>[];
+    if (_sayfaErisimVar('uretim_raporu')) {
+      actions.add(_buildQuickAction(
         'Üretim Raporu',
         Icons.assessment_rounded,
         const Color(0xFF00695C),
         () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UretimRaporuPage())),
-      ),
-      _buildQuickAction(
+      ));
+    }
+    if (_sayfaErisimVar('yeni_model_ekle')) {
+      actions.add(_buildQuickAction(
         'Yeni Model Ekle',
         Icons.add_box_rounded,
         const Color(0xFF2E7D32),
         () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelEkle())),
-      ),
-      _buildQuickAction(
+      ));
+    }
+    if (_sayfaErisimVar('kayitli_modeller')) {
+      actions.add(_buildQuickAction(
         'Kayıtlı Modeller',
         Icons.inventory_2_rounded,
         const Color(0xFF1565C0),
         () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelListele())),
-      ),
-    ];
+      ));
+    }
+    if (actions.isEmpty) return const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -700,6 +715,29 @@ class _AnaSayfaState extends State<AnaSayfa> {
   bool get _isBackofficeUser =>
       RoleUtils.isAdmin(kullaniciRolu) ||
       RoleUtils.isStandardUser(kullaniciRolu);
+
+  Future<void> _sayfaYetkileriniYukle(String userId) async {
+    try {
+      final yetkiler = await SayfaYetkiService.kullaniciYetkileriniGetir(userId);
+      setState(() {
+        _sayfaYetkileri = yetkiler;
+        _yetkilerYuklendi = true;
+      });
+    } catch (e) {
+      debugPrint('Sayfa yetkileri yüklenemedi: $e');
+      setState(() => _yetkilerYuklendi = true);
+    }
+  }
+
+  /// Kullanıcının belirli sayfaya erişimi var mı?
+  /// Admin her zaman erişebilir. Yetki tanımlanmamışsa (boş set) tüm sayfaları göster (geriye uyumluluk).
+  /// Yetki tablosu henüz yüklenmediyse veya hata varsa tüm sayfaları göster.
+  bool _sayfaErisimVar(String sayfaKodu) {
+    if (RoleUtils.isAdmin(kullaniciRolu)) return true;
+    if (!_yetkilerYuklendi) return true; // Henüz yüklenmediyse göster
+    if (_sayfaYetkileri.isEmpty) return true; // Hiç yetki tanımlanmamışsa tümünü göster
+    return _sayfaYetkileri.contains(sayfaKodu);
+  }
 
   bool _dashboardRoleIs(String role) =>
       RoleUtils.sameDashboardRole(kullaniciRolu, role);
@@ -750,44 +788,49 @@ class _AnaSayfaState extends State<AnaSayfa> {
     // 1. Üretim Panelleri (admin + üretim modülü aktifse)
     if (RoleUtils.isAdmin(kullaniciRolu) && uretimAktif) {
       const c = Color(0xFF1976D2);
-      final paneller = <Map<String, dynamic>>[
-        {'text': 'Genel Üretim', 'icon': Icons.dashboard_customize_rounded, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GenelUretimDashboard()))},
-        {'text': 'Dokuma', 'icon': Icons.design_services, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DokumaDashboard()))},
-        {'text': 'Konfeksiyon', 'icon': Icons.checkroom, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KonfeksiyonDashboard()))},
-        {'text': 'Yıkama', 'icon': Icons.local_laundry_service, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const YikamaDashboard()))},
-        {'text': 'Ütü Paket', 'icon': Icons.inventory_2, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UtuPaketDashboard()))},
-        {'text': 'İlik Düğme', 'icon': Icons.radio_button_checked, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const IlikDugmeDashboard()))},
-      ];
-      if (kaliteAktif) {
+      final paneller = <Map<String, dynamic>>[];
+      if (_sayfaErisimVar('genel_uretim')) paneller.add({'text': 'Genel Üretim', 'icon': Icons.dashboard_customize_rounded, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GenelUretimDashboard()))});
+      if (_sayfaErisimVar('dokuma')) paneller.add({'text': 'Dokuma', 'icon': Icons.design_services, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DokumaDashboard()))});
+      if (_sayfaErisimVar('konfeksiyon')) paneller.add({'text': 'Konfeksiyon', 'icon': Icons.checkroom, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KonfeksiyonDashboard()))});
+      if (_sayfaErisimVar('yikama')) paneller.add({'text': 'Yıkama', 'icon': Icons.local_laundry_service, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const YikamaDashboard()))});
+      if (_sayfaErisimVar('utu_paket')) paneller.add({'text': 'Ütü Paket', 'icon': Icons.inventory_2, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UtuPaketDashboard()))});
+      if (_sayfaErisimVar('ilik_dugme')) paneller.add({'text': 'İlik Düğme', 'icon': Icons.radio_button_checked, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const IlikDugmeDashboard()))});
+      if (kaliteAktif && _sayfaErisimVar('kalite_kontrol')) {
         paneller.add({'text': 'Kalite Kontrol', 'icon': Icons.verified, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KaliteKontrolDashboard()))});
       }
-      if (sevkiyatAktif) {
+      if (sevkiyatAktif && _sayfaErisimVar('sevkiyat')) {
         paneller.add({'text': 'Sevkiyat', 'icon': Icons.local_shipping, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SevkiyatPanel()))});
       }
-      kategoriler['Üretim Panelleri'] = paneller;
+      if (paneller.isNotEmpty) kategoriler['Üretim Panelleri'] = paneller;
     }
 
     // 2. Üretim & Stok
     final List<Map<String, dynamic>> uretimStok = [];
     const usc = Color(0xFF2E7D32);
     if (_isBackofficeUser && uretimAktif) {
-      uretimStok.addAll([
-        {'text': 'Yeni Model Ekle', 'icon': Icons.add_box_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelEkle()))},
-        {'text': 'Toplu Model Ekle', 'icon': Icons.upload_file_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopluModelEkle()))},
-      ]);
+      if (_sayfaErisimVar('yeni_model_ekle')) {
+        uretimStok.add({'text': 'Yeni Model Ekle', 'icon': Icons.add_box_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelEkle()))});
+      }
+      if (_sayfaErisimVar('toplu_model_ekle')) {
+        uretimStok.add({'text': 'Toplu Model Ekle', 'icon': Icons.upload_file_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopluModelEkle()))});
+      }
     }
     if (uretimAktif &&
         (RoleUtils.isAdmin(kullaniciRolu) || !_dashboardRoleIs('depo'))) {
-      uretimStok.addAll([
-        {'text': 'Kayıtlı Modeller', 'icon': Icons.inventory_2_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelListele()))},
-        {'text': 'Tamamlanan Siparişler', 'icon': Icons.check_circle_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TamamlananSiparislerPage()))},
-      ]);
+      if (_sayfaErisimVar('kayitli_modeller')) {
+        uretimStok.add({'text': 'Kayıtlı Modeller', 'icon': Icons.inventory_2_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelListele()))});
+      }
+      if (_sayfaErisimVar('tamamlanan_siparisler')) {
+        uretimStok.add({'text': 'Tamamlanan Siparişler', 'icon': Icons.check_circle_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TamamlananSiparislerPage()))});
+      }
     }
     if (stokAktif &&
         (RoleUtils.isAdmin(kullaniciRolu) ||
             _dashboardRoleIs('depo') ||
             RoleUtils.isStandardUser(kullaniciRolu))) {
-      uretimStok.add({'text': 'Depo Yönetimi', 'icon': Icons.warehouse_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StokYonetimiPage()))});
+      if (_sayfaErisimVar('depo_yonetimi')) {
+        uretimStok.add({'text': 'Depo Yönetimi', 'icon': Icons.warehouse_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StokYonetimiPage()))});
+      }
     }
     if (uretimStok.isNotEmpty) kategoriler['Üretim & Stok'] = uretimStok;
 
@@ -795,38 +838,50 @@ class _AnaSayfaState extends State<AnaSayfa> {
     if (raporAktif && _isBackofficeUser) {
       const rc = Color(0xFF00695C);
       final raporlar = <Map<String, dynamic>>[];
-      if (uretimAktif) {
+      if (uretimAktif && _sayfaErisimVar('uretim_raporu')) {
         raporlar.add({'text': 'Üretim Raporu', 'icon': Icons.assessment_rounded, 'color': rc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UretimRaporuPage()))});
       }
-      raporlar.add({'text': 'Gelişmiş Raporlar', 'icon': Icons.analytics_rounded, 'color': rc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GelismisRaporlarPage()))});
-      kategoriler['Raporlar & Analiz'] = raporlar;
+      if (_sayfaErisimVar('gelismis_raporlar')) {
+        raporlar.add({'text': 'Gelişmiş Raporlar', 'icon': Icons.analytics_rounded, 'color': rc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GelismisRaporlarPage()))});
+      }
+      if (raporlar.isNotEmpty) kategoriler['Raporlar & Analiz'] = raporlar;
     }
 
     // 4. Finansal Yönetim
     if ((finansAktif || tedarikAktif) && _isBackofficeUser) {
       const fc = Color(0xFF1565C0);
       final finansItems = <Map<String, dynamic>>[];
-      if (tedarikAktif) {
+      if (tedarikAktif && _sayfaErisimVar('tedarikci_yonetimi')) {
         finansItems.add({'text': 'Tedarikçi Yönetimi', 'icon': Icons.business_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TedarikciListesiPage()))});
       }
       if (finansAktif) {
-        finansItems.addAll([
-          {'text': 'Faturalar', 'icon': Icons.receipt_long_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FaturaListesiPage()))},
-          {'text': 'Kasa & Banka', 'icon': Icons.account_balance_wallet_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KasaBankaListesiPage()))},
-          {'text': 'Kasa/Banka Hareketleri', 'icon': Icons.swap_horiz_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KasaBankaHareketListesiPage()))},
-        ]);
+        if (_sayfaErisimVar('faturalar')) {
+          finansItems.add({'text': 'Faturalar', 'icon': Icons.receipt_long_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FaturaListesiPage()))});
+        }
+        if (_sayfaErisimVar('kasa_banka')) {
+          finansItems.add({'text': 'Kasa & Banka', 'icon': Icons.account_balance_wallet_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KasaBankaListesiPage()))});
+        }
+        if (_sayfaErisimVar('kasa_banka_hareketleri')) {
+          finansItems.add({'text': 'Kasa/Banka Hareketleri', 'icon': Icons.swap_horiz_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KasaBankaHareketListesiPage()))});
+        }
       }
-      finansItems.add({'text': 'Dosya Yönetimi', 'icon': Icons.folder_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DosyalarPage()))});
-      kategoriler['Finansal Yönetim'] = finansItems;
+      if (_sayfaErisimVar('dosya_yonetimi')) {
+        finansItems.add({'text': 'Dosya Yönetimi', 'icon': Icons.folder_rounded, 'color': fc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DosyalarPage()))});
+      }
+      if (finansItems.isNotEmpty) kategoriler['Finansal Yönetim'] = finansItems;
     }
 
     // 5. İnsan Kaynakları
     if (ikAktif && _isBackofficeUser) {
       const ic = Color(0xFF7B1FA2);
-      kategoriler['İnsan Kaynakları'] = [
-        {'text': 'Personel Yönetimi', 'icon': Icons.badge_rounded, 'color': ic, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => PersonelAnaSayfa(kullaniciRolu: kullaniciRolu)))},
-        {'text': 'Kullanıcı Listesi', 'icon': Icons.supervisor_account_rounded, 'color': ic, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KullaniciListesiPage()))},
-      ];
+      final ikItems = <Map<String, dynamic>>[];
+      if (_sayfaErisimVar('personel_yonetimi')) {
+        ikItems.add({'text': 'Personel Yönetimi', 'icon': Icons.badge_rounded, 'color': ic, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => PersonelAnaSayfa(kullaniciRolu: kullaniciRolu)))});
+      }
+      if (_sayfaErisimVar('kullanici_listesi')) {
+        ikItems.add({'text': 'Kullanıcı Listesi', 'icon': Icons.supervisor_account_rounded, 'color': ic, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KullaniciListesiPage()))});
+      }
+      if (ikItems.isNotEmpty) kategoriler['İnsan Kaynakları'] = ikItems;
     }
 
     // 7. Kullanıcı & Yetki Yönetimi (firma admin)
@@ -835,25 +890,34 @@ class _AnaSayfaState extends State<AnaSayfa> {
       kategoriler['Kullanıcı & Yetki'] = [
         {'text': 'Firma Kullanıcıları', 'icon': Icons.people_alt_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaKullaniciYonetimiPage()))},
         {'text': 'Rol & Yetki Yönetimi', 'icon': Icons.security_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))},
+        {'text': 'Sayfa Yetki Yönetimi', 'icon': Icons.lock_open_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))},
       ];
     }
 
     // 7. Abonelik & Plan Yönetimi
     if (RoleUtils.isAdmin(kullaniciRolu)) {
       const ac = Color(0xFF00838F);
-      kategoriler['Abonelik & Plan'] = [
-        {'text': 'Abonelik Yönetimi', 'icon': Icons.card_membership_rounded, 'color': ac, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbonelikYonetimiPage()))},
-        {'text': 'Plan Değiştir', 'icon': Icons.swap_vert_circle_rounded, 'color': ac, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlanSecimPage()))},
-      ];
+      final abonelikItems = <Map<String, dynamic>>[];
+      if (_sayfaErisimVar('abonelik_yonetimi')) {
+        abonelikItems.add({'text': 'Abonelik Yönetimi', 'icon': Icons.card_membership_rounded, 'color': ac, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbonelikYonetimiPage()))});
+      }
+      if (_sayfaErisimVar('plan_degistir')) {
+        abonelikItems.add({'text': 'Plan Değiştir', 'icon': Icons.swap_vert_circle_rounded, 'color': ac, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlanSecimPage()))});
+      }
+      if (abonelikItems.isNotEmpty) kategoriler['Abonelik & Plan'] = abonelikItems;
     }
 
     // 8. Platform Yönetimi (Super Admin)
     if (RoleUtils.isAdmin(kullaniciRolu)) {
       const pc = Color(0xFF1A237E);
-      kategoriler['Platform Yönetimi'] = [
-        {'text': 'Platform Paneli', 'icon': Icons.admin_panel_settings_rounded, 'color': pc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlatformDashboard()))},
-        {'text': 'Migrasyon Durumu', 'icon': Icons.sync_alt_rounded, 'color': pc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MigrasyonDurumuPage()))},
-      ];
+      final platformItems = <Map<String, dynamic>>[];
+      if (_sayfaErisimVar('platform_paneli')) {
+        platformItems.add({'text': 'Platform Paneli', 'icon': Icons.admin_panel_settings_rounded, 'color': pc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlatformDashboard()))});
+      }
+      if (_sayfaErisimVar('migrasyon_durumu')) {
+        platformItems.add({'text': 'Migrasyon Durumu', 'icon': Icons.sync_alt_rounded, 'color': pc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MigrasyonDurumuPage()))});
+      }
+      if (platformItems.isNotEmpty) kategoriler['Platform Yönetimi'] = platformItems;
     }
 
     return kategoriler;

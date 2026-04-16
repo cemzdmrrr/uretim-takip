@@ -116,6 +116,7 @@ class DbTables {
   static const firmaAbonelikleri = 'firma_abonelikleri';
   static const abonelikOdemeleri = 'abonelik_odemeleri';
   static const yetkiTanimlari = 'yetki_tanimlari';
+  static const kullaniciSayfaYetkileri = 'kullanici_sayfa_yetkileri';
 
   // ─── Genel Üretim (Phase 8) ───
   static const uretimAtamalari = 'uretim_atamalari';
