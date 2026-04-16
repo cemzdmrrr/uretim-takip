@@ -1,0 +1,119 @@
+-- =============================================
+-- KASA/BANKA HAREKETLERİ TABLOSU
+-- Tarih: 28.06.2025
+-- Açıklama: Kasa ve banka hesaplarındaki para hareketlerini takip eden tablo
+-- =============================================
+
+-- 1. Kasa/Banka Hareketleri Ana Tablosu
+CREATE TABLE IF NOT EXISTS public.kasa_banka_hareketleri (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    kasa_banka_id INTEGER NOT NULL,
+    hareket_tipi VARCHAR(20) NOT NULL CHECK (hareket_tipi IN ('GIRIS', 'CIKIS', 'TRANSFER')),
+    kategori VARCHAR(50) NOT NULL,
+    tutar DECIMAL(15,2) NOT NULL CHECK (tutar > 0),
+    doviz_turu VARCHAR(3) NOT NULL DEFAULT 'TRY',
+    aciklama TEXT,
+    referans_no VARCHAR(100),
+    islem_tarihi DATE NOT NULL DEFAULT CURRENT_DATE,
+    
+    -- Transfer işlemleri için
+    hedef_kasa_banka_id INTEGER, -- Transfer edilen hesap
+    transfer_referans UUID, -- Transfer işlemlerini eşleştirmek için
+    
+    -- Fatura entegrasyonu için
+    fatura_id UUID,
+    odeme_id UUID,
+    
+    -- Sistem alanları
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_by UUID,
+    updated_by UUID,
+    
+    -- Foreign Key Constraints
+    CONSTRAINT fk_kasa_banka_hareketleri_kasa_banka 
+        FOREIGN KEY (kasa_banka_id) REFERENCES public.kasa_banka_hesaplari(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_kasa_banka_hareketleri_hedef 
+        FOREIGN KEY (hedef_kasa_banka_id) REFERENCES public.kasa_banka_hesaplari(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_kasa_banka_hareketleri_fatura 
+        FOREIGN KEY (fatura_id) REFERENCES public.faturalar(id) ON DELETE SET NULL,
+    CONSTRAINT fk_kasa_banka_hareketleri_created_by 
+        FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_kasa_banka_hareketleri_updated_by 
+        FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+-- 2. İndeksler
+CREATE INDEX IF NOT EXISTS idx_kasa_banka_hareketleri_kasa_banka_id 
+    ON public.kasa_banka_hareketleri(kasa_banka_id);
+CREATE INDEX IF NOT EXISTS idx_kasa_banka_hareketleri_hareket_tipi 
+    ON public.kasa_banka_hareketleri(hareket_tipi);
+CREATE INDEX IF NOT EXISTS idx_kasa_banka_hareketleri_islem_tarihi 
+    ON public.kasa_banka_hareketleri(islem_tarihi);
+CREATE INDEX IF NOT EXISTS idx_kasa_banka_hareketleri_kategori 
+    ON public.kasa_banka_hareketleri(kategori);
+CREATE INDEX IF NOT EXISTS idx_kasa_banka_hareketleri_transfer_referans 
+    ON public.kasa_banka_hareketleri(transfer_referans) WHERE transfer_referans IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_kasa_banka_hareketleri_fatura_id 
+    ON public.kasa_banka_hareketleri(fatura_id) WHERE fatura_id IS NOT NULL;
+
+-- 3. Updated_at trigger'ı
+CREATE OR REPLACE FUNCTION public.update_kasa_banka_hareketleri_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    NEW.updated_by = auth.uid();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_update_kasa_banka_hareketleri_updated_at
+    BEFORE UPDATE ON public.kasa_banka_hareketleri
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_kasa_banka_hareketleri_updated_at();
+
+-- 4. Created_by otomatik doldurma trigger'ı
+CREATE OR REPLACE FUNCTION public.set_kasa_banka_hareketleri_created_by()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.created_by IS NULL THEN
+        NEW.created_by = auth.uid();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_set_kasa_banka_hareketleri_created_by
+    BEFORE INSERT ON public.kasa_banka_hareketleri
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_kasa_banka_hareketleri_created_by();
+
+-- 5. RLS (Row Level Security) Politikaları
+ALTER TABLE public.kasa_banka_hareketleri ENABLE ROW LEVEL SECURITY;
+
+-- Kullanıcılar kendi şirketlerinin verilerini görebilir
+CREATE POLICY "Kullanıcılar kendi şirket hareketlerini görebilir" 
+    ON public.kasa_banka_hareketleri FOR SELECT
+    USING (auth.uid() IS NOT NULL);
+
+-- Kullanıcılar hareket ekleyebilir
+CREATE POLICY "Kullanıcılar hareket ekleyebilir" 
+    ON public.kasa_banka_hareketleri FOR INSERT
+    WITH CHECK (auth.uid() IS NOT NULL);
+
+-- Kullanıcılar kendi eklediği hareketleri güncelleyebilir
+CREATE POLICY "Kullanıcılar kendi hareketlerini güncelleyebilir" 
+    ON public.kasa_banka_hareketleri FOR UPDATE
+    USING (created_by = auth.uid())
+    WITH CHECK (created_by = auth.uid());
+
+-- Kullanıcılar kendi eklediği hareketleri silebilir (dikkatli kullanım)
+CREATE POLICY "Kullanıcılar kendi hareketlerini silebilir" 
+    ON public.kasa_banka_hareketleri FOR DELETE
+    USING (created_by = auth.uid());
+
+-- 6. Grant permissions
+GRANT ALL ON public.kasa_banka_hareketleri TO authenticated;
+
+-- Migration tamamlandı
+SELECT 'Kasa/Banka Hareketleri tablosu başarıyla oluşturuldu!' as result;

@@ -102,13 +102,12 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
   }
 
   String _kullaniciAdi(Map<String, dynamic> kullanici) {
-    final k = kullanici['kullanicilar'] as Map<String, dynamic>?;
-    if (k == null) return kullanici['user_id']?.toString().substring(0, 8) ?? '-';
-    final ad = k['ad'] ?? '';
-    final soyad = k['soyad'] ?? '';
-    final email = k['email'] ?? '';
+    final ad = kullanici['ad'] ?? '';
+    final soyad = kullanici['soyad'] ?? '';
+    final email = kullanici['email'] ?? '';
     if (ad.toString().isNotEmpty) return '$ad $soyad'.trim();
-    return email.toString();
+    if (email.toString().isNotEmpty) return email.toString();
+    return kullanici['user_id']?.toString().substring(0, 8) ?? '-';
   }
 
   String _rolEtiketi(String? rol) {

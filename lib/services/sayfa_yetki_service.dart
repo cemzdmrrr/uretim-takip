@@ -148,11 +148,7 @@ class SayfaYetkiService {
   static Future<List<Map<String, dynamic>>> firmaKullanicilariniGetir() async {
     try {
       final response = await _client
-          .from(DbTables.firmaKullanicilari)
-          .select('user_id, rol, aktif, kullanicilar(email, ad, soyad)')
-          .eq('firma_id', _firmaId)
-          .eq('aktif', true)
-          .order('rol');
+          .rpc('firma_kullanicilari_detay', params: {'p_firma_id': _firmaId});
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
