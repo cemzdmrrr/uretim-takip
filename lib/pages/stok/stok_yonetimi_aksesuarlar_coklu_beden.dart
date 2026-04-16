@@ -70,7 +70,7 @@ class _StokYonetimiAksesuarlarCokluBedenState extends State<StokYonetimiAksesuar
       if (modelIds.isNotEmpty) {
         final modellerResponse = await supabase
             .from(DbTables.trikoTakip)
-            .select('id, model_adi, toplam_adet, adet, siparis_adedi, durum')
+            .select('id, model_adi, toplam_adet, adet, durum, bedenler')
             .inFilter('id', modelIds.toList());
 
         for (var model in modellerResponse) {
@@ -89,9 +89,11 @@ class _StokYonetimiAksesuarlarCokluBedenState extends State<StokYonetimiAksesuar
         if (model == null) continue;
 
         final modelAdi = model['model_adi']?.toString() ?? 'Bilinmeyen Model';
-        final int modelAdet = (model['toplam_adet'] ?? model['adet'] ?? model['siparis_adedi'] ?? 0) as int;
+        final int modelAdet = (model['toplam_adet'] ?? model['adet'] ?? 0) as int;
         final int adetPerModel = (ma['adet_per_model'] ?? ma['miktar'] ?? 1) as int;
         final String durum = model['durum']?.toString() ?? '';
+        final Map<String, dynamic> modelBedenler = 
+            (model['bedenler'] as Map<String, dynamic>?) ?? {};
 
         kullanimMap.putIfAbsent(aksesuarId, () => []);
         kullanimMap[aksesuarId]!.add({
@@ -101,6 +103,7 @@ class _StokYonetimiAksesuarlarCokluBedenState extends State<StokYonetimiAksesuar
           'adet_per_model': adetPerModel,
           'gereken_adet': modelAdet * adetPerModel,
           'durum': durum,
+          'bedenler': modelBedenler,
         });
       }
 
@@ -127,11 +130,86 @@ class _StokYonetimiAksesuarlarCokluBedenState extends State<StokYonetimiAksesuar
     return kullanimlar.fold(0, (sum, k) => sum + (k['gereken_adet'] as int));
   }
 
-  /// Stok yeterli mi? (toplam stok >= toplam talep)
+  /// Aksesuar beden adları model beden anahtarlarıyla eşleşiyor mu?
+  bool _hasBedenEslesmesi(Map<String, dynamic> aksesuar) {
+    final aksesuarId = aksesuar['id']?.toString();
+    if (aksesuarId == null) return false;
+    final kullanimlar = _modelKullanimlari[aksesuarId];
+    if (kullanimlar == null || kullanimlar.isEmpty) return false;
+    
+    final bedenler = aksesuar['aksesuar_bedenler'] as List? ?? [];
+    for (var beden in bedenler) {
+      if (beden['durum'] != 'aktif') continue;
+      final bedenAdi = beden['beden']?.toString() ?? '';
+      for (var k in kullanimlar) {
+        final modelBedenler = k['bedenler'] as Map<String, dynamic>? ?? {};
+        if (modelBedenler.containsKey(bedenAdi)) return true;
+      }
+    }
+    return false;
+  }
+
+  /// Belirli bir beden için tüm modellerden gelen talep
+  /// Eşleşme varsa: model.bedenler[bedenAdi] * adet_per_model
+  /// Eşleşme yoksa: toplam talep / aktif beden sayısı (eşit dağılım)
+  int _getBedenTalep(Map<String, dynamic> aksesuar, String bedenAdi) {
+    final aksesuarId = aksesuar['id']?.toString();
+    if (aksesuarId == null) return 0;
+    final kullanimlar = _modelKullanimlari[aksesuarId];
+    if (kullanimlar == null || kullanimlar.isEmpty) return 0;
+
+    // Beden eşleşmesi varsa direkt hesapla
+    if (_hasBedenEslesmesi(aksesuar)) {
+      int toplam = 0;
+      for (var k in kullanimlar) {
+        final modelBedenler = k['bedenler'] as Map<String, dynamic>? ?? {};
+        final adetPerModel = k['adet_per_model'] as int? ?? 1;
+        final bedenAdet = (modelBedenler[bedenAdi] as num?)?.toInt() ?? 0;
+        toplam += bedenAdet * adetPerModel;
+      }
+      return toplam;
+    }
+
+    // Eşleşme yoksa toplam talebi aktif bedenler arasında eşit dağıt
+    final bedenler = aksesuar['aksesuar_bedenler'] as List? ?? [];
+    final aktifBedenSayisi = bedenler.where((b) => b['durum'] == 'aktif').length;
+    if (aktifBedenSayisi == 0) return 0;
+    final toplamTalep = _getToplamTalep(aksesuar);
+    return (toplamTalep / aktifBedenSayisi).ceil();
+  }
+
+  /// Stok yeterli mi? Çoklu beden aksesuarlar için beden bazlı kontrol
   bool _isStokYeterli(Map<String, dynamic> aksesuar) {
-    final talep = _getToplamTalep(aksesuar);
-    if (talep == 0) return true; // Talep yoksa sorun yok
-    return _getTotalStock(aksesuar) >= talep;
+    final aksesuarId = aksesuar['id']?.toString();
+    if (aksesuarId == null) return true;
+    final kullanimlar = _modelKullanimlari[aksesuarId];
+    if (kullanimlar == null || kullanimlar.isEmpty) return true;
+    
+    final bedenler = aksesuar['aksesuar_bedenler'] as List? ?? [];
+    final aktifBedenler = bedenler.where((b) => b['durum'] == 'aktif').toList();
+    
+    if (aktifBedenler.isNotEmpty) {
+      if (_hasBedenEslesmesi(aksesuar)) {
+        // Beden adları eşleşiyor: her bedeni ayrı kontrol et
+        for (var beden in aktifBedenler) {
+          final bedenAdi = beden['beden']?.toString() ?? '';
+          final stok = (beden['stok_miktari'] as int? ?? 0);
+          final talep = _getBedenTalep(aksesuar, bedenAdi);
+          if (talep > 0 && stok < talep) return false;
+        }
+        return true;
+      } else {
+        // Beden adları eşleşmiyor: toplam stok vs toplam talep
+        final toplamTalep = _getToplamTalep(aksesuar);
+        if (toplamTalep == 0) return true;
+        return _getTotalStock(aksesuar) >= toplamTalep;
+      }
+    }
+    
+    // Bedensiz aksesuar: toplam kontrol
+    final toplamTalep = _getToplamTalep(aksesuar);
+    if (toplamTalep == 0) return true;
+    return _getTotalStock(aksesuar) >= toplamTalep;
   }
 
   List<Map<String, dynamic>> get filteredAksesuarlar {
@@ -167,173 +245,165 @@ class _StokYonetimiAksesuarlarCokluBedenState extends State<StokYonetimiAksesuar
     
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ExpansionTile(
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: isLowStock ? Colors.red.shade100 : Colors.green.shade100,
-            borderRadius: BorderRadius.circular(8),
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        child: ListTile(
+          leading: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: isLowStock ? Colors.red.shade100 : Colors.green.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.inventory,
+              color: isLowStock ? Colors.red.shade700 : Colors.green.shade700,
+            ),
           ),
-          child: Icon(
-            Icons.inventory,
-            color: isLowStock ? Colors.red.shade700 : Colors.green.shade700,
+          title: Text(
+            aksesuar['ad'] ?? 'Adsız Aksesuar',
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-        ),
-        title: Text(
-          aksesuar['ad'] ?? 'Adsız Aksesuar',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('SKU: ${aksesuar['sku'] ?? 'Yok'}'),
-            Text('Marka: ${aksesuar['marka'] ?? 'Belirtilmemiş'}'),
-            Row(
-              children: [
-                Text(
-                  'Stok: $totalStock',
-                  style: TextStyle(
-                    color: isLowStock ? Colors.red : Colors.green,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (toplamTalep > 0) ...[
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('SKU: ${aksesuar['sku'] ?? 'Yok'}'),
+              Text('Marka: ${aksesuar['marka'] ?? 'Belirtilmemiş'}'),
+              Row(
+                children: [
                   Text(
-                    ' / Talep: $toplamTalep',
+                    'Stok: $totalStock',
                     style: TextStyle(
-                      color: Colors.blue.shade700,
+                      color: isLowStock ? Colors.red : Colors.green,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Text(
-                    ' (${kullanimlar.length} model)',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-                if (isLowStock) ...[
-                  const SizedBox(width: 8),
-                  const Icon(Icons.warning, color: Colors.red, size: 16),
-                  Text(
-                    toplamTalep > 0 ? ' $eksikAdet adet eksik' : ' Düşük Stok',
-                    style: const TextStyle(color: Colors.red, fontSize: 12),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.output_rounded, color: Colors.orange),
-              onPressed: () => _showSarfDialog(aksesuar),
-              tooltip: 'Sarf',
-            ),
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue),
-              onPressed: () => _showAddEditDialog(aksesuar: aksesuar),
-              tooltip: 'Düzenle',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deleteAksesuar(aksesuar),
-              tooltip: 'Sil',
-            ),
-          ],
-        ),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Model Kullanım Detayları
-                if (kullanimlar.isNotEmpty) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: stokYeterli ? Colors.blue.shade50 : Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: stokYeterli ? Colors.blue.shade200 : Colors.red.shade200,
+                  if (toplamTalep > 0) ...[
+                    Text(
+                      ' / Talep: $toplamTalep',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    Text(
+                      ' (${kullanimlar.length} model)',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  if (isLowStock) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.warning, color: Colors.red, size: 16),
+                    Text(
+                      toplamTalep > 0 ? ' $eksikAdet adet eksik' : ' Düşük Stok',
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.output_rounded, color: Colors.orange),
+                onPressed: () => _showSarfDialog(aksesuar),
+                tooltip: 'Sarf',
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.blue),
+                onPressed: () => _showAddEditDialog(aksesuar: aksesuar),
+                tooltip: 'Düzenle',
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteAksesuar(aksesuar),
+                tooltip: 'Sil',
+              ),
+            ],
+          ),
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) {
+                final stokYeterli = _isStokYeterli(aksesuar);
+                return Dialog(
+                  insetPadding: const EdgeInsets.all(24),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.assessment, size: 18,
-                                color: stokYeterli ? Colors.blue.shade700 : Colors.red.shade700),
-                            const SizedBox(width: 6),
+                            Icon(Icons.inventory, color: isLowStock ? Colors.red.shade700 : Colors.green.shade700),
+                            const SizedBox(width: 8),
                             Text(
-                              'Model Bazlı Talep Analizi',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: stokYeterli ? Colors.blue.shade800 : Colors.red.shade800,
-                              ),
+                              aksesuar['ad'] ?? 'Adsız Aksesuar',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        // Özet bilgi
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildMiniInfo('Mevcut Stok', '$totalStock', Colors.green),
-                              _buildMiniInfo('Toplam Talep', '$toplamTalep', Colors.blue),
-                              _buildMiniInfo(
-                                stokYeterli ? 'Fazla' : 'Eksik',
-                                stokYeterli
-                                    ? '${totalStock - toplamTalep}'
-                                    : '$eksikAdet',
-                                stokYeterli ? Colors.green : Colors.red,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Stok/Talep ilerleme çubuğu
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: toplamTalep > 0
-                                ? (totalStock / toplamTalep).clamp(0.0, 1.0)
-                                : 1.0,
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor: AlwaysStoppedAnimation(
+                        const SizedBox(height: 12),
+                        Text('SKU: ${aksesuar['sku'] ?? 'Yok'}'),
+                        Text('Marka: ${aksesuar['marka'] ?? 'Belirtilmemiş'}'),
+                        Text('Renk: ${aksesuar['renk'] ?? '-'}'),
+                        const Divider(),
+                        Row(
+                          children: [
+                            _buildMiniInfo('Mevcut Stok', '$totalStock', Colors.green),
+                            const SizedBox(width: 12),
+                            _buildMiniInfo('Toplam Talep', '$toplamTalep', Colors.blue),
+                            const SizedBox(width: 12),
+                            _buildMiniInfo(
+                              stokYeterli ? 'Fazla' : 'Eksik',
+                              stokYeterli ? '${totalStock - toplamTalep}' : '$eksikAdet',
                               stokYeterli ? Colors.green : Colors.red,
                             ),
-                            minHeight: 8,
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        if (kullanimlar.isNotEmpty) ...[
+                          Text('Model Bazlı Talep Analizi', style: TextStyle(fontWeight: FontWeight.bold, color: stokYeterli ? Colors.blue.shade800 : Colors.red.shade800)),
+                          const SizedBox(height: 8),
+                          ...kullanimlar.map((k) => Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.label, size: 16, color: Colors.blueGrey),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        '${k['model_adi']} - ${k['gereken_adet']} adet',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )),
+                        ],
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Kapat'),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        // Model listesi
-                        ...kullanimlar.map((k) {
-                          final gerekenAdet = k['gereken_adet'] as int;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Row(
-                              children: [
-                                Icon(Icons.style, size: 14, color: Colors.grey.shade600),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    k['model_adi'] as String,
-                                    style: const TextStyle(fontSize: 13),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      );
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -429,27 +499,64 @@ class _StokYonetimiAksesuarlarCokluBedenState extends State<StokYonetimiAksesuar
                     (aksesuar['aksesuar_bedenler'] as List).isNotEmpty)
                   ...((aksesuar['aksesuar_bedenler'] as List)
                       .where((beden) => beden['durum'] == 'aktif')
-                      .map((beden) => Container(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  beden['beden'],
-                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                      .map((beden) {
+                        final bedenAdi = beden['beden']?.toString() ?? '';
+                        final stok = (beden['stok_miktari'] as int? ?? 0);
+                        final bedenTalep = _getBedenTalep(aksesuar, bedenAdi);
+                        final bedenYeterli = bedenTalep == 0 || stok >= bedenTalep;
+                        final bedenEksik = bedenTalep > stok ? bedenTalep - stok : 0;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 50,
+                                child: Text(
+                                  bedenAdi,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                 ),
-                                Text(
-                                  '${beden['stok_miktari']} adet',
-                                  style: TextStyle(
-                                    color: beden['stok_miktari'] > 0 
-                                      ? Colors.green.shade700 
-                                      : Colors.red.shade700,
-                                    fontWeight: FontWeight.w500,
+                              ),
+                              if (bedenTalep > 0) ...[
+                                Expanded(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: (stok / bedenTalep).clamp(0.0, 1.0),
+                                      backgroundColor: Colors.grey.shade200,
+                                      valueColor: AlwaysStoppedAnimation(
+                                        bedenYeterli ? Colors.green : Colors.red,
+                                      ),
+                                      minHeight: 8,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 140,
+                                  child: Text(
+                                    '$stok / $bedenTalep ${bedenYeterli ? '✓' : '($bedenEksik eksik)'}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: bedenYeterli ? Colors.green.shade700 : Colors.red.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ] else ...[
+                                Expanded(
+                                  child: Text(
+                                    '$stok adet',
+                                    style: TextStyle(
+                                      color: stok > 0 ? Colors.green.shade700 : Colors.red.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ],
-                            ),
-                          )))
+                            ],
+                          ),
+                        );
+                      }))
                 else
                   const Text(
                     'Beden bilgisi yok',

@@ -149,6 +149,7 @@ class _DosyalarPageState extends State<DosyalarPage> {
           'ust_klasor_id': aktifKlasorId,
           'mime_type': _getMimeType(extension),
           'olusturan_kullanici_id': supabase.auth.currentUser?.id,
+          'firma_id': TenantManager.instance.requireFirmaId,
         });
 
         if (!mounted) return;
@@ -230,6 +231,7 @@ class _DosyalarPageState extends State<DosyalarPage> {
           'yol': 'folders/${DateTime.now().millisecondsSinceEpoch}_$sonuc/',
           'ust_klasor_id': aktifKlasorId,
           'olusturan_kullanici_id': supabase.auth.currentUser?.id,
+          'firma_id': TenantManager.instance.requireFirmaId,
         });
 
         if (!mounted) return;
