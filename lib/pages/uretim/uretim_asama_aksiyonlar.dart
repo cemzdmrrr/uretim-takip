@@ -587,6 +587,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         'kontrol_edilecek_adet': adet,
         'atama_tarihi': DateTime.now().toIso8601String(),
         'notlar': '${widget.asamaDisplayName} tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet [$uniqueId]',
+        'firma_id': TenantManager.instance.requireFirmaId,
       });
       
       debugPrint('✅ Kalite kontrol ataması oluşturuldu: ${widget.asamaDisplayName} -> Kalite Kontrol');
@@ -642,6 +643,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           'tamamlanan_adet': 0,
           'atama_tarihi': DateTime.now().toIso8601String(),
           'notlar': '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet [$uniqueId]',
+          'firma_id': TenantManager.instance.requireFirmaId,
         });
         debugPrint('✅ Paketleme ataması oluşturuldu - $adet adet');
       } catch (e) {
@@ -658,6 +660,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           'durum': 'beklemede',
           'alis_tarihi': DateTime.now().toIso8601String(),
           'notlar': '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} [$uniqueId]',
+          'firma_id': TenantManager.instance.requireFirmaId,
         });
         debugPrint('✅ Sevkiyat kaydı oluşturuldu - $adet adet');
       } catch (e) {

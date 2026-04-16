@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
+import 'package:uretim_takip/services/tenant_manager.dart';
 
 part 'kalite_kontrol_panel_widgets.dart';
 

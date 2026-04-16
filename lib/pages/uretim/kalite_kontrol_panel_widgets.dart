@@ -442,6 +442,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     'tamamlanan_adet': 0,
                     'atama_tarihi': DateTime.now().toIso8601String(),
                     'notlar': 'Kalite kontrol onaylandı - ${model['marka']} ${model['item_no']} - $kontrolAdet adet sevkiyata hazır',
+                    'firma_id': TenantManager.instance.requireFirmaId,
                   });
                   debugPrint('✅ Paketleme ataması oluşturuldu (yeni kayıt)');
                 } catch (e) {
@@ -459,6 +460,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     'durum': 'beklemede',
                     'alis_tarihi': DateTime.now().toIso8601String(),
                     'notlar': 'Kalite kontrol onaylandı - ${model['marka']} ${model['item_no']}',
+                    'firma_id': TenantManager.instance.requireFirmaId,
                   });
                   debugPrint('✅ Sevkiyat kaydı oluşturuldu (yeni kayıt)');
                 } catch (e) {

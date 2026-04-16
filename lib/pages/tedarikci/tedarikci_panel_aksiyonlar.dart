@@ -717,6 +717,7 @@ extension _AksiyonExt on _TedarikciPanelState {
         'atama_tarihi': DateTime.now().toIso8601String(),
         'created_at': DateTime.now().toIso8601String(),
         'notlar': '${oncekiAtama['atama_tipi']} aşaması tamamlandı - ${oncekiAtama['atama_tipi']} ID: ${oncekiAtama['id']} ($tamamlananAdet adet)',
+        'firma_id': TenantManager.instance.requireFirmaId,
       });
       
       debugPrint('✅ Kalite kontrol ataması başarıyla oluşturuldu');

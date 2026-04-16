@@ -883,6 +883,7 @@ extension _AdminIslemlerExt on _ModelDetayState {
         'tamamlanan_adet': 0,
         'durum': 'atandi',
         'created_at': DateTime.now().toIso8601String(),
+        'firma_id': TenantManager.instance.requireFirmaId,
       };
       
       // UUID formatı kontrolü - test kullanıcıları için geçersiz UUID'ler var

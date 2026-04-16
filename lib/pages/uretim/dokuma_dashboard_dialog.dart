@@ -543,6 +543,7 @@ class _BedenUretimTamamlaDialogState extends State<_BedenUretimTamamlaDialog> {
             'kontrol_edilecek_adet': netAdet,
             'atama_tarihi': DateTime.now().toIso8601String(),
             'notlar': 'Dokuma$kismiNot - ${widget.modelAdi} - $netAdet adet${toplamFire > 0 ? " (Fire: $toplamFire${firedenDus ? " düşüldü" : ""})" : ""}',
+            'firma_id': TenantManager.instance.requireFirmaId,
           });
           
           await BildirimService().roleGoreBildirimGonder(

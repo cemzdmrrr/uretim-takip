@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:uretim_takip/services/dashboard_event_bus.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/beden_service.dart';
+import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/models/beden_models.dart';
 
 

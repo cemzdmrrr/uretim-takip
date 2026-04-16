@@ -287,6 +287,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             'durum': 'atandi',
             'atama_tarihi': DateTime.now().toIso8601String(),
             'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
+            'firma_id': TenantManager.instance.requireFirmaId,
           });
 
           debugPrint(
@@ -343,6 +344,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           'durum': 'bekleyen',
           'onceki_asama': 'utu',
           'atama_tarihi': DateTime.now().toIso8601String(),
+          'firma_id': TenantManager.instance.requireFirmaId,
         });
 
         debugPrint('Yeni paketleme ataması oluşturuldu: $tamamlananAdet adet');
@@ -734,6 +736,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             'durum': 'bekliyor',
             'baslangic_tarihi': DateTime.now().toIso8601String(),
             'notlar': 'Kalan adet (Önceki atama: ${atama['id']})',
+            'firma_id': TenantManager.instance.requireFirmaId,
           });
         } else {
           // Fazla tamamlandı

@@ -3,6 +3,7 @@ import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/app_routes.dart';
+import 'package:uretim_takip/services/tenant_manager.dart';
 
 part 'tedarikci_panel_aksiyonlar.dart';
 
