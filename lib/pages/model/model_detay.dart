@@ -501,6 +501,8 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
         bottom: _tabController == null ? null : TabBar(
           controller: _tabController,
           isScrollable: true,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
           tabs: [
             const Tab(icon: Icon(Icons.info), text: 'Model Bilgileri'),
