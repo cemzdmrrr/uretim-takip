@@ -282,32 +282,14 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
               children: [
                 Text(
                     'Tedarikçi: ${siparis['tedarikci_adi'] ?? 'Belirtilmemiş'}'),
-                if (siparisRengi.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.palette_outlined,
-                          size: 14,
-                          color: Color(0xFF8B6B3F),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Renk: $siparisRengi',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF8B6B3F),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
+                Text(
+                  'Renk: ${siparisRengi.isNotEmpty ? siparisRengi : 'Belirtilmemiş'}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: siparisRengi.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
+                    color: siparisRengi.isNotEmpty ? const Color(0xFF8B6B3F) : Colors.grey,
                   ),
+                ),
                 Text('Sipariş: ${siparisMiktari.toStringAsFixed(1)} $birim'),
                 if (teslimMiktari > 0) ...[
                   Text('Teslim: ${teslimMiktari.toStringAsFixed(1)} $birim'),
