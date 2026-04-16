@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:uretim_takip/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -30,8 +30,8 @@ Future<void> main() async {
   // Sadece masaüstü platformlarda window_manager kullan
   if (!kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
-       defaultTargetPlatform == TargetPlatform.linux ||
-       defaultTargetPlatform == TargetPlatform.macOS)) {
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS)) {
     await windowManager.ensureInitialized();
     windowManager.setTitle('TexPilot');
   }
@@ -58,27 +58,15 @@ Future<void> main() async {
     return;
   }
 
+  await SecureCredentialStorage.migrateLegacyStorage();
   final rememberMe = await SecureCredentialStorage.isRememberMeEnabled;
-  final email = await SecureCredentialStorage.savedEmail;
-  final password = await SecureCredentialStorage.savedPassword;
 
-  bool isLoggedIn = false;
-
-  if (rememberMe && email != null && password != null) {
-    try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      if (response.user != null) {
-        isLoggedIn = true;
-      }
-    } catch (e) {
-      debugPrint('Otomatik giriş başarısız: $e');
-      // Kayıtlı kimlik bilgileri geçersiz — login sayfasına yönlendir
-      await SecureCredentialStorage.clear();
-    }
+  if (!rememberMe && Supabase.instance.client.auth.currentSession != null) {
+    await Supabase.instance.client.auth.signOut();
+    await SecureCredentialStorage.clear();
   }
+
+  final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
 
   // Auth provider'ı başlat
   final authProvider = AuthProvider();
@@ -92,7 +80,10 @@ Future<void> main() async {
     }
   }
 
-  runApp(MyApp(isLoggedIn: isLoggedIn, authProvider: authProvider, tenantProvider: tenantProvider));
+  runApp(MyApp(
+      isLoggedIn: isLoggedIn,
+      authProvider: authProvider,
+      tenantProvider: tenantProvider));
 }
 
 class MyApp extends StatelessWidget {
@@ -100,7 +91,11 @@ class MyApp extends StatelessWidget {
   final AuthProvider authProvider;
   final TenantProvider tenantProvider;
 
-  const MyApp({super.key, required this.isLoggedIn, required this.authProvider, required this.tenantProvider});
+  const MyApp(
+      {super.key,
+      required this.isLoggedIn,
+      required this.authProvider,
+      required this.tenantProvider});
 
   @override
   Widget build(BuildContext context) {
@@ -110,43 +105,44 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: tenantProvider),
       ],
       child: MaterialApp(
-      title: 'TexPilot',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      supportedLocales: const [
-        Locale('tr'),
-        Locale('en'),
-      ],
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      locale: const Locale('tr'),
-      initialRoute: AppRoutes.splash,
-      routes: {
-        AppRoutes.splash: (context) => SplashScreen(isLoggedIn: isLoggedIn),
-        AppRoutes.anasayfa: (context) => const AnaSayfa(),
-        AppRoutes.login: (context) => const LoginPage(),
-        AppRoutes.dokuma: (context) => const DokumaDashboard(),
-        AppRoutes.tedarikci: (context) => const TedarikciPanel(),
-        AppRoutes.kalite: (context) => const KaliteKontrolPanel(),
-        AppRoutes.kaliteKontrol: (context) => const KaliteKontrolPanel(),
-        AppRoutes.yikama: (context) => const YikamaDashboard(),
-        AppRoutes.nakis: (context) => const NakisDashboard(),
-        AppRoutes.uretimRaporu: (context) => const UretimRaporuPage(),
-        AppRoutes.modelDuzenle: (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-          if (args != null) {
-            return ModelDuzenlePage(
-              modelId: args['modelId'],
-              modelData: args['modelData'],
-            );
-          }
-          return const LoginPage(); // Fallback
+        title: 'TexPilot',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        supportedLocales: const [
+          Locale('tr'),
+          Locale('en'),
+        ],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        locale: const Locale('tr'),
+        initialRoute: AppRoutes.splash,
+        routes: {
+          AppRoutes.splash: (context) => SplashScreen(isLoggedIn: isLoggedIn),
+          AppRoutes.anasayfa: (context) => const AnaSayfa(),
+          AppRoutes.login: (context) => const LoginPage(),
+          AppRoutes.dokuma: (context) => const DokumaDashboard(),
+          AppRoutes.tedarikci: (context) => const TedarikciPanel(),
+          AppRoutes.kalite: (context) => const KaliteKontrolPanel(),
+          AppRoutes.kaliteKontrol: (context) => const KaliteKontrolPanel(),
+          AppRoutes.yikama: (context) => const YikamaDashboard(),
+          AppRoutes.nakis: (context) => const NakisDashboard(),
+          AppRoutes.uretimRaporu: (context) => const UretimRaporuPage(),
+          AppRoutes.modelDuzenle: (context) {
+            final args = ModalRoute.of(context)?.settings.arguments
+                as Map<String, dynamic>?;
+            if (args != null) {
+              return ModelDuzenlePage(
+                modelId: args['modelId'],
+                modelData: args['modelData'],
+              );
+            }
+            return const LoginPage(); // Fallback
+          },
         },
-      },
       ),
     );
   }

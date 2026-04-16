@@ -13,6 +13,7 @@ import 'package:uretim_takip/config/asama_registry.dart';
 class TenantManager {
   TenantManager._();
   static final TenantManager instance = TenantManager._();
+  static const _setActiveFirmaRpc = 'set_active_firma';
 
   String? _firmaId;
   Map<String, dynamic>? _firmaDetay;
@@ -77,11 +78,21 @@ class TenantManager {
     try {
       final response = await _client
           .from(DbTables.firmaKullanicilari)
-          .select('firma_id, rol, firmalar(id, firma_adi, firma_kodu, logo_url, aktif)')
+          .select(
+              'firma_id, rol, firmalar(id, firma_adi, firma_kodu, logo_url, aktif)')
           .eq('user_id', userId)
           .eq('aktif', true);
 
       _kullaniciFirmalari = List<Map<String, dynamic>>.from(response);
+
+      final aktifFirmaId = await _aktifFirmaSeciminiGetir();
+      if (aktifFirmaId != null &&
+          _kullaniciFirmalari.any((item) =>
+              item['firma_id'] == aktifFirmaId ||
+              item['firmalar']?['id'] == aktifFirmaId)) {
+        await firmaSecimi(aktifFirmaId, persistSelection: false);
+        return;
+      }
 
       // Tek firma varsa otomatik seç
       if (_kullaniciFirmalari.length == 1) {
@@ -97,7 +108,23 @@ class TenantManager {
   }
 
   /// Aktif firmayı değiştirir ve modülleri yükler.
-  Future<void> firmaSecimi(String firmaId) async {
+  Future<void> firmaSecimi(String firmaId,
+      {bool persistSelection = true}) async {
+    final oncekiFirmaId = _firmaId;
+    final oncekiFirmaDetay =
+        _firmaDetay == null ? null : Map<String, dynamic>.from(_firmaDetay!);
+    final oncekiAktifModuller = List<String>.from(_aktifModuller);
+    final oncekiAktifUretimDallari = List<String>.from(_aktifUretimDallari);
+    final oncekiAktifAbonelik = _aktifAbonelik == null
+        ? null
+        : Map<String, dynamic>.from(_aktifAbonelik!);
+    final oncekiFirmaRol = _firmaRol;
+    final oncekiYetkiler = List<String>.from(_yetkiler);
+
+    if (persistSelection) {
+      await _aktifFirmaSeciminiKaydet(firmaId);
+    }
+
     _firmaId = firmaId;
 
     // Firma detaylarını yükle
@@ -110,25 +137,51 @@ class TenantManager {
       _firmaDetay = response;
     } catch (e) {
       AppLogger.error('TenantManager', 'Firma detay yükleme hatası', e);
-      _firmaDetay = null;
-    }
-
-    // Aktif firma kaydını güncelle (sunucu tarafı RLS için)
-    try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId != null) {
-        await _client.from(DbTables.kullaniciAktifFirma).upsert(
-          {'user_id': userId, 'firma_id': firmaId},
-        );
-      }
-    } catch (e) {
-      AppLogger.error('TenantManager', 'Aktif firma kayıt hatası', e);
+      _firmaId = oncekiFirmaId;
+      _firmaDetay = oncekiFirmaDetay;
+      _aktifModuller = oncekiAktifModuller;
+      _aktifUretimDallari = oncekiAktifUretimDallari;
+      _aktifAbonelik = oncekiAktifAbonelik;
+      _firmaRol = oncekiFirmaRol;
+      _yetkiler = oncekiYetkiler;
+      rethrow;
     }
 
     await _modulleriYukle();
     await AsamaRegistry.yukle();
     await _abonelikYukle();
     await _firmaRolYukle();
+  }
+
+  Future<void> _aktifFirmaSeciminiKaydet(String firmaId) async {
+    try {
+      await _client.rpc(_setActiveFirmaRpc, params: {'p_firma_id': firmaId});
+    } catch (e) {
+      AppLogger.error(
+          'TenantManager', 'Aktif firma seçimi doğrulama hatası', e);
+      rethrow;
+    }
+  }
+
+  Future<String?> _aktifFirmaSeciminiGetir() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+
+    try {
+      final response = await _client
+          .from(DbTables.kullaniciAktifFirma)
+          .select('firma_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+      return response?['firma_id'] as String?;
+    } catch (e) {
+      AppLogger.error(
+        'TenantManager',
+        'Aktif firma kaydı okuma hatası',
+        e,
+      );
+      return null;
+    }
   }
 
   Future<void> _modulleriYukle() async {

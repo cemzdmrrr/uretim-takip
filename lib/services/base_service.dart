@@ -20,8 +20,18 @@ abstract class BaseService {
   String get firmaId => TenantManager.instance.requireFirmaId;
 
   /// Firma filtreli SELECT sorgusu oluşturur.
+  ///
+  /// Güvenlik katmanı veritabanındaki RLS'dir; bu filtre yalnızca
+  /// UX, performans ve yanlış tenant verisini istemciye taşımamak için kullanılır.
   PostgrestFilterBuilder firmaQuery(String table, {String columns = '*'}) {
     return client.from(table).select(columns).eq('firma_id', firmaId);
+  }
+
+  /// Payload'a aktif firma bağlamını kopyalayarak ekler.
+  Map<String, dynamic> firmaPayload(Map<String, dynamic> data) {
+    final scopedData = Map<String, dynamic>.from(data);
+    scopedData['firma_id'] = firmaId;
+    return scopedData;
   }
 
   /// Firma ID'yi otomatik ekleyerek INSERT yapar.
@@ -29,8 +39,8 @@ abstract class BaseService {
     String table,
     Map<String, dynamic> data,
   ) async {
-    data['firma_id'] = firmaId;
-    final response = await client.from(table).insert(data).select().single();
+    final payload = firmaPayload(data);
+    final response = await client.from(table).insert(payload).select().single();
     return response;
   }
 
@@ -40,9 +50,10 @@ abstract class BaseService {
     String id,
     Map<String, dynamic> data,
   ) async {
+    final payload = Map<String, dynamic>.from(data)..remove('firma_id');
     await client
         .from(table)
-        .update(data)
+        .update(payload)
         .eq('id', id)
         .eq('firma_id', firmaId);
   }

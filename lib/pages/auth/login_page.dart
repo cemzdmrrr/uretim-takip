@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -21,6 +21,7 @@ import 'package:uretim_takip/pages/uretim/nakis_dashboard.dart';
 import 'package:uretim_takip/pages/abonelik/plan_secim_page.dart';
 import 'package:provider/provider.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
+import 'package:uretim_takip/utils/role_utils.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -29,7 +30,8 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage>
+    with SingleTickerProviderStateMixin {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -44,21 +46,22 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   void initState() {
     super.initState();
     _loadSavedCredentials();
-    
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
-    
+
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.3),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
-    
+    ).animate(CurvedAnimation(
+        parent: _animationController, curve: Curves.easeOutCubic));
+
     _animationController.forward();
   }
 
@@ -71,22 +74,22 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   }
 
   Future<void> _loadSavedCredentials() async {
+    await SecureCredentialStorage.migrateLegacyStorage();
     final savedRemember = await SecureCredentialStorage.isRememberMeEnabled;
     final savedEmail = await SecureCredentialStorage.savedEmail;
-    final savedPassword = await SecureCredentialStorage.savedPassword;
 
-    if (savedRemember && savedEmail != null && savedPassword != null) {
+    if (savedEmail != null) {
       emailController.text = savedEmail;
-      passwordController.text = savedPassword;
-      setState(() {
-        rememberMe = true;
-      });
+    }
+
+    if (savedRemember) {
+      setState(() => rememberMe = true);
     }
   }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => loading = true);
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -99,7 +102,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
       if (response.user != null) {
         if (rememberMe) {
-          await SecureCredentialStorage.save(email: email, password: password);
+          await SecureCredentialStorage.save(email: email);
         } else {
           await SecureCredentialStorage.clear();
         }
@@ -114,7 +117,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           final tenantProvider = context.read<TenantProvider>();
           await tenantProvider.kullaniciFirmalariniYukle(response.user!.id);
           // Çoklu firma varsa seçim ekranına yönlendir
-          if (tenantProvider.kullaniciFirmalari.length > 1 && !tenantProvider.firmaSecildi) {
+          if (tenantProvider.kullaniciFirmalari.length > 1 &&
+              !tenantProvider.firmaSecildi) {
             if (mounted) {
               Navigator.pushReplacement(
                 context,
@@ -137,7 +141,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
         // Kullanıcı tipini kontrol et
         String targetRoute = AppRoutes.anasayfa; // Varsayılan admin paneli
-        
+
         try {
           // ÖNCE kullanıcı rollerini kontrol et (admin kontrolü)
           final userRoleCheck = await Supabase.instance.client
@@ -145,11 +149,13 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               .select('role')
               .eq('user_id', response.user!.id)
               .maybeSingle();
-          
+
           // Rolü küçük harfe çevir (büyük/küçük harf duyarsız karşılaştırma)
-          final userRole = userRoleCheck?['role']?.toString().toLowerCase().trim();
-          debugPrint('🔍 Kullanıcı rolü: $userRole (orijinal: ${userRoleCheck?['role']})');
-          
+          final userRole = RoleUtils.normalizeDashboardRole(
+              userRoleCheck?['role']?.toString());
+          debugPrint(
+              '🔍 Kullanıcı rolü: $userRole (orijinal: ${userRoleCheck?['role']})');
+
           if (userRole == 'admin') {
             // Admin kullanıcısı - direkt ana sayfaya git
             targetRoute = AppRoutes.anasayfa;
@@ -170,26 +176,35 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 .select('id, sirket, faaliyet')
                 .eq('email', email)
                 .maybeSingle();
-                
+
             if (tedarikciCheck != null) {
               // Bu bir tedarikci hesabı - faaliyete göre yönlendir
-              final faaliyet = (tedarikciCheck['faaliyet'] ?? '').toString().toLowerCase();
-              if (faaliyet.contains('dokuma') || faaliyet.contains('örme') || faaliyet.contains('orgu')) {
+              final faaliyet =
+                  (tedarikciCheck['faaliyet'] ?? '').toString().toLowerCase();
+              if (faaliyet.contains('dokuma') ||
+                  faaliyet.contains('örme') ||
+                  faaliyet.contains('orgu')) {
                 targetRoute = AppRoutes.dokuma;
-              } else if (faaliyet.contains('konfeksiyon') || faaliyet.contains('dikim')) {
+              } else if (faaliyet.contains('konfeksiyon') ||
+                  faaliyet.contains('dikim')) {
                 targetRoute = '/konfeksiyon';
-              } else if (faaliyet.contains('yıkama') || faaliyet.contains('yikama')) {
+              } else if (faaliyet.contains('yıkama') ||
+                  faaliyet.contains('yikama')) {
                 targetRoute = AppRoutes.yikama;
-              } else if (faaliyet.contains('nakış') || faaliyet.contains('nakis')) {
+              } else if (faaliyet.contains('nakış') ||
+                  faaliyet.contains('nakis')) {
                 targetRoute = AppRoutes.nakis;
               } else if (faaliyet.contains('ütü') || faaliyet.contains('utu')) {
                 targetRoute = '/utu';
-              } else if (faaliyet.contains('ilik') || faaliyet.contains('düğme') || faaliyet.contains('dugme')) {
+              } else if (faaliyet.contains('ilik') ||
+                  faaliyet.contains('düğme') ||
+                  faaliyet.contains('dugme')) {
                 targetRoute = '/ilik_dugme';
               } else {
                 targetRoute = AppRoutes.tedarikci;
               }
-              debugPrint('🏢 Tedarikci girişi: ${tedarikciCheck['sirket']} (${tedarikciCheck['faaliyet']}) -> $targetRoute');
+              debugPrint(
+                  '🏢 Tedarikci girişi: ${tedarikciCheck['sirket']} (${tedarikciCheck['faaliyet']}) -> $targetRoute');
             } else {
               // Normal kullanıcı hesabı
               targetRoute = AppRoutes.anasayfa;
@@ -289,7 +304,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     final size = MediaQuery.of(context).size;
     final isDesktop = size.width > 1024;
     final isTablet = size.width > 600 && size.width <= 1024;
-    
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -338,7 +353,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           child: Card(
             elevation: 20,
             shadowColor: Colors.black26,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             child: Row(
               children: [
                 // Sol taraf - Görsel
@@ -346,95 +362,101 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   flex: 5,
                   child: Container(
                     height: cardHeight,
-                decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    bottomLeft: Radius.circular(24),
-                  ),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF1565C0),
-                      Color(0xFF0D47A1),
-                    ],
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        bottomLeft: Radius.circular(24),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF1565C0),
+                          Color(0xFF0D47A1),
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(size.width > 1200 ? 32 : 24),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.precision_manufacturing_rounded,
+                                size: 36,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'TexPilot',
+                              style: TextStyle(
+                                fontSize: size.width > 1200 ? 36 : 30,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Tekstil üretim süreçlerinizi\ntek bir platformdan yönetin',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.white.withValues(alpha: 0.9),
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+                            _buildFeatureItem(
+                                Icons.inventory_2_rounded, 'Sipariş Yönetimi'),
+                            const SizedBox(height: 16),
+                            _buildFeatureItem(
+                                Icons.analytics_rounded, 'Detaylı Raporlama'),
+                            const SizedBox(height: 16),
+                            _buildFeatureItem(
+                                Icons.groups_rounded, 'Tedarikçi Takibi'),
+                            const SizedBox(height: 16),
+                            _buildFeatureItem(
+                                Icons.timeline_rounded, 'Üretim Aşamaları'),
+                            const SizedBox(height: 16),
+                            _buildFeatureItem(
+                                Icons.warehouse_rounded, 'Stok Yönetimi'),
+                            const SizedBox(height: 16),
+                            _buildFeatureItem(
+                                Icons.people_alt_rounded, 'Personel Takibi'),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                child: Padding(
-                  padding: EdgeInsets.all(size.width > 1200 ? 32 : 24),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.precision_manufacturing_rounded,
-                          size: 36,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'TexPilot',
-                        style: TextStyle(
-                          fontSize: size.width > 1200 ? 36 : 30,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Tekstil üretim süreçlerinizi\ntek bir platformdan yönetin',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.9),
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      _buildFeatureItem(Icons.inventory_2_rounded, 'Sipariş Yönetimi'),
-                      const SizedBox(height: 16),
-                      _buildFeatureItem(Icons.analytics_rounded, 'Detaylı Raporlama'),
-                      const SizedBox(height: 16),
-                      _buildFeatureItem(Icons.groups_rounded, 'Tedarikçi Takibi'),
-                      const SizedBox(height: 16),
-                      _buildFeatureItem(Icons.timeline_rounded, 'Üretim Aşamaları'),
-                      const SizedBox(height: 16),
-                      _buildFeatureItem(Icons.warehouse_rounded, 'Stok Yönetimi'),
-                      const SizedBox(height: 16),
-                      _buildFeatureItem(Icons.people_alt_rounded, 'Personel Takibi'),
-                    ],
-                  ),
+                // Sağ taraf - Form
+                Expanded(
+                  flex: 4,
+                  child: Container(
+                    height: cardHeight,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: size.width > 1200 ? 48 : 32,
+                      vertical: 24,
+                    ),
+                    child: SingleChildScrollView(
+                      child: _buildLoginForm(),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-            // Sağ taraf - Form
-            Expanded(
-              flex: 4,
-              child: Container(
-                height: cardHeight,
-                padding: EdgeInsets.symmetric(
-                  horizontal: size.width > 1200 ? 48 : 32,
-                  vertical: 24,
-                ),
-                child: SingleChildScrollView(
-                  child: _buildLoginForm(),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
-    _buildPlanBanner(),
+        _buildPlanBanner(),
       ],
     );
   }
@@ -480,7 +502,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       ),
       child: Column(
         children: [
-          _buildCompactFeatureItem(Icons.inventory_2_rounded, 'Sipariş Yönetimi'),
+          _buildCompactFeatureItem(
+              Icons.inventory_2_rounded, 'Sipariş Yönetimi'),
           const SizedBox(height: 8),
           _buildCompactFeatureItem(Icons.warehouse_rounded, 'Stok Yönetimi'),
           const SizedBox(height: 8),
@@ -488,7 +511,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           const SizedBox(height: 8),
           _buildCompactFeatureItem(Icons.timeline_rounded, 'Üretim Aşamaları'),
           const SizedBox(height: 8),
-          _buildCompactFeatureItem(Icons.analytics_rounded, 'Detaylı Raporlama'),
+          _buildCompactFeatureItem(
+              Icons.analytics_rounded, 'Detaylı Raporlama'),
           const SizedBox(height: 8),
           _buildCompactFeatureItem(Icons.groups_rounded, 'Tedarikçi Takibi'),
         ],
@@ -536,7 +560,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           child: Card(
             elevation: 16,
             shadowColor: Colors.black26,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
               child: Column(
@@ -578,11 +603,13 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          constraints: BoxConstraints(maxWidth: size.width > 450 ? 450 : size.width * 0.95),
+          constraints: BoxConstraints(
+              maxWidth: size.width > 450 ? 450 : size.width * 0.95),
           child: Card(
             elevation: 12,
             shadowColor: Colors.black26,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
               padding: EdgeInsets.all(isSmallMobile ? 20 : 28),
               child: Column(
@@ -625,13 +652,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     );
   }
 
-
   Widget _buildCompactLogoSection(Size size) {
     final isSmallMobile = size.width < 360;
     final isTablet = size.width > 600;
     final iconSize = isTablet ? 36.0 : (isSmallMobile ? 28.0 : 32.0);
     final titleSize = isTablet ? 20.0 : (isSmallMobile ? 16.0 : 18.0);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -660,7 +686,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             color: Colors.white,
           ),
         ),
-          SizedBox(height: isSmallMobile ? 8 : 12),
+        SizedBox(height: isSmallMobile ? 8 : 12),
         Text(
           'TexPilot',
           style: TextStyle(
@@ -708,12 +734,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 TextButton(
                   onPressed: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const PlanSecimPage(sadeceBilgi: true)),
+                    MaterialPageRoute(
+                        builder: (_) => const PlanSecimPage(sadeceBilgi: true)),
                   ),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -764,7 +792,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             decoration: InputDecoration(
               labelText: 'E-posta',
               hintText: 'ornek@email.com',
-              prefixIcon: Icon(Icons.email_outlined, color: Colors.grey.shade600),
+              prefixIcon:
+                  Icon(Icons.email_outlined, color: Colors.grey.shade600),
               filled: true,
               fillColor: Colors.grey.shade50,
               border: OutlineInputBorder(
@@ -777,7 +806,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF1565C0), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF1565C0), width: 2),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -823,7 +853,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF1565C0), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF1565C0), width: 2),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -850,8 +881,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 width: 24,
                 child: Checkbox(
                   value: rememberMe,
-                  onChanged: (value) => setState(() => rememberMe = value ?? false),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  onChanged: (value) =>
+                      setState(() => rememberMe = value ?? false),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4)),
                   activeColor: const Color(0xFF1565C0),
                 ),
               ),
@@ -876,7 +909,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                disabledBackgroundColor: const Color(0xFF1565C0).withValues(alpha: 0.6),
+                disabledBackgroundColor:
+                    const Color(0xFF1565C0).withValues(alpha: 0.6),
               ),
               child: loading
                   ? const SizedBox(
@@ -908,7 +942,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.shield_outlined, size: 16, color: Colors.grey.shade500),
+              Icon(Icons.shield_outlined,
+                  size: 16, color: Colors.grey.shade500),
               const SizedBox(width: 6),
               Text(
                 'Güvenli bağlantı',

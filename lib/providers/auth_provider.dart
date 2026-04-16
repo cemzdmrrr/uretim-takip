@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
+import 'package:uretim_takip/config/secure_storage.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/yetki_service.dart';
+import 'package:uretim_takip/utils/role_utils.dart';
 
 /// Merkezi kimlik doğrulama ve kullanıcı durumu yönetimi.
 ///
@@ -17,8 +19,8 @@ import 'package:uretim_takip/services/yetki_service.dart';
 /// ```
 class AuthProvider extends ChangeNotifier {
   User? _user;
-  String? _role;          // Platform rolü (user_roles tablosu)
-  String? _firmaRol;      // Aktif firmadaki rol (firma_kullanicilari)
+  String? _role; // Platform rolü (user_roles tablosu)
+  String? _firmaRol; // Aktif firmadaki rol (firma_kullanicilari)
   List<String> _yetkiler = []; // Modül:yetki listesi
   bool _loading = true;
 
@@ -29,7 +31,7 @@ class AuthProvider extends ChangeNotifier {
   String get userId => _user?.id ?? '';
   String get userEmail => _user?.email ?? '';
   bool get isLoggedIn => _user != null;
-  bool get isAdmin => _role == 'admin';
+  bool get isAdmin => RoleUtils.isAdmin(_role);
   bool get isLoading => _loading;
 
   /// Firma sahibi veya firma admini mi?
@@ -42,12 +44,12 @@ class AuthProvider extends ChangeNotifier {
   /// Belirtilen rollerden birine sahip mi (admin dahil)
   bool hasRole(List<String> roles) {
     if (_role == null) return false;
-    if (_role == 'admin') return true;
-    return roles.contains(_role);
+    if (isAdmin) return true;
+    return roles.any((role) => RoleUtils.sameUserRole(_role, role));
   }
 
   /// Belirtilen role sahip mi (admin hariç)
-  bool hasExactRole(String role) => _role == role;
+  bool hasExactRole(String role) => RoleUtils.sameUserRole(_role, role);
 
   /// Modül + yetki bazlı kontrol.
   /// firma_sahibi ve firma_admin tüm yetkilere sahiptir.
@@ -135,6 +137,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> signOut() async {
     TenantManager.instance.temizle();
     await Supabase.instance.client.auth.signOut();
+    await SecureCredentialStorage.clear();
     _user = null;
     _role = null;
     _firmaRol = null;

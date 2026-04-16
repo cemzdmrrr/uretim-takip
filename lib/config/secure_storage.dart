@@ -1,21 +1,46 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Kimlik bilgilerini saklayan yardımcı sınıf.
+/// Giriş tercihlerini saklayan yardımcı sınıf.
 ///
-/// SharedPreferences üzerinde base64 encoding ile saklar.
-/// Windows masaüstünde flutter_secure_storage ATL bağımlılığı
-/// sorun yarattığı için bu yaklaşım tercih edilmiştir.
+/// Güvenlik nedeniyle parola tutulmaz. "Beni hatırla" davranışı,
+/// Supabase'in kalıcı oturumu ile birlikte sadece e-posta ve tercih
+/// bilgisini saklayacak şekilde uygulanır.
 class SecureCredentialStorage {
   SecureCredentialStorage._();
 
   static const _emailKey = 'secure_email';
   static const _passwordKey = 'secure_password';
+  static const _rememberMeKey = 'rememberMe';
+  static const _legacyEmailKey = 'email';
+  static const _legacyPasswordKey = 'password';
+
+  /// Eski sürümlerde düz metin / base64 tutulan kayıtları temizler.
+  ///
+  /// - Parola hiçbir koşulda korunmaz.
+  /// - "Beni hatırla" açıksa eski email güvenli anahtara taşınır.
+  static Future<void> migrateLegacyStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool(_rememberMeKey) ?? false;
+    final secureEmail = prefs.getString(_emailKey);
+    final legacyEmail = prefs.getString(_legacyEmailKey);
+
+    if (rememberMe &&
+        secureEmail == null &&
+        legacyEmail != null &&
+        legacyEmail.isNotEmpty) {
+      await prefs.setString(_emailKey, base64Encode(utf8.encode(legacyEmail)));
+    }
+
+    await prefs.remove(_passwordKey);
+    await prefs.remove(_legacyPasswordKey);
+    await prefs.remove(_legacyEmailKey);
+  }
 
   /// Beni hatırla aktif mi
   static Future<bool> get isRememberMeEnabled async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('rememberMe') ?? false;
+    return prefs.getBool(_rememberMeKey) ?? false;
   }
 
   /// Kayıtlı email
@@ -30,42 +55,30 @@ class SecureCredentialStorage {
     }
   }
 
-  /// Kayıtlı şifre
-  static Future<String?> get savedPassword async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = prefs.getString(_passwordKey);
-    if (encoded == null) return null;
-    try {
-      return utf8.decode(base64Decode(encoded));
-    } catch (_) {
-      return encoded; // eski düz metin migration
-    }
-  }
-
-  /// Kimlik bilgilerini kaydet
+  /// Giriş tercihlerini kaydet
   static Future<void> save({
     required String email,
-    required String password,
+    bool rememberMe = true,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('rememberMe', true);
+    await prefs.setBool(_rememberMeKey, rememberMe);
     await prefs.setString(_emailKey, base64Encode(utf8.encode(email)));
-    await prefs.setString(_passwordKey, base64Encode(utf8.encode(password)));
 
-    // Eski düz metin kayıtları temizle (migration)
-    await prefs.remove('email');
-    await prefs.remove('password');
+    // Eski parola kayıtlarını temizle (migration)
+    await prefs.remove(_passwordKey);
+    await prefs.remove(_legacyEmailKey);
+    await prefs.remove(_legacyPasswordKey);
   }
 
-  /// Tüm kimlik bilgilerini sil
+  /// Tüm giriş tercihlerini sil
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('rememberMe', false);
+    await prefs.setBool(_rememberMeKey, false);
     await prefs.remove(_emailKey);
     await prefs.remove(_passwordKey);
 
     // Eski düz metin kayıtları da temizle
-    await prefs.remove('email');
-    await prefs.remove('password');
+    await prefs.remove(_legacyEmailKey);
+    await prefs.remove(_legacyPasswordKey);
   }
 }
