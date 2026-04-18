@@ -812,15 +812,16 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
         }
       }
 
-      // Personeli firma_kullanicilari'na ekle
+      // Personeli firma_kullanicilari'na ekle (adminClient ile RLS bypass)
       if (!duzenleme && userId.isNotEmpty) {
         try {
+          final adminClient = SupabaseConfig.adminClient;
           final firmaId = TenantManager.instance.firmaId;
           if (firmaId != null) {
-            await Supabase.instance.client.from(DbTables.firmaKullanicilari).upsert({
+            await adminClient.from(DbTables.firmaKullanicilari).upsert({
               'firma_id': firmaId,
               'user_id': userId,
-              'rol': 'personel',
+              'rol': 'kullanici',
               'aktif': true,
             }, onConflict: 'firma_id,user_id');
             debugPrint('✅ Personel firmaya eklendi: $firmaId');

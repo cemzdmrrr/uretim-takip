@@ -6,6 +6,7 @@ import 'package:uretim_takip/models/tedarikci_model.dart';
 import 'package:uretim_takip/services/tedarikci_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/config/database_tables.dart';
+import 'package:uretim_takip/config/supabase_config.dart';
 
 class TedarikciEklePage extends StatefulWidget {
   final TedarikciModel? tedarikci; // Düzenleme için
@@ -113,32 +114,33 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
 
         // 2. Kullanıcıyı firma_kullanicilari ve user_roles'a ekle
         if (createdUserId != null) {
+          final adminClient = SupabaseConfig.adminClient;
           try {
-            // user_roles tablosuna tedarikci rolü ekle
-            await Supabase.instance.client.from(DbTables.userRoles).upsert({
-              'user_id': createdUserId,
-              'role': 'tedarikci',
-              'aktif': true,
-            }, onConflict: 'user_id');
-            debugPrint('✅ Tedarikci rolü eklendi');
-          } catch (e) {
-            debugPrint('⚠️ user_roles ekleme hatası: $e');
-          }
-
-          try {
-            // firma_kullanicilari tablosuna ekle
+            // firma_kullanicilari tablosuna ekle (adminClient ile RLS bypass)
             final firmaId = TenantManager.instance.firmaId;
             if (firmaId != null) {
-              await Supabase.instance.client.from(DbTables.firmaKullanicilari).upsert({
+              await adminClient.from(DbTables.firmaKullanicilari).upsert({
                 'firma_id': firmaId,
                 'user_id': createdUserId,
-                'rol': 'tedarikci',
+                'rol': 'kullanici',
                 'aktif': true,
               }, onConflict: 'firma_id,user_id');
               debugPrint('✅ Tedarikci firmaya eklendi: $firmaId');
             }
           } catch (e) {
             debugPrint('⚠️ firma_kullanicilari ekleme hatası: $e');
+          }
+
+          try {
+            // user_roles tablosuna ekle (adminClient ile RLS bypass)
+            await adminClient.from(DbTables.userRoles).upsert({
+              'user_id': createdUserId,
+              'role': 'diger',
+              'aktif': true,
+            }, onConflict: 'user_id');
+            debugPrint('✅ Tedarikci rolü eklendi');
+          } catch (e) {
+            debugPrint('⚠️ user_roles ekleme hatası: $e');
           }
         }
       }

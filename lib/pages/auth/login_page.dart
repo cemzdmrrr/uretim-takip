@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/config/secure_storage.dart';
+import 'package:uretim_takip/config/supabase_config.dart';
 import 'package:uretim_takip/providers/tenant_provider.dart';
 import 'package:uretim_takip/pages/auth/firma_secim_page.dart';
 import 'package:uretim_takip/pages/onboarding/firma_kayit_page.dart';
@@ -129,27 +130,77 @@ class _LoginPageState extends State<LoginPage>
           }
           // Hiç firma yoksa: tedarikci/personel/rol kontrolü yap
           if (tenantProvider.kullaniciFirmalari.isEmpty) {
-            // Kullanıcının başka bir yolla eklenmiş olma ihtimalini kontrol et
             bool hasExistingAccess = false;
-            try {
-              // Tedarikci kontrolü
-              final tedarikciCheck = await Supabase.instance.client
-                  .from(DbTables.tedarikciler)
-                  .select('id')
-                  .eq('email', email)
-                  .maybeSingle();
-              if (tedarikciCheck != null) hasExistingAccess = true;
+            
+            if (SupabaseConfig.isAdminAvailable) {
+              try {
+                final adminClient = SupabaseConfig.adminClient;
 
-              // User roles kontrolü
-              if (!hasExistingAccess) {
-                final rolesCheck = await Supabase.instance.client
-                    .from(DbTables.userRoles)
-                    .select('role')
-                    .eq('user_id', response.user!.id);
-                if (rolesCheck is List && rolesCheck.isNotEmpty) hasExistingAccess = true;
+                // 1. firma_kullanicilari kontrolü (adminClient ile RLS bypass)
+                final firmaKullaniciCheck = await adminClient
+                    .from(DbTables.firmaKullanicilari)
+                    .select('firma_id, rol')
+                    .eq('user_id', response.user!.id)
+                    .eq('aktif', true);
+                
+                if (firmaKullaniciCheck.isNotEmpty) {
+                  debugPrint('✅ firma_kullanicilari kaydı bulundu (adminClient)');
+                  await tenantProvider.kullaniciFirmalariniYukle(response.user!.id);
+                  hasExistingAccess = true;
+                }
+
+                // 2. Tedarikci kontrolü (adminClient ile RLS bypass)
+                if (!hasExistingAccess) {
+                  final tedarikciCheck = await adminClient
+                      .from(DbTables.tedarikciler)
+                      .select('id, firma_id')
+                      .eq('email', email)
+                      .maybeSingle();
+                  if (tedarikciCheck != null) {
+                    hasExistingAccess = true;
+                    // Eksik firma_kullanicilari kaydını oluştur
+                    final firmaId = tedarikciCheck['firma_id']?.toString();
+                    if (firmaId != null) {
+                      await adminClient.from(DbTables.firmaKullanicilari).upsert({
+                        'firma_id': firmaId,
+                        'user_id': response.user!.id,
+                        'rol': 'kullanici',
+                        'aktif': true,
+                      }, onConflict: 'firma_id,user_id');
+                      await tenantProvider.kullaniciFirmalariniYukle(response.user!.id);
+                    }
+                  }
+                }
+
+                // 3. User roles kontrolü (adminClient ile RLS bypass)
+                if (!hasExistingAccess) {
+                  final rolesCheck = await adminClient
+                      .from(DbTables.userRoles)
+                      .select('role')
+                      .eq('user_id', response.user!.id);
+                  if (rolesCheck.isNotEmpty) {
+                    hasExistingAccess = true;
+                    // Personel tablosundan firma_id bul ve firma_kullanicilari oluştur
+                    final personelCheck = await adminClient
+                        .from(DbTables.personel)
+                        .select('firma_id')
+                        .eq('email', email)
+                        .maybeSingle();
+                    final firmaId = personelCheck?['firma_id']?.toString();
+                    if (firmaId != null) {
+                      await adminClient.from(DbTables.firmaKullanicilari).upsert({
+                        'firma_id': firmaId,
+                        'user_id': response.user!.id,
+                        'rol': 'kullanici',
+                        'aktif': true,
+                      }, onConflict: 'firma_id,user_id');
+                      await tenantProvider.kullaniciFirmalariniYukle(response.user!.id);
+                    }
+                  }
+                }
+              } catch (e) {
+                debugPrint('⚠️ Erişim kontrolü hatası: $e');
               }
-            } catch (e) {
-              debugPrint('⚠️ Erişim kontrolü hatası: $e');
             }
 
             if (!hasExistingAccess) {

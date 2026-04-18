@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:uretim_takip/config/app_routes.dart';
+import 'package:uretim_takip/config/supabase_config.dart';
 import 'package:uretim_takip/providers/tenant_provider.dart';
 import 'package:uretim_takip/pages/auth/firma_secim_page.dart';
 import 'package:uretim_takip/pages/onboarding/firma_kayit_page.dart';
@@ -206,36 +207,96 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   /// Kullanıcının firma_kullanicilari dışında bir erişim kaydı olup olmadığını kontrol eder.
-  /// Tedarikci, personel veya user_roles kaydı varsa true döner.
+  /// Eğer tedarikci/personel/user_roles kaydı varsa firma_kullanicilari'na da otomatik ekler.
   Future<bool> _checkExistingAccess() async {
     try {
       final currentUser = Supabase.instance.client.auth.currentUser;
       if (currentUser == null) return false;
 
-      // 1. Tedarikci kontrolü (email ile)
-      if (currentUser.email != null) {
-        final tedarikciCheck = await Supabase.instance.client
-            .from(DbTables.tedarikciler)
-            .select('id')
-            .eq('email', currentUser.email!)
-            .maybeSingle();
-        if (tedarikciCheck != null) {
-          debugPrint('✅ Tedarikci kaydı bulundu, onboarding atlanıyor');
-          return true;
-        }
+      if (!SupabaseConfig.isAdminAvailable) {
+        debugPrint('⚠️ AdminClient mevcut değil, erişim kontrolü yapılamıyor');
+        return false;
       }
 
-      // 2. User roles kontrolü (personel, sevkiyat, kalite_kontrol, sofor vb.)
-      final rolesCheck = await Supabase.instance.client
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', currentUser.id);
-      if (rolesCheck is List && rolesCheck.isNotEmpty) {
-        debugPrint('✅ User role kaydı bulundu: $rolesCheck, onboarding atlanıyor');
+      final adminClient = SupabaseConfig.adminClient;
+
+      // 1. firma_kullanicilari'nda kayıt var mı? (adminClient ile RLS bypass)
+      final firmaKullaniciCheck = await adminClient
+          .from(DbTables.firmaKullanicilari)
+          .select('firma_id, rol')
+          .eq('user_id', currentUser.id)
+          .eq('aktif', true);
+      
+      if (firmaKullaniciCheck.isNotEmpty) {
+        debugPrint('✅ firma_kullanicilari kaydı bulundu (adminClient), yeniden yükleniyor');
+        // Kayıt var ama kullaniciFirmalariniYukle hata vermiş olabilir, tekrar dene
+        final tenantProvider = context.read<TenantProvider>();
+        await tenantProvider.kullaniciFirmalariniYukle(currentUser.id);
+        if (tenantProvider.kullaniciFirmalari.isNotEmpty) {
+          return true;
+        }
+        // RLS hala engelliyor olabilir, doğrudan yönlendir
         return true;
       }
 
-      return false;
+      // 2. Tedarikci kontrolü (adminClient ile RLS bypass)
+      String? bulunanFirmaId;
+      if (currentUser.email != null) {
+        final tedarikciCheck = await adminClient
+            .from(DbTables.tedarikciler)
+            .select('id, firma_id')
+            .eq('email', currentUser.email!)
+            .maybeSingle();
+        if (tedarikciCheck != null) {
+          bulunanFirmaId = tedarikciCheck['firma_id']?.toString();
+          debugPrint('✅ Tedarikci kaydı bulundu, firma_id: $bulunanFirmaId');
+        }
+      }
+
+      // 3. User roles kontrolü (adminClient ile RLS bypass)
+      if (bulunanFirmaId == null) {
+        final rolesCheck = await adminClient
+            .from(DbTables.userRoles)
+            .select('role')
+            .eq('user_id', currentUser.id);
+        if (rolesCheck.isNotEmpty) {
+          debugPrint('✅ User role kaydı bulundu: $rolesCheck');
+          // Personel tablosundan firma_id bulmayı dene
+          if (currentUser.email != null) {
+            final personelCheck = await adminClient
+                .from(DbTables.personel)
+                .select('firma_id')
+                .eq('email', currentUser.email!)
+                .maybeSingle();
+            bulunanFirmaId = personelCheck?['firma_id']?.toString();
+          }
+          if (bulunanFirmaId == null) {
+            // firma_id bulunamadı ama role var, yine de yönlendir
+            return true;
+          }
+        }
+      }
+
+      if (bulunanFirmaId == null) return false;
+
+      // 4. Eksik firma_kullanicilari kaydını otomatik oluştur
+      try {
+        await adminClient.from(DbTables.firmaKullanicilari).upsert({
+          'firma_id': bulunanFirmaId,
+          'user_id': currentUser.id,
+          'rol': 'kullanici',
+          'aktif': true,
+        }, onConflict: 'firma_id,user_id');
+        debugPrint('✅ Eksik firma_kullanicilari kaydı oluşturuldu');
+
+        // Tekrar yükle
+        final tenantProvider = context.read<TenantProvider>();
+        await tenantProvider.kullaniciFirmalariniYukle(currentUser.id);
+      } catch (e) {
+        debugPrint('⚠️ firma_kullanicilari otomatik oluşturma hatası: $e');
+      }
+
+      return true;
     } catch (e) {
       debugPrint('⚠️ Erişim kontrolü hatası: $e');
       return false;
