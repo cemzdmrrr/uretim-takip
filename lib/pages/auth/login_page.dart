@@ -127,15 +127,41 @@ class _LoginPageState extends State<LoginPage>
             }
             return;
           }
-          // Hiç firma yoksa onboarding'e yönlendir
+          // Hiç firma yoksa: tedarikci/personel/rol kontrolü yap
           if (tenantProvider.kullaniciFirmalari.isEmpty) {
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const FirmaKayitPage()),
-              );
+            // Kullanıcının başka bir yolla eklenmiş olma ihtimalini kontrol et
+            bool hasExistingAccess = false;
+            try {
+              // Tedarikci kontrolü
+              final tedarikciCheck = await Supabase.instance.client
+                  .from(DbTables.tedarikciler)
+                  .select('id')
+                  .eq('email', email)
+                  .maybeSingle();
+              if (tedarikciCheck != null) hasExistingAccess = true;
+
+              // User roles kontrolü
+              if (!hasExistingAccess) {
+                final rolesCheck = await Supabase.instance.client
+                    .from(DbTables.userRoles)
+                    .select('role')
+                    .eq('user_id', response.user!.id);
+                if (rolesCheck is List && rolesCheck.isNotEmpty) hasExistingAccess = true;
+              }
+            } catch (e) {
+              debugPrint('⚠️ Erişim kontrolü hatası: $e');
             }
-            return;
+
+            if (!hasExistingAccess) {
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FirmaKayitPage()),
+                );
+              }
+              return;
+            }
+            // hasExistingAccess true ise aşağıda normal yönlendirme yapılacak
           }
         }
 

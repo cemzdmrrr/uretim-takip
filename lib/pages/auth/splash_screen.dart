@@ -50,8 +50,16 @@ class _SplashScreenState extends State<SplashScreen> {
             }
             return;
           }
-          // Hiç firma yoksa onboarding'e yönlendir
+          // Hiç firma yoksa: önce tedarikci/personel/rol kontrolü yap
           if (tenantProvider.kullaniciFirmalari.isEmpty) {
+            // Kullanıcının başka bir yolla (tedarikci, personel, user_roles) eklenmiş olma ihtimalini kontrol et
+            final hasExistingAccess = await _checkExistingAccess();
+            if (hasExistingAccess) {
+              // Tedarikci/personel/rol kaydı varsa doğru panele yönlendir
+              await _navigateToCorrectPanel();
+              return;
+            }
+            // Gerçekten hiçbir kayıt yoksa onboarding'e yönlendir
             if (mounted) {
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (_) => const FirmaKayitPage()),
@@ -194,6 +202,43 @@ class _SplashScreenState extends State<SplashScreen> {
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
+    }
+  }
+
+  /// Kullanıcının firma_kullanicilari dışında bir erişim kaydı olup olmadığını kontrol eder.
+  /// Tedarikci, personel veya user_roles kaydı varsa true döner.
+  Future<bool> _checkExistingAccess() async {
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) return false;
+
+      // 1. Tedarikci kontrolü (email ile)
+      if (currentUser.email != null) {
+        final tedarikciCheck = await Supabase.instance.client
+            .from(DbTables.tedarikciler)
+            .select('id')
+            .eq('email', currentUser.email!)
+            .maybeSingle();
+        if (tedarikciCheck != null) {
+          debugPrint('✅ Tedarikci kaydı bulundu, onboarding atlanıyor');
+          return true;
+        }
+      }
+
+      // 2. User roles kontrolü (personel, sevkiyat, kalite_kontrol, sofor vb.)
+      final rolesCheck = await Supabase.instance.client
+          .from(DbTables.userRoles)
+          .select('role')
+          .eq('user_id', currentUser.id);
+      if (rolesCheck is List && rolesCheck.isNotEmpty) {
+        debugPrint('✅ User role kaydı bulundu: $rolesCheck, onboarding atlanıyor');
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('⚠️ Erişim kontrolü hatası: $e');
+      return false;
     }
   }
 

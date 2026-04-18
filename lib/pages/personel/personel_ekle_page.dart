@@ -5,6 +5,7 @@ import 'package:uretim_takip/models/personel_model.dart';
 import 'package:uretim_takip/services/personel_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/supabase_config.dart';
+import 'package:uretim_takip/services/tenant_manager.dart';
 
 class PersonelEklePage extends StatefulWidget {
   final PersonelModel? mevcut;
@@ -808,6 +809,24 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
             context.showErrorSnackBar('Kullanıcı oluşturulamadı: $e');
             return;
           }
+        }
+      }
+
+      // Personeli firma_kullanicilari'na ekle
+      if (!duzenleme && userId.isNotEmpty) {
+        try {
+          final firmaId = TenantManager.instance.firmaId;
+          if (firmaId != null) {
+            await Supabase.instance.client.from(DbTables.firmaKullanicilari).upsert({
+              'firma_id': firmaId,
+              'user_id': userId,
+              'rol': 'personel',
+              'aktif': true,
+            }, onConflict: 'firma_id,user_id');
+            debugPrint('✅ Personel firmaya eklendi: $firmaId');
+          }
+        } catch (e) {
+          debugPrint('⚠️ firma_kullanicilari ekleme hatası: $e');
         }
       }
       

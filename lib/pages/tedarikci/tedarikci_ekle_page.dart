@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/models/tedarikci_model.dart';
 import 'package:uretim_takip/services/tedarikci_service.dart';
+import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/config/database_tables.dart';
 
 class TedarikciEklePage extends StatefulWidget {
   final TedarikciModel? tedarikci; // Düzenleme için
@@ -74,6 +76,7 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
       final parola = _parolaController.text.trim();
       
       // Yeni tedarikci eklerken ve kullanıcı oluşturma seçiliyse
+      String? createdUserId;
       if (!_duzenlemeModunda && _kullaniciOlustur && email.isNotEmpty && parola.isNotEmpty) {
         // 1. Önce Supabase Auth'ta kullanıcı oluştur
         try {
@@ -86,16 +89,18 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
           );
           
           if (authResponse.user != null) {
-            debugPrint('✅ Kullanıcı oluşturuldu: ${authResponse.user!.id}');
+            createdUserId = authResponse.user!.id;
+            debugPrint('✅ Kullanıcı oluşturuldu: $createdUserId');
           }
         } catch (authError) {
           // Admin API çalışmazsa normal signUp dene
           debugPrint('⚠️ Admin API hatası, normal signUp deneniyor: $authError');
           try {
-            await Supabase.instance.client.auth.signUp(
+            final signUpResponse = await Supabase.instance.client.auth.signUp(
               email: email,
               password: parola,
             );
+            createdUserId = signUpResponse.user?.id;
             debugPrint('✅ Kullanıcı signUp ile oluşturuldu');
           } catch (signUpError) {
             debugPrint('⚠️ SignUp hatası: $signUpError');
@@ -103,6 +108,37 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
             if (!signUpError.toString().contains('already registered')) {
               rethrow;
             }
+          }
+        }
+
+        // 2. Kullanıcıyı firma_kullanicilari ve user_roles'a ekle
+        if (createdUserId != null) {
+          try {
+            // user_roles tablosuna tedarikci rolü ekle
+            await Supabase.instance.client.from(DbTables.userRoles).upsert({
+              'user_id': createdUserId,
+              'role': 'tedarikci',
+              'aktif': true,
+            }, onConflict: 'user_id');
+            debugPrint('✅ Tedarikci rolü eklendi');
+          } catch (e) {
+            debugPrint('⚠️ user_roles ekleme hatası: $e');
+          }
+
+          try {
+            // firma_kullanicilari tablosuna ekle
+            final firmaId = TenantManager.instance.firmaId;
+            if (firmaId != null) {
+              await Supabase.instance.client.from(DbTables.firmaKullanicilari).upsert({
+                'firma_id': firmaId,
+                'user_id': createdUserId,
+                'rol': 'tedarikci',
+                'aktif': true,
+              }, onConflict: 'firma_id,user_id');
+              debugPrint('✅ Tedarikci firmaya eklendi: $firmaId');
+            }
+          } catch (e) {
+            debugPrint('⚠️ firma_kullanicilari ekleme hatası: $e');
           }
         }
       }
