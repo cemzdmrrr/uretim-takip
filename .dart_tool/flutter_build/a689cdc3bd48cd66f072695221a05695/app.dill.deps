@@ -2451,6 +2451,7 @@ file:///C:/uretim_takip/lib/pages/ayarlar/firma_kullanici_yonetimi_page.dart
 file:///C:/uretim_takip/lib/pages/ayarlar/kullanici_listesi.dart
 file:///C:/uretim_takip/lib/pages/ayarlar/kullanici_listesi_ui.dart
 file:///C:/uretim_takip/lib/pages/ayarlar/rol_yetki_yonetimi_page.dart
+file:///C:/uretim_takip/lib/pages/ayarlar/sayfa_yetki_yonetimi_page.dart
 file:///C:/uretim_takip/lib/pages/ayarlar/sistem_ayarlari_page.dart
 file:///C:/uretim_takip/lib/pages/home/ana_sayfa.dart
 file:///C:/uretim_takip/lib/pages/model/model_detay.dart
@@ -2590,6 +2591,7 @@ file:///C:/uretim_takip/lib/services/notification_service.dart
 file:///C:/uretim_takip/lib/services/odeme_service.dart
 file:///C:/uretim_takip/lib/services/personel_service.dart
 file:///C:/uretim_takip/lib/services/platform_admin_service.dart
+file:///C:/uretim_takip/lib/services/sayfa_yetki_service.dart
 file:///C:/uretim_takip/lib/services/sistem_ayarlari_service.dart
 file:///C:/uretim_takip/lib/services/supabase_service.dart
 file:///C:/uretim_takip/lib/services/tedarikci_service.dart
@@ -2600,6 +2602,7 @@ file:///C:/uretim_takip/lib/services/yetki_service.dart
 file:///C:/uretim_takip/lib/theme/app_theme.dart
 file:///C:/uretim_takip/lib/utils/app_exceptions.dart
 file:///C:/uretim_takip/lib/utils/excel_export.dart
+file:///C:/uretim_takip/lib/utils/role_utils.dart
 file:///C:/uretim_takip/lib/utils/web_download.dart
 file:///C:/uretim_takip/lib/utils/web_download_web.dart
 file:///C:/uretim_takip/lib/widgets/bildirim_popup.dart

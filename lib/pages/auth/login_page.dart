@@ -242,8 +242,13 @@ class _LoginPageState extends State<LoginPage>
         String targetRoute = AppRoutes.anasayfa; // Varsayılan admin paneli
 
         try {
+          // AdminClient kullan (RLS bypass) - yoksa normal client ile devam et
+          final dbClient = SupabaseConfig.isAdminAvailable
+              ? SupabaseConfig.adminClient
+              : Supabase.instance.client;
+
           // ÖNCE kullanıcı rollerini kontrol et (admin kontrolü)
-          final userRoleCheck = await Supabase.instance.client
+          final userRoleCheck = await dbClient
               .from(DbTables.userRoles)
               .select('role')
               .eq('user_id', response.user!.id)
@@ -270,7 +275,7 @@ class _LoginPageState extends State<LoginPage>
             debugPrint('📦 Sevkiyat personeli girişi: $email');
           } else {
             // Tedarikciler tablosunda bu email var mı kontrol et
-            final tedarikciCheck = await Supabase.instance.client
+            final tedarikciCheck = await dbClient
                 .from(DbTables.tedarikciler)
                 .select('id, sirket, faaliyet')
                 .eq('email', email)

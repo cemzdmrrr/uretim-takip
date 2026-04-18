@@ -90,8 +90,13 @@ class _SplashScreenState extends State<SplashScreen> {
 
       debugPrint('🔍 Kullanıcı tipi belirleniyor: ${currentUser!.email}');
 
+      // AdminClient kullan (RLS bypass) - yoksa normal client ile devam et
+      final dbClient = SupabaseConfig.isAdminAvailable
+          ? SupabaseConfig.adminClient
+          : Supabase.instance.client;
+
       // Önce admin kontrolü
-      final adminCheck = await Supabase.instance.client
+      final adminCheck = await dbClient
           .from(DbTables.userRoles)
           .select('role')
           .eq('user_id', currentUser.id)
@@ -109,7 +114,7 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       // Sonra tedarikci kontrolü
-      final tedarikciCheck = await Supabase.instance.client
+      final tedarikciCheck = await dbClient
           .from(DbTables.tedarikciler)
           .select('id, sirket, faaliyet')
           .eq('email', currentUser.email!)
@@ -143,7 +148,7 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       // Kullanıcı rollerini kontrol et (birden fazla rol olabilir)
-      final userRoles = await Supabase.instance.client
+      final userRoles = await dbClient
           .from(DbTables.userRoles)
           .select('role')
           .eq('user_id', currentUser.id);
