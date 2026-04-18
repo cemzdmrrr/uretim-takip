@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/services/sayfa_yetki_service.dart';
+import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 
 class SayfaYetkiYonetimiPage extends StatefulWidget {
@@ -13,6 +14,7 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
   List<Map<String, dynamic>> _kullanicilar = [];
   Map<String, dynamic>? _secilenKullanici;
   Set<String> _aktifYetkiler = {};
+  Set<String> _firmaAktifSayfalar = {};
   bool _yukleniyor = true;
   bool _kaydediyor = false;
 
@@ -25,9 +27,14 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
   Future<void> _kullanicilariYukle() async {
     setState(() => _yukleniyor = true);
     try {
-      final kullanicilar = await SayfaYetkiService.firmaKullanicilariniGetir();
+      final firmaId = TenantManager.instance.requireFirmaId;
+      final results = await Future.wait([
+        SayfaYetkiService.firmaKullanicilariniGetir(),
+        SayfaYetkiService.firmaYetkileriniGetir(firmaId),
+      ]);
       setState(() {
-        _kullanicilar = kullanicilar;
+        _kullanicilar = results[0] as List<Map<String, dynamic>>;
+        _firmaAktifSayfalar = results[1] as Set<String>;
         _yukleniyor = false;
       });
     } catch (e) {
@@ -78,7 +85,7 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
 
   void _tumunuSec() {
     setState(() {
-      _aktifYetkiler = SayfaRegistry.tumSayfalar.map((s) => s.kod).toSet();
+      _aktifYetkiler = _firmaIzinliSayfalar.map((s) => s.kod).toSet();
     });
   }
 
@@ -90,7 +97,7 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
 
   void _kategoriTopluIslem(String kategori, bool sec) {
     setState(() {
-      final sayfalar = SayfaRegistry.kategoriyeGore(kategori);
+      final sayfalar = _firmaIzinliSayfalarByKategori(kategori);
       for (final sayfa in sayfalar) {
         if (sec) {
           _aktifYetkiler.add(sayfa.kod);
@@ -99,6 +106,23 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
         }
       }
     });
+  }
+
+  /// Firma seviyesinde izin verilen sayfalar.
+  /// Firma yetki listesi boş ise tüm sayfalar gösterilir (geriye uyumluluk).
+  List<SayfaTanimi> get _firmaIzinliSayfalar {
+    if (_firmaAktifSayfalar.isEmpty) return SayfaRegistry.tumSayfalar;
+    return SayfaRegistry.tumSayfalar
+        .where((s) => _firmaAktifSayfalar.contains(s.kod))
+        .toList();
+  }
+
+  List<SayfaTanimi> _firmaIzinliSayfalarByKategori(String kategori) {
+    return _firmaIzinliSayfalar.where((s) => s.kategori == kategori).toList();
+  }
+
+  List<String> get _firmaIzinliKategoriler {
+    return _firmaIzinliSayfalar.map((s) => s.kategori).toSet().toList();
   }
 
   String _kullaniciAdi(Map<String, dynamic> kullanici) {
@@ -131,7 +155,7 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sayfa Yetki Yönetimi'),
+        title: const Text('Kullanıcı Sayfa Yetkileri'),
         backgroundColor: const Color(0xFF00897B),
         foregroundColor: Colors.white,
         actions: [
@@ -244,7 +268,7 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
   }
 
   Widget _buildYetkiPaneli() {
-    final kategoriler = SayfaRegistry.tumKategoriler;
+    final kategoriler = _firmaIzinliKategoriler;
     return Column(
       children: [
         // Header
@@ -254,28 +278,40 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
             color: Colors.grey[50],
             border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.person, color: const Color(0xFF00897B), size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${_kullaniciAdi(_secilenKullanici!)} — ${_rolEtiketi(_secilenKullanici!['rol'])}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              Row(
+                children: [
+                  Icon(Icons.person, color: const Color(0xFF00897B), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${_kullaniciAdi(_secilenKullanici!)} — ${_rolEtiketi(_secilenKullanici!['rol'])}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _tumunuSec,
+                    icon: const Icon(Icons.select_all, size: 16),
+                    label: const Text('Tümünü Seç', style: TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: _tumunuKaldir,
+                    icon: const Icon(Icons.deselect, size: 16),
+                    label: const Text('Tümünü Kaldır', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  ),
+                ],
+              ),
+              if (_firmaAktifSayfalar.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Sadece firmanızda aktif olan sayfalar gösterilmektedir.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
                 ),
-              ),
-              TextButton.icon(
-                onPressed: _tumunuSec,
-                icon: const Icon(Icons.select_all, size: 16),
-                label: const Text('Tümünü Seç', style: TextStyle(fontSize: 12)),
-              ),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: _tumunuKaldir,
-                icon: const Icon(Icons.deselect, size: 16),
-                label: const Text('Tümünü Kaldır', style: TextStyle(fontSize: 12)),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-              ),
+              ],
             ],
           ),
         ),
@@ -319,7 +355,8 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
   }
 
   Widget _buildKategoriKarti(String kategori) {
-    final sayfalar = SayfaRegistry.kategoriyeGore(kategori);
+    final sayfalar = _firmaIzinliSayfalarByKategori(kategori);
+    if (sayfalar.isEmpty) return const SizedBox.shrink();
     final hepsiSecili = sayfalar.every((s) => _aktifYetkiler.contains(s.kod));
     final hicSecili = sayfalar.every((s) => !_aktifYetkiler.contains(s.kod));
 

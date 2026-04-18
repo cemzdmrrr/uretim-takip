@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
+import 'package:uretim_takip/config/supabase_config.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 /// Tüm sayfaların kayıt defteri — sayfa kodu → etiket + ikon + kategori
@@ -66,7 +67,8 @@ class SayfaRegistry {
     // Kullanıcı & Yetki
     SayfaTanimi(kod: 'firma_kullanicilari', etiket: 'Firma Kullanıcıları', ikon: Icons.people_alt_rounded, kategori: katKullaniciYetki),
     SayfaTanimi(kod: 'rol_yetki_yonetimi', etiket: 'Rol & Yetki Yönetimi', ikon: Icons.security_rounded, kategori: katKullaniciYetki),
-    SayfaTanimi(kod: 'sayfa_yetki_yonetimi', etiket: 'Sayfa Yetki Yönetimi', ikon: Icons.lock_open_rounded, kategori: katKullaniciYetki),
+    SayfaTanimi(kod: 'firma_sayfa_yetkileri', etiket: 'Firma Sayfa Yetkileri', ikon: Icons.business_center_rounded, kategori: katKullaniciYetki),
+    SayfaTanimi(kod: 'sayfa_yetki_yonetimi', etiket: 'Kullanıcı Sayfa Yetkileri', ikon: Icons.lock_open_rounded, kategori: katKullaniciYetki),
 
     // Abonelik & Plan
     SayfaTanimi(kod: 'abonelik_yonetimi', etiket: 'Abonelik Yönetimi', ikon: Icons.card_membership_rounded, kategori: katAbonelik),
@@ -98,6 +100,69 @@ class SayfaRegistry {
 class SayfaYetkiService {
   static final _client = Supabase.instance.client;
   static String get _firmaId => TenantManager.instance.requireFirmaId;
+
+  // ═══════════════════════════════════════════════
+  // FİRMA SEVİYESİ SAYFA YETKİLERİ
+  // ═══════════════════════════════════════════════
+
+  /// Firma için aktif olan sayfa kodlarını getirir
+  static Future<Set<String>> firmaYetkileriniGetir(String firmaId) async {
+    try {
+      final client = SupabaseConfig.isAdminAvailable
+          ? SupabaseConfig.adminClient
+          : _client;
+      final response = await client
+          .from(DbTables.firmaSayfaYetkileri)
+          .select('sayfa_kodu')
+          .eq('firma_id', firmaId)
+          .eq('aktif', true);
+
+      return (response as List).map((r) => r['sayfa_kodu'] as String).toSet();
+    } catch (e) {
+      debugPrint('Firma sayfa yetkileri yüklenemedi: $e');
+      return {};
+    }
+  }
+
+  /// Mevcut firma için aktif sayfa kodlarını getirir
+  static Future<Set<String>> mevcutFirmaYetkileriniGetir() async {
+    return firmaYetkileriniGetir(_firmaId);
+  }
+
+  /// Firma sayfa yetkilerini kaydet (upsert)
+  static Future<void> firmaYetkileriniKaydet(String firmaId, Set<String> sayfaKodlari) async {
+    final client = SupabaseConfig.isAdminAvailable
+        ? SupabaseConfig.adminClient
+        : _client;
+
+    // Mevcut kayıtları sil
+    await client
+        .from(DbTables.firmaSayfaYetkileri)
+        .delete()
+        .eq('firma_id', firmaId);
+
+    // Yeni kayıtları ekle
+    if (sayfaKodlari.isNotEmpty) {
+      final rows = sayfaKodlari.map((kod) => {
+        'firma_id': firmaId,
+        'sayfa_kodu': kod,
+        'aktif': true,
+      }).toList();
+
+      await client.from(DbTables.firmaSayfaYetkileri).insert(rows);
+    }
+  }
+
+  /// Firma belirli sayfaya erişebilir mi?
+  static Future<bool> firmaSayfaErisimKontrol(String sayfaKodu) async {
+    final yetkiler = await mevcutFirmaYetkileriniGetir();
+    if (yetkiler.isEmpty) return true; // Hiç tanımlama yoksa tümüne erişim (geriye uyumluluk)
+    return yetkiler.contains(sayfaKodu);
+  }
+
+  // ═══════════════════════════════════════════════
+  // KULLANICI SEVİYESİ SAYFA YETKİLERİ
+  // ═══════════════════════════════════════════════
 
   /// Belirli kullanıcının erişebildiği sayfa kodlarını getirir
   static Future<Set<String>> kullaniciYetkileriniGetir(String userId) async {

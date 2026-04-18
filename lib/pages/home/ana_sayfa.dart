@@ -46,6 +46,7 @@ import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
 import 'package:uretim_takip/services/sayfa_yetki_service.dart';
 import 'package:uretim_takip/pages/ayarlar/sayfa_yetki_yonetimi_page.dart';
+import 'package:uretim_takip/pages/ayarlar/firma_sayfa_yetki_yonetimi_page.dart';
 
 class AnaSayfa extends StatefulWidget {
   const AnaSayfa({super.key});
@@ -61,6 +62,8 @@ class _AnaSayfaState extends State<AnaSayfa> {
   Timer? _refreshTimer;
   Set<String> _sayfaYetkileri = {};
   bool _yetkilerYuklendi = false;
+  Set<String> _firmaSayfaYetkileri = {};
+  bool _firmaYetkileriYuklendi = false;
   
   // Canlı dashboard verileri
   Map<String, int> _dashboardStats = {
@@ -109,6 +112,9 @@ class _AnaSayfaState extends State<AnaSayfa> {
       if (!RoleUtils.isAdmin(kullaniciRolu)) {
         await _sayfaYetkileriniYukle(user.id);
       }
+      
+      // Firma sayfa yetkilerini yükle
+      await _firmaSayfaYetkileriniYukle();
       
       // Dashboard verilerini yükle
       if (_isBackofficeUser) {
@@ -729,11 +735,30 @@ class _AnaSayfaState extends State<AnaSayfa> {
     }
   }
 
+  Future<void> _firmaSayfaYetkileriniYukle() async {
+    try {
+      final yetkiler = await SayfaYetkiService.mevcutFirmaYetkileriniGetir();
+      setState(() {
+        _firmaSayfaYetkileri = yetkiler;
+        _firmaYetkileriYuklendi = true;
+      });
+    } catch (e) {
+      debugPrint('Firma sayfa yetkileri yüklenemedi: $e');
+      setState(() => _firmaYetkileriYuklendi = true);
+    }
+  }
+
   /// Kullanıcının belirli sayfaya erişimi var mı?
+  /// Önce firma seviyesi kontrol edilir, sonra kullanıcı seviyesi.
   /// Admin her zaman erişebilir. Yetki tanımlanmamışsa (boş set) tüm sayfaları göster (geriye uyumluluk).
-  /// Yetki tablosu henüz yüklenmediyse veya hata varsa tüm sayfaları göster.
   bool _sayfaErisimVar(String sayfaKodu) {
+    // 1. Firma seviyesi kontrol
+    if (_firmaYetkileriYuklendi && _firmaSayfaYetkileri.isNotEmpty) {
+      if (!_firmaSayfaYetkileri.contains(sayfaKodu)) return false;
+    }
+    // 2. Platform admin her zaman erişebilir
     if (RoleUtils.isAdmin(kullaniciRolu)) return true;
+    // 3. Kullanıcı seviyesi kontrol
     if (!_yetkilerYuklendi) return true; // Henüz yüklenmediyse göster
     if (_sayfaYetkileri.isEmpty) return true; // Hiç yetki tanımlanmamışsa tümünü göster
     return _sayfaYetkileri.contains(sayfaKodu);
@@ -890,7 +915,8 @@ class _AnaSayfaState extends State<AnaSayfa> {
       kategoriler['Kullanıcı & Yetki'] = [
         {'text': 'Firma Kullanıcıları', 'icon': Icons.people_alt_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaKullaniciYonetimiPage()))},
         {'text': 'Rol & Yetki Yönetimi', 'icon': Icons.security_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))},
-        {'text': 'Sayfa Yetki Yönetimi', 'icon': Icons.lock_open_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))},
+        {'text': 'Firma Sayfa Yetkileri', 'icon': Icons.business_center_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaSayfaYetkiYonetimiPage()))},
+        {'text': 'Kullanıcı Sayfa Yetkileri', 'icon': Icons.lock_open_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))},
       ];
     }
 
