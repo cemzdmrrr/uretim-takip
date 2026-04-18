@@ -241,6 +241,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
       // 2. Tedarikci kontrolü (adminClient ile RLS bypass)
       String? bulunanFirmaId;
+      bool hasRole = false;
       if (currentUser.email != null) {
         final tedarikciCheck = await adminClient
             .from(DbTables.tedarikciler)
@@ -249,20 +250,22 @@ class _SplashScreenState extends State<SplashScreen> {
             .maybeSingle();
         if (tedarikciCheck != null) {
           bulunanFirmaId = tedarikciCheck['firma_id']?.toString();
+          hasRole = true;
           debugPrint('✅ Tedarikci kaydı bulundu, firma_id: $bulunanFirmaId');
         }
       }
 
       // 3. User roles kontrolü (adminClient ile RLS bypass)
-      if (bulunanFirmaId == null) {
+      if (!hasRole) {
         final rolesCheck = await adminClient
             .from(DbTables.userRoles)
             .select('role')
             .eq('user_id', currentUser.id);
         if (rolesCheck.isNotEmpty) {
+          hasRole = true;
           debugPrint('✅ User role kaydı bulundu: $rolesCheck');
           // Personel tablosundan firma_id bulmayı dene
-          if (currentUser.email != null) {
+          if (currentUser.email != null && bulunanFirmaId == null) {
             final personelCheck = await adminClient
                 .from(DbTables.personel)
                 .select('firma_id')
@@ -270,30 +273,47 @@ class _SplashScreenState extends State<SplashScreen> {
                 .maybeSingle();
             bulunanFirmaId = personelCheck?['firma_id']?.toString();
           }
-          if (bulunanFirmaId == null) {
-            // firma_id bulunamadı ama role var, yine de yönlendir
-            return true;
-          }
         }
       }
 
-      if (bulunanFirmaId == null) return false;
+      // 4. Rolü var ama firma_id bulunamadıysa varsayılan firmayı kullan
+      if (hasRole && bulunanFirmaId == null) {
+        try {
+          final varsayilanFirma = await adminClient
+              .from(DbTables.firmalar)
+              .select('id')
+              .eq('firma_kodu', 'varsayilan-firma')
+              .maybeSingle();
+          if (varsayilanFirma != null) {
+            bulunanFirmaId = varsayilanFirma['id']?.toString();
+            debugPrint('🏢 Varsayılan firma kullanılıyor: $bulunanFirmaId');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Varsayılan firma arama hatası: $e');
+        }
+      }
 
-      // 4. Eksik firma_kullanicilari kaydını otomatik oluştur
-      try {
-        await adminClient.from(DbTables.firmaKullanicilari).upsert({
-          'firma_id': bulunanFirmaId,
-          'user_id': currentUser.id,
-          'rol': 'kullanici',
-          'aktif': true,
-        }, onConflict: 'firma_id,user_id');
-        debugPrint('✅ Eksik firma_kullanicilari kaydı oluşturuldu');
+      // Hiçbir kayıt yoksa onboarding'e gönder
+      if (!hasRole) return false;
 
-        // Tekrar yükle
-        final tenantProvider = context.read<TenantProvider>();
-        await tenantProvider.kullaniciFirmalariniYukle(currentUser.id);
-      } catch (e) {
-        debugPrint('⚠️ firma_kullanicilari otomatik oluşturma hatası: $e');
+      // firma_id varsa firma_kullanicilari kaydını oluştur
+      if (bulunanFirmaId != null) {
+        // 5. Eksik firma_kullanicilari kaydını otomatik oluştur
+        try {
+          await adminClient.from(DbTables.firmaKullanicilari).upsert({
+            'firma_id': bulunanFirmaId,
+            'user_id': currentUser.id,
+            'rol': 'kullanici',
+            'aktif': true,
+          }, onConflict: 'firma_id,user_id');
+          debugPrint('✅ Eksik firma_kullanicilari kaydı oluşturuldu');
+
+          // Tekrar yükle
+          final tenantProvider = context.read<TenantProvider>();
+          await tenantProvider.kullaniciFirmalariniYukle(currentUser.id);
+        } catch (e) {
+          debugPrint('⚠️ firma_kullanicilari otomatik oluşturma hatası: $e');
+        }
       }
 
       return true;

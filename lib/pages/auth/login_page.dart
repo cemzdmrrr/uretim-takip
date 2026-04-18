@@ -159,7 +159,16 @@ class _LoginPageState extends State<LoginPage>
                   if (tedarikciCheck != null) {
                     hasExistingAccess = true;
                     // Eksik firma_kullanicilari kaydını oluştur
-                    final firmaId = tedarikciCheck['firma_id']?.toString();
+                    String? firmaId = tedarikciCheck['firma_id']?.toString();
+                    // firma_id yoksa varsayılan firmayı kullan
+                    if (firmaId == null) {
+                      final varsayilanFirma = await adminClient
+                          .from(DbTables.firmalar)
+                          .select('id')
+                          .eq('firma_kodu', 'varsayilan-firma')
+                          .maybeSingle();
+                      firmaId = varsayilanFirma?['id']?.toString();
+                    }
                     if (firmaId != null) {
                       await adminClient.from(DbTables.firmaKullanicilari).upsert({
                         'firma_id': firmaId,
@@ -180,13 +189,26 @@ class _LoginPageState extends State<LoginPage>
                       .eq('user_id', response.user!.id);
                   if (rolesCheck.isNotEmpty) {
                     hasExistingAccess = true;
-                    // Personel tablosundan firma_id bul ve firma_kullanicilari oluştur
+                    // Personel tablosundan firma_id bul
+                    String? firmaId;
                     final personelCheck = await adminClient
                         .from(DbTables.personel)
                         .select('firma_id')
                         .eq('email', email)
                         .maybeSingle();
-                    final firmaId = personelCheck?['firma_id']?.toString();
+                    firmaId = personelCheck?['firma_id']?.toString();
+                    
+                    // firma_id bulunamadıysa varsayılan firmayı kullan
+                    if (firmaId == null) {
+                      final varsayilanFirma = await adminClient
+                          .from(DbTables.firmalar)
+                          .select('id')
+                          .eq('firma_kodu', 'varsayilan-firma')
+                          .maybeSingle();
+                      firmaId = varsayilanFirma?['id']?.toString();
+                      debugPrint('🏢 Varsayılan firma kullanılıyor: $firmaId');
+                    }
+
                     if (firmaId != null) {
                       await adminClient.from(DbTables.firmaKullanicilari).upsert({
                         'firma_id': firmaId,
