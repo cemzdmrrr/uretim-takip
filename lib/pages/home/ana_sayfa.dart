@@ -694,56 +694,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                       const SizedBox(height: 24),
                     ],
 
-                    // Hızlı Erişim (üretim modülü aktifse)
-                    if (_isBackofficeUser && _modulAktif('uretim')) ...[
-                      FadeTransition(
-                        opacity: _fadeAnim,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.15),
-                            end: Offset.zero,
-                          ).animate(_fadeAnim),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF1976D2).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(Icons.flash_on_rounded, color: Color(0xFF1976D2), size: 18),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    'Hızlı Erişim',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.grey[800],
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Container(
-                                      height: 1,
-                                      color: const Color(0xFF1976D2).withValues(alpha: 0.12),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              _buildQuickActionsRow(),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-
                     // Kategoriler
                     ...kategoriler.entries.map((entry) {
                       final meta = _categoryMeta(entry.key);
@@ -1022,16 +972,17 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   /// Önce firma seviyesi kontrol edilir, sonra kullanıcı seviyesi.
   /// Admin her zaman erişebilir. Yetki tanımlanmamışsa (boş set) tüm sayfaları göster (geriye uyumluluk).
   bool _sayfaErisimVar(String sayfaKodu) {
+    final normalizedKod = SayfaYetkiService.normalizeSayfaKodu(sayfaKodu);
     // 1. Firma seviyesi kontrol
     if (_firmaYetkileriYuklendi && _firmaSayfaYetkileri.isNotEmpty) {
-      if (!_firmaSayfaYetkileri.contains(sayfaKodu)) return false;
+      if (!_firmaSayfaYetkileri.contains(normalizedKod)) return false;
     }
     // 2. Platform admin her zaman erişebilir
     if (RoleUtils.isAdmin(kullaniciRolu)) return true;
     // 3. Kullanıcı seviyesi kontrol
     if (!_yetkilerYuklendi) return true; // Henüz yüklenmediyse göster
     if (_sayfaYetkileri.isEmpty) return true; // Hiç yetki tanımlanmamışsa tümünü göster
-    return _sayfaYetkileri.contains(sayfaKodu);
+    return _sayfaYetkileri.contains(normalizedKod);
   }
 
   bool _dashboardRoleIs(String role) =>

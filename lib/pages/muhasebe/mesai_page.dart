@@ -177,6 +177,8 @@ class _MesaiPageState extends State<MesaiPage> {
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    // Personel rolü onaylanan kayıtları düzenleyemez/silemez
+                                    if (!(currentUserRole == DbTables.personel && m['onay_durumu'] == 'onaylandi')) ...[
                                     IconButton(
                                       icon: const Icon(Icons.edit, color: Colors.orange),
                                       tooltip: 'Düzenle',
@@ -431,6 +433,7 @@ class _MesaiPageState extends State<MesaiPage> {
                                         }
                                       },
                                     ),
+                                    ], // personel onaylı kayıt kontrolü sonu
                                     // Admin için onayla butonu
                                     if (m['onay_durumu'] == 'beklemede' && currentUserRole == 'admin')
                                       ElevatedButton(

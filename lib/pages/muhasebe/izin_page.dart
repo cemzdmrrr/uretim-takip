@@ -333,6 +333,8 @@ class _IzinPageState extends State<IzinPage> {
                                         style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                                         child: const Text('Onayla'),
                                       ),
+                                    // Personel rolü onaylanan kayıtları düzenleyemez/silemez
+                                    if (!(currentUserRole == DbTables.personel && izin.onayDurumu == 'onaylandi')) ...[
                                     IconButton(
                                       icon: const Icon(Icons.edit, color: Colors.orange),
                                       tooltip: 'Düzenle',
@@ -389,6 +391,7 @@ class _IzinPageState extends State<IzinPage> {
                                         }
                                       },
                                     ),
+                                    ], // personel onaylı kayıt kontrolü sonu
                                   ],
                                 ),
                               ),

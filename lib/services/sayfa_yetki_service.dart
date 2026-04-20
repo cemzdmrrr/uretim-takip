@@ -101,6 +101,21 @@ class SayfaYetkiService {
   static final _client = Supabase.instance.client;
   static String get _firmaId => TenantManager.instance.requireFirmaId;
 
+  /// Sayfa kodlarını tutarlı karşılaştırmak için normalize eder.
+  /// Eski verilerde gelebilecek boşluk/büyük-küçük harf/Türkçe karakter farklarını tolere eder.
+  static String normalizeSayfaKodu(String kod) {
+    return kod
+        .trim()
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'\s+'), '_');
+  }
+
   // ═══════════════════════════════════════════════
   // FİRMA SEVİYESİ SAYFA YETKİLERİ
   // ═══════════════════════════════════════════════
@@ -117,7 +132,10 @@ class SayfaYetkiService {
           .eq('firma_id', firmaId)
           .eq('aktif', true);
 
-      return (response as List).map((r) => r['sayfa_kodu'] as String).toSet();
+        return (response as List)
+          .map((r) => normalizeSayfaKodu((r['sayfa_kodu'] ?? '').toString()))
+          .where((k) => k.isNotEmpty)
+          .toSet();
     } catch (e) {
       debugPrint('Firma sayfa yetkileri yüklenemedi: $e');
       return {};
@@ -143,7 +161,11 @@ class SayfaYetkiService {
 
     // Yeni kayıtları ekle
     if (sayfaKodlari.isNotEmpty) {
-      final rows = sayfaKodlari.map((kod) => {
+      final rows = sayfaKodlari
+          .map(normalizeSayfaKodu)
+          .where((k) => k.isNotEmpty)
+          .toSet()
+          .map((kod) => {
         'firma_id': firmaId,
         'sayfa_kodu': kod,
         'aktif': true,
@@ -157,7 +179,7 @@ class SayfaYetkiService {
   static Future<bool> firmaSayfaErisimKontrol(String sayfaKodu) async {
     final yetkiler = await mevcutFirmaYetkileriniGetir();
     if (yetkiler.isEmpty) return true; // Hiç tanımlama yoksa tümüne erişim (geriye uyumluluk)
-    return yetkiler.contains(sayfaKodu);
+    return yetkiler.contains(normalizeSayfaKodu(sayfaKodu));
   }
 
   // ═══════════════════════════════════════════════
@@ -174,7 +196,10 @@ class SayfaYetkiService {
           .eq('user_id', userId)
           .eq('aktif', true);
 
-      return (response as List).map((r) => r['sayfa_kodu'] as String).toSet();
+        return (response as List)
+          .map((r) => normalizeSayfaKodu((r['sayfa_kodu'] ?? '').toString()))
+          .where((k) => k.isNotEmpty)
+          .toSet();
     } catch (e) {
       // Tablo yoksa veya hata varsa boş set döndür
       return {};
@@ -184,7 +209,7 @@ class SayfaYetkiService {
   /// Kullanıcı belirli sayfaya erişebilir mi?
   static Future<bool> sayfaErisimKontrol(String userId, String sayfaKodu) async {
     final yetkiler = await kullaniciYetkileriniGetir(userId);
-    return yetkiler.contains(sayfaKodu);
+    return yetkiler.contains(normalizeSayfaKodu(sayfaKodu));
   }
 
   /// Kullanıcının tüm sayfa yetkilerini kaydet (upsert)
@@ -198,7 +223,11 @@ class SayfaYetkiService {
 
     // Yeni kayıtları ekle
     if (sayfaKodlari.isNotEmpty) {
-      final rows = sayfaKodlari.map((kod) => {
+      final rows = sayfaKodlari
+          .map(normalizeSayfaKodu)
+          .where((k) => k.isNotEmpty)
+          .toSet()
+          .map((kod) => {
         'firma_id': _firmaId,
         'user_id': userId,
         'sayfa_kodu': kod,
