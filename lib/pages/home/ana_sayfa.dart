@@ -60,8 +60,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   Timer? _refreshTimer;
   Set<String> _sayfaYetkileri = {};
   bool _yetkilerYuklendi = false;
-  Set<String> _firmaSayfaYetkileri = {};
-  bool _firmaYetkileriYuklendi = false;
   
   // Animasyon
   late AnimationController _animController;
@@ -120,9 +118,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       
       // Sayfa yetkilerini her kullanıcı için yükle
       await _sayfaYetkileriniYukle(user.id);
-      
-      // Firma sayfa yetkilerini yükle
-      await _firmaSayfaYetkileriniYukle();
       
       // Dashboard verilerini yükle
       await _dashboardVerileriniYukle();
@@ -780,37 +775,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       debugPrint('Sayfa yetkileri yüklenemedi: $e');
       setState(() => _yetkilerYuklendi = true);
     }
-  }
-
-  Future<void> _firmaSayfaYetkileriniYukle() async {
-    try {
-      final yetkiler = await SayfaYetkiService.mevcutFirmaYetkileriniGetir();
-      setState(() {
-        _firmaSayfaYetkileri = yetkiler;
-        _firmaYetkileriYuklendi = true;
-      });
-    } catch (e) {
-      debugPrint('Firma sayfa yetkileri yüklenemedi: $e');
-      setState(() => _firmaYetkileriYuklendi = true);
-    }
-  }
-
-  /// Kullanıcının belirli sayfaya erişimi var mı?
-  /// Admin kullanıcılar tüm sayfalara erişir.
-  /// Diğer kullanıcılar için önce firma seviyesi kontrol edilir, sonra kullanıcı seviyesi.
-  /// Yetki tanımlanmamışsa (boş set) tüm sayfaları göster (geriye uyumluluk).
-  bool _sayfaErisimVar(String sayfaKodu) {
-    final normalizedKod = SayfaYetkiService.normalizeSayfaKodu(sayfaKodu);
-    // 1. Platform admin kontrolü - her zaman erişir
-    if (RoleUtils.isAdmin(kullaniciRolu)) return true;
-    // 2. Firma seviyesi kontrol (admin olmayan kullanıcılar için)
-    if (_firmaYetkileriYuklendi && _firmaSayfaYetkileri.isNotEmpty) {
-      if (!_firmaSayfaYetkileri.contains(normalizedKod)) return false;
-    }
-    // 3. Kullanıcı seviyesi kontrol
-    if (!_yetkilerYuklendi) return true; // Henüz yüklenmediyse göster
-    if (_sayfaYetkileri.isEmpty) return true; // Hiç yetki tanımlanmamışsa tümünü göster
-    return _sayfaYetkileri.contains(normalizedKod);
   }
 
   Map<String, dynamic> _categoryMeta(String key) {
