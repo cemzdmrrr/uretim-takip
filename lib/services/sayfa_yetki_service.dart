@@ -67,6 +67,7 @@ class SayfaRegistry {
     // Kullanıcı & Yetki
     SayfaTanimi(kod: 'firma_kullanicilari', etiket: 'Firma Kullanıcıları', ikon: Icons.people_alt_rounded, kategori: katKullaniciYetki),
     SayfaTanimi(kod: 'rol_yetki_yonetimi', etiket: 'Rol & Yetki Yönetimi', ikon: Icons.security_rounded, kategori: katKullaniciYetki),
+    SayfaTanimi(kod: 'rol_sayfa_yetkileri', etiket: 'Rol Bazlı Sayfa Yetkileri', ikon: Icons.shield_rounded, kategori: katKullaniciYetki),
     SayfaTanimi(kod: 'firma_sayfa_yetkileri', etiket: 'Firma Sayfa Yetkileri', ikon: Icons.business_center_rounded, kategori: katKullaniciYetki),
     SayfaTanimi(kod: 'sayfa_yetki_yonetimi', etiket: 'Kullanıcı Sayfa Yetkileri', ikon: Icons.lock_open_rounded, kategori: katKullaniciYetki),
 
@@ -258,4 +259,112 @@ class SayfaYetkiService {
       return [];
     }
   }
+
+  // ═══════════════════════════════════════════════
+  // ROL BAZLI SAYFA YETKİLERİ
+  // ═══════════════════════════════════════════════
+
+  /// Belirli rol için aktif olan sayfa kodlarını getirir
+  static Future<Set<String>> rolYetkileriniGetir(String rol) async {
+    try {
+      final client = SupabaseConfig.isAdminAvailable
+          ? SupabaseConfig.adminClient
+          : _client;
+
+      final response = await client
+          .from(DbTables.rolSayfaYetkileri)
+          .select('sayfa_kodu')
+          .eq('firma_id', _firmaId)
+          .eq('rol', rol)
+          .eq('aktif', true);
+
+      return (response as List)
+          .map((r) => normalizeSayfaKodu((r['sayfa_kodu'] ?? '').toString()))
+          .where((k) => k.isNotEmpty)
+          .toSet();
+    } catch (e) {
+      debugPrint('Rol sayfa yetkileri yüklenemedi: $e');
+      return {};
+    }
+  }
+
+  /// Role ait sayfa yetkilerini kaydet (upsert)
+  static Future<void> rolYetkileriniKaydet(String rol, Set<String> sayfaKodlari) async {
+    final client = SupabaseConfig.isAdminAvailable
+        ? SupabaseConfig.adminClient
+        : _client;
+
+    // Önce mevcut kayıtları sil
+    await client
+        .from(DbTables.rolSayfaYetkileri)
+        .delete()
+        .eq('firma_id', _firmaId)
+        .eq('rol', rol);
+
+    // Yeni kayıtları ekle
+    if (sayfaKodlari.isNotEmpty) {
+      final rows = sayfaKodlari
+          .map(normalizeSayfaKodu)
+          .where((k) => k.isNotEmpty)
+          .toSet()
+          .map((kod) => {
+        'firma_id': _firmaId,
+        'rol': rol,
+        'sayfa_kodu': kod,
+        'aktif': true,
+      }).toList();
+
+      await client.from(DbTables.rolSayfaYetkileri).insert(rows);
+    }
+  }
+
+  /// Kullanıcının rolüne göre sayfa yetkilerini getirir
+  static Future<Set<String>> kullaniciRolYetkileriniGetir(String userId) async {
+    try {
+      // Önce kullanıcının rolünü al
+      final roleResponse = await _client
+          .from(DbTables.userRoles)
+          .select('role')
+          .eq('user_id', userId)
+          .eq('firma_id', _firmaId)
+          .maybeSingle();
+
+      if (roleResponse == null) return {};
+
+      final rol = roleResponse['role'] as String?;
+      if (rol == null) return {};
+
+      // Admin rolleri her şeyi görebilir
+      if (rol == 'firma_sahibi' || rol == 'firma_admin' || rol == 'admin') {
+        return SayfaRegistry.tumSayfalar.map((s) => s.kod).toSet();
+      }
+
+      // Rolün yetkilerini getir
+      return await rolYetkileriniGetir(rol);
+    } catch (e) {
+      debugPrint('Kullanıcı rol yetkileri yüklenemedi: $e');
+      return {};
+    }
+  }
+
+  /// Firmadaki tüm rolleri listeler
+  static Future<List<String>> firmaRolleriniGetir() async {
+    try {
+      final response = await _client
+          .from(DbTables.userRoles)
+          .select('role')
+          .eq('firma_id', _firmaId)
+          .eq('aktif', true);
+
+      return (response as List)
+          .map((r) => (r['role'] ?? '').toString())
+          .where((r) => r.isNotEmpty)
+          .toSet()
+          .toList();
+    } catch (e) {
+      debugPrint('Firma rolleri yüklenemedi: $e');
+      return [];
+    }
+  }
 }
+

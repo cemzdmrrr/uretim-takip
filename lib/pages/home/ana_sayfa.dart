@@ -44,6 +44,7 @@ import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
 import 'package:uretim_takip/services/sayfa_yetki_service.dart';
 import 'package:uretim_takip/pages/ayarlar/sayfa_yetki_yonetimi_page.dart';
+import 'package:uretim_takip/pages/ayarlar/rol_sayfa_yetki_yonetimi_page.dart';
 import 'package:uretim_takip/pages/ayarlar/firma_sayfa_yetki_yonetimi_page.dart';
 
 class AnaSayfa extends StatefulWidget {
@@ -766,9 +767,21 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
   Future<void> _sayfaYetkileriniYukle(String userId) async {
     try {
-      final yetkiler = await SayfaYetkiService.kullaniciYetkileriniGetir(userId);
+      // 1. Kullanıcıya özel atanmış yetkiler
+      final kullaniciYetkileri = await SayfaYetkiService.kullaniciYetkileriniGetir(userId);
+      
+      // 2. Kullanıcının rolüne göre yetkiler
+      final rolYetkileri = await SayfaYetkiService.kullaniciRolYetkileriniGetir(userId);
+      
+      // 3. İki set'i birleştir (kullanıcı + rol yetkileri)
+      final birlesikYetkiler = {...kullaniciYetkileri, ...rolYetkileri};
+      
+      debugPrint('📋 Kullanıcı yetkileri: $kullaniciYetkileri');
+      debugPrint('🎭 Rol yetkileri: $rolYetkileri');
+      debugPrint('✅ Birleşik yetkiler: $birlesikYetkiler');
+      
       setState(() {
-        _sayfaYetkileri = yetkiler;
+        _sayfaYetkileri = birlesikYetkiler;
         _yetkilerYuklendi = true;
       });
     } catch (e) {
@@ -780,13 +793,11 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   /// Kullanıcının belirli sayfaya erişimi var mı?
   bool _sayfaErisimVar(String sayfaKodu) {
     // 1. Admin her sayfayı görebilir
-    if (kullaniciRolu == 'admin') return true;
-
-    // 2. Kullanıcı yetkileri kontrolü
-    if (_sayfaYetkileri.isEmpty) {
-      // Boş ise hiçbir sayfa göremez
-      return false;
+    if (kullaniciRolu == 'admin' || kullaniciRolu == 'firma_sahibi' || kullaniciRolu == 'firma_admin') {
+      return true;
     }
+
+    // 2. Birleşik yetkileri kontrol et (kullanıcı + rol yetkileri)
     // Normalleştirilmiş sayfa kodu ile kontrol
     final normalized = SayfaYetkiService.normalizeSayfaKodu(sayfaKodu);
     return _sayfaYetkileri.contains(normalized);
@@ -939,6 +950,9 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       }
       if (_sayfaErisimVar('rol_yetki_yonetimi')) {
         yetkiItems.add({'text': 'Rol & Yetki Yönetimi', 'icon': Icons.security_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))});
+      }
+      if (_sayfaErisimVar('rol_sayfa_yetkileri')) {
+        yetkiItems.add({'text': 'Rol Bazlı Sayfa Yetkileri', 'icon': Icons.shield_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RolSayfaYetkiYonetimiPage()))});
       }
       if (_sayfaErisimVar('sayfa_yetki_yonetimi')) {
         yetkiItems.add({'text': 'Kullanıcı Sayfa Yetkileri', 'icon': Icons.lock_open_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))});
