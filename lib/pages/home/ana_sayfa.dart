@@ -1,7 +1,6 @@
 ﻿import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -15,7 +14,6 @@ import 'package:uretim_takip/pages/ayarlar/kullanici_listesi.dart';
 import 'package:uretim_takip/pages/stok/stok_yonetimi.dart';
 import 'package:uretim_takip/pages/sevkiyat/tamamlanan_siparisler_page.dart';
 import 'package:uretim_takip/pages/personel/personel_anasayfa.dart';
-import 'package:uretim_takip/pages/personel/personel_detay_page.dart';
 import 'package:uretim_takip/pages/tedarikci/tedarikci_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/kasa_banka_listesi_page.dart';
@@ -32,8 +30,6 @@ import 'package:uretim_takip/pages/uretim/uretim_raporu_page.dart';
 import 'package:uretim_takip/widgets/bildirim_popup.dart';
 
 import 'package:provider/provider.dart';
-import 'package:uretim_takip/services/personel_service.dart';
-import 'package:uretim_takip/models/personel_model.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/providers/tenant_provider.dart';
 import 'package:uretim_takip/pages/auth/firma_secim_page.dart';
@@ -122,19 +118,15 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       
       debugPrint('✅ Kullanıcı rolü alındı: $kullaniciRolu (RLS kapalı)');
       
-      // Sayfa yetkilerini yükle (admin değilse)
-      if (!RoleUtils.isAdmin(kullaniciRolu)) {
-        await _sayfaYetkileriniYukle(user.id);
-      }
+      // Sayfa yetkilerini her kullanıcı için yükle
+      await _sayfaYetkileriniYukle(user.id);
       
       // Firma sayfa yetkilerini yükle
       await _firmaSayfaYetkileriniYukle();
       
       // Dashboard verilerini yükle
-      if (_isBackofficeUser) {
-        await _dashboardVerileriniYukle();
-        _startAutoRefresh();
-      }
+      await _dashboardVerileriniYukle();
+      _startAutoRefresh();
       
       setState(() => yukleniyor = false);
       _animController.forward();
@@ -222,11 +214,11 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     final intValue = int.tryParse(value) ?? 0;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -236,16 +228,16 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 color.withValues(alpha: 0.04),
               ],
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: color.withValues(alpha: 0.2),
-              width: 1.5,
+              width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
                 color: color.withValues(alpha: 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -254,14 +246,14 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 22),
+                child: Icon(icon, color: color, size: 18),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               TweenAnimationBuilder<int>(
                 tween: IntTween(begin: 0, end: intValue),
                 duration: const Duration(milliseconds: 1500),
@@ -269,7 +261,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 builder: (context, val, _) => Text(
                   '$val',
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                     color: color,
                     height: 1,
@@ -280,10 +272,10 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   color: Colors.grey[700],
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.1,
                 ),
               ),
             ],
@@ -365,11 +357,11 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.only(top: 20, bottom: 10),
+              padding: const EdgeInsets.only(top: 14, bottom: 8),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -379,18 +371,18 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                           color.withValues(alpha: 0.05),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(icon, color: color, size: 18),
+                    child: Icon(icon, color: color, size: 16),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.w800,
                       color: Colors.grey[800],
-                      letterSpacing: 0.3,
+                      letterSpacing: 0.2,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -422,9 +414,9 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                   physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: cols,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: cols == 1 ? 4.5 : 3.0,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: cols == 1 ? 4.9 : 3.7,
                   ),
                   itemCount: butonlar.length,
                   itemBuilder: (context, index) {
@@ -445,27 +437,27 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         splashColor: color.withValues(alpha: 0.1),
         highlightColor: color.withValues(alpha: 0.05),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: color.withValues(alpha: 0.1)),
             boxShadow: [
               BoxShadow(
                 color: color.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -475,31 +467,31 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                       color.withValues(alpha: 0.05),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: color, size: 16),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   text,
                   style: TextStyle(
                     color: Colors.grey[800],
-                    fontSize: 14,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
+                    letterSpacing: 0,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(5),
                 ),
-                child: Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.6), size: 18),
+                child: Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.6), size: 14),
               ),
             ],
           ),
@@ -527,33 +519,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         ),
       );
     }
-
-    // Rol bazlı yönlendirmeler
-    if (_dashboardRoleIs(DbTables.personel)) {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) {
-        return const Scaffold(body: Center(child: Text('Kullanıcı bulunamadı.')));
-      }
-      return FutureBuilder<PersonelModel?>(
-        future: PersonelService().getPersonelByUserId(userId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
-          }
-          if (!snapshot.hasData || snapshot.data == null) {
-            return const Scaffold(body: Center(child: Text('Personel kaydı bulunamadı.')));
-          }
-          return PersonelDetayPage(id: snapshot.data!.userId);
-        },
-      );
-    }
-    if (_dashboardRoleIs('dokuma')) return const DokumaDashboard();
-    if (_dashboardRoleIs('konfeksiyon')) return const KonfeksiyonDashboard();
-    if (_dashboardRoleIs('yikama')) return const YikamaDashboard();
-    if (_dashboardRoleIs('utu_paket')) return const UtuPaketDashboard();
-    if (_dashboardRoleIs('ilik_dugme')) return const IlikDugmeDashboard();
-    if (_dashboardRoleIs('kalite_kontrol')) return const KaliteKontrolDashboard();
-    if (_dashboardRoleIs('depo')) return const StokYonetimiPage();
 
     // Kategori butonları
     final kategoriler = _buildKategoriler();
@@ -724,7 +689,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isMobile = constraints.maxWidth < 600;
-            final isWide = constraints.maxWidth > 900;
             final stats = [
               _buildStatCard('Toplam Model', '${_dashboardStats['toplam_model']}', Icons.layers_rounded, const Color(0xFF1976D2)),
               _buildStatCard('Devam Eden', '${_dashboardStats['devam_eden']}', Icons.autorenew_rounded, const Color(0xFFF57C00)),
@@ -737,152 +701,19 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.0,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1.2,
                     children: stats,
                   )
                 : Row(
-                    children: stats.map((s) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: s))).toList(),
+                    children: stats.map((s) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: s))).toList(),
                   );
 
-            if (isWide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: statsWidget),
-                  const SizedBox(width: 16),
-                  Expanded(flex: 1, child: _buildMiniPieChart()),
-                ],
-              );
-            }
-            return Column(
-              children: [
-                statsWidget,
-                const SizedBox(height: 16),
-                _buildMiniPieChart(),
-              ],
-            );
+            return statsWidget;
           },
         ),
       ),
-    );
-  }
-
-  Widget _buildMiniPieChart() {
-    final devamEden = _dashboardStats['devam_eden'] ?? 0;
-    final tamamlanan = _dashboardStats['tamamlanan'] ?? 0;
-    final geciken = _dashboardStats['geciken'] ?? 0;
-    final toplam = _dashboardStats['toplam_model'] ?? 0;
-
-    if (toplam == 0) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.pie_chart_outline_rounded, size: 40, color: Colors.grey[300]),
-            const SizedBox(height: 8),
-            Text('Henüz veri yok', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            'Durum Dağılımı',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 130,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 2,
-                centerSpaceRadius: 24,
-                sections: [
-                  if (devamEden - geciken > 0)
-                    PieChartSectionData(
-                      value: (devamEden - geciken).toDouble(),
-                      color: const Color(0xFFF57C00),
-                      radius: 28,
-                      title: '',
-                    ),
-                  if (tamamlanan > 0)
-                    PieChartSectionData(
-                      value: tamamlanan.toDouble(),
-                      color: const Color(0xFF2E7D32),
-                      radius: 28,
-                      title: '',
-                    ),
-                  if (geciken > 0)
-                    PieChartSectionData(
-                      value: geciken.toDouble(),
-                      color: const Color(0xFFD32F2F),
-                      radius: 28,
-                      title: '',
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildChartLegend('Devam Eden', const Color(0xFFF57C00), devamEden - geciken),
-          const SizedBox(height: 4),
-          _buildChartLegend('Tamamlanan', const Color(0xFF2E7D32), tamamlanan),
-          const SizedBox(height: 4),
-          _buildChartLegend('Geciken', const Color(0xFFD32F2F), geciken),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChartLegend(String label, Color color, int value) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-        ),
-        const Spacer(),
-        Text(
-          '$value',
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[800]),
-        ),
-      ],
     );
   }
 
@@ -938,10 +769,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     );
   }
 
-  bool get _isBackofficeUser =>
-      RoleUtils.isAdmin(kullaniciRolu) ||
-      RoleUtils.isStandardUser(kullaniciRolu);
-
   Future<void> _sayfaYetkileriniYukle(String userId) async {
     try {
       final yetkiler = await SayfaYetkiService.kullaniciYetkileriniGetir(userId);
@@ -970,23 +797,18 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
   /// Kullanıcının belirli sayfaya erişimi var mı?
   /// Önce firma seviyesi kontrol edilir, sonra kullanıcı seviyesi.
-  /// Admin her zaman erişebilir. Yetki tanımlanmamışsa (boş set) tüm sayfaları göster (geriye uyumluluk).
+  /// Yetki tanımlanmamışsa (boş set) tüm sayfaları göster (geriye uyumluluk).
   bool _sayfaErisimVar(String sayfaKodu) {
     final normalizedKod = SayfaYetkiService.normalizeSayfaKodu(sayfaKodu);
     // 1. Firma seviyesi kontrol
     if (_firmaYetkileriYuklendi && _firmaSayfaYetkileri.isNotEmpty) {
       if (!_firmaSayfaYetkileri.contains(normalizedKod)) return false;
     }
-    // 2. Platform admin her zaman erişebilir
-    if (RoleUtils.isAdmin(kullaniciRolu)) return true;
-    // 3. Kullanıcı seviyesi kontrol
+    // 2. Kullanıcı seviyesi kontrol
     if (!_yetkilerYuklendi) return true; // Henüz yüklenmediyse göster
     if (_sayfaYetkileri.isEmpty) return true; // Hiç yetki tanımlanmamışsa tümünü göster
     return _sayfaYetkileri.contains(normalizedKod);
   }
-
-  bool _dashboardRoleIs(String role) =>
-      RoleUtils.sameDashboardRole(kullaniciRolu, role);
 
   Map<String, dynamic> _categoryMeta(String key) {
     switch (key) {
@@ -1031,8 +853,8 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     final bool kaliteAktif = _modulAktif('kalite');
     final bool sevkiyatAktif = _modulAktif('sevkiyat');
 
-    // 1. Üretim Panelleri (admin + üretim modülü aktifse)
-    if (RoleUtils.isAdmin(kullaniciRolu) && uretimAktif) {
+    // 1. Üretim Panelleri
+    if (uretimAktif) {
       const c = Color(0xFF1976D2);
       final paneller = <Map<String, dynamic>>[];
       if (_sayfaErisimVar('genel_uretim')) paneller.add({'text': 'Genel Üretim', 'icon': Icons.dashboard_customize_rounded, 'color': c, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GenelUretimDashboard()))});
@@ -1053,7 +875,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     // 2. Üretim & Stok
     final List<Map<String, dynamic>> uretimStok = [];
     const usc = Color(0xFF2E7D32);
-    if (_isBackofficeUser && uretimAktif) {
+    if (uretimAktif) {
       if (_sayfaErisimVar('yeni_model_ekle')) {
         uretimStok.add({'text': 'Yeni Model Ekle', 'icon': Icons.add_box_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelEkle()))});
       }
@@ -1061,8 +883,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         uretimStok.add({'text': 'Toplu Model Ekle', 'icon': Icons.upload_file_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopluModelEkle()))});
       }
     }
-    if (uretimAktif &&
-        (RoleUtils.isAdmin(kullaniciRolu) || !_dashboardRoleIs('depo'))) {
+    if (uretimAktif) {
       if (_sayfaErisimVar('kayitli_modeller')) {
         uretimStok.add({'text': 'Kayıtlı Modeller', 'icon': Icons.inventory_2_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelListele()))});
       }
@@ -1070,10 +891,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         uretimStok.add({'text': 'Tamamlanan Siparişler', 'icon': Icons.check_circle_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TamamlananSiparislerPage()))});
       }
     }
-    if (stokAktif &&
-        (RoleUtils.isAdmin(kullaniciRolu) ||
-            _dashboardRoleIs('depo') ||
-            RoleUtils.isStandardUser(kullaniciRolu))) {
+    if (stokAktif) {
       if (_sayfaErisimVar('depo_yonetimi')) {
         uretimStok.add({'text': 'Depo Yönetimi', 'icon': Icons.warehouse_rounded, 'color': usc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StokYonetimiPage()))});
       }
@@ -1081,7 +899,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     if (uretimStok.isNotEmpty) kategoriler['Üretim & Stok'] = uretimStok;
 
     // 3. Raporlar & Analiz
-    if (raporAktif && _isBackofficeUser) {
+    if (raporAktif) {
       const rc = Color(0xFF00695C);
       final raporlar = <Map<String, dynamic>>[];
       if (uretimAktif && _sayfaErisimVar('uretim_raporu')) {
@@ -1094,7 +912,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     }
 
     // 4. Finansal Yönetim
-    if ((finansAktif || tedarikAktif) && _isBackofficeUser) {
+    if (finansAktif || tedarikAktif) {
       const fc = Color(0xFF1565C0);
       final finansItems = <Map<String, dynamic>>[];
       if (tedarikAktif && _sayfaErisimVar('tedarikci_yonetimi')) {
@@ -1118,7 +936,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     }
 
     // 5. İnsan Kaynakları
-    if (ikAktif && _isBackofficeUser) {
+    if (ikAktif) {
       const ic = Color(0xFF7B1FA2);
       final ikItems = <Map<String, dynamic>>[];
       if (_sayfaErisimVar('personel_yonetimi')) {
@@ -1130,19 +948,27 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (ikItems.isNotEmpty) kategoriler['İnsan Kaynakları'] = ikItems;
     }
 
-    // 7. Kullanıcı & Yetki Yönetimi (firma admin)
-    if (RoleUtils.isAdmin(kullaniciRolu)) {
+    // 7. Kullanıcı & Yetki Yönetimi
+    {
       const yc = Color(0xFF5C6BC0);
-      kategoriler['Kullanıcı & Yetki'] = [
-        {'text': 'Firma Kullanıcıları', 'icon': Icons.people_alt_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaKullaniciYonetimiPage()))},
-        {'text': 'Rol & Yetki Yönetimi', 'icon': Icons.security_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))},
-        {'text': 'Firma Sayfa Yetkileri', 'icon': Icons.business_center_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaSayfaYetkiYonetimiPage()))},
-        {'text': 'Kullanıcı Sayfa Yetkileri', 'icon': Icons.lock_open_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))},
-      ];
+      final yetkiItems = <Map<String, dynamic>>[];
+      if (_sayfaErisimVar('firma_kullanicilari')) {
+        yetkiItems.add({'text': 'Firma Kullanıcıları', 'icon': Icons.people_alt_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaKullaniciYonetimiPage()))});
+      }
+      if (_sayfaErisimVar('rol_yetki_yonetimi')) {
+        yetkiItems.add({'text': 'Rol & Yetki Yönetimi', 'icon': Icons.security_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))});
+      }
+      if (_sayfaErisimVar('firma_sayfa_yetkileri')) {
+        yetkiItems.add({'text': 'Firma Sayfa Yetkileri', 'icon': Icons.business_center_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaSayfaYetkiYonetimiPage()))});
+      }
+      if (_sayfaErisimVar('sayfa_yetki_yonetimi')) {
+        yetkiItems.add({'text': 'Kullanıcı Sayfa Yetkileri', 'icon': Icons.lock_open_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))});
+      }
+      if (yetkiItems.isNotEmpty) kategoriler['Kullanıcı & Yetki'] = yetkiItems;
     }
 
     // 7. Abonelik & Plan Yönetimi
-    if (RoleUtils.isAdmin(kullaniciRolu)) {
+    {
       const ac = Color(0xFF00838F);
       final abonelikItems = <Map<String, dynamic>>[];
       if (_sayfaErisimVar('abonelik_yonetimi')) {
@@ -1154,8 +980,8 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (abonelikItems.isNotEmpty) kategoriler['Abonelik & Plan'] = abonelikItems;
     }
 
-    // 8. Platform Yönetimi (Super Admin)
-    if (RoleUtils.isAdmin(kullaniciRolu)) {
+    // 8. Platform Yönetimi
+    {
       const pc = Color(0xFF1A237E);
       final platformItems = <Map<String, dynamic>>[];
       if (_sayfaErisimVar('platform_paneli')) {

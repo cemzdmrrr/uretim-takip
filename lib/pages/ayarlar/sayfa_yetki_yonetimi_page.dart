@@ -231,11 +231,11 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
                                 ),
                                 trailing: isAdmin
                                     ? const Tooltip(
-                                        message: 'Admin - Tüm sayfalara erişim',
+                                        message: 'Yönetici rolü',
                                         child: Icon(Icons.verified, color: Color(0xFF00897B), size: 18),
                                       )
                                     : null,
-                                onTap: isAdmin ? null : () => _kullaniciSec(k),
+                                onTap: () => _kullaniciSec(k),
                               );
                             },
                           ),
