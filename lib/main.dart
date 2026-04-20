@@ -11,7 +11,6 @@ import 'package:uretim_takip/config/secure_storage.dart';
 import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:uretim_takip/providers/tenant_provider.dart';
-import 'package:uretim_takip/providers/theme_provider.dart';
 
 import 'package:uretim_takip/pages/home/ana_sayfa.dart';
 import 'package:uretim_takip/pages/auth/login_page.dart';
@@ -84,22 +83,19 @@ Future<void> main() async {
   runApp(MyApp(
       isLoggedIn: isLoggedIn,
       authProvider: authProvider,
-      tenantProvider: tenantProvider,
-      themeProvider: ThemeProvider()));
+      tenantProvider: tenantProvider));
 }
 
 class MyApp extends StatelessWidget {
   final bool isLoggedIn;
   final AuthProvider authProvider;
   final TenantProvider tenantProvider;
-  final ThemeProvider themeProvider;
 
   const MyApp(
       {super.key,
       required this.isLoggedIn,
       required this.authProvider,
-      required this.tenantProvider,
-      required this.themeProvider});
+      required this.tenantProvider});
 
   @override
   Widget build(BuildContext context) {
@@ -107,52 +103,45 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider.value(value: tenantProvider),
-        ChangeNotifierProvider.value(value: themeProvider),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) {
-          return MaterialApp(
-            title: 'TexPilot',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: themeProvider.themeMode,
-            supportedLocales: const [
-              Locale('tr'),
-              Locale('en'),
-            ],
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            locale: const Locale('tr'),
-            initialRoute: AppRoutes.splash,
-            routes: {
-              AppRoutes.splash: (context) => SplashScreen(isLoggedIn: isLoggedIn),
-              AppRoutes.anasayfa: (context) => const AnaSayfa(),
-              AppRoutes.login: (context) => const LoginPage(),
-              AppRoutes.dokuma: (context) => const DokumaDashboard(),
-              AppRoutes.tedarikci: (context) => const TedarikciPanel(),
-              AppRoutes.kalite: (context) => const KaliteKontrolPanel(),
-              AppRoutes.kaliteKontrol: (context) => const KaliteKontrolPanel(),
-              AppRoutes.yikama: (context) => const YikamaDashboard(),
-              AppRoutes.nakis: (context) => const NakisDashboard(),
-              AppRoutes.uretimRaporu: (context) => const UretimRaporuPage(),
-              AppRoutes.modelDuzenle: (context) {
-                final args = ModalRoute.of(context)?.settings.arguments
-                    as Map<String, dynamic>?;
-                if (args != null) {
-                  return ModelDuzenlePage(
-                    modelId: args['modelId'],
-                    modelData: args['modelData'],
-                  );
-                }
-                return const LoginPage(); // Fallback
-              },
-            },
-          );
+      child: MaterialApp(
+        title: 'TexPilot',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        supportedLocales: const [
+          Locale('tr'),
+          Locale('en'),
+        ],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        locale: const Locale('tr'),
+        initialRoute: AppRoutes.splash,
+        routes: {
+          AppRoutes.splash: (context) => SplashScreen(isLoggedIn: isLoggedIn),
+          AppRoutes.anasayfa: (context) => const AnaSayfa(),
+          AppRoutes.login: (context) => const LoginPage(),
+          AppRoutes.dokuma: (context) => const DokumaDashboard(),
+          AppRoutes.tedarikci: (context) => const TedarikciPanel(),
+          AppRoutes.kalite: (context) => const KaliteKontrolPanel(),
+          AppRoutes.kaliteKontrol: (context) => const KaliteKontrolPanel(),
+          AppRoutes.yikama: (context) => const YikamaDashboard(),
+          AppRoutes.nakis: (context) => const NakisDashboard(),
+          AppRoutes.uretimRaporu: (context) => const UretimRaporuPage(),
+          AppRoutes.modelDuzenle: (context) {
+            final args = ModalRoute.of(context)?.settings.arguments
+                as Map<String, dynamic>?;
+            if (args != null) {
+              return ModelDuzenlePage(
+                modelId: args['modelId'],
+                modelData: args['modelData'],
+              );
+            }
+            return const LoginPage(); // Fallback
+          },
         },
       ),
     );

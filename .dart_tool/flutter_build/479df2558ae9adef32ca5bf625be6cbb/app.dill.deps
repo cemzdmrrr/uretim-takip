@@ -2572,7 +2572,6 @@ file:///C:/uretim_takip/lib/pages/uretim/utu_paket_paketleme.dart
 file:///C:/uretim_takip/lib/pages/uretim/yikama_dashboard.dart
 file:///C:/uretim_takip/lib/providers/auth_provider.dart
 file:///C:/uretim_takip/lib/providers/tenant_provider.dart
-file:///C:/uretim_takip/lib/providers/theme_provider.dart
 file:///C:/uretim_takip/lib/services/abonelik_service.dart
 file:///C:/uretim_takip/lib/services/auth_helper_rls_free.dart
 file:///C:/uretim_takip/lib/services/beden_service.dart
@@ -2607,13 +2606,10 @@ file:///C:/uretim_takip/lib/utils/excel_export.dart
 file:///C:/uretim_takip/lib/utils/role_utils.dart
 file:///C:/uretim_takip/lib/utils/web_download.dart
 file:///C:/uretim_takip/lib/utils/web_download_web.dart
-file:///C:/uretim_takip/lib/widgets/activity_timeline.dart
-file:///C:/uretim_takip/lib/widgets/animated_counter.dart
 file:///C:/uretim_takip/lib/widgets/bildirim_popup.dart
 file:///C:/uretim_takip/lib/widgets/common_widgets.dart
 file:///C:/uretim_takip/lib/widgets/donem_secici.dart
 file:///C:/uretim_takip/lib/widgets/model_kritikleri_dialog.dart
-file:///C:/uretim_takip/lib/widgets/sidebar_layout.dart
 file:///C:/uretim_takip/lib/widgets/yeni_donem_dialog.dart
 org-dartlang-sdk:///dart-sdk/lib/_http/crypto.dart
 org-dartlang-sdk:///dart-sdk/lib/_http/embedder_config.dart
