@@ -11,10 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:uretim_takip/main.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:uretim_takip/providers/tenant_provider.dart';
+import 'package:uretim_takip/providers/theme_provider.dart';
 
 void main() {
   testWidgets('MyApp renders without crashing', (WidgetTester tester) async {
-    await tester.pumpWidget(MyApp(isLoggedIn: false, authProvider: AuthProvider(), tenantProvider: TenantProvider()));
+    await tester.pumpWidget(MyApp(isLoggedIn: false, authProvider: AuthProvider(), tenantProvider: TenantProvider(), themeProvider: ThemeProvider()));
 
     // App should render a MaterialApp
     expect(find.byType(MaterialApp), findsOneWidget);

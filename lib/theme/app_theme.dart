@@ -246,7 +246,175 @@ class AppTheme {
     
     useMaterial3: true,
   );
-  
+
+  // --- Koyu Tema ---
+  static const Color _darkSurface = Color(0xFF1E1E2E);
+  static const Color _darkCard = Color(0xFF2A2A3C);
+  static const Color _darkBg = Color(0xFF16161E);
+  static const Color _darkTextPrimary = Color(0xFFE0E0E0);
+  static const Color _darkTextSecondary = Color(0xFF9E9EA8);
+
+  static ThemeData darkTheme = ThemeData(
+    primarySwatch: Colors.blue,
+    primaryColor: primaryColor,
+    brightness: Brightness.dark,
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: primaryColor,
+      brightness: Brightness.dark,
+      surface: _darkSurface,
+      onSurface: _darkTextPrimary,
+    ),
+
+    appBarTheme: const AppBarTheme(
+      backgroundColor: _darkSurface,
+      foregroundColor: _darkTextPrimary,
+      elevation: 0,
+      centerTitle: true,
+      toolbarHeight: 44,
+      titleTextStyle: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: _darkTextPrimary,
+      ),
+    ),
+
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: const Size(0, 34),
+        textStyle: const TextStyle(fontSize: 13),
+        elevation: 1,
+      ),
+    ),
+
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: const Size(0, 34),
+        textStyle: const TextStyle(fontSize: 13),
+        foregroundColor: _darkTextPrimary,
+      ),
+    ),
+
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: const Size(0, 32),
+        textStyle: const TextStyle(fontSize: 13),
+      ),
+    ),
+
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(
+        padding: const EdgeInsets.all(4),
+        minimumSize: const Size(32, 32),
+        iconSize: 20,
+      ),
+    ),
+
+    cardTheme: CardThemeData(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      margin: const EdgeInsets.all(3),
+      color: _darkCard,
+    ),
+
+    inputDecorationTheme: InputDecorationTheme(
+      isDense: true,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: const BorderSide(color: primaryColor, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      filled: true,
+      fillColor: _darkCard,
+      labelStyle: const TextStyle(color: _darkTextSecondary, fontSize: 13),
+      hintStyle: TextStyle(color: _darkTextSecondary.withValues(alpha: 0.6), fontSize: 13),
+    ),
+
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: primaryColor,
+      foregroundColor: Colors.white,
+      elevation: 3,
+      sizeConstraints: BoxConstraints.tightFor(width: 48, height: 48),
+    ),
+
+    dialogTheme: DialogThemeData(
+      backgroundColor: _darkSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _darkTextPrimary),
+      contentTextStyle: const TextStyle(fontSize: 13, color: _darkTextSecondary),
+    ),
+
+    tabBarTheme: const TabBarThemeData(
+      labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      unselectedLabelStyle: TextStyle(fontSize: 13),
+    ),
+
+    dataTableTheme: DataTableThemeData(
+      headingRowHeight: 40,
+      dataRowMinHeight: 36,
+      dataRowMaxHeight: 44,
+      columnSpacing: 16,
+      horizontalMargin: 12,
+      headingTextStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _darkTextPrimary),
+      dataTextStyle: const TextStyle(fontSize: 12, color: _darkTextPrimary),
+    ),
+
+    dropdownMenuTheme: const DropdownMenuThemeData(textStyle: TextStyle(fontSize: 13)),
+    popupMenuTheme: const PopupMenuThemeData(textStyle: TextStyle(fontSize: 13)),
+
+    scaffoldBackgroundColor: _darkBg,
+
+    textTheme: const TextTheme(
+      headlineLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _darkTextPrimary),
+      headlineMedium: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _darkTextPrimary),
+      titleLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _darkTextPrimary),
+      titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _darkTextPrimary),
+      titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _darkTextPrimary),
+      bodyLarge: TextStyle(fontSize: 14, color: _darkTextPrimary),
+      bodyMedium: TextStyle(fontSize: 13, color: _darkTextSecondary),
+      bodySmall: TextStyle(fontSize: 11, color: _darkTextSecondary),
+      labelLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _darkTextPrimary),
+      labelMedium: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _darkTextSecondary),
+      labelSmall: TextStyle(fontSize: 10, color: _darkTextSecondary),
+    ),
+
+    chipTheme: ChipThemeData(
+      backgroundColor: _darkCard,
+      labelStyle: const TextStyle(color: _darkTextPrimary, fontSize: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    ),
+
+    listTileTheme: const ListTileThemeData(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      minVerticalPadding: 4,
+      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      textColor: _darkTextPrimary,
+      titleTextStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _darkTextPrimary),
+      subtitleTextStyle: TextStyle(fontSize: 12, color: _darkTextSecondary),
+    ),
+
+    iconTheme: const IconThemeData(size: 20, color: _darkTextPrimary),
+
+    useMaterial3: true,
+  );
+
   // Durum rengi alma fonksiyonu
   static Color getDurumRengi(String? durum) {
     switch (durum) {
