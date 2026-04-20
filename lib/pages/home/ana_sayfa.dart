@@ -796,15 +796,18 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   }
 
   /// Kullanıcının belirli sayfaya erişimi var mı?
-  /// Önce firma seviyesi kontrol edilir, sonra kullanıcı seviyesi.
+  /// Admin kullanıcılar tüm sayfalara erişir.
+  /// Diğer kullanıcılar için önce firma seviyesi kontrol edilir, sonra kullanıcı seviyesi.
   /// Yetki tanımlanmamışsa (boş set) tüm sayfaları göster (geriye uyumluluk).
   bool _sayfaErisimVar(String sayfaKodu) {
     final normalizedKod = SayfaYetkiService.normalizeSayfaKodu(sayfaKodu);
-    // 1. Firma seviyesi kontrol
+    // 1. Platform admin kontrolü - her zaman erişir
+    if (RoleUtils.isAdmin(kullaniciRolu)) return true;
+    // 2. Firma seviyesi kontrol (admin olmayan kullanıcılar için)
     if (_firmaYetkileriYuklendi && _firmaSayfaYetkileri.isNotEmpty) {
       if (!_firmaSayfaYetkileri.contains(normalizedKod)) return false;
     }
-    // 2. Kullanıcı seviyesi kontrol
+    // 3. Kullanıcı seviyesi kontrol
     if (!_yetkilerYuklendi) return true; // Henüz yüklenmediyse göster
     if (_sayfaYetkileri.isEmpty) return true; // Hiç yetki tanımlanmamışsa tümünü göster
     return _sayfaYetkileri.contains(normalizedKod);
