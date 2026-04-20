@@ -777,6 +777,21 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     }
   }
 
+  /// Kullanıcının belirli sayfaya erişimi var mı?
+  bool _sayfaErisimVar(String sayfaKodu) {
+    // 1. Admin her sayfayı görebilir
+    if (kullaniciRolu == 'admin') return true;
+
+    // 2. Kullanıcı yetkileri kontrolü
+    if (_sayfaYetkileri.isEmpty) {
+      // Boş ise hiçbir sayfa göremez
+      return false;
+    }
+    // Normalleştirilmiş sayfa kodu ile kontrol
+    final normalized = SayfaYetkiService.normalizeSayfaKodu(sayfaKodu);
+    return _sayfaYetkileri.contains(normalized);
+  }
+
   Map<String, dynamic> _categoryMeta(String key) {
     switch (key) {
       case 'Üretim Panelleri':
@@ -924,9 +939,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       }
       if (_sayfaErisimVar('rol_yetki_yonetimi')) {
         yetkiItems.add({'text': 'Rol & Yetki Yönetimi', 'icon': Icons.security_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))});
-      }
-      if (_sayfaErisimVar('firma_sayfa_yetkileri')) {
-        yetkiItems.add({'text': 'Firma Sayfa Yetkileri', 'icon': Icons.business_center_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FirmaSayfaYetkiYonetimiPage()))});
       }
       if (_sayfaErisimVar('sayfa_yetki_yonetimi')) {
         yetkiItems.add({'text': 'Kullanıcı Sayfa Yetkileri', 'icon': Icons.lock_open_rounded, 'color': yc, 'onPressed': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))});
