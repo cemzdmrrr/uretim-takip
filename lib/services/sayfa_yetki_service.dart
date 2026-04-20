@@ -189,7 +189,11 @@ class SayfaYetkiService {
   /// Belirli kullanıcının erişebildiği sayfa kodlarını getirir
   static Future<Set<String>> kullaniciYetkileriniGetir(String userId) async {
     try {
-      final response = await _client
+      final client = SupabaseConfig.isAdminAvailable
+          ? SupabaseConfig.adminClient
+          : _client;
+
+      final response = await client
           .from(DbTables.kullaniciSayfaYetkileri)
           .select('sayfa_kodu')
           .eq('firma_id', _firmaId)
@@ -202,6 +206,7 @@ class SayfaYetkiService {
           .toSet();
     } catch (e) {
       // Tablo yoksa veya hata varsa boş set döndür
+      debugPrint('Kullanıcı sayfa yetkileri yüklenemedi: $e');
       return {};
     }
   }
@@ -214,8 +219,12 @@ class SayfaYetkiService {
 
   /// Kullanıcının tüm sayfa yetkilerini kaydet (upsert)
   static Future<void> yetkileriKaydet(String userId, Set<String> sayfaKodlari) async {
+    final client = SupabaseConfig.isAdminAvailable
+        ? SupabaseConfig.adminClient
+        : _client;
+
     // Önce mevcut kayıtları sil
-    await _client
+    await client
         .from(DbTables.kullaniciSayfaYetkileri)
         .delete()
         .eq('firma_id', _firmaId)
@@ -234,7 +243,7 @@ class SayfaYetkiService {
         'aktif': true,
       }).toList();
 
-      await _client.from(DbTables.kullaniciSayfaYetkileri).insert(rows);
+      await client.from(DbTables.kullaniciSayfaYetkileri).insert(rows);
     }
   }
 
