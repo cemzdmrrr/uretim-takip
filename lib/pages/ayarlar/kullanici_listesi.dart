@@ -31,6 +31,7 @@ class _KullaniciListesiPageState extends State<KullaniciListesiPage> {
   static const List<DropdownMenuItem<String>> rolItems = [
     DropdownMenuItem(value: 'orgu_firmasi', child: Text('Örgü Firması')),
     DropdownMenuItem(value: 'admin', child: Text('Admin')),
+    DropdownMenuItem(value: 'kullanici', child: Text('Kullanıcı')),
     DropdownMenuItem(value: DbTables.personel, child: Text('Personel')),
     DropdownMenuItem(value: 'ik', child: Text('İnsan Kaynakları')),
     
