@@ -52,12 +52,15 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
     });
     try {
       final userId = kullanici['user_id'] as String;
+      debugPrint('👤 Kullanıcı seçildi: ${_kullaniciAdi(kullanici)} ($userId)');
       final yetkiler = await SayfaYetkiService.kullaniciYetkileriniGetir(userId);
+      debugPrint('✅ Yüklenen yetkiler: $yetkiler');
       setState(() {
         _aktifYetkiler = yetkiler;
         _yukleniyor = false;
       });
     } catch (e) {
+      debugPrint('❌ Yetki yükleme hatası: $e');
       setState(() => _yukleniyor = false);
       if (mounted) {
         context.showErrorSnackBar('Yetkiler yüklenemedi: $e');
@@ -70,16 +73,28 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
     setState(() => _kaydediyor = true);
     try {
       final userId = _secilenKullanici!['user_id'] as String;
+      debugPrint('💾 Kaydediliyor: $userId');
+      debugPrint('📋 Yetkiler: $_aktifYetkiler');
       await SayfaYetkiService.yetkileriKaydet(userId, _aktifYetkiler);
+      debugPrint('✅ Kayıt başarılı, tekrar yükleniyor...');
+      
+      // Kayıttan sonra verileri tekrar yükle
+      final yeniYetkiler = await SayfaYetkiService.kullaniciYetkileriniGetir(userId);
+      debugPrint('📋 Yüklenen yeni yetkiler: $yeniYetkiler');
+      setState(() {
+        _aktifYetkiler = yeniYetkiler;
+        _kaydediyor = false;
+      });
+      
       if (mounted) {
         context.showSuccessSnackBar('Yetkiler başarıyla kaydedildi');
       }
     } catch (e) {
+      debugPrint('❌ Kaydetme hatası: $e');
+      setState(() => _kaydediyor = false);
       if (mounted) {
         context.showErrorSnackBar('Kaydetme hatası: $e');
       }
-    } finally {
-      setState(() => _kaydediyor = false);
     }
   }
 
@@ -415,6 +430,8 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
               value: aktif,
               activeColor: const Color(0xFF00897B),
               onChanged: (val) {
+                debugPrint('🔄 Checkbox değişti: ${sayfa.etiket} ($val) - ${sayfa.kod}');
+                debugPrint('📋 Önce: $_aktifYetkiler');
                 setState(() {
                   if (val) {
                     _aktifYetkiler.add(sayfa.kod);
@@ -422,6 +439,7 @@ class _SayfaYetkiYonetimiPageState extends State<SayfaYetkiYonetimiPage> {
                     _aktifYetkiler.remove(sayfa.kod);
                   }
                 });
+                debugPrint('📋 Sonra: $_aktifYetkiler');
               },
             );
           }),
