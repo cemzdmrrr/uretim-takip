@@ -1,7 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
-import 'package:uretim_takip/config/dal_form_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/pages/model/model_detay.dart';
 import 'package:uretim_takip/pages/model/model_duzenle.dart';
@@ -9,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:uretim_takip/theme/app_theme.dart';
 import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:uretim_takip/widgets/model_kritikleri_dialog.dart';
-import 'package:uretim_takip/utils/app_exceptions.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 part 'model_listele_toplu.dart';
@@ -801,7 +799,7 @@ class _ModelListeleState extends State<ModelListele> {
                           labelText: 'Model Adı',
                           border: OutlineInputBorder(),
                         ),
-                        value: seciliModelAdi,
+                        initialValue: seciliModelAdi,
                         items: [
                           const DropdownMenuItem(value: null, child: Text('Tümü')),
                           ...modelAdlari.map((ad) => DropdownMenuItem(
@@ -870,7 +868,7 @@ class _ModelListeleState extends State<ModelListele> {
                           labelText: 'Cinsiyet',
                           border: OutlineInputBorder(),
                         ),
-                        value: seciliCinsiyet,
+                        initialValue: seciliCinsiyet,
                         items: [
                           const DropdownMenuItem(value: null, child: Text('Tümü')),
                           ...cinsiyetler.map((cinsiyet) => DropdownMenuItem(
