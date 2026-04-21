@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/models/abonelik_model.dart';
+import 'package:uretim_takip/pages/abonelik/odeme_page.dart';
 import 'package:uretim_takip/pages/auth/register_page.dart';
 import 'package:uretim_takip/services/abonelik_service.dart';
 
@@ -11,7 +12,8 @@ class PlanSecimPage extends StatefulWidget {
   /// true ise sadece bilgi amaçlı görüntülenir (giriş yapılmamışken).
   final bool sadeceBilgi;
 
-  const PlanSecimPage({super.key, this.mevcutAbonelik, this.sadeceBilgi = false});
+  const PlanSecimPage(
+      {super.key, this.mevcutAbonelik, this.sadeceBilgi = false});
 
   @override
   State<PlanSecimPage> createState() => _PlanSecimPageState();
@@ -116,15 +118,27 @@ class _PlanSecimPageState extends State<PlanSecimPage> {
 
     setState(() => _islemYapiliyor = true);
     try {
+      if (!plan.denemeMi) {
+        final sonuc = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OdemePage(plan: plan, yillik: _yillikFiyat),
+          ),
+        );
+        if (!mounted) return;
+        if (sonuc == true) Navigator.pop(context, true);
+        return;
+      }
+
       final periyot = _yillikFiyat ? 'yillik' : 'aylik';
-      final abonelik = await AbonelikService.planDegistir(
+      await AbonelikService.planDegistir(
         yeniPlanId: plan.id,
         odemePeriyodu: periyot,
       );
 
       // Deneme planı ise doğrudan aktifle
       if (plan.denemeMi) {
-        await AbonelikService.abonelikAktifle(abonelik.id);
+        // Deneme plani odeme almadan deneme durumunda kalir.
       }
 
       if (!mounted) return;
@@ -198,8 +212,7 @@ class _PlanSecimPageState extends State<PlanSecimPage> {
               const Text('Yıllık'),
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.green.shade50,
                   borderRadius: BorderRadius.circular(12),
@@ -229,8 +242,7 @@ class _PlanSecimPageState extends State<PlanSecimPage> {
   }
 
   Widget _planKarti(AbonelikPlani plan) {
-    final mevcutPlan =
-        widget.mevcutAbonelik?.plan?.planKodu == plan.planKodu;
+    final mevcutPlan = widget.mevcutAbonelik?.plan?.planKodu == plan.planKodu;
     final fiyat = _yillikFiyat
         ? (plan.yillikUcret ?? plan.aylikUcret * 12)
         : plan.aylikUcret;
@@ -419,7 +431,9 @@ class _PlanSecimPageState extends State<PlanSecimPage> {
                                   plan.enterpriseMi
                                       ? 'İletişime Geç'
                                       : widget.sadeceBilgi
-                                          ? (plan.denemeMi ? 'Ücretsiz Başla' : 'Kayıt Ol')
+                                          ? (plan.denemeMi
+                                              ? 'Ücretsiz Başla'
+                                              : 'Kayıt Ol')
                                           : 'Bu Planı Seç',
                                 ),
                         ),

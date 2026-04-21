@@ -1,10 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:uretim_takip/models/fatura_model.dart';
 import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_ekle_page.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_detay_page.dart';
+import 'package:uretim_takip/providers/auth_provider.dart';
+import 'package:provider/provider.dart';
 
 class FaturaListesiPage extends StatefulWidget {
   const FaturaListesiPage({super.key});
@@ -16,8 +18,9 @@ class FaturaListesiPage extends StatefulWidget {
 class _FaturaListesiPageState extends State<FaturaListesiPage> {
   final TextEditingController _aramaController = TextEditingController();
   final DateFormat _dateFormat = DateFormat('dd.MM.yyyy');
-  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
-  
+  final NumberFormat _currencyFormat =
+      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
+
   List<FaturaModel> _faturalar = [];
   bool _yukleniyor = false;
   String _secilenFaturaTuru = '';
@@ -47,7 +50,8 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
 
     try {
       final faturalar = await FaturaService.faturalariListele(
-        aramaKelimesi: _aramaController.text.isEmpty ? null : _aramaController.text,
+        aramaKelimesi:
+            _aramaController.text.isEmpty ? null : _aramaController.text,
         faturaTuru: _secilenFaturaTuru.isEmpty ? null : _secilenFaturaTuru,
         durum: _secilenDurum.isEmpty ? null : _secilenDurum,
         odemeDurumu: _secilenOdemeDurumu.isEmpty ? null : _secilenOdemeDurumu,
@@ -103,6 +107,43 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
     }
   }
 
+  Future<void> _faturaSil(FaturaModel fatura) async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Fatura Sil'),
+        content: Text(
+          '${fatura.faturaNo} numaralı faturayı silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            icon: const Icon(Icons.delete, color: Colors.white),
+            label: const Text('Sil', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (onay != true || fatura.faturaId == null) return;
+
+    try {
+      await FaturaService.faturaSil(fatura.faturaId!);
+      if (!mounted) return;
+      context.showSuccessSnackBar('Fatura silindi');
+      _faturalariYukle();
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Fatura silinirken hata: $e');
+      }
+    }
+  }
+
   void _filtreleriTemizle() {
     setState(() {
       _aramaController.clear();
@@ -136,24 +177,28 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                   onSubmitted: (_) => _faturalariYukle(),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Filtre satırı
                 Row(
                   children: [
                     // Fatura türü
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _secilenFaturaTuru.isEmpty ? null : _secilenFaturaTuru,
+                        initialValue: _secilenFaturaTuru.isEmpty
+                            ? null
+                            : _secilenFaturaTuru,
                         decoration: const InputDecoration(
                           labelText: 'Fatura Türü',
                           border: OutlineInputBorder(),
                         ),
                         items: const [
                           DropdownMenuItem(value: '', child: Text('Tümü')),
-                          DropdownMenuItem(value: 'satis', child: Text('Satış')),
+                          DropdownMenuItem(
+                              value: 'satis', child: Text('Satış')),
                           DropdownMenuItem(value: 'alis', child: Text('Alış')),
                           DropdownMenuItem(value: 'iade', child: Text('İade')),
-                          DropdownMenuItem(value: 'proforma', child: Text('Proforma')),
+                          DropdownMenuItem(
+                              value: 'proforma', child: Text('Proforma')),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -163,21 +208,26 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Durum
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _secilenDurum.isEmpty ? null : _secilenDurum,
+                        initialValue:
+                            _secilenDurum.isEmpty ? null : _secilenDurum,
                         decoration: const InputDecoration(
                           labelText: 'Durum',
                           border: OutlineInputBorder(),
                         ),
                         items: const [
                           DropdownMenuItem(value: '', child: Text('Tümü')),
-                          DropdownMenuItem(value: 'taslak', child: Text('Taslak')),
-                          DropdownMenuItem(value: 'onaylandi', child: Text('Onaylandı')),
-                          DropdownMenuItem(value: 'gonderildi', child: Text('Gönderildi')),
-                          DropdownMenuItem(value: 'iptal', child: Text('İptal')),
+                          DropdownMenuItem(
+                              value: 'taslak', child: Text('Taslak')),
+                          DropdownMenuItem(
+                              value: 'onaylandi', child: Text('Onaylandı')),
+                          DropdownMenuItem(
+                              value: 'gonderildi', child: Text('Gönderildi')),
+                          DropdownMenuItem(
+                              value: 'iptal', child: Text('İptal')),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -187,20 +237,25 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Ödeme durumu
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _secilenOdemeDurumu.isEmpty ? null : _secilenOdemeDurumu,
+                        initialValue: _secilenOdemeDurumu.isEmpty
+                            ? null
+                            : _secilenOdemeDurumu,
                         decoration: const InputDecoration(
                           labelText: 'Ödeme Durumu',
                           border: OutlineInputBorder(),
                         ),
                         items: const [
                           DropdownMenuItem(value: '', child: Text('Tümü')),
-                          DropdownMenuItem(value: 'odenmedi', child: Text('Ödenmedi')),
-                          DropdownMenuItem(value: 'kismi', child: Text('Kısmi Ödendi')),
-                          DropdownMenuItem(value: 'odendi', child: Text('Ödendi')),
+                          DropdownMenuItem(
+                              value: 'odenmedi', child: Text('Ödenmedi')),
+                          DropdownMenuItem(
+                              value: 'kismi', child: Text('Kısmi Ödendi')),
+                          DropdownMenuItem(
+                              value: 'odendi', child: Text('Ödendi')),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -212,7 +267,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Tarih aralığı
                 Row(
                   children: [
@@ -223,7 +278,8 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                             context: context,
                             initialDate: _baslangicTarihi ?? DateTime.now(),
                             firstDate: DateTime(2020),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 365)),
                           );
                           if (tarih != null) {
                             setState(() {
@@ -253,7 +309,8 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                             context: context,
                             initialDate: _bitisTarihi ?? DateTime.now(),
                             firstDate: DateTime(2020),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 365)),
                           );
                           if (tarih != null) {
                             setState(() {
@@ -278,7 +335,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Butonlar
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -304,9 +361,10 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
   }
 
   Widget _buildFaturaKarti(FaturaModel fatura) {
+    final adminMi = context.watch<AuthProvider>().isAdmin;
     Color durumRengi;
     Color odemeDurumRengi;
-    
+
     switch (fatura.durum) {
       case 'taslak':
         durumRengi = Colors.orange;
@@ -362,7 +420,8 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: durumRengi.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -379,7 +438,8 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: odemeDurumRengi.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -398,27 +458,38 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
             ),
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              _currencyFormat.format(fatura.toplamTutar),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            if (fatura.vadeTarihi != null)
-              Text(
-                'Vade: ${_dateFormat.format(fatura.vadeTarihi!)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: fatura.vadeTarihi!.isBefore(DateTime.now()) && 
-                         fatura.odemeDurumu != 'odendi'
-                      ? Colors.red
-                      : Colors.grey,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _currencyFormat.format(fatura.toplamTutar),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
+                if (fatura.vadeTarihi != null)
+                  Text(
+                    'Vade: ${_dateFormat.format(fatura.vadeTarihi!)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: fatura.vadeTarihi!.isBefore(DateTime.now()) &&
+                              fatura.odemeDurumu != 'odendi'
+                          ? Colors.red
+                          : Colors.grey,
+                    ),
+                  ),
+              ],
+            ),
+            if (adminMi)
+              IconButton(
+                tooltip: 'Sil',
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: () => _faturaSil(fatura),
               ),
           ],
         ),
@@ -503,7 +574,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
         children: [
           _buildFiltreler(),
           const SizedBox(height: 8),
-          
+
           // İstatistik kartları
           if (_faturalar.isNotEmpty)
             Container(
@@ -578,7 +649,9 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                               _currencyFormat.format(
                                 _faturalar.fold<double>(
                                   0,
-                                  (sum, fatura) => sum + (fatura.toplamTutar - fatura.odenenTutar),
+                                  (sum, fatura) =>
+                                      sum +
+                                      (fatura.toplamTutar - fatura.odenenTutar),
                                 ),
                               ),
                               style: const TextStyle(
@@ -599,7 +672,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                 ],
               ),
             ),
-          
+
           // Fatura listesi
           Expanded(
             child: _yukleniyor
@@ -609,11 +682,13 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.receipt_long, size: 64, color: Colors.grey),
+                            Icon(Icons.receipt_long,
+                                size: 64, color: Colors.grey),
                             SizedBox(height: 16),
                             Text(
                               'Henüz fatura bulunmuyor',
-                              style: TextStyle(fontSize: 18, color: Colors.grey),
+                              style:
+                                  TextStyle(fontSize: 18, color: Colors.grey),
                             ),
                             SizedBox(height: 8),
                             Text(

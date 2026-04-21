@@ -181,6 +181,8 @@ class FirmaAbonelik {
 
   /// Abonelik aktif veya deneme süresi devam ediyor mu?
   bool get gecerliMi {
+    final simdi = DateTime.now();
+    if (bitisTarihi != null && simdi.isAfter(bitisTarihi!)) return false;
     if (durum == AbonelikDurum.aktif) return true;
     if (durum == AbonelikDurum.deneme && !denemeSuresiDolmusMu) return true;
     return false;

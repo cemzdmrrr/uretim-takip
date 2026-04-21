@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/module_registry.dart';
+import 'package:uretim_takip/models/abonelik_model.dart';
+import 'package:uretim_takip/pages/abonelik/odeme_page.dart';
 import 'package:uretim_takip/services/firma_service.dart';
-import 'package:uretim_takip/services/abonelik_service.dart';
 import 'package:uretim_takip/pages/home/ana_sayfa.dart';
 
 /// Firma kurulum özeti ve onay sayfası. Onboarding adım 4/4.
@@ -11,6 +12,8 @@ class FirmaKurulumOzetPage extends StatefulWidget {
   final Map<String, dynamic> firmaBilgileri;
   final List<String> secilenUretimDallari;
   final List<String> secilenModuller;
+  final AbonelikPlani? secilenPlan;
+  final bool yillik;
 
   const FirmaKurulumOzetPage({
     super.key,
@@ -19,6 +22,8 @@ class FirmaKurulumOzetPage extends StatefulWidget {
     required this.firmaBilgileri,
     required this.secilenUretimDallari,
     required this.secilenModuller,
+    this.secilenPlan,
+    this.yillik = false,
   });
 
   @override
@@ -31,7 +36,7 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
   Future<void> _firmaOlustur() async {
     setState(() => _yukleniyor = true);
     try {
-      final firmaId = await FirmaService.firmaOlustur(
+      await FirmaService.firmaOlustur(
         firmaAdi: widget.firmaAdi,
         firmaKodu: widget.firmaKodu,
         firmaBilgileri: widget.firmaBilgileri,
@@ -40,9 +45,20 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
       );
 
       // Yeni firma için 14 günlük deneme aboneliği başlat
-      await AbonelikService.denemeSuresiBaslat(firmaId);
-
       if (!mounted) return;
+      if (widget.secilenPlan != null && !widget.secilenPlan!.denemeMi) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => OdemePage(
+              plan: widget.secilenPlan!,
+              yillik: widget.yillik,
+              kurulumSonrasi: true,
+            ),
+          ),
+        );
+        return;
+      }
+
       // Onboarding tamamlandı — ana sayfaya git
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const AnaSayfa()),
@@ -88,9 +104,13 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
                 icerik: [
                   _bilgiSatiri('Ad', widget.firmaAdi),
                   _bilgiSatiri('Kod', widget.firmaKodu),
-                  if (widget.firmaBilgileri['vergi_no']?.toString().isNotEmpty == true)
+                  if (widget.firmaBilgileri['vergi_no']
+                          ?.toString()
+                          .isNotEmpty ==
+                      true)
                     _bilgiSatiri('Vergi No', widget.firmaBilgileri['vergi_no']),
-                  if (widget.firmaBilgileri['telefon']?.toString().isNotEmpty == true)
+                  if (widget.firmaBilgileri['telefon']?.toString().isNotEmpty ==
+                      true)
                     _bilgiSatiri('Telefon', widget.firmaBilgileri['telefon']),
                 ],
               ),
@@ -106,7 +126,8 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                        const Icon(Icons.check_circle,
+                            size: 16, color: Colors.green),
                         const SizedBox(width: 8),
                         Text(dal?.ad ?? kod),
                       ],
@@ -126,7 +147,8 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Row(
                       children: [
-                        Icon(modul?.ikon ?? Icons.check, size: 16, color: Colors.blue),
+                        Icon(modul?.ikon ?? Icons.check,
+                            size: 16, color: Colors.blue),
                         const SizedBox(width: 8),
                         Text(modul?.ad ?? kod),
                       ],
@@ -141,8 +163,11 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
                 child: FilledButton.icon(
                   onPressed: _yukleniyor ? null : _firmaOlustur,
                   icon: _yukleniyor
-                      ? const SizedBox(width: 20, height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.rocket_launch),
                   label: Text(
                     _yukleniyor ? 'Oluşturuluyor...' : 'Firmayı Oluştur',
@@ -157,7 +182,10 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
     );
   }
 
-  Widget _ozetKart({required IconData icon, required String baslik, required List<Widget> icerik}) {
+  Widget _ozetKart(
+      {required IconData icon,
+      required String baslik,
+      required List<Widget> icerik}) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -168,7 +196,9 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
               children: [
                 Icon(icon, size: 20, color: Theme.of(context).primaryColor),
                 const SizedBox(width: 8),
-                Text(baslik, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(baslik,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             const Divider(height: 20),
@@ -184,8 +214,12 @@ class _FirmaKurulumOzetPageState extends State<FirmaKurulumOzetPage> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          SizedBox(width: 80, child: Text(etiket, style: TextStyle(color: Colors.grey[600]))),
-          Expanded(child: Text(deger, style: const TextStyle(fontWeight: FontWeight.w500))),
+          SizedBox(
+              width: 80,
+              child: Text(etiket, style: TextStyle(color: Colors.grey[600]))),
+          Expanded(
+              child: Text(deger,
+                  style: const TextStyle(fontWeight: FontWeight.w500))),
         ],
       ),
     );

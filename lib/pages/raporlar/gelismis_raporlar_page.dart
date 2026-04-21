@@ -1,4 +1,4 @@
-﻿import 'package:uretim_takip/utils/app_exceptions.dart';
+import 'package:uretim_takip/utils/app_exceptions.dart';
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
@@ -25,25 +25,26 @@ class GelismisRaporlarPage extends StatefulWidget {
   State<GelismisRaporlarPage> createState() => _GelismisRaporlarPageState();
 }
 
-class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with SingleTickerProviderStateMixin {
+class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _supabase = Supabase.instance.client;
   String get _firmaId => TenantManager.instance.requireFirmaId;
-  
+
   // Filtreler
   String? secilenMarka;
   String? secilenModel;
   int? secilenYil;
-  
+
   List<String> markalar = [];
   List<String> modeller = [];
   List<int> yillar = [];
-  
+
   // Ham veriler
   List<Map<String, dynamic>> tumModeller = [];
   List<Map<String, dynamic>> filtrelenmisModeller = [];
   List<Map<String, dynamic>> depoSatislari = [];
-  
+
   String selectedZamanAraligi = 'Bu Ay';
   bool isLoading = false;
   DateTime? baslangicTarihi;
@@ -59,10 +60,16 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
   Map<String, dynamic> sevkiyatVerileri = {};
   Map<String, dynamic> kaliteVerileri = {};
 
+  final currencyFormat =
+      NumberFormat.currency(locale: 'tr_TR', symbol: '₺', decimalDigits: 0);
 
-  final currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺', decimalDigits: 0);
-
-  final List<String> zamanAraliklari = ['Bu Hafta', 'Bu Ay', 'Son 3 Ay', 'Bu Yıl', 'Tüm Zamanlar'];
+  final List<String> zamanAraliklari = [
+    'Bu Hafta',
+    'Bu Ay',
+    'Son 3 Ay',
+    'Bu Yıl',
+    'Tüm Zamanlar'
+  ];
 
   @override
   void initState() {
@@ -76,19 +83,23 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
     setState(() => isLoading = true);
     try {
       // Tüm modelleri getir
-      final modellerResponse = await _supabase.from(DbTables.trikoTakip).select('''
-        id, marka, item_no, renk, adet, toplam_adet, yuklenen_adet, created_at, termin_tarihi,
+      final modellerResponse =
+          await _supabase.from(DbTables.trikoTakip).select('''
+        id, marka, item_no, renk, renk_kombinasyonu, adet, toplam_adet, yuklenen_adet, created_at, termin_tarihi,
         iplik_maliyeti, orgu_fiyat, dikim_fiyat, utu_fiyat, yikama_fiyat, 
         ilik_dugme_fiyat, aksesuar_fiyat, genel_aksesuar_fiyat, genel_gider_fiyat, pesin_fiyat, fermuar_fiyat, kar_marji
       ''').eq('firma_id', _firmaId).order('created_at', ascending: false);
 
       // Depo satışlarını getir
-      final depoResponse = await _supabase.from(DbTables.urunDepo).select('*').eq('firma_id', _firmaId);
+      final depoResponse = await _supabase
+          .from(DbTables.urunDepo)
+          .select('*')
+          .eq('firma_id', _firmaId);
 
       setState(() {
         tumModeller = List<Map<String, dynamic>>.from(modellerResponse);
         depoSatislari = List<Map<String, dynamic>>.from(depoResponse);
-        
+
         // Markaları çıkar
         final markaSet = <String>{};
         for (var item in tumModeller) {
@@ -97,7 +108,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
           }
         }
         markalar = markaSet.toList()..sort();
-        
+
         // Yılları çıkar
         final yilSet = <int>{};
         for (var item in tumModeller) {
@@ -105,14 +116,16 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
             try {
               final tarih = DateTime.parse(item['created_at']);
               yilSet.add(tarih.year);
-            } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+            } catch (e) {
+              AppLogger.debug('Veri isleme hatasi: $e');
+            }
           }
         }
         yillar = yilSet.toList()..sort((a, b) => b.compareTo(a));
-        
+
         _filtreUygula();
       });
-      
+
       await _loadAllData();
     } catch (e) {
       if (!mounted) return;
@@ -144,13 +157,13 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
       }
       return true;
     }).toList();
-    
+
     // Modelleri güncelle (seçilen markaya göre)
     if (secilenMarka != null) {
       final modelSet = <String>{};
       for (var item in tumModeller) {
-        if (item['marka'] == secilenMarka && 
-            item['item_no'] != null && 
+        if (item['marka'] == secilenMarka &&
+            item['item_no'] != null &&
             item['item_no'].toString().isNotEmpty) {
           modelSet.add(item['item_no'].toString());
         }
@@ -195,12 +208,13 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
         );
       },
     );
-    
+
     if (secilen != null) {
       setState(() {
         baslangicTarihi = secilen.start;
         bitisTarihi = secilen.end;
-        selectedZamanAraligi = '${DateFormat('dd.MM.yyyy').format(secilen.start)} - ${DateFormat('dd.MM.yyyy').format(secilen.end)}';
+        selectedZamanAraligi =
+            '${DateFormat('dd.MM.yyyy').format(secilen.start)} - ${DateFormat('dd.MM.yyyy').format(secilen.end)}';
       });
       await _loadAllData();
     }
@@ -210,26 +224,29 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
   // MALİYET DAĞILIMI HESAPLA
   Map<String, dynamic> _hesaplaMaliyetDagilimi() {
     double iplik = 0, iscilik = 0, aksesuar = 0, genelGider = 0;
-    
+
     for (var item in filtrelenmisModeller) {
       // Sadece yüklenen adet üzerinden maliyet hesapla
       final yuklenenAdet = ((item['yuklenen_adet'] ?? 0) as num).toInt();
       if (yuklenenAdet <= 0) continue;
-      
+
       iplik += ((item['iplik_maliyeti'] ?? 0).toDouble()) * yuklenenAdet;
       iscilik += ((item['orgu_fiyat'] ?? 0).toDouble() +
-                  (item['dikim_fiyat'] ?? 0).toDouble() +
-                  (item['utu_fiyat'] ?? 0).toDouble() +
-                  (item['yikama_fiyat'] ?? 0).toDouble() +
-                  (item['ilik_dugme_fiyat'] ?? 0).toDouble()) * yuklenenAdet;
+              (item['dikim_fiyat'] ?? 0).toDouble() +
+              (item['utu_fiyat'] ?? 0).toDouble() +
+              (item['yikama_fiyat'] ?? 0).toDouble() +
+              (item['ilik_dugme_fiyat'] ?? 0).toDouble()) *
+          yuklenenAdet;
       aksesuar += ((item['aksesuar_fiyat'] ?? 0).toDouble() +
-                   (item['genel_aksesuar_fiyat'] ?? 0).toDouble() +
-                   (item['fermuar_fiyat'] ?? 0).toDouble()) * yuklenenAdet;
-      genelGider += ((item['genel_gider_fiyat'] ?? 0).toDouble()) * yuklenenAdet;
+              (item['genel_aksesuar_fiyat'] ?? 0).toDouble() +
+              (item['fermuar_fiyat'] ?? 0).toDouble()) *
+          yuklenenAdet;
+      genelGider +=
+          ((item['genel_gider_fiyat'] ?? 0).toDouble()) * yuklenenAdet;
     }
-    
+
     final toplam = iplik + iscilik + aksesuar + genelGider;
-    
+
     return {
       'iplik': iplik,
       'iscilik': iscilik,
@@ -246,14 +263,14 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
   // RENK ANALİZİ HESAPLA
   Map<String, Map<String, dynamic>> _hesaplaRenkAnalizi() {
     final Map<String, Map<String, dynamic>> renkler = {};
-    
+
     // Depo satışlarından renk bazlı satışlar
     for (var satis in depoSatislari) {
       if (satis['satildi'] == true && satis['renk'] != null) {
         final renk = satis['renk'].toString();
         final adet = (satis['satilan_adet'] ?? 0) as int;
         final tutar = (satis['satilan_tutar'] ?? 0).toDouble();
-        
+
         if (!renkler.containsKey(renk)) {
           renkler[renk] = {'adet': 0, 'tutar': 0.0};
         }
@@ -261,16 +278,19 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
         renkler[renk]!['tutar'] = (renkler[renk]!['tutar'] as double) + tutar;
       }
     }
-    
+
     // Tüm modellerden renk dağılımı (sadece yüklenen modeller gelir hesabına katılır)
     for (var item in filtrelenmisModeller) {
-      if (item['renk'] != null) {
-        final renk = item['renk'].toString();
-        final adet = ((item['toplam_adet'] ?? item['adet'] ?? 0) as num).toInt();
+      final renk = _modelRengi(item);
+      if (renk.isNotEmpty) {
+        final adet =
+            ((item['toplam_adet'] ?? item['adet'] ?? 0) as num).toInt();
         final yuklenenAdet = ((item['yuklenen_adet'] ?? 0) as num).toInt();
         // Gelir sadece yüklenen adet üzerinden hesaplanır
-        final gelir = yuklenenAdet > 0 ? ((item['pesin_fiyat'] ?? 0).toDouble()) * yuklenenAdet : 0.0;
-        
+        final gelir = yuklenenAdet > 0
+            ? ((item['pesin_fiyat'] ?? 0).toDouble()) * yuklenenAdet
+            : 0.0;
+
         if (!renkler.containsKey(renk)) {
           renkler[renk] = {'adet': 0, 'tutar': 0.0};
         }
@@ -278,21 +298,90 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
         renkler[renk]!['tutar'] = (renkler[renk]!['tutar'] as double) + gelir;
       }
     }
-    
+
     // Sırala (en çok satışa göre)
-    final sirali = Map.fromEntries(
-      renkler.entries.toList()..sort((a, b) => (b.value['adet'] as int).compareTo(a.value['adet'] as int))
-    );
-    
+    final sirali = Map.fromEntries(renkler.entries.toList()
+      ..sort((a, b) =>
+          (b.value['adet'] as int).compareTo(a.value['adet'] as int)));
+
     return sirali;
+  }
+
+  String _modelRengi(Map<String, dynamic> item) {
+    for (final key in ['renk', 'renk_kombinasyonu']) {
+      final value = item[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    final itemNo = item['item_no']?.toString().trim();
+    if (itemNo == null || itemNo.isEmpty) return '';
+
+    final parts = itemNo
+        .replaceAll(RegExp(r'[-_/]+'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+    if (parts.length < 2) return '';
+
+    final suffix = parts.last.replaceAll(RegExp(r'[^A-Za-zÇĞİÖŞÜçğıöşü]'), '');
+    if (suffix.length < 2 ||
+        suffix.length > 10 ||
+        RegExp(r'^\d+$').hasMatch(suffix)) {
+      return '';
+    }
+
+    return _renkKodunuGenislet(suffix);
+  }
+
+  String _renkKodunuGenislet(String kod) {
+    final normalized = kod
+        .toUpperCase()
+        .replaceAll('İ', 'I')
+        .replaceAll('Ş', 'S')
+        .replaceAll('Ğ', 'G')
+        .replaceAll('Ü', 'U')
+        .replaceAll('Ö', 'O')
+        .replaceAll('Ç', 'C');
+
+    const renkKodlari = {
+      'KAH': 'KAHVE',
+      'KHV': 'KAHVE',
+      'BRD': 'BORDO',
+      'LAC': 'LACİVERT',
+      'LACI': 'LACİVERT',
+      'EKR': 'EKRU',
+      'VIZ': 'VİZON',
+      'BEJ': 'BEJ',
+      'SYH': 'SİYAH',
+      'SIY': 'SİYAH',
+      'BEY': 'BEYAZ',
+      'MAV': 'MAVİ',
+      'MVI': 'MAVİ',
+      'YES': 'YEŞİL',
+      'YSL': 'YEŞİL',
+      'KIR': 'KIRMIZI',
+      'KRM': 'KIRMIZI',
+      'GRI': 'GRİ',
+      'GR': 'GRİ',
+      'MOR': 'MOR',
+      'PEM': 'PEMBE',
+      'PUD': 'PUDRA',
+      'SRT': 'SARI',
+    };
+
+    return renkKodlari[normalized] ?? kod.toUpperCase();
   }
 
   // STOK DEVİR HIZI HESAPLA
   Map<String, dynamic> _hesaplaStokDevirHizi() {
     final List<Map<String, dynamic>> satislar = [];
-    
+
     for (var item in depoSatislari) {
-      if (item['satildi'] == true && item['satis_tarihi'] != null && item['created_at'] != null) {
+      if (item['satildi'] == true &&
+          item['satis_tarihi'] != null &&
+          item['created_at'] != null) {
         try {
           final olusturma = DateTime.parse(item['created_at']);
           final satis = DateTime.parse(item['satis_tarihi']);
@@ -301,10 +390,12 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
             'model': item['model'] ?? item['item_no'] ?? 'Bilinmiyor',
             'gun': gun,
           });
-        } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+        } catch (e) {
+          AppLogger.debug('Veri isleme hatasi: $e');
+        }
       }
     }
-    
+
     if (satislar.isEmpty) {
       return {
         'ortalamaSure': 0.0,
@@ -312,10 +403,12 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
         'enYavas': '-',
       };
     }
-    
+
     satislar.sort((a, b) => (a['gun'] as int).compareTo(b['gun'] as int));
-    final ortalam = satislar.map((e) => e['gun'] as int).reduce((a, b) => a + b) / satislar.length;
-    
+    final ortalam =
+        satislar.map((e) => e['gun'] as int).reduce((a, b) => a + b) /
+            satislar.length;
+
     return {
       'ortalamaSure': ortalam,
       'enHizli': satislar.first['model'],
@@ -326,33 +419,49 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
   // SEZON ANALİZİ HESAPLA
   Map<String, Map<String, dynamic>> _hesaplaSezonAnalizi() {
     final Map<String, Map<String, dynamic>> aylar = {};
-    final ayIsimleri = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 
-                        'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-    
+    final ayIsimleri = [
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık'
+    ];
+
     for (var item in filtrelenmisModeller) {
       if (item['created_at'] != null) {
         try {
           final tarih = DateTime.parse(item['created_at']);
           final ayAdi = ayIsimleri[tarih.month - 1];
-          final adet = ((item['toplam_adet'] ?? item['adet'] ?? 0) as num).toInt();
+          final adet =
+              ((item['toplam_adet'] ?? item['adet'] ?? 0) as num).toInt();
           final yuklenenAdet = ((item['yuklenen_adet'] ?? 0) as num).toInt();
           // Gelir sadece yüklenen adet üzerinden hesaplanır
-          final gelir = yuklenenAdet > 0 ? ((item['pesin_fiyat'] ?? 0).toDouble()) * yuklenenAdet : 0.0;
-          
+          final gelir = yuklenenAdet > 0
+              ? ((item['pesin_fiyat'] ?? 0).toDouble()) * yuklenenAdet
+              : 0.0;
+
           if (!aylar.containsKey(ayAdi)) {
             aylar[ayAdi] = {'adet': 0, 'tutar': 0.0, 'ay': tarih.month};
           }
           aylar[ayAdi]!['adet'] = (aylar[ayAdi]!['adet'] as int) + adet;
           aylar[ayAdi]!['tutar'] = (aylar[ayAdi]!['tutar'] as double) + gelir;
-        } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+        } catch (e) {
+          AppLogger.debug('Veri isleme hatasi: $e');
+        }
       }
     }
-    
+
     // Ay sırasına göre sırala
-    final sirali = Map.fromEntries(
-      aylar.entries.toList()..sort((a, b) => (a.value['ay'] as int).compareTo(b.value['ay'] as int))
-    );
-    
+    final sirali = Map.fromEntries(aylar.entries.toList()
+      ..sort((a, b) => (a.value['ay'] as int).compareTo(b.value['ay'] as int)));
+
     return sirali;
   }
 
@@ -392,15 +501,23 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
     setState(() => isLoading = true);
     try {
       final results = await Future.wait([
-        GelismisRaporServisleri.getModelMaliyetAnalizi(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
-        GelismisRaporServisleri.getKarZararAnalizi(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
-        GelismisRaporServisleri.getTedarikciPerformansAnalizi(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
-        GelismisRaporServisleri.getUretimVerimlilikAnalizi(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
-        GelismisRaporServisleri.getMarkaBazliAnaliz(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporServisleri.getModelMaliyetAnalizi(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporServisleri.getKarZararAnalizi(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporServisleri.getTedarikciPerformansAnalizi(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporServisleri.getUretimVerimlilikAnalizi(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporServisleri.getMarkaBazliAnaliz(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
         GelismisRaporOperasyonServisleri.getTerminTakipAnalizi(),
-        GelismisRaporOperasyonServisleri.getStokAnalizi(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
-        GelismisRaporOperasyonServisleri.getSevkiyatAnalizi(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
-        GelismisRaporOperasyonServisleri.getKaliteAnalizi(baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporOperasyonServisleri.getStokAnalizi(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporOperasyonServisleri.getSevkiyatAnalizi(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+        GelismisRaporOperasyonServisleri.getKaliteAnalizi(
+            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
       ]);
       setState(() {
         maliyetVerileri = results[0];
@@ -417,7 +534,9 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
     } catch (e) {
       setState(() => isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Veri yüklenirken hata: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Veri yüklenirken hata: $e'),
+            backgroundColor: Colors.red));
       }
     }
   }
@@ -431,7 +550,10 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
         foregroundColor: Colors.white,
         elevation: 2,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _verileriYukle, tooltip: 'Yenile'),
+          IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _verileriYukle,
+              tooltip: 'Yenile'),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -453,7 +575,14 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
         ),
       ),
       body: isLoading
-          ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircularProgressIndicator(), SizedBox(height: 16), Text('Raporlar yükleniyor...')]))
+          ? const Center(
+              child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Raporlar yükleniyor...')
+                ]))
           : Column(
               children: [
                 // FİLTRE BARI
@@ -461,11 +590,11 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                 // TAB İÇERİĞİ
                 Expanded(
                   child: TabBarView(controller: _tabController, children: [
-                    _buildOzetTab(), 
-                    _buildKarZararTab(), 
-                    _buildMaliyetTab(), 
-                    _buildTedarikciTab(), 
-                    _buildVerimlilikTab(), 
+                    _buildOzetTab(),
+                    _buildKarZararTab(),
+                    _buildMaliyetTab(),
+                    _buildTedarikciTab(),
+                    _buildVerimlilikTab(),
                     _buildTerminTab(),
                     _buildStokTab(),
                     _buildSevkiyatTab(),
@@ -482,14 +611,17 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 900;
         final isMobile = constraints.maxWidth < 600;
-        
+
         if (isMobile) {
           // Mobil görünüm - dikey düzen
           return Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
+              ],
             ),
             child: Column(
               children: [
@@ -500,15 +632,22 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                       child: DropdownButtonFormField<String>(
                         decoration: InputDecoration(
                           labelText: 'Marka',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                           isDense: true,
                         ),
                         initialValue: secilenMarka,
                         isExpanded: true,
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü', overflow: TextOverflow.ellipsis)),
-                          ...markalar.map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))),
+                          const DropdownMenuItem(
+                              value: null,
+                              child: Text('Tümü',
+                                  overflow: TextOverflow.ellipsis)),
+                          ...markalar.map((m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m, overflow: TextOverflow.ellipsis))),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -524,15 +663,19 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                       child: DropdownButtonFormField<int>(
                         decoration: InputDecoration(
                           labelText: 'Yıl',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                           isDense: true,
                         ),
                         initialValue: secilenYil,
                         isExpanded: true,
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü')),
-                          ...yillar.map((y) => DropdownMenuItem(value: y, child: Text('$y'))),
+                          const DropdownMenuItem(
+                              value: null, child: Text('Tümü')),
+                          ...yillar.map((y) =>
+                              DropdownMenuItem(value: y, child: Text('$y'))),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -552,9 +695,11 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                       child: OutlinedButton.icon(
                         onPressed: _tarihAraligiSec,
                         icon: const Icon(Icons.date_range, size: 18),
-                        label: const Text('Tarih', style: TextStyle(fontSize: 12)),
+                        label:
+                            const Text('Tarih', style: TextStyle(fontSize: 12)),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 8),
                         ),
                       ),
                     ),
@@ -563,19 +708,22 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                       icon: const Icon(Icons.clear_all, size: 20),
                       onPressed: _filtreleriTemizle,
                       tooltip: 'Temizle',
-                      style: IconButton.styleFrom(backgroundColor: Colors.grey[200]),
+                      style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey[200]),
                     ),
                     IconButton(
                       icon: const Icon(Icons.picture_as_pdf, size: 20),
                       onPressed: _pdfOlustur,
                       tooltip: 'PDF',
-                      style: IconButton.styleFrom(backgroundColor: Colors.red[50]),
+                      style:
+                          IconButton.styleFrom(backgroundColor: Colors.red[50]),
                     ),
                     IconButton(
                       icon: const Icon(Icons.table_chart, size: 20),
                       onPressed: _excelOlustur,
                       tooltip: 'Excel',
-                      style: IconButton.styleFrom(backgroundColor: Colors.green[50]),
+                      style: IconButton.styleFrom(
+                          backgroundColor: Colors.green[50]),
                     ),
                   ],
                 ),
@@ -583,13 +731,16 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
             ),
           );
         }
-        
+
         // Tablet ve Desktop görünüm
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
+            ],
           ),
           child: Row(
             children: [
@@ -599,15 +750,20 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                 child: DropdownButtonFormField<String>(
                   decoration: InputDecoration(
                     labelText: 'Marka',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
                     isDense: true,
                   ),
                   initialValue: secilenMarka,
                   isExpanded: true,
                   items: [
-                    const DropdownMenuItem(value: null, child: Text('Tüm Markalar')),
-                    ...markalar.map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))),
+                    const DropdownMenuItem(
+                        value: null, child: Text('Tüm Markalar')),
+                    ...markalar.map((m) => DropdownMenuItem(
+                        value: m,
+                        child: Text(m, overflow: TextOverflow.ellipsis))),
                   ],
                   onChanged: (value) {
                     setState(() {
@@ -625,22 +781,29 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                   child: DropdownButtonFormField<String>(
                     decoration: InputDecoration(
                       labelText: 'Model',
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       isDense: true,
                     ),
                     initialValue: secilenModel,
                     isExpanded: true,
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('Tüm Modeller')),
-                      ...modeller.map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))),
+                      const DropdownMenuItem(
+                          value: null, child: Text('Tüm Modeller')),
+                      ...modeller.map((m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m, overflow: TextOverflow.ellipsis))),
                     ],
-                    onChanged: secilenMarka == null ? null : (value) {
-                      setState(() {
-                        secilenModel = value;
-                        _filtreUygula();
-                      });
-                    },
+                    onChanged: secilenMarka == null
+                        ? null
+                        : (value) {
+                            setState(() {
+                              secilenModel = value;
+                              _filtreUygula();
+                            });
+                          },
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -651,15 +814,19 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
                 child: DropdownButtonFormField<int>(
                   decoration: InputDecoration(
                     labelText: 'Yıl',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
                     isDense: true,
                   ),
                   initialValue: secilenYil,
                   isExpanded: true,
                   items: [
-                    const DropdownMenuItem(value: null, child: Text('Tüm Yıllar')),
-                    ...yillar.map((y) => DropdownMenuItem(value: y, child: Text('$y'))),
+                    const DropdownMenuItem(
+                        value: null, child: Text('Tüm Yıllar')),
+                    ...yillar.map(
+                        (y) => DropdownMenuItem(value: y, child: Text('$y'))),
                   ],
                   onChanged: (value) {
                     setState(() {
@@ -716,11 +883,11 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
     int yuklenenModelSayisi = 0;
     double toplamMaliyet = 0;
     double toplamSatis = 0;
-    
+
     for (var item in filtrelenmisModeller) {
       final adet = ((item['toplam_adet'] ?? item['adet'] ?? 0) as num).toInt();
       toplamAdet += adet;
-      
+
       // Maliyet kalemleri
       final iplik = ((item['iplik_maliyeti'] ?? 0) as num).toDouble();
       final orgu = ((item['orgu_fiyat'] ?? 0) as num).toDouble();
@@ -729,12 +896,22 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
       final yikama = ((item['yikama_fiyat'] ?? 0) as num).toDouble();
       final ilikDugme = ((item['ilik_dugme_fiyat'] ?? 0) as num).toDouble();
       final aksesuar = ((item['aksesuar_fiyat'] ?? 0) as num).toDouble();
-      final genelAksesuar = ((item['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
+      final genelAksesuar =
+          ((item['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
       final genelGider = ((item['genel_gider_fiyat'] ?? 0) as num).toDouble();
       final fermuar = ((item['fermuar_fiyat'] ?? 0) as num).toDouble();
-      
-      final birimMaliyet = iplik + orgu + dikim + utu + yikama + ilikDugme + aksesuar + genelAksesuar + genelGider + fermuar;
-      
+
+      final birimMaliyet = iplik +
+          orgu +
+          dikim +
+          utu +
+          yikama +
+          ilikDugme +
+          aksesuar +
+          genelAksesuar +
+          genelGider +
+          fermuar;
+
       // Sadece yüklenen adet üzerinden hesapla - yükleme yoksa satış/maliyet yok
       final yuklenenAdet = ((item['yuklenen_adet'] ?? 0) as num).toInt();
       if (yuklenenAdet > 0) {
@@ -745,28 +922,33 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
         toplamSatis += satis * yuklenenAdet;
       }
     }
-    
+
     // Depo satışları
     double depoSatisGeliri = 0;
     int depoSatilanAdet = 0;
     for (var satis in depoSatislari) {
       bool dahilEt = true;
-      if (secilenMarka != null && satis['marka'] != secilenMarka) dahilEt = false;
-      
+      if (secilenMarka != null && satis['marka'] != secilenMarka) {
+        dahilEt = false;
+      }
+
       if (dahilEt) {
         depoSatisGeliri += ((satis['satilan_tutar'] ?? 0) as num).toDouble();
         depoSatilanAdet += ((satis['satilan_adet'] ?? 0) as num).toInt();
       }
     }
-    
+
     final kar = toplamSatis - toplamMaliyet + depoSatisGeliri;
     final karMarji = toplamSatis > 0 ? (kar / toplamSatis) * 100 : 0;
     final brutKar = toplamSatis - toplamMaliyet;
     final brutKarMarji = toplamSatis > 0 ? (brutKar / toplamSatis) * 100 : 0.0;
-    final ortSiparisTutari = yuklenenModelSayisi > 0 ? toplamSatis / yuklenenModelSayisi : 0.0;
-    final ortBirimMaliyet = toplamYuklenenAdet > 0 ? toplamMaliyet / toplamYuklenenAdet : 0.0;
-    final ortBirimSatis = toplamYuklenenAdet > 0 ? toplamSatis / toplamYuklenenAdet : 0.0;
-    
+    final ortSiparisTutari =
+        yuklenenModelSayisi > 0 ? toplamSatis / yuklenenModelSayisi : 0.0;
+    final ortBirimMaliyet =
+        toplamYuklenenAdet > 0 ? toplamMaliyet / toplamYuklenenAdet : 0.0;
+    final ortBirimSatis =
+        toplamYuklenenAdet > 0 ? toplamSatis / toplamYuklenenAdet : 0.0;
+
     return {
       'toplamUrun': toplamUrun,
       'toplamAdet': toplamAdet,
@@ -785,5 +967,4 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> with Single
       'ortBirimSatis': ortBirimSatis,
     };
   }
-
 }

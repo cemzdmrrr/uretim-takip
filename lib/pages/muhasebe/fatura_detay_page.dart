@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:uretim_takip/models/fatura_model.dart';
@@ -7,9 +7,10 @@ import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/models/kasa_banka_model.dart';
 import 'package:uretim_takip/services/kasa_banka_service.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_ekle_page.dart';
+import 'package:uretim_takip/providers/auth_provider.dart';
+import 'package:provider/provider.dart';
 
 part 'fatura_detay_page_widgets.dart';
-
 
 class FaturaDetayPage extends StatefulWidget {
   final FaturaModel fatura;
@@ -23,8 +24,9 @@ class FaturaDetayPage extends StatefulWidget {
 class _FaturaDetayPageState extends State<FaturaDetayPage> {
   final DateFormat _dateFormat = DateFormat('dd.MM.yyyy');
   final DateFormat _dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
-  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
-  
+  final NumberFormat _currencyFormat =
+      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
+
   late FaturaModel _fatura;
   List<FaturaKalemiModel> _faturaKalemleri = [];
   bool _yukleniyor = false;
@@ -42,7 +44,8 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
     });
 
     try {
-      final kalemler = await FaturaService.faturaKalemleriniGetir(_fatura.faturaId!);
+      final kalemler =
+          await FaturaService.faturaKalemleriniGetir(_fatura.faturaId!);
       setState(() {
         _faturaKalemleri = kalemler;
       });
@@ -88,7 +91,9 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Fatura Sil'),
-        content: Text('${_fatura.faturaNo} numaralı faturayı silmek istediğinizden emin misiniz?'),
+        content: Text(
+          '${_fatura.faturaNo} numaralı faturayı silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -126,7 +131,8 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
         _fatura = _fatura.copyWith(durum: yeniDurum);
       });
       if (mounted) {
-        context.showSuccessSnackBar('Fatura durumu "$yeniDurum" olarak güncellendi');
+        context.showSuccessSnackBar(
+            'Fatura durumu "$yeniDurum" olarak güncellendi');
       }
     } catch (e) {
       if (mounted) {
@@ -154,6 +160,8 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
 
   @override
   Widget build(BuildContext context) {
+    final adminMi = context.watch<AuthProvider>().isAdmin;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Fatura - ${_fatura.faturaNo}'),
@@ -167,12 +175,14 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
                   _faturaduzenle();
                   break;
                 case 'sil':
-                  if (_fatura.durum == 'taslak') {
+                  if (adminMi || _fatura.durum == 'taslak') {
                     _faturaSil();
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Sadece taslak faturalar silinebilir'),
+                        content: Text(
+                          'Bu faturayı silmek için admin yetkisi gerekir',
+                        ),
                         backgroundColor: Colors.orange,
                       ),
                     );
@@ -200,7 +210,7 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
                   ],
                 ),
               ),
-              if (_fatura.durum == 'taslak')
+              if (adminMi || _fatura.durum == 'taslak')
                 const PopupMenuItem(
                   value: 'sil',
                   child: Row(
@@ -256,30 +266,28 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
             // Fatura durum kartı
             _buildDurumKarti(),
             const SizedBox(height: 16),
-            
+
             // Temel bilgiler kartı
             _buildTemelBilgilerKarti(),
             const SizedBox(height: 16),
-            
+
             // Müşteri/Tedarikçi bilgileri kartı
             _buildMusteriTedarikciKarti(),
             const SizedBox(height: 16),
-            
+
             // Fatura kalemleri kartı
             _buildFaturaKalemleriKarti(),
             const SizedBox(height: 16),
-            
+
             // Tutar bilgileri kartı
             _buildTutarBilgileriKarti(),
             const SizedBox(height: 16),
-            
+
             // Ödeme bilgileri kartı
-            if (_fatura.faturaTuru == 'satis')
-              _buildOdemeBilgileriKarti(),
+            if (_fatura.faturaTuru == 'satis') _buildOdemeBilgileriKarti(),
           ],
         ),
       ),
     );
   }
-
 }

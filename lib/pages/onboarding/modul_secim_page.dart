@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/module_registry.dart';
+import 'package:uretim_takip/models/abonelik_model.dart';
 import 'package:uretim_takip/pages/onboarding/firma_kurulum_ozet_page.dart';
 
 /// Modül seçim sayfası. Onboarding adım 3/4.
@@ -8,6 +9,8 @@ class ModulSecimPage extends StatefulWidget {
   final String firmaKodu;
   final Map<String, dynamic> firmaBilgileri;
   final List<String> secilenUretimDallari;
+  final AbonelikPlani? secilenPlan;
+  final bool yillik;
 
   const ModulSecimPage({
     super.key,
@@ -15,6 +18,8 @@ class ModulSecimPage extends StatefulWidget {
     required this.firmaKodu,
     required this.firmaBilgileri,
     required this.secilenUretimDallari,
+    this.secilenPlan,
+    this.yillik = false,
   });
 
   @override
@@ -35,6 +40,8 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
           firmaBilgileri: widget.firmaBilgileri,
           secilenUretimDallari: widget.secilenUretimDallari,
           secilenModuller: _secilenModuller.toList(),
+          secilenPlan: widget.secilenPlan,
+          yillik: widget.yillik,
         ),
       ),
     );
@@ -58,7 +65,8 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
                     const SizedBox(height: 24),
                     const Text(
                       'Hangi modülleri kullanmak istiyorsunuz?',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -76,14 +84,16 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
                   itemBuilder: (context, index) {
                     final modul = AppModule.values[index];
                     final secili = _secilenModuller.contains(modul.kod);
-                    final zorunlu = modul.kod == 'uretim' || modul.kod == 'ayarlar';
+                    final zorunlu =
+                        modul.kod == 'uretim' || modul.kod == 'ayarlar';
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: secili
-                            ? BorderSide(color: Theme.of(context).primaryColor, width: 2)
+                            ? BorderSide(
+                                color: Theme.of(context).primaryColor, width: 2)
                             : BorderSide.none,
                       ),
                       child: InkWell(
@@ -91,12 +101,13 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
                         onTap: zorunlu
                             ? null
                             : () => setState(() {
-                                secili
-                                    ? _secilenModuller.remove(modul.kod)
-                                    : _secilenModuller.add(modul.kod);
-                              }),
+                                  secili
+                                      ? _secilenModuller.remove(modul.kod)
+                                      : _secilenModuller.add(modul.kod);
+                                }),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                           child: Row(
                             children: [
                               Checkbox(
@@ -104,15 +115,18 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
                                 onChanged: zorunlu
                                     ? null
                                     : (_) => setState(() {
-                                        secili
-                                            ? _secilenModuller.remove(modul.kod)
-                                            : _secilenModuller.add(modul.kod);
-                                      }),
+                                          secili
+                                              ? _secilenModuller
+                                                  .remove(modul.kod)
+                                              : _secilenModuller.add(modul.kod);
+                                        }),
                               ),
                               const SizedBox(width: 8),
-                              Icon(modul.ikon, size: 28, color: secili
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey),
+                              Icon(modul.ikon,
+                                  size: 28,
+                                  color: secili
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.grey),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
@@ -120,21 +134,25 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
                                   children: [
                                     Row(
                                       children: [
-                                        Text(modul.ad, style: const TextStyle(
-                                          fontSize: 15, fontWeight: FontWeight.w600)),
+                                        Text(modul.ad,
+                                            style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600)),
                                         if (zorunlu) ...[
                                           const SizedBox(width: 8),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 2),
+                                                horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: Colors.orange.shade100,
-                                              borderRadius: BorderRadius.circular(4),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                             ),
                                             child: const Text('Zorunlu',
-                                              style: TextStyle(fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.deepOrange)),
+                                                style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.deepOrange)),
                                           ),
                                         ],
                                       ],
@@ -142,7 +160,9 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
                                     const SizedBox(height: 2),
                                     Text(
                                       modul.kategori.ad,
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600]),
                                     ),
                                   ],
                                 ),
@@ -162,7 +182,8 @@ class _ModulSecimPageState extends State<ModulSecimPage> {
                   height: 48,
                   child: FilledButton(
                     onPressed: _devamEt,
-                    child: const Text('Devam →', style: TextStyle(fontSize: 16)),
+                    child:
+                        const Text('Devam →', style: TextStyle(fontSize: 16)),
                   ),
                 ),
               ),

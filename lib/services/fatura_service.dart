@@ -1,4 +1,4 @@
-﻿import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/models/fatura_model.dart';
 import 'package:uretim_takip/models/fatura_kalemi_model.dart';
@@ -27,7 +27,8 @@ class FaturaService {
 
       // Filtreleme
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
-        query = query.or('fatura_no.ilike.%$aramaKelimesi%,aciklama.ilike.%$aramaKelimesi%');
+        query = query.or(
+            'fatura_no.ilike.%$aramaKelimesi%,aciklama.ilike.%$aramaKelimesi%');
       }
 
       if (faturaTuru != null && faturaTuru.isNotEmpty) {
@@ -55,7 +56,9 @@ class FaturaService {
           .order('fatura_tarihi', ascending: false)
           .range(offset, offset + limit - 1);
 
-      return (response as List).map((json) => FaturaModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => FaturaModel.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Faturalar getirilirken hata oluştu: $e');
     }
@@ -71,10 +74,14 @@ class FaturaService {
     DateTime? bitisTarihi,
   }) async {
     try {
-      var query = _supabase.from(DbTables.faturalar).select('*').eq('firma_id', _firmaId);
-      
+      var query = _supabase
+          .from(DbTables.faturalar)
+          .select('*')
+          .eq('firma_id', _firmaId);
+
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
-        query = query.or('fatura_no.ilike.%$aramaKelimesi%,aciklama.ilike.%$aramaKelimesi%');
+        query = query.or(
+            'fatura_no.ilike.%$aramaKelimesi%,aciklama.ilike.%$aramaKelimesi%');
       }
       if (faturaTuru != null && faturaTuru.isNotEmpty) {
         query = query.eq('fatura_turu', faturaTuru);
@@ -91,7 +98,7 @@ class FaturaService {
       if (bitisTarihi != null) {
         query = query.lte('fatura_tarihi', bitisTarihi.toIso8601String());
       }
-      
+
       final response = await query;
       return (response as List).length;
     } catch (e) {
@@ -100,14 +107,16 @@ class FaturaService {
   }
 
   // Yeni fatura oluştur
-  static Future<FaturaModel> faturaOlustur(Map<String, dynamic> faturaVerileri) async {
+  static Future<FaturaModel> faturaOlustur(
+      Map<String, dynamic> faturaVerileri) async {
     try {
       // Fatura numarasını her zaman kayıt anında yeniden oluştur (çakışma önleme)
-      faturaVerileri['fatura_no'] = await sonrakiFaturaNoOlustur(faturaVerileri['fatura_turu'] ?? 'satis');
+      faturaVerileri['fatura_no'] = await sonrakiFaturaNoOlustur(
+          faturaVerileri['fatura_turu'] ?? 'satis');
 
       faturaVerileri['olusturma_tarihi'] = DateTime.now().toIso8601String();
       faturaVerileri['firma_id'] = _firmaId;
-      
+
       final response = await _supabase
           .from(DbTables.faturalar)
           .insert(faturaVerileri)
@@ -121,10 +130,11 @@ class FaturaService {
   }
 
   // Fatura güncelle
-  static Future<FaturaModel> faturaVerileriniGuncelle(int faturaId, Map<String, dynamic> faturaVerileri) async {
+  static Future<FaturaModel> faturaVerileriniGuncelle(
+      int faturaId, Map<String, dynamic> faturaVerileri) async {
     try {
       faturaVerileri['guncelleme_tarihi'] = DateTime.now().toIso8601String();
-      
+
       final response = await _supabase
           .from(DbTables.faturalar)
           .update(faturaVerileri)
@@ -142,9 +152,21 @@ class FaturaService {
   static Future<void> faturaSil(int faturaId) async {
     try {
       await _supabase
-          .from(DbTables.faturalar)
+          .from(DbTables.faturaKalemleri)
           .delete()
           .eq('fatura_id', faturaId);
+
+      final deleted = await _supabase
+          .from(DbTables.faturalar)
+          .delete()
+          .eq('firma_id', _firmaId)
+          .eq('fatura_id', faturaId)
+          .select('fatura_id')
+          .maybeSingle();
+
+      if (deleted == null) {
+        throw Exception('Fatura bulunamadı veya silme yetkiniz yok');
+      }
     } catch (e) {
       throw Exception('Fatura silinirken hata oluştu: $e');
     }
@@ -168,7 +190,8 @@ class FaturaService {
   }
 
   // Fatura kalemlerini getir
-  static Future<List<FaturaKalemiModel>> faturaKalemleriniGetir(int faturaId) async {
+  static Future<List<FaturaKalemiModel>> faturaKalemleriniGetir(
+      int faturaId) async {
     try {
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
@@ -176,14 +199,17 @@ class FaturaService {
           .eq('fatura_id', faturaId)
           .order('id', ascending: true);
 
-      return (response as List).map((json) => FaturaKalemiModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => FaturaKalemiModel.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Fatura kalemleri getirilirken hata oluştu: $e');
     }
   }
 
   // Fatura kalemi ekle
-  static Future<FaturaKalemiModel> faturaKalemiEkle(Map<String, dynamic> kalemVerileri) async {
+  static Future<FaturaKalemiModel> faturaKalemiEkle(
+      Map<String, dynamic> kalemVerileri) async {
     try {
       kalemVerileri['olusturma_tarihi'] = DateTime.now().toIso8601String();
       // firma_id yoksa ekle
@@ -192,7 +218,7 @@ class FaturaService {
       }
       kalemVerileri.remove('sira_no');
       kalemVerileri.remove('kalem_id');
-      
+
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
           .insert(kalemVerileri)
@@ -206,7 +232,8 @@ class FaturaService {
   }
 
   // Fatura kalemi güncelle
-  static Future<FaturaKalemiModel> faturaKalemiGuncelle(int kalemId, Map<String, dynamic> kalemVerileri) async {
+  static Future<FaturaKalemiModel> faturaKalemiGuncelle(
+      int kalemId, Map<String, dynamic> kalemVerileri) async {
     try {
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
@@ -224,17 +251,15 @@ class FaturaService {
   // Fatura kalemi sil
   static Future<void> faturaKalemiSil(int kalemId) async {
     try {
-      await _supabase
-          .from(DbTables.faturaKalemleri)
-          .delete()
-          .eq('id', kalemId);
+      await _supabase.from(DbTables.faturaKalemleri).delete().eq('id', kalemId);
     } catch (e) {
       throw Exception('Fatura kalemi silinirken hata oluştu: $e');
     }
   }
 
   // Müşteri faturalarını getir
-  static Future<List<FaturaModel>> musteriFaturalariniGetir(int musteriId) async {
+  static Future<List<FaturaModel>> musteriFaturalariniGetir(
+      int musteriId) async {
     try {
       final response = await _supabase
           .from(DbTables.faturalar)
@@ -243,14 +268,17 @@ class FaturaService {
           .eq('musteri_id', musteriId)
           .order('fatura_tarihi', ascending: false);
 
-      return (response as List).map((json) => FaturaModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => FaturaModel.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Müşteri faturaları getirilirken hata oluştu: $e');
     }
   }
 
   // Tedarikçi faturalarını getir
-  static Future<List<FaturaModel>> tedarikciFaturalariniGetir(int tedarikciId) async {
+  static Future<List<FaturaModel>> tedarikciFaturalariniGetir(
+      int tedarikciId) async {
     try {
       final response = await _supabase
           .from(DbTables.faturalar)
@@ -259,7 +287,9 @@ class FaturaService {
           .eq('tedarikci_id', tedarikciId)
           .order('fatura_tarihi', ascending: false);
 
-      return (response as List).map((json) => FaturaModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => FaturaModel.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Tedarikçi faturaları getirilirken hata oluştu: $e');
     }
@@ -267,31 +297,17 @@ class FaturaService {
 
   // Fatura türlerini getir
   static List<String> faturaTurleriniGetir() {
-    return [
-      'satis',
-      'alis',
-      'iade',
-      'proforma'
-    ];
+    return ['satis', 'alis', 'iade', 'proforma'];
   }
 
   // Fatura durumlarını getir
   static List<String> faturaDurumlariniGetir() {
-    return [
-      'taslak',
-      'onaylandi',
-      'iptal',
-      'gonderildi'
-    ];
+    return ['taslak', 'onaylandi', 'iptal', 'gonderildi'];
   }
 
   // Ödeme durumlarını getir
   static List<String> odemeDurumlariniGetir() {
-    return [
-      'odenmedi',
-      'kismi',
-      'odendi'
-    ];
+    return ['odenmedi', 'kismi', 'odendi'];
   }
 
   // İstatistikleri getir
@@ -304,18 +320,24 @@ class FaturaService {
 
       final list = tumFaturalar as List;
       final toplam = list.length;
-      final satislar = list.where((item) => item['fatura_turu'] == 'satis').length;
-      final alislar = list.where((item) => item['fatura_turu'] == 'alis').length;
-      final bekleyenOdemeler = list.where((item) => item['odeme_durumu'] == 'odenmedi').length;
+      final satislar =
+          list.where((item) => item['fatura_turu'] == 'satis').length;
+      final alislar =
+          list.where((item) => item['fatura_turu'] == 'alis').length;
+      final bekleyenOdemeler =
+          list.where((item) => item['odeme_durumu'] == 'odenmedi').length;
 
       // Toplam ciro hesaplama (satış faturaları)
-      final satisFaturalari = list.where((item) => item['fatura_turu'] == 'satis');
-      final toplamCiro = satisFaturalari.fold<double>(0, (sum, item) => sum + (item['toplam_tutar']?.toDouble() ?? 0));
+      final satisFaturalari =
+          list.where((item) => item['fatura_turu'] == 'satis');
+      final toplamCiro = satisFaturalari.fold<double>(
+          0, (sum, item) => sum + (item['toplam_tutar']?.toDouble() ?? 0));
 
       // Bekleyen ödeme tutarı
       final bekleyenOdemeTutari = list
           .where((item) => item['odeme_durumu'] == 'odenmedi')
-          .fold<double>(0, (sum, item) => sum + (item['toplam_tutar']?.toDouble() ?? 0));
+          .fold<double>(
+              0, (sum, item) => sum + (item['toplam_tutar']?.toDouble() ?? 0));
 
       return {
         'toplam': toplam,
@@ -338,12 +360,12 @@ class FaturaService {
   }
 
   // Özel fatura numarası oluştur
-  static Future<String> _yeniFaturaNoOlustur(String faturaTuru) async {
+  static Future<String> yeniFaturaNoOlustur(String faturaTuru) async {
     try {
       final now = DateTime.now();
       final yil = now.year.toString();
       final ay = now.month.toString().padLeft(2, '0');
-      
+
       String prefix;
       switch (faturaTuru) {
         case 'satis':
@@ -368,8 +390,10 @@ class FaturaService {
           .select('fatura_no')
           .eq('firma_id', _firmaId)
           .eq('fatura_turu', faturaTuru)
-          .gte('fatura_tarihi', DateTime(now.year, now.month, 1).toIso8601String())
-          .lt('fatura_tarihi', DateTime(now.year, now.month + 1, 1).toIso8601String());
+          .gte('fatura_tarihi',
+              DateTime(now.year, now.month, 1).toIso8601String())
+          .lt('fatura_tarihi',
+              DateTime(now.year, now.month + 1, 1).toIso8601String());
 
       final mevcutSayisi = (response as List).length + 1;
       final siraNo = mevcutSayisi.toString().padLeft(4, '0');
@@ -377,7 +401,8 @@ class FaturaService {
       return '$prefix$yil$ay$siraNo';
     } catch (e) {
       // Hata durumunda basit numara üret
-      final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(7);
+      final timestamp =
+          DateTime.now().millisecondsSinceEpoch.toString().substring(7);
       return 'F$timestamp';
     }
   }
@@ -386,21 +411,15 @@ class FaturaService {
   static Future<FaturaModel> siparistenFaturaOlustur(int modelId) async {
     try {
       // Model bilgilerini getir
-      final modelResponse = await _supabase
-          .from(DbTables.trikoTakip)
-          .select('''
+      final modelResponse = await _supabase.from(DbTables.trikoTakip).select('''
             *, 
             musteri:musteri_id(ad, sirket, adres, vergi_no, vergi_dairesi)
-          ''')
-          .eq('firma_id', _firmaId)
-          .eq('id', modelId)
-          .single();
-
+          ''').eq('firma_id', _firmaId).eq('id', modelId).single();
 
       // Müşteri bilgileri
       final musteri = modelResponse['musteri'];
       final faturaAdres = musteri?['adres'] ?? '';
-      
+
       // Fatura oluştur
       final faturaVerileri = {
         'fatura_turu': 'satis',
@@ -413,7 +432,8 @@ class FaturaService {
         'kdv_tutari': 0.0,
         'toplam_tutar': 0.0,
         'durum': 'taslak',
-        'aciklama': 'Sipariş No: ${modelResponse['marka']} - ${modelResponse['item_no']} otomatik faturası',
+        'aciklama':
+            'Sipariş No: ${modelResponse['marka']} - ${modelResponse['item_no']} otomatik faturası',
         'kur': 'TRY',
         'kur_orani': 1.0,
         'olusturan_kullanici': 'sistem',
@@ -426,7 +446,8 @@ class FaturaService {
         'fatura_id': fatura.faturaId,
         'firma_id': TenantManager.instance.requireFirmaId,
         'urun_adi': '${modelResponse['marka']} - ${modelResponse['item_no']}',
-        'aciklama': 'Renk: ${modelResponse['renk']}, Ürün Cinsi: ${modelResponse['urun_cinsi']}',
+        'aciklama':
+            'Renk: ${modelResponse['renk']}, Ürün Cinsi: ${modelResponse['urun_cinsi']}',
         'miktar': modelResponse['adet']?.toDouble() ?? 1.0,
         'birim': 'adet',
         'birim_fiyat': 0.0,
@@ -447,15 +468,13 @@ class FaturaService {
   }
 
   // Fatura durumu güncelle
-  static Future<void> faturaDurumGuncelle(int faturaId, String yeniDurum) async {
+  static Future<void> faturaDurumGuncelle(
+      int faturaId, String yeniDurum) async {
     try {
-      await _supabase
-          .from(DbTables.faturalar)
-          .update({
-            'durum': yeniDurum,
-            'guncelleme_tarihi': DateTime.now().toIso8601String(),
-          })
-          .eq('fatura_id', faturaId);
+      await _supabase.from(DbTables.faturalar).update({
+        'durum': yeniDurum,
+        'guncelleme_tarihi': DateTime.now().toIso8601String(),
+      }).eq('fatura_id', faturaId);
     } catch (e) {
       throw Exception('Fatura durumu güncellenirken hata: $e');
     }
@@ -463,8 +482,8 @@ class FaturaService {
 
   // Ödeme ekle (Kasa/Banka Hareket entegrasyonu ile)
   static Future<void> odemeEkle(
-    int faturaId, 
-    double odemeTutari, 
+    int faturaId,
+    double odemeTutari,
     String? aciklama, {
     String? kasaBankaId,
     String? paraBirimi = 'TRY',
@@ -479,8 +498,10 @@ class FaturaService {
           .eq('fatura_id', faturaId)
           .single();
 
-      final mevcutOdenenTutar = (faturaResponse['odenen_tutar'] as num?)?.toDouble() ?? 0.0;
-      final toplamTutar = (faturaResponse['toplam_tutar'] as num?)?.toDouble() ?? 0.0;
+      final mevcutOdenenTutar =
+          (faturaResponse['odenen_tutar'] as num?)?.toDouble() ?? 0.0;
+      final toplamTutar =
+          (faturaResponse['toplam_tutar'] as num?)?.toDouble() ?? 0.0;
       final faturaNo = faturaResponse['fatura_no'] ?? '';
       final yeniOdenenTutar = mevcutOdenenTutar + odemeTutari;
 
@@ -495,14 +516,11 @@ class FaturaService {
       }
 
       // Faturayı güncelle
-      await _supabase
-          .from(DbTables.faturalar)
-          .update({
-            'odenen_tutar': yeniOdenenTutar,
-            'odeme_durumu': yeniOdemeDurumu,
-            'guncelleme_tarihi': DateTime.now().toIso8601String(),
-          })
-          .eq('fatura_id', faturaId);
+      await _supabase.from(DbTables.faturalar).update({
+        'odenen_tutar': yeniOdenenTutar,
+        'odeme_durumu': yeniOdemeDurumu,
+        'guncelleme_tarihi': DateTime.now().toIso8601String(),
+      }).eq('fatura_id', faturaId);
 
       // Kasa/Banka hareket kaydı ekle (eğer kasa/banka hesabı belirtilmişse)
       if (kasaBankaId != null) {
@@ -525,14 +543,11 @@ class FaturaService {
 
         hareketData['firma_id'] = _firmaId;
 
-        await _supabase
-            .from(DbTables.kasaBankaHareketleri)
-            .insert(hareketData);
+        await _supabase.from(DbTables.kasaBankaHareketleri).insert(hareketData);
       }
 
       // Ödeme geçmişi tablosuna kayıt ekle (gelecekte)
       // await _supabase.from(DbTables.odemeGecmisi).insert({...});
-
     } catch (e) {
       throw Exception('Ödeme eklenirken hata: $e');
     }
@@ -543,7 +558,7 @@ class FaturaService {
     try {
       final yil = DateTime.now().year;
       final prefix = _getFaturaPrefix(faturaTuru);
-      
+
       // Son fatura nosunu bul - firma bazlı
       final response = await _supabase
           .from(DbTables.faturalar)
@@ -567,7 +582,8 @@ class FaturaService {
       // Hata durumunda basit bir format döndür
       final yil = DateTime.now().year;
       final prefix = _getFaturaPrefix(faturaTuru);
-      final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
+      final timestamp =
+          DateTime.now().millisecondsSinceEpoch.toString().substring(8);
       return '$prefix-$yil-$timestamp';
     }
   }
@@ -588,7 +604,8 @@ class FaturaService {
   }
 
   // Fatura ekle (fatura + kalemleri)
-  static Future<int> faturaEkle(FaturaModel fatura, List<FaturaKalemiModel> kalemler) async {
+  static Future<int> faturaEkle(
+      FaturaModel fatura, List<FaturaKalemiModel> kalemler) async {
     try {
       // Önce faturayı ekle
       final faturaData = fatura.toMap();
@@ -623,9 +640,7 @@ class FaturaService {
           };
         }).toList();
 
-        await _supabase
-            .from(DbTables.faturaKalemleri)
-            .insert(kalemData);
+        await _supabase.from(DbTables.faturaKalemleri).insert(kalemData);
       }
 
       return faturaId;
@@ -635,7 +650,8 @@ class FaturaService {
   }
 
   // Fatura güncelle
-  static Future<void> faturaGuncelle(FaturaModel fatura, List<FaturaKalemiModel> kalemler) async {
+  static Future<void> faturaGuncelle(
+      FaturaModel fatura, List<FaturaKalemiModel> kalemler) async {
     try {
       // Önce faturayı güncelle
       await _supabase
@@ -671,9 +687,7 @@ class FaturaService {
           };
         }).toList();
 
-        await _supabase
-            .from(DbTables.faturaKalemleri)
-            .insert(kalemData);
+        await _supabase.from(DbTables.faturaKalemleri).insert(kalemData);
       }
     } catch (e) {
       throw Exception('Fatura güncellenirken hata: $e');

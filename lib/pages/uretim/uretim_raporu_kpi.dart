@@ -3,34 +3,33 @@ part of 'uretim_raporu_page.dart';
 
 /// KPI Dashboard tab — özet metrikler, verimlilik, trendler
 extension _KpiExt on _UretimRaporuPageState {
-
   Widget _buildKpiDashboard() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 600;
         final isTablet = constraints.maxWidth < 900;
-        
+
         return SingleChildScrollView(
-          padding: EdgeInsets.all(isMobile ? 12 : 16),
+          padding: EdgeInsets.all(isMobile ? 10 : 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Ana KPI kartları
               _buildAnaKpiKartlari(isMobile, isTablet),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: 12),
+
               // Verimlilik göstergeleri
               _buildVerimlilikBolumu(isMobile),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: 12),
+
               // Üretim akış özeti
               _buildUretimAkisOzeti(isMobile),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: 12),
+
               // Darboğaz uyarıları
               _buildDarbogazUyarilari(isMobile),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: 12),
+
               // Bu ay vs geçen ay karşılaştırma
               _buildDonemKarsilastirma(isMobile),
             ],
@@ -45,37 +44,50 @@ extension _KpiExt on _UretimRaporuPageState {
     final ortSure = (_ozet['ortalama_uretim_suresi'] as double?) ?? 0.0;
 
     final kartlar = [
-      _buildKpiKart('Toplam Model', '${_ozet['toplam_model'] ?? 0}', Colors.blue, Icons.inventory, isMobile),
-      _buildKpiKart('Devam Eden', '${_ozet['devam_eden'] ?? 0}', Colors.orange, Icons.pending, isMobile),
-      _buildKpiKart('Tamamlanan', '${_ozet['tamamlanan'] ?? 0}', Colors.green, Icons.check_circle, isMobile),
-      _buildKpiKart('Toplam Adet', '${_ozet['toplam_adet'] ?? 0}', Colors.purple, Icons.numbers, isMobile),
-      _buildKpiKart('Toplam Fire', '${_ozet['toplam_fire'] ?? 0}', Colors.red.shade400, Icons.local_fire_department, isMobile),
-      _buildKpiKart('Geciken', '$gecikenSiparis', Colors.red.shade700, Icons.warning_amber, isMobile),
-      _buildKpiKart('Ort. Süre', '${ortSure.toStringAsFixed(0)} gün', Colors.teal, Icons.timer, isMobile),
-      _buildKpiKart('Verimlilik', '%${((_ozet['verimlilik_orani'] as double?) ?? 100).toStringAsFixed(1)}', Colors.indigo, Icons.speed, isMobile),
+      _buildKpiKart('Toplam Model', '${_ozet['toplam_model'] ?? 0}',
+          Colors.blue, Icons.inventory, isMobile),
+      _buildKpiKart('Devam Eden', '${_ozet['devam_eden'] ?? 0}', Colors.orange,
+          Icons.pending, isMobile),
+      _buildKpiKart('Tamamlanan', '${_ozet['tamamlanan'] ?? 0}', Colors.green,
+          Icons.check_circle, isMobile),
+      _buildKpiKart('Toplam Adet', '${_ozet['toplam_adet'] ?? 0}',
+          Colors.purple, Icons.numbers, isMobile),
+      _buildKpiKart('Toplam Fire', '${_ozet['toplam_fire'] ?? 0}',
+          Colors.red.shade400, Icons.local_fire_department, isMobile),
+      _buildKpiKart('Geciken', '$gecikenSiparis', Colors.red.shade700,
+          Icons.warning_amber, isMobile),
+      _buildKpiKart('Ort. Süre', '${ortSure.toStringAsFixed(0)} gün',
+          Colors.teal, Icons.timer, isMobile),
+      _buildKpiKart(
+          'Verimlilik',
+          '%${((_ozet['verimlilik_orani'] as double?) ?? 100).toStringAsFixed(1)}',
+          Colors.indigo,
+          Icons.speed,
+          isMobile),
     ];
-    
+
     final crossAxisCount = isMobile ? 2 : (isTablet ? 4 : 4);
-    
+
     return GridView.count(
       crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: isMobile ? 1.4 : 1.6,
+      mainAxisSpacing: 6,
+      crossAxisSpacing: 6,
+      childAspectRatio: isMobile ? 1.8 : 2.35,
       children: kartlar,
     );
   }
 
-  Widget _buildKpiKart(String baslik, String deger, Color renk, IconData icon, bool isMobile) {
+  Widget _buildKpiKart(
+      String baslik, String deger, Color renk, IconData icon, bool isMobile) {
     return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
-        padding: EdgeInsets.all(isMobile ? 10 : 14),
+        padding: EdgeInsets.all(isMobile ? 8 : 10),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           gradient: LinearGradient(
             colors: [renk.withValues(alpha: 0.12), Colors.white],
             begin: Alignment.topLeft,
@@ -85,15 +97,20 @@ extension _KpiExt on _UretimRaporuPageState {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: renk, size: isMobile ? 22 : 28),
-            SizedBox(height: isMobile ? 4 : 8),
+            Icon(icon, color: renk, size: isMobile ? 18 : 22),
+            SizedBox(height: isMobile ? 3 : 5),
             FittedBox(
               child: Text(
                 deger,
-                style: TextStyle(fontSize: isMobile ? 18 : 24, fontWeight: FontWeight.bold, color: renk),
+                style: TextStyle(
+                    fontSize: isMobile ? 16 : 20,
+                    fontWeight: FontWeight.bold,
+                    color: renk),
               ),
             ),
-            Text(baslik, style: TextStyle(fontSize: isMobile ? 10 : 12, color: Colors.grey.shade600)),
+            Text(baslik,
+                style: TextStyle(
+                    fontSize: isMobile ? 9 : 11, color: Colors.grey.shade600)),
           ],
         ),
       ),
@@ -110,7 +127,7 @@ extension _KpiExt on _UretimRaporuPageState {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -118,16 +135,18 @@ extension _KpiExt on _UretimRaporuPageState {
               children: [
                 Icon(Icons.analytics, color: Colors.indigo),
                 SizedBox(width: 8),
-                Text('Verimlilik Göstergeleri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Verimlilik Göstergeleri',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildProgressBar('Üretim Verimliliği', verimlilik, Colors.blue),
-            const SizedBox(height: 12),
+            const SizedBox(height: 9),
             _buildProgressBar('Tamamlanma Oranı', tamamlanma, Colors.green),
-            const SizedBox(height: 12),
+            const SizedBox(height: 9),
             _buildProgressBar('Zamanında Teslim', zamaninda, Colors.orange),
-            const SizedBox(height: 12),
+            const SizedBox(height: 9),
             _buildProgressBar('Fire Oranı', fireOrani, Colors.red, ters: true),
           ],
         ),
@@ -135,19 +154,28 @@ extension _KpiExt on _UretimRaporuPageState {
     );
   }
 
-  Widget _buildProgressBar(String label, double yuzde, Color renk, {bool ters = false}) {
+  Widget _buildProgressBar(String label, double yuzde, Color renk,
+      {bool ters = false}) {
     final deger = yuzde.clamp(0.0, 100.0);
     final iyi = ters ? deger < 3 : deger > 80;
-    final gostergeRenk = iyi ? Colors.green : (ters ? (deger > 5 ? Colors.red : Colors.orange) : (deger > 50 ? Colors.orange : Colors.red));
-    
+    final gostergeRenk = iyi
+        ? Colors.green
+        : (ters
+            ? (deger > 5 ? Colors.red : Colors.orange)
+            : (deger > 50 ? Colors.orange : Colors.red));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 13)),
-            Text('%${deger.toStringAsFixed(1)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: gostergeRenk)),
+            Text(label, style: const TextStyle(fontSize: 12)),
+            Text('%${deger.toStringAsFixed(1)}',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: gostergeRenk)),
           ],
         ),
         const SizedBox(height: 4),
@@ -155,7 +183,7 @@ extension _KpiExt on _UretimRaporuPageState {
           borderRadius: BorderRadius.circular(6),
           child: LinearProgressIndicator(
             value: deger / 100,
-            minHeight: 8,
+            minHeight: 6,
             backgroundColor: Colors.grey.shade200,
             valueColor: AlwaysStoppedAnimation(gostergeRenk),
           ),
@@ -167,12 +195,12 @@ extension _KpiExt on _UretimRaporuPageState {
   /// Üretim akış özeti — bir pipeline/funnel görünümü
   Widget _buildUretimAkisOzeti(bool isMobile) {
     final asamaSayilari = _ozet['asama_sayilari'] as Map<String, int>? ?? {};
-    
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -180,10 +208,12 @@ extension _KpiExt on _UretimRaporuPageState {
               children: [
                 Icon(Icons.linear_scale, color: Colors.indigo),
                 SizedBox(width: 8),
-                Text('Üretim Hattı Akışı', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Üretim Hattı Akışı',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -191,29 +221,37 @@ extension _KpiExt on _UretimRaporuPageState {
                   final sayi = asamaSayilari[asamaKey] ?? 0;
                   final info = _getAsamaBilgisi(asamaKey);
                   final color = info['color'] as Color;
-                  final isLast = asamaKey == UretimRaporuService.asamaSirasi.last;
-                  
+                  final isLast =
+                      asamaKey == UretimRaporuService.asamaSirasi.last;
+
                   return Row(
                     children: [
                       Container(
-                        width: isMobile ? 70 : 90,
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                        width: isMobile ? 62 : 78,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 9, horizontal: 6),
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: color.withValues(alpha: 0.3)),
+                          border:
+                              Border.all(color: color.withValues(alpha: 0.3)),
                         ),
                         child: Column(
                           children: [
-                            Icon(info['icon'] as IconData, color: color, size: 20),
-                            const SizedBox(height: 4),
+                            Icon(info['icon'] as IconData,
+                                color: color, size: 18),
+                            const SizedBox(height: 3),
                             Text(
                               sayi.toString(),
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+                              style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: color),
                             ),
                             Text(
                               info['label'] as String,
-                              style: TextStyle(fontSize: isMobile ? 9 : 10, color: color),
+                              style: TextStyle(
+                                  fontSize: isMobile ? 8 : 9, color: color),
                               textAlign: TextAlign.center,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -223,7 +261,8 @@ extension _KpiExt on _UretimRaporuPageState {
                       if (!isLast)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Icon(Icons.arrow_forward, color: Colors.grey.shade400, size: 16),
+                          child: Icon(Icons.arrow_forward,
+                              color: Colors.grey.shade400, size: 16),
                         ),
                     ],
                   );
@@ -242,11 +281,14 @@ extension _KpiExt on _UretimRaporuPageState {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.check_circle, color: Colors.green),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  const SizedBox(width: 6),
                   Text(
                     'Tamamlanan: ${asamaSayilari['tamamlandi'] ?? 0}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green),
                   ),
                 ],
               ),
@@ -263,14 +305,14 @@ extension _KpiExt on _UretimRaporuPageState {
     final toplamAktif = asamaSayilari.entries
         .where((e) => e.key != 'tamamlandi')
         .fold(0, (sum, e) => sum + e.value);
-    
+
     if (toplamAktif == 0) {
       return const SizedBox.shrink();
     }
-    
+
     final ortalamaPerAsama = toplamAktif / 7; // 7 aşama
     final darbogazlar = <MapEntry<String, int>>[];
-    
+
     for (final entry in asamaSayilari.entries) {
       if (entry.key == 'tamamlandi') continue;
       // Ortalamanın 2 katından fazla model biriken aşama = darboğaz
@@ -278,7 +320,7 @@ extension _KpiExt on _UretimRaporuPageState {
         darbogazlar.add(entry);
       }
     }
-    
+
     if (darbogazlar.isEmpty) {
       return Card(
         elevation: 2,
@@ -289,7 +331,9 @@ extension _KpiExt on _UretimRaporuPageState {
             children: [
               Icon(Icons.check_circle, color: Colors.green),
               SizedBox(width: 8),
-              Expanded(child: Text('Üretim hattında darboğaz bulunmuyor.', style: TextStyle(color: Colors.green))),
+              Expanded(
+                  child: Text('Üretim hattında darboğaz bulunmuyor.',
+                      style: TextStyle(color: Colors.green))),
             ],
           ),
         ),
@@ -309,7 +353,11 @@ extension _KpiExt on _UretimRaporuPageState {
               children: [
                 Icon(Icons.warning_amber, color: Colors.red),
                 SizedBox(width: 8),
-                Text('Darboğaz Uyarıları', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red)),
+                Text('Darboğaz Uyarıları',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red)),
               ],
             ),
             const SizedBox(height: 12),
@@ -319,7 +367,8 @@ extension _KpiExt on _UretimRaporuPageState {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    Icon(info['icon'] as IconData, color: info['color'] as Color, size: 20),
+                    Icon(info['icon'] as IconData,
+                        color: info['color'] as Color, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -342,39 +391,46 @@ extension _KpiExt on _UretimRaporuPageState {
     final simdi = DateTime.now();
     final buAyBaslangic = DateTime(simdi.year, simdi.month, 1);
     final gecenAyBaslangic = DateTime(simdi.year, simdi.month - 1, 1);
-    
+
     int buAyOlusturulan = 0, gecenAyOlusturulan = 0;
     int buAyTamamlanan = 0, gecenAyTamamlanan = 0;
     int buAyFire = 0, gecenAyFire = 0;
-    
+
     for (var model in _tumModeller) {
-      final createdAt = DateTime.tryParse(model['created_at']?.toString() ?? '');
+      final createdAt =
+          DateTime.tryParse(model['created_at']?.toString() ?? '');
       if (createdAt != null) {
         if (createdAt.isAfter(buAyBaslangic)) {
           buAyOlusturulan++;
-        } else if (createdAt.isAfter(gecenAyBaslangic) && createdAt.isBefore(buAyBaslangic)) {
+        } else if (createdAt.isAfter(gecenAyBaslangic) &&
+            createdAt.isBefore(buAyBaslangic)) {
           gecenAyOlusturulan++;
         }
       }
-      
-      final updatedAt = DateTime.tryParse(model['updated_at']?.toString() ?? '');
+
+      final updatedAt =
+          DateTime.tryParse(model['updated_at']?.toString() ?? '');
       if (model['tamamlandi'] == true && updatedAt != null) {
         if (updatedAt.isAfter(buAyBaslangic)) {
           buAyTamamlanan++;
-        } else if (updatedAt.isAfter(gecenAyBaslangic) && updatedAt.isBefore(buAyBaslangic)) {
+        } else if (updatedAt.isAfter(gecenAyBaslangic) &&
+            updatedAt.isBefore(buAyBaslangic)) {
           gecenAyTamamlanan++;
         }
       }
-      
+
       // Fire hesapla
-      final asamalar = model['asamalar'] as Map<String, Map<String, dynamic>>? ?? {};
+      final asamalar =
+          model['asamalar'] as Map<String, Map<String, dynamic>>? ?? {};
       for (var asama in asamalar.values) {
         final fire = (asama['fire_adet'] ?? 0) as int;
-        final atamaCreatedAt = DateTime.tryParse(asama['created_at']?.toString() ?? '');
+        final atamaCreatedAt =
+            DateTime.tryParse(asama['created_at']?.toString() ?? '');
         if (atamaCreatedAt != null) {
           if (atamaCreatedAt.isAfter(buAyBaslangic)) {
             buAyFire += fire;
-          } else if (atamaCreatedAt.isAfter(gecenAyBaslangic) && atamaCreatedAt.isBefore(buAyBaslangic)) {
+          } else if (atamaCreatedAt.isAfter(gecenAyBaslangic) &&
+              atamaCreatedAt.isBefore(buAyBaslangic)) {
             gecenAyFire += fire;
           }
         }
@@ -395,7 +451,8 @@ extension _KpiExt on _UretimRaporuPageState {
                 const SizedBox(width: 8),
                 Text(
                   '${DateFormat('MMMM', 'tr').format(simdi)} vs ${DateFormat('MMMM', 'tr').format(gecenAyBaslangic)}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -411,15 +468,38 @@ extension _KpiExt on _UretimRaporuPageState {
                 TableRow(
                   decoration: BoxDecoration(color: Colors.grey.shade100),
                   children: [
-                    const Padding(padding: EdgeInsets.all(8), child: Text('Metrik', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: const EdgeInsets.all(8), child: Text(DateFormat('MMM', 'tr').format(gecenAyBaslangic), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
-                    Padding(padding: const EdgeInsets.all(8), child: Text(DateFormat('MMM', 'tr').format(simdi), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
-                    const Padding(padding: EdgeInsets.all(8), child: Text('Fark', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
+                    const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Metrik',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12))),
+                    Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(
+                            DateFormat('MMM', 'tr').format(gecenAyBaslangic),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12),
+                            textAlign: TextAlign.center)),
+                    Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(DateFormat('MMM', 'tr').format(simdi),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12),
+                            textAlign: TextAlign.center)),
+                    const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Fark',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12),
+                            textAlign: TextAlign.center)),
                   ],
                 ),
-                _buildKarsilastirmaSatir('Oluşturulan', gecenAyOlusturulan, buAyOlusturulan),
-                _buildKarsilastirmaSatir('Tamamlanan', gecenAyTamamlanan, buAyTamamlanan),
-                _buildKarsilastirmaSatir('Fire', gecenAyFire, buAyFire, ters: true),
+                _buildKarsilastirmaSatir(
+                    'Oluşturulan', gecenAyOlusturulan, buAyOlusturulan),
+                _buildKarsilastirmaSatir(
+                    'Tamamlanan', gecenAyTamamlanan, buAyTamamlanan),
+                _buildKarsilastirmaSatir('Fire', gecenAyFire, buAyFire,
+                    ters: true),
               ],
             ),
           ],
@@ -428,23 +508,37 @@ extension _KpiExt on _UretimRaporuPageState {
     );
   }
 
-  TableRow _buildKarsilastirmaSatir(String label, int onceki, int simdiki, {bool ters = false}) {
+  TableRow _buildKarsilastirmaSatir(String label, int onceki, int simdiki,
+      {bool ters = false}) {
     final fark = simdiki - onceki;
     final pozitif = ters ? fark < 0 : fark > 0;
-    final farkRenk = fark == 0 ? Colors.grey : (pozitif ? Colors.green : Colors.red);
+    final farkRenk =
+        fark == 0 ? Colors.grey : (pozitif ? Colors.green : Colors.red);
     final farkIcon = fark == 0 ? '' : (fark > 0 ? '▲' : '▼');
-    
+
     return TableRow(
       children: [
-        Padding(padding: const EdgeInsets.all(8), child: Text(label, style: const TextStyle(fontSize: 12))),
-        Padding(padding: const EdgeInsets.all(8), child: Text('$onceki', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12))),
-        Padding(padding: const EdgeInsets.all(8), child: Text('$simdiki', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+        Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text(label, style: const TextStyle(fontSize: 12))),
+        Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text('$onceki',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12))),
+        Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text('$simdiki',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold))),
         Padding(
           padding: const EdgeInsets.all(8),
           child: Text(
             '$farkIcon${fark.abs()}',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: farkRenk, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                fontSize: 12, color: farkRenk, fontWeight: FontWeight.bold),
           ),
         ),
       ],

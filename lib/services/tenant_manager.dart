@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/app_logger.dart';
 import 'package:uretim_takip/config/asama_registry.dart';
+import 'package:uretim_takip/config/supabase_config.dart';
 
 /// Aktif firma bağlamını yöneten singleton.
 ///
@@ -54,6 +55,9 @@ class TenantManager {
   bool get abonelikGecerliMi {
     if (_aktifAbonelik == null) return false;
     final durum = _aktifAbonelik!['durum'] as String?;
+    final bitisStr = _aktifAbonelik!['bitis_tarihi']?.toString();
+    final bitis = DateTime.tryParse(bitisStr ?? '');
+    if (bitis != null && DateTime.now().isAfter(bitis)) return false;
     if (durum == 'aktif') return true;
     if (durum == 'deneme') {
       final denemeBitisStr = _aktifAbonelik!['deneme_bitis']?.toString();
@@ -76,7 +80,12 @@ class TenantManager {
   /// Kullanıcının erişebildiği firmaları yükler.
   Future<void> kullaniciFirmalariniYukle(String userId) async {
     try {
-      final response = await _client
+      // RLS bypass için admin client kullan (kullanici rolü için RLS engeli)
+      final client = SupabaseConfig.isAdminAvailable
+          ? SupabaseConfig.adminClient
+          : _client;
+
+      final response = await client
           .from(DbTables.firmaKullanicilari)
           .select(
               'firma_id, rol, firmalar(id, firma_adi, firma_kodu, logo_url, aktif)')
@@ -157,10 +166,55 @@ class TenantManager {
     try {
       await _client.rpc(_setActiveFirmaRpc, params: {'p_firma_id': firmaId});
     } catch (e) {
+      if (_setActiveFirmaRpcEksikMi(e) && SupabaseConfig.isAdminAvailable) {
+        await _aktifFirmaSeciminiAdminFallbackIleKaydet(firmaId);
+        return;
+      }
+
       AppLogger.error(
           'TenantManager', 'Aktif firma seçimi doğrulama hatası', e);
       rethrow;
     }
+  }
+
+  bool _setActiveFirmaRpcEksikMi(Object error) {
+    final message = error.toString();
+    return message.contains('PGRST202') && message.contains(_setActiveFirmaRpc);
+  }
+
+  Future<void> _aktifFirmaSeciminiAdminFallbackIleKaydet(String firmaId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Oturum açık değil');
+    }
+
+    final adminClient = SupabaseConfig.adminClient;
+
+    final platformAdmin = await adminClient
+        .from(DbTables.userRoles)
+        .select('id')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .eq('aktif', true)
+        .maybeSingle();
+
+    final firmaKullanici = await adminClient
+        .from(DbTables.firmaKullanicilari)
+        .select('id')
+        .eq('firma_id', firmaId)
+        .eq('user_id', userId)
+        .eq('aktif', true)
+        .maybeSingle();
+
+    if (platformAdmin == null && firmaKullanici == null) {
+      throw StateError('Bu firmaya erişiminiz yok: $firmaId');
+    }
+
+    await adminClient.from(DbTables.kullaniciAktifFirma).upsert({
+      'user_id': userId,
+      'firma_id': firmaId,
+      'son_giris': DateTime.now().toUtc().toIso8601String(),
+    });
   }
 
   Future<String?> _aktifFirmaSeciminiGetir() async {
@@ -227,7 +281,7 @@ class TenantManager {
           .from(DbTables.firmaAbonelikleri)
           .select('*, abonelik_planlari(*)')
           .eq('firma_id', _firmaId!)
-          .inFilter('durum', ['aktif', 'deneme', 'odeme_bekleniyor'])
+          .inFilter('durum', ['aktif', 'deneme'])
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();

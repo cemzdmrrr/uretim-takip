@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/models/abonelik_model.dart';
-import 'package:uretim_takip/pages/onboarding/firma_kayit_page.dart';
+import 'package:uretim_takip/pages/home/ana_sayfa.dart';
 import 'package:uretim_takip/services/abonelik_service.dart';
 import 'package:intl/intl.dart';
 
@@ -8,14 +8,16 @@ import 'package:intl/intl.dart';
 class OdemePage extends StatefulWidget {
   /// Seçilen plan
   final AbonelikPlani plan;
-  
+
   /// Yıllık mı, yoksa aylık mı
   final bool yillik;
+  final bool kurulumSonrasi;
 
   const OdemePage({
     super.key,
     required this.plan,
     this.yillik = false,
+    this.kurulumSonrasi = false,
   });
 
   @override
@@ -62,7 +64,7 @@ class _OdemePageState extends State<OdemePage> {
     setState(() => odemeYapiliyor = true);
     try {
       final periyot = widget.yillik ? 'yillik' : 'aylik';
-      
+
       // Ödeme işlemini gerçekleştir
       await AbonelikService.planSatinAl(
         planId: widget.plan.id,
@@ -75,14 +77,20 @@ class _OdemePageState extends State<OdemePage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ödeme başarılı! Firma oluşturma adımına yönlendiriliyorsunuz...')),
+        const SnackBar(
+            content: Text(
+                'Ödeme başarılı! Firma oluşturma adımına yönlendiriliyorsunuz...')),
       );
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const FirmaKayitPage()),
-      );
+      if (widget.kurulumSonrasi) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AnaSayfa()),
+          (_) => false,
+        );
+      } else {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -293,7 +301,7 @@ class _OdemePageState extends State<OdemePage> {
               ),
             ),
             const SizedBox(height: 12),
-            // İptal Butonu  
+            // İptal Butonu
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(

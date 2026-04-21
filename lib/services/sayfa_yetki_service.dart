@@ -33,51 +33,175 @@ class SayfaRegistry {
 
   static const List<SayfaTanimi> tumSayfalar = [
     // Üretim Panelleri
-    SayfaTanimi(kod: 'genel_uretim', etiket: 'Genel Üretim', ikon: Icons.dashboard_customize_rounded, kategori: katUretimPanelleri),
-    SayfaTanimi(kod: 'dokuma', etiket: 'Dokuma', ikon: Icons.design_services, kategori: katUretimPanelleri),
-    SayfaTanimi(kod: 'konfeksiyon', etiket: 'Konfeksiyon', ikon: Icons.checkroom, kategori: katUretimPanelleri),
-    SayfaTanimi(kod: 'yikama', etiket: 'Yıkama', ikon: Icons.local_laundry_service, kategori: katUretimPanelleri),
-    SayfaTanimi(kod: 'utu_paket', etiket: 'Ütü Paket', ikon: Icons.inventory_2, kategori: katUretimPanelleri),
-    SayfaTanimi(kod: 'ilik_dugme', etiket: 'İlik Düğme', ikon: Icons.radio_button_checked, kategori: katUretimPanelleri),
-    SayfaTanimi(kod: 'kalite_kontrol', etiket: 'Kalite Kontrol', ikon: Icons.verified, kategori: katUretimPanelleri),
-    SayfaTanimi(kod: 'sevkiyat', etiket: 'Sevkiyat', ikon: Icons.local_shipping, kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'genel_uretim',
+        etiket: 'Genel Üretim',
+        ikon: Icons.dashboard_customize_rounded,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'dokuma',
+        etiket: 'Dokuma',
+        ikon: Icons.design_services,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'konfeksiyon',
+        etiket: 'Konfeksiyon',
+        ikon: Icons.checkroom,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'yikama',
+        etiket: 'Yıkama',
+        ikon: Icons.local_laundry_service,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'utu_paket',
+        etiket: 'Ütü Paket',
+        ikon: Icons.inventory_2,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'ilik_dugme',
+        etiket: 'İlik Düğme',
+        ikon: Icons.radio_button_checked,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'kalite_kontrol',
+        etiket: 'Kalite Kontrol',
+        ikon: Icons.verified,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'sevkiyat',
+        etiket: 'Sevkiyat',
+        ikon: Icons.local_shipping,
+        kategori: katUretimPanelleri),
 
     // Üretim & Stok
-    SayfaTanimi(kod: 'yeni_model_ekle', etiket: 'Yeni Model Ekle', ikon: Icons.add_box_rounded, kategori: katUretimStok),
-    SayfaTanimi(kod: 'toplu_model_ekle', etiket: 'Toplu Model Ekle', ikon: Icons.upload_file_rounded, kategori: katUretimStok),
-    SayfaTanimi(kod: 'kayitli_modeller', etiket: 'Kayıtlı Modeller', ikon: Icons.inventory_2_rounded, kategori: katUretimStok),
-    SayfaTanimi(kod: 'tamamlanan_siparisler', etiket: 'Tamamlanan Siparişler', ikon: Icons.check_circle_rounded, kategori: katUretimStok),
-    SayfaTanimi(kod: 'depo_yonetimi', etiket: 'Depo Yönetimi', ikon: Icons.warehouse_rounded, kategori: katUretimStok),
+    SayfaTanimi(
+        kod: 'yeni_model_ekle',
+        etiket: 'Yeni Model Ekle',
+        ikon: Icons.add_box_rounded,
+        kategori: katUretimStok),
+    SayfaTanimi(
+        kod: 'toplu_model_ekle',
+        etiket: 'Toplu Model Ekle',
+        ikon: Icons.upload_file_rounded,
+        kategori: katUretimStok),
+    SayfaTanimi(
+        kod: 'kayitli_modeller',
+        etiket: 'Kayıtlı Modeller',
+        ikon: Icons.inventory_2_rounded,
+        kategori: katUretimStok),
+    SayfaTanimi(
+        kod: 'tamamlanan_siparisler',
+        etiket: 'Tamamlanan Siparişler',
+        ikon: Icons.check_circle_rounded,
+        kategori: katUretimStok),
+    SayfaTanimi(
+        kod: 'depo_yonetimi',
+        etiket: 'Depo Yönetimi',
+        ikon: Icons.warehouse_rounded,
+        kategori: katUretimStok),
 
     // Raporlar & Analiz
-    SayfaTanimi(kod: 'uretim_raporu', etiket: 'Üretim Raporu', ikon: Icons.assessment_rounded, kategori: katRaporlar),
-    SayfaTanimi(kod: 'gelismis_raporlar', etiket: 'Gelişmiş Raporlar', ikon: Icons.analytics_rounded, kategori: katRaporlar),
+    SayfaTanimi(
+        kod: 'uretim_raporu',
+        etiket: 'Üretim Raporu',
+        ikon: Icons.assessment_rounded,
+        kategori: katRaporlar),
+    SayfaTanimi(
+        kod: 'gelismis_raporlar',
+        etiket: 'Gelişmiş Raporlar',
+        ikon: Icons.analytics_rounded,
+        kategori: katRaporlar),
 
     // Finansal Yönetim
-    SayfaTanimi(kod: 'tedarikci_yonetimi', etiket: 'Tedarikçi Yönetimi', ikon: Icons.business_rounded, kategori: katFinans),
-    SayfaTanimi(kod: 'faturalar', etiket: 'Faturalar', ikon: Icons.receipt_long_rounded, kategori: katFinans),
-    SayfaTanimi(kod: 'kasa_banka', etiket: 'Kasa & Banka', ikon: Icons.account_balance_wallet_rounded, kategori: katFinans),
-    SayfaTanimi(kod: 'kasa_banka_hareketleri', etiket: 'Kasa/Banka Hareketleri', ikon: Icons.swap_horiz_rounded, kategori: katFinans),
-    SayfaTanimi(kod: 'dosya_yonetimi', etiket: 'Dosya Yönetimi', ikon: Icons.folder_rounded, kategori: katFinans),
+    SayfaTanimi(
+        kod: 'tedarikci_yonetimi',
+        etiket: 'Tedarikçi Yönetimi',
+        ikon: Icons.business_rounded,
+        kategori: katFinans),
+    SayfaTanimi(
+        kod: 'faturalar',
+        etiket: 'Faturalar',
+        ikon: Icons.receipt_long_rounded,
+        kategori: katFinans),
+    SayfaTanimi(
+        kod: 'kasa_banka',
+        etiket: 'Kasa & Banka',
+        ikon: Icons.account_balance_wallet_rounded,
+        kategori: katFinans),
+    SayfaTanimi(
+        kod: 'kasa_banka_hareketleri',
+        etiket: 'Kasa/Banka Hareketleri',
+        ikon: Icons.swap_horiz_rounded,
+        kategori: katFinans),
+    SayfaTanimi(
+        kod: 'dosya_yonetimi',
+        etiket: 'Dosya Yönetimi',
+        ikon: Icons.folder_rounded,
+        kategori: katFinans),
 
     // İnsan Kaynakları
-    SayfaTanimi(kod: 'personel_yonetimi', etiket: 'Personel Yönetimi', ikon: Icons.badge_rounded, kategori: katIK),
-    SayfaTanimi(kod: 'kullanici_listesi', etiket: 'Kullanıcı Listesi', ikon: Icons.supervisor_account_rounded, kategori: katIK),
+    SayfaTanimi(
+        kod: 'personel_yonetimi',
+        etiket: 'Personel Yönetimi',
+        ikon: Icons.badge_rounded,
+        kategori: katIK),
+    SayfaTanimi(
+        kod: 'kullanici_listesi',
+        etiket: 'Kullanıcı Listesi',
+        ikon: Icons.supervisor_account_rounded,
+        kategori: katIK),
 
     // Kullanıcı & Yetki
-    SayfaTanimi(kod: 'firma_kullanicilari', etiket: 'Firma Kullanıcıları', ikon: Icons.people_alt_rounded, kategori: katKullaniciYetki),
-    SayfaTanimi(kod: 'rol_yetki_yonetimi', etiket: 'Rol & Yetki Yönetimi', ikon: Icons.security_rounded, kategori: katKullaniciYetki),
-    SayfaTanimi(kod: 'rol_sayfa_yetkileri', etiket: 'Rol Bazlı Sayfa Yetkileri', ikon: Icons.shield_rounded, kategori: katKullaniciYetki),
-    SayfaTanimi(kod: 'firma_sayfa_yetkileri', etiket: 'Firma Sayfa Yetkileri', ikon: Icons.business_center_rounded, kategori: katKullaniciYetki),
-    SayfaTanimi(kod: 'sayfa_yetki_yonetimi', etiket: 'Kullanıcı Sayfa Yetkileri', ikon: Icons.lock_open_rounded, kategori: katKullaniciYetki),
+    SayfaTanimi(
+        kod: 'firma_kullanicilari',
+        etiket: 'Firma Kullanıcıları',
+        ikon: Icons.people_alt_rounded,
+        kategori: katKullaniciYetki),
+    SayfaTanimi(
+        kod: 'rol_yetki_yonetimi',
+        etiket: 'Rol & Yetki Yönetimi',
+        ikon: Icons.security_rounded,
+        kategori: katKullaniciYetki),
+    SayfaTanimi(
+        kod: 'rol_sayfa_yetkileri',
+        etiket: 'Rol Bazlı Sayfa Yetkileri',
+        ikon: Icons.shield_rounded,
+        kategori: katKullaniciYetki),
+    SayfaTanimi(
+        kod: 'firma_sayfa_yetkileri',
+        etiket: 'Firma Sayfa Yetkileri',
+        ikon: Icons.business_center_rounded,
+        kategori: katKullaniciYetki),
+    SayfaTanimi(
+        kod: 'sayfa_yetki_yonetimi',
+        etiket: 'Kullanıcı Sayfa Yetkileri',
+        ikon: Icons.lock_open_rounded,
+        kategori: katKullaniciYetki),
 
     // Abonelik & Plan
-    SayfaTanimi(kod: 'abonelik_yonetimi', etiket: 'Abonelik Yönetimi', ikon: Icons.card_membership_rounded, kategori: katAbonelik),
-    SayfaTanimi(kod: 'plan_degistir', etiket: 'Plan Değiştir', ikon: Icons.swap_vert_circle_rounded, kategori: katAbonelik),
+    SayfaTanimi(
+        kod: 'abonelik_yonetimi',
+        etiket: 'Abonelik Yönetimi',
+        ikon: Icons.card_membership_rounded,
+        kategori: katAbonelik),
+    SayfaTanimi(
+        kod: 'plan_degistir',
+        etiket: 'Plan Değiştir',
+        ikon: Icons.swap_vert_circle_rounded,
+        kategori: katAbonelik),
 
     // Platform Yönetimi
-    SayfaTanimi(kod: 'platform_paneli', etiket: 'Platform Paneli', ikon: Icons.admin_panel_settings_rounded, kategori: katPlatform),
-    SayfaTanimi(kod: 'migrasyon_durumu', etiket: 'Migrasyon Durumu', ikon: Icons.sync_alt_rounded, kategori: katPlatform),
+    SayfaTanimi(
+        kod: 'platform_paneli',
+        etiket: 'Platform Paneli',
+        ikon: Icons.admin_panel_settings_rounded,
+        kategori: katPlatform),
+    SayfaTanimi(
+        kod: 'migrasyon_durumu',
+        etiket: 'Migrasyon Durumu',
+        ikon: Icons.sync_alt_rounded,
+        kategori: katPlatform),
   ];
 
   static SayfaTanimi? bul(String kod) {
@@ -98,6 +222,28 @@ class SayfaRegistry {
 }
 
 /// Kullanıcı bazlı sayfa yetki servisi
+class SayfaYetkiPaketi {
+  final Set<String> goruntuleme;
+  final Set<String> duzenleme;
+  final Set<String> silme;
+
+  const SayfaYetkiPaketi({
+    required this.goruntuleme,
+    Set<String>? duzenleme,
+    Set<String>? silme,
+  })  : duzenleme = duzenleme ?? const {},
+        silme = silme ?? const {};
+
+  SayfaYetkiPaketi sinirla(Set<String> izinliSayfalar) {
+    if (izinliSayfalar.isEmpty) return this;
+    return SayfaYetkiPaketi(
+      goruntuleme: goruntuleme.intersection(izinliSayfalar),
+      duzenleme: duzenleme.intersection(izinliSayfalar),
+      silme: silme.intersection(izinliSayfalar),
+    );
+  }
+}
+
 class SayfaYetkiService {
   static final _client = Supabase.instance.client;
   static String get _firmaId => TenantManager.instance.requireFirmaId;
@@ -133,7 +279,7 @@ class SayfaYetkiService {
           .eq('firma_id', firmaId)
           .eq('aktif', true);
 
-        return (response as List)
+      return (response as List)
           .map((r) => normalizeSayfaKodu((r['sayfa_kodu'] ?? '').toString()))
           .where((k) => k.isNotEmpty)
           .toSet();
@@ -149,10 +295,10 @@ class SayfaYetkiService {
   }
 
   /// Firma sayfa yetkilerini kaydet (upsert)
-  static Future<void> firmaYetkileriniKaydet(String firmaId, Set<String> sayfaKodlari) async {
-    final client = SupabaseConfig.isAdminAvailable
-        ? SupabaseConfig.adminClient
-        : _client;
+  static Future<void> firmaYetkileriniKaydet(
+      String firmaId, Set<String> sayfaKodlari) async {
+    final client =
+        SupabaseConfig.isAdminAvailable ? SupabaseConfig.adminClient : _client;
 
     // Mevcut kayıtları sil
     await client
@@ -167,10 +313,11 @@ class SayfaYetkiService {
           .where((k) => k.isNotEmpty)
           .toSet()
           .map((kod) => {
-        'firma_id': firmaId,
-        'sayfa_kodu': kod,
-        'aktif': true,
-      }).toList();
+                'firma_id': firmaId,
+                'sayfa_kodu': kod,
+                'aktif': true,
+              })
+          .toList();
 
       await client.from(DbTables.firmaSayfaYetkileri).insert(rows);
     }
@@ -179,7 +326,9 @@ class SayfaYetkiService {
   /// Firma belirli sayfaya erişebilir mi?
   static Future<bool> firmaSayfaErisimKontrol(String sayfaKodu) async {
     final yetkiler = await mevcutFirmaYetkileriniGetir();
-    if (yetkiler.isEmpty) return true; // Hiç tanımlama yoksa tümüne erişim (geriye uyumluluk)
+    if (yetkiler.isEmpty) {
+      return true; // Hiç tanımlama yoksa tümüne erişim (geriye uyumluluk)
+    }
     return yetkiler.contains(normalizeSayfaKodu(sayfaKodu));
   }
 
@@ -201,7 +350,7 @@ class SayfaYetkiService {
           .eq('user_id', userId)
           .eq('aktif', true);
 
-        return (response as List)
+      return (response as List)
           .map((r) => normalizeSayfaKodu((r['sayfa_kodu'] ?? '').toString()))
           .where((k) => k.isNotEmpty)
           .toSet();
@@ -212,17 +361,126 @@ class SayfaYetkiService {
     }
   }
 
+  static Future<SayfaYetkiPaketi> kullaniciYetkiPaketiniGetir(
+      String userId) async {
+    try {
+      final client = SupabaseConfig.isAdminAvailable
+          ? SupabaseConfig.adminClient
+          : _client;
+
+      final response = await client
+          .from(DbTables.kullaniciSayfaYetkileri)
+          .select('sayfa_kodu, aktif, duzenleme_yetkisi, silme_yetkisi')
+          .eq('firma_id', _firmaId)
+          .eq('user_id', userId);
+
+      final goruntuleme = <String>{};
+      final duzenleme = <String>{};
+      final silme = <String>{};
+
+      for (final row in response as List) {
+        final kod = normalizeSayfaKodu((row['sayfa_kodu'] ?? '').toString());
+        if (kod.isEmpty) continue;
+        final aktif = row['aktif'] == true;
+        if (aktif) goruntuleme.add(kod);
+        if (aktif && row['duzenleme_yetkisi'] == true) duzenleme.add(kod);
+        if (aktif && row['silme_yetkisi'] == true) silme.add(kod);
+      }
+
+      return SayfaYetkiPaketi(
+        goruntuleme: goruntuleme,
+        duzenleme: duzenleme,
+        silme: silme,
+      );
+    } catch (e) {
+      debugPrint('KullanÄ±cÄ± sayfa yetki paketi yÃ¼klenemedi: $e');
+      try {
+        final client = SupabaseConfig.isAdminAvailable
+            ? SupabaseConfig.adminClient
+            : _client;
+        final response = await client
+            .from(DbTables.kullaniciSayfaYetkileri)
+            .select('sayfa_kodu')
+            .eq('firma_id', _firmaId)
+            .eq('user_id', userId)
+            .eq('aktif', true);
+
+        final goruntuleme = (response as List)
+            .map((r) => normalizeSayfaKodu((r['sayfa_kodu'] ?? '').toString()))
+            .where((k) => k.isNotEmpty)
+            .toSet();
+        return SayfaYetkiPaketi(goruntuleme: goruntuleme);
+      } catch (_) {
+        return const SayfaYetkiPaketi(goruntuleme: {});
+      }
+    }
+  }
+
+  /// Kullanici icin explicit sayfa yetki kaydi var mi?
+  ///
+  /// Kayit yoksa eski davranis korunur ve rol bazli yetkilere dusulur.
+  /// Kayit varsa aktif=false satirlar da kullanicinin bilincli tercihi sayilir.
+  static Future<bool> kullaniciSayfaYetkiKaydiVarMi(String userId) async {
+    try {
+      final client = SupabaseConfig.isAdminAvailable
+          ? SupabaseConfig.adminClient
+          : _client;
+
+      final response = await client
+          .from(DbTables.kullaniciSayfaYetkileri)
+          .select('id')
+          .eq('firma_id', _firmaId)
+          .eq('user_id', userId)
+          .limit(1);
+
+      return (response as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('Kullanici sayfa yetki kaydi kontrol edilemedi: $e');
+      return false;
+    }
+  }
+
   /// Kullanıcı belirli sayfaya erişebilir mi?
-  static Future<bool> sayfaErisimKontrol(String userId, String sayfaKodu) async {
+  static Future<bool> sayfaErisimKontrol(
+      String userId, String sayfaKodu) async {
     final yetkiler = await kullaniciYetkileriniGetir(userId);
     return yetkiler.contains(normalizeSayfaKodu(sayfaKodu));
   }
 
   /// Kullanıcının tüm sayfa yetkilerini kaydet (upsert)
-  static Future<void> yetkileriKaydet(String userId, Set<String> sayfaKodlari) async {
-    final client = SupabaseConfig.isAdminAvailable
-        ? SupabaseConfig.adminClient
-        : _client;
+  static Future<bool> sayfaIslemYetkisiKontrol(
+    String userId,
+    String sayfaKodu,
+    String islem,
+  ) async {
+    final kod = normalizeSayfaKodu(sayfaKodu);
+    final paket = await efektifSayfaYetkiPaketiniGetir(userId);
+    if (islem == 'duzenleme') return paket.duzenleme.contains(kod);
+    if (islem == 'silme') return paket.silme.contains(kod);
+    return paket.goruntuleme.contains(kod);
+  }
+
+  static Future<void> yetkileriKaydet(
+    String userId,
+    Set<String> sayfaKodlari, {
+    Set<String> duzenlemeYetkileri = const {},
+    Set<String> silmeYetkileri = const {},
+  }) async {
+    final client =
+        SupabaseConfig.isAdminAvailable ? SupabaseConfig.adminClient : _client;
+
+    final seciliKodlar =
+        sayfaKodlari.map(normalizeSayfaKodu).where((k) => k.isNotEmpty).toSet();
+    final duzenlemeKodlari = duzenlemeYetkileri
+        .map(normalizeSayfaKodu)
+        .where((k) => k.isNotEmpty)
+        .toSet()
+        .intersection(seciliKodlar);
+    final silmeKodlari = silmeYetkileri
+        .map(normalizeSayfaKodu)
+        .where((k) => k.isNotEmpty)
+        .toSet()
+        .intersection(seciliKodlar);
 
     // Önce mevcut kayıtları sil
     await client
@@ -231,19 +489,23 @@ class SayfaYetkiService {
         .eq('firma_id', _firmaId)
         .eq('user_id', userId);
 
-    // Yeni kayıtları ekle
-    if (sayfaKodlari.isNotEmpty) {
-      final rows = sayfaKodlari
-          .map(normalizeSayfaKodu)
-          .where((k) => k.isNotEmpty)
-          .toSet()
-          .map((kod) => {
-        'firma_id': _firmaId,
-        'user_id': userId,
-        'sayfa_kodu': kod,
-        'aktif': true,
-      }).toList();
+    // Tüm sayfaları aktif/pasif olarak yazarak "hiç sayfa gösterme"
+    // tercihini de kalıcı hale getiriyoruz.
+    final rows = SayfaRegistry.tumSayfalar
+        .map((sayfa) => normalizeSayfaKodu(sayfa.kod))
+        .where((k) => k.isNotEmpty)
+        .toSet()
+        .map((kod) => {
+              'firma_id': _firmaId,
+              'user_id': userId,
+              'sayfa_kodu': kod,
+              'aktif': seciliKodlar.contains(kod),
+              'duzenleme_yetkisi': duzenlemeKodlari.contains(kod),
+              'silme_yetkisi': silmeKodlari.contains(kod),
+            })
+        .toList();
 
+    if (rows.isNotEmpty) {
       await client.from(DbTables.kullaniciSayfaYetkileri).insert(rows);
     }
   }
@@ -289,10 +551,10 @@ class SayfaYetkiService {
   }
 
   /// Role ait sayfa yetkilerini kaydet (upsert)
-  static Future<void> rolYetkileriniKaydet(String rol, Set<String> sayfaKodlari) async {
-    final client = SupabaseConfig.isAdminAvailable
-        ? SupabaseConfig.adminClient
-        : _client;
+  static Future<void> rolYetkileriniKaydet(
+      String rol, Set<String> sayfaKodlari) async {
+    final client =
+        SupabaseConfig.isAdminAvailable ? SupabaseConfig.adminClient : _client;
 
     // Önce mevcut kayıtları sil
     await client
@@ -308,11 +570,12 @@ class SayfaYetkiService {
           .where((k) => k.isNotEmpty)
           .toSet()
           .map((kod) => {
-        'firma_id': _firmaId,
-        'rol': rol,
-        'sayfa_kodu': kod,
-        'aktif': true,
-      }).toList();
+                'firma_id': _firmaId,
+                'rol': rol,
+                'sayfa_kodu': kod,
+                'aktif': true,
+              })
+          .toList();
 
       await client.from(DbTables.rolSayfaYetkileri).insert(rows);
     }
@@ -321,17 +584,7 @@ class SayfaYetkiService {
   /// Kullanıcının rolüne göre sayfa yetkilerini getirir
   static Future<Set<String>> kullaniciRolYetkileriniGetir(String userId) async {
     try {
-      // Önce kullanıcının rolünü al
-      final roleResponse = await _client
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', userId)
-          .eq('firma_id', _firmaId)
-          .maybeSingle();
-
-      if (roleResponse == null) return {};
-
-      final rol = roleResponse['role'] as String?;
+      final rol = await kullaniciFirmaRolunuGetir(userId);
       if (rol == null) return {};
 
       // Admin rolleri her şeyi görebilir
@@ -345,6 +598,67 @@ class SayfaYetkiService {
       debugPrint('Kullanıcı rol yetkileri yüklenemedi: $e');
       return {};
     }
+  }
+
+  /// Kullanıcının aktif firmadaki rolünü firma_kullanicilari tablosundan getirir.
+  static Future<String?> kullaniciFirmaRolunuGetir(String userId) async {
+    try {
+      final response = await _client
+          .from(DbTables.firmaKullanicilari)
+          .select('rol')
+          .eq('firma_id', _firmaId)
+          .eq('user_id', userId)
+          .eq('aktif', true)
+          .maybeSingle();
+
+      return response?['rol'] as String?;
+    } catch (e) {
+      debugPrint('Kullanıcı firma rolü yüklenemedi: $e');
+      return null;
+    }
+  }
+
+  /// Ana sayfa görünürlüğü için nihai sayfa yetkilerini getirir.
+  ///
+  /// Öncelik:
+  /// 1. Admin/firma admin/firma sahibi tüm sayfaları görür.
+  /// 2. Kullanıcıya özel kayıt varsa sadece aktif kayıtlar kullanılır.
+  /// 3. Kullanıcıya özel kayıt yoksa rol bazlı yetkilere düşülür.
+  /// Firma seviyesinde sayfa kısıtı varsa admin dışındaki sonuç onunla kesiştirilir.
+  static Future<Set<String>> efektifSayfaYetkileriniGetir(String userId) async {
+    final paket = await efektifSayfaYetkiPaketiniGetir(userId);
+    return paket.goruntuleme;
+  }
+
+  static Future<SayfaYetkiPaketi> efektifSayfaYetkiPaketiniGetir(
+      String userId) async {
+    final rol = await kullaniciFirmaRolunuGetir(userId);
+    final adminMi =
+        rol == 'admin' || rol == 'firma_sahibi' || rol == 'firma_admin';
+
+    if (adminMi) {
+      final tumSayfalar = SayfaRegistry.tumSayfalar
+          .map((s) => normalizeSayfaKodu(s.kod))
+          .toSet();
+      return SayfaYetkiPaketi(
+        goruntuleme: tumSayfalar,
+        duzenleme: tumSayfalar,
+        silme: tumSayfalar,
+      );
+    }
+
+    final explicitKayitVar = await kullaniciSayfaYetkiKaydiVarMi(userId);
+    SayfaYetkiPaketi paket;
+    if (explicitKayitVar) {
+      paket = await kullaniciYetkiPaketiniGetir(userId);
+    } else {
+      paket = SayfaYetkiPaketi(
+        goruntuleme: await kullaniciRolYetkileriniGetir(userId),
+      );
+    }
+
+    final firmaYetkileri = await mevcutFirmaYetkileriniGetir();
+    return paket.sinirla(firmaYetkileri);
   }
 
   /// Firmadaki tüm rolleri listeler
@@ -367,4 +681,3 @@ class SayfaYetkiService {
     }
   }
 }
-

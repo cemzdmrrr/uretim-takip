@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:uretim_takip/models/abonelik_model.dart';
 import 'package:uretim_takip/services/firma_service.dart';
 import 'package:uretim_takip/pages/onboarding/tekstil_dali_secim_page.dart';
 
 /// Firma bilgilerini giren form sayfası. Onboarding adım 1/4.
 class FirmaBilgileriPage extends StatefulWidget {
-  const FirmaBilgileriPage({super.key});
+  final AbonelikPlani? secilenPlan;
+  final bool yillik;
+
+  const FirmaBilgileriPage({
+    super.key,
+    this.secilenPlan,
+    this.yillik = false,
+  });
 
   @override
   State<FirmaBilgileriPage> createState() => _FirmaBilgileriPageState();
@@ -37,11 +45,25 @@ class _FirmaBilgileriPageState extends State<FirmaBilgileriPage> {
 
   /// Firma adından otomatik slug üretir.
   String _slugOlustur(String ad) {
-    const trMap = {'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u',
-                   'Ç': 'c', 'Ğ': 'g', 'İ': 'i', 'Ö': 'o', 'Ş': 's', 'Ü': 'u'};
+    const trMap = {
+      'ç': 'c',
+      'ğ': 'g',
+      'ı': 'i',
+      'ö': 'o',
+      'ş': 's',
+      'ü': 'u',
+      'Ç': 'c',
+      'Ğ': 'g',
+      'İ': 'i',
+      'Ö': 'o',
+      'Ş': 's',
+      'Ü': 'u'
+    };
     var slug = ad.toLowerCase();
     trMap.forEach((k, v) => slug = slug.replaceAll(k, v));
-    slug = slug.replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
+    slug = slug
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
     return slug;
   }
 
@@ -79,6 +101,8 @@ class _FirmaBilgileriPageState extends State<FirmaBilgileriPage> {
           firmaAdi: _firmaAdi.text.trim(),
           firmaKodu: _firmaKodu.text.trim(),
           firmaBilgileri: bilgiler,
+          secilenPlan: widget.secilenPlan,
+          yillik: widget.yillik,
         ),
       ),
     );
@@ -104,9 +128,12 @@ class _FirmaBilgileriPageState extends State<FirmaBilgileriPage> {
                     labelText: 'Firma Adı *',
                     prefixIcon: Icon(Icons.business),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Firma adı zorunlu' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Firma adı zorunlu'
+                      : null,
                   onChanged: (v) {
-                    if (_firmaKodu.text.isEmpty || _firmaKodu.text == _slugOlustur(_firmaAdi.text)) {
+                    if (_firmaKodu.text.isEmpty ||
+                        _firmaKodu.text == _slugOlustur(_firmaAdi.text)) {
                       _firmaKodu.text = _slugOlustur(v);
                     }
                   },
@@ -119,17 +146,26 @@ class _FirmaBilgileriPageState extends State<FirmaBilgileriPage> {
                     prefixIcon: const Icon(Icons.link),
                     helperText: 'Benzersiz firma tanımlayıcısı',
                     suffixIcon: _kodKontrolEdiliyor
-                        ? const SizedBox(width: 20, height: 20, child: Padding(
-                            padding: EdgeInsets.all(12),
-                            child: CircularProgressIndicator(strokeWidth: 2)))
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2)))
                         : Icon(
                             _kodMusait ? Icons.check_circle : Icons.cancel,
                             color: _kodMusait ? Colors.green : Colors.red,
                           ),
-                    errorText: !_kodMusait ? 'Bu firma kodu zaten kullanımda' : null,
+                    errorText:
+                        !_kodMusait ? 'Bu firma kodu zaten kullanımda' : null,
                   ),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9\-]'))],
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Firma kodu zorunlu' : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9\-]'))
+                  ],
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Firma kodu zorunlu'
+                      : null,
                   onChanged: (_) => _firmaKoduKontrol(),
                 ),
                 const SizedBox(height: 16),
@@ -186,7 +222,8 @@ class _FirmaBilgileriPageState extends State<FirmaBilgileriPage> {
                   height: 48,
                   child: FilledButton(
                     onPressed: _devamEt,
-                    child: const Text('Devam →', style: TextStyle(fontSize: 16)),
+                    child:
+                        const Text('Devam →', style: TextStyle(fontSize: 16)),
                   ),
                 ),
               ],

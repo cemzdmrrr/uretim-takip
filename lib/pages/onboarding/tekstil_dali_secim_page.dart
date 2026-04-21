@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/module_registry.dart';
+import 'package:uretim_takip/models/abonelik_model.dart';
 import 'package:uretim_takip/pages/onboarding/modul_secim_page.dart';
 
 /// Tekstil üretim dalı/dalları seçim sayfası. Onboarding adım 2/4.
@@ -7,12 +8,16 @@ class TekstilDaliSecimPage extends StatefulWidget {
   final String firmaAdi;
   final String firmaKodu;
   final Map<String, dynamic> firmaBilgileri;
+  final AbonelikPlani? secilenPlan;
+  final bool yillik;
 
   const TekstilDaliSecimPage({
     super.key,
     required this.firmaAdi,
     required this.firmaKodu,
     required this.firmaBilgileri,
+    this.secilenPlan,
+    this.yillik = false,
   });
 
   @override
@@ -38,6 +43,8 @@ class _TekstilDaliSecimPageState extends State<TekstilDaliSecimPage> {
           firmaKodu: widget.firmaKodu,
           firmaBilgileri: widget.firmaBilgileri,
           secilenUretimDallari: _secilenDallar.toList(),
+          secilenPlan: widget.secilenPlan,
+          yillik: widget.yillik,
         ),
       ),
     );
@@ -61,7 +68,8 @@ class _TekstilDaliSecimPageState extends State<TekstilDaliSecimPage> {
                     const SizedBox(height: 24),
                     const Text(
                       'Hangi tekstil üretim dallarında faaliyet gösteriyorsunuz?',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -84,13 +92,16 @@ class _TekstilDaliSecimPageState extends State<TekstilDaliSecimPage> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: secili
-                            ? BorderSide(color: Theme.of(context).primaryColor, width: 2)
+                            ? BorderSide(
+                                color: Theme.of(context).primaryColor, width: 2)
                             : BorderSide.none,
                       ),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
                         onTap: () => setState(() {
-                          secili ? _secilenDallar.remove(dal.kod) : _secilenDallar.add(dal.kod);
+                          secili
+                              ? _secilenDallar.remove(dal.kod)
+                              : _secilenDallar.add(dal.kod);
                         }),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -99,7 +110,9 @@ class _TekstilDaliSecimPageState extends State<TekstilDaliSecimPage> {
                               Checkbox(
                                 value: secili,
                                 onChanged: (_) => setState(() {
-                                  secili ? _secilenDallar.remove(dal.kod) : _secilenDallar.add(dal.kod);
+                                  secili
+                                      ? _secilenDallar.remove(dal.kod)
+                                      : _secilenDallar.add(dal.kod);
                                 }),
                               ),
                               const SizedBox(width: 12),
@@ -107,12 +120,16 @@ class _TekstilDaliSecimPageState extends State<TekstilDaliSecimPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(dal.ad, style: const TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.w600)),
+                                    Text(dal.ad,
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600)),
                                     const SizedBox(height: 4),
                                     Text(
                                       dal.uretimAsamalari.join(' → '),
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600]),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -134,7 +151,8 @@ class _TekstilDaliSecimPageState extends State<TekstilDaliSecimPage> {
                   height: 48,
                   child: FilledButton(
                     onPressed: _devamEt,
-                    child: const Text('Devam →', style: TextStyle(fontSize: 16)),
+                    child:
+                        const Text('Devam →', style: TextStyle(fontSize: 16)),
                   ),
                 ),
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uretim_takip/models/abonelik_model.dart';
 import 'package:uretim_takip/services/abonelik_service.dart';
 import 'package:uretim_takip/pages/abonelik/plan_secim_page.dart';
+import 'package:uretim_takip/pages/abonelik/abonelik_plan_fiyat_yonetimi_page.dart';
 
 /// Mevcut abonelik durumu, ödeme geçmişi ve plan yönetimi sayfası.
 class AbonelikYonetimiPage extends StatefulWidget {
@@ -15,6 +16,7 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
   FirmaAbonelik? _abonelik;
   List<AbonelikOdeme> _odemeler = [];
   bool _yukleniyor = true;
+  bool _fiyatYonetebilir = false;
 
   @override
   void initState() {
@@ -25,12 +27,15 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
   Future<void> _verileriYukle() async {
     setState(() => _yukleniyor = true);
     try {
-      final abonelik = await AbonelikService.aktifAbonelikGetir();
+      final abonelik = await AbonelikService.guncelAbonelikGetir();
       final odemeler = await AbonelikService.odemeGecmisiGetir();
+      final fiyatYonetebilir =
+          await AbonelikService.fiyatYonetimiYetkisiVarMi();
       if (!mounted) return;
       setState(() {
         _abonelik = abonelik;
         _odemeler = odemeler;
+        _fiyatYonetebilir = fiyatYonetebilir;
         _yukleniyor = false;
       });
     } catch (e) {
@@ -104,6 +109,22 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
         title: const Text('Abonelik Yönetimi'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
+        actions: [
+          if (_fiyatYonetebilir)
+            IconButton(
+              tooltip: 'Plan fiyatlari',
+              icon: const Icon(Icons.price_change),
+              onPressed: () async {
+                final guncellendi = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AbonelikPlanFiyatYonetimiPage(),
+                  ),
+                );
+                if (guncellendi == true) _verileriYukle();
+              },
+            ),
+        ],
       ),
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
@@ -235,9 +256,7 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
                     _abonelik!.kalanDenemeGunu > 0
                         ? '${_abonelik!.kalanDenemeGunu} gün kaldı'
                         : 'Süre doldu',
-                    _abonelik!.kalanDenemeGunu > 3
-                        ? Colors.green
-                        : Colors.red,
+                    _abonelik!.kalanDenemeGunu > 3 ? Colors.green : Colors.red,
                   ),
                   if (_abonelik!.denemeBitis != null)
                     _detaySatir(
@@ -249,9 +268,7 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
                 if (durum == AbonelikDurum.aktif) ...[
                   _detaySatir(
                     'Ödeme Periyodu',
-                    _abonelik!.odemePeriyodu == 'yillik'
-                        ? 'Yıllık'
-                        : 'Aylık',
+                    _abonelik!.odemePeriyodu == 'yillik' ? 'Yıllık' : 'Aylık',
                     null,
                   ),
                   if (_abonelik!.sonrakiOdemeTarihi != null)
@@ -317,6 +334,7 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
           ),
         ),
         if (_abonelik != null &&
+            _abonelik!.iptalTarihi == null &&
             (_abonelik!.durum == AbonelikDurum.aktif ||
                 _abonelik!.durum == AbonelikDurum.deneme)) ...[
           const SizedBox(width: 12),
@@ -366,8 +384,7 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor:
-              basarili ? Colors.green.shade50 : Colors.red.shade50,
+          backgroundColor: basarili ? Colors.green.shade50 : Colors.red.shade50,
           child: Icon(
             basarili ? Icons.check : Icons.close,
             color: basarili ? Colors.green : Colors.red,
@@ -375,9 +392,7 @@ class _AbonelikYonetimiPageState extends State<AbonelikYonetimiPage> {
         ),
         title: Text('₺${odeme.tutar.toStringAsFixed(2)}'),
         subtitle: Text(
-          odeme.odemeTarihi != null
-              ? _tarihFormat(odeme.odemeTarihi!)
-              : '-',
+          odeme.odemeTarihi != null ? _tarihFormat(odeme.odemeTarihi!) : '-',
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,

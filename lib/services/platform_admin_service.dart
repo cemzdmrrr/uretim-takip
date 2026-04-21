@@ -14,10 +14,8 @@ class PlatformAdminService {
   /// Genel platform istatistiklerini getirir.
   static Future<Map<String, dynamic>> platformIstatistikleri() async {
     try {
-      final response = await _client
-          .from('v_platform_istatistikleri')
-          .select()
-          .single();
+      final response =
+          await _client.from('v_platform_istatistikleri').select().single();
       return Map<String, dynamic>.from(response as Map);
     } catch (e) {
       AppLogger.error('PlatformAdmin', 'İstatistik hatası', e);
@@ -116,7 +114,8 @@ class PlatformAdminService {
     }
 
     final response = await query.order('created_at', ascending: false);
-    List<Map<String, dynamic>> sonuc = List<Map<String, dynamic>>.from(response);
+    List<Map<String, dynamic>> sonuc =
+        List<Map<String, dynamic>>.from(response);
 
     if (arama != null && arama.isNotEmpty) {
       final aramaLower = arama.toLowerCase();
@@ -154,17 +153,18 @@ class PlatformAdminService {
       String firmaId) async {
     final response = await _client
         .from(DbTables.firmaModulleri)
-        .select('*, modul_tanimlari(id, modul_kodu, modul_adi, kategori, aciklama)')
+        .select(
+            '*, modul_tanimlari(id, modul_kodu, modul_adi, kategori, aciklama)')
         .eq('firma_id', firmaId);
     return List<Map<String, dynamic>>.from(response);
   }
 
   /// Firma aktif/pasif durumunu değiştirir.
   static Future<void> firmaDurumDegistir(String firmaId, bool aktif) async {
-    await _client
-        .from(DbTables.firmalar)
-        .update({'aktif': aktif, 'updated_at': DateTime.now().toIso8601String()})
-        .eq('id', firmaId);
+    await _client.from(DbTables.firmalar).update({
+      'aktif': aktif,
+      'updated_at': DateTime.now().toIso8601String()
+    }).eq('id', firmaId);
 
     await _logKaydet('firma_durum_degistir', 'firmalar', firmaId, {
       'yeni_durum': aktif ? 'aktif' : 'pasif',
@@ -177,7 +177,8 @@ class PlatformAdminService {
   static Future<List<Map<String, dynamic>>> tumAbonelikleriGetir() async {
     final response = await _client
         .from(DbTables.firmaAbonelikleri)
-        .select('*, firmalar(firma_adi, firma_kodu), abonelik_planlari(plan_adi, plan_kodu, aylik_ucret)')
+        .select(
+            '*, firmalar(firma_adi, firma_kodu), abonelik_planlari(plan_adi, plan_kodu, aylik_ucret)')
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(response);
   }
@@ -185,9 +186,53 @@ class PlatformAdminService {
   /// Abonelik durumunu günceller.
   static Future<void> abonelikDurumGuncelle(
       String abonelikId, String yeniDurum) async {
+    final now = DateTime.now();
+    final update = <String, dynamic>{
+      'durum': yeniDurum,
+      'updated_at': now.toIso8601String(),
+    };
+
+    if (yeniDurum == 'aktif') {
+      final abonelik = await _client
+          .from(DbTables.firmaAbonelikleri)
+          .select('firma_id, odeme_periyodu')
+          .eq('id', abonelikId)
+          .single();
+      final firmaId = abonelik['firma_id'] as String;
+      final periyot = abonelik['odeme_periyodu']?.toString() ?? 'aylik';
+      final sonraki = periyot == 'yillik'
+          ? DateTime(now.year + 1, now.month, now.day)
+          : DateTime(now.year, now.month + 1, now.day);
+
+      await _client
+          .from(DbTables.firmaAbonelikleri)
+          .update({
+            'durum': 'pasif',
+            'bitis_tarihi': now.toIso8601String(),
+            'updated_at': now.toIso8601String(),
+          })
+          .eq('firma_id', firmaId)
+          .inFilter('durum', ['aktif', 'deneme'])
+          .neq('id', abonelikId);
+
+      update.addAll({
+        'baslangic_tarihi': now.toIso8601String(),
+        'bitis_tarihi': null,
+        'son_odeme_tarihi': now.toIso8601String(),
+        'sonraki_odeme_tarihi': sonraki.toIso8601String(),
+      });
+    }
+
+    if (yeniDurum == 'iptal' || yeniDurum == 'pasif') {
+      update.addAll({
+        'bitis_tarihi': now.toIso8601String(),
+        if (yeniDurum == 'iptal') 'iptal_tarihi': now.toIso8601String(),
+      });
+    }
+
     await _client
         .from(DbTables.firmaAbonelikleri)
-        .update({'durum': yeniDurum})
+        .update(update)
         .eq('id', abonelikId);
 
     await _logKaydet('abonelik_durum_guncelle', 'firma_abonelikleri',
@@ -199,31 +244,25 @@ class PlatformAdminService {
       String abonelikId, String yeniPlanId) async {
     await _client
         .from(DbTables.firmaAbonelikleri)
-        .update({'plan_id': yeniPlanId})
-        .eq('id', abonelikId);
+        .update({'plan_id': yeniPlanId}).eq('id', abonelikId);
 
-    await _logKaydet('abonelik_plan_degistir', 'firma_abonelikleri',
-        abonelikId, {'yeni_plan_id': yeniPlanId});
+    await _logKaydet('abonelik_plan_degistir', 'firma_abonelikleri', abonelikId,
+        {'yeni_plan_id': yeniPlanId});
   }
 
   // ── Modül Yönetimi ────────────────────────────────────────
 
   /// Tüm modül tanımlarını getirir.
   static Future<List<Map<String, dynamic>>> modulTanimlariGetir() async {
-    final response = await _client
-        .from(DbTables.modulTanimlari)
-        .select()
-        .order('sira_no');
+    final response =
+        await _client.from(DbTables.modulTanimlari).select().order('sira_no');
     return List<Map<String, dynamic>>.from(response);
   }
 
   /// Modül tanımını günceller.
   static Future<void> modulTanimGuncelle(
       String modulId, Map<String, dynamic> veri) async {
-    await _client
-        .from(DbTables.modulTanimlari)
-        .update(veri)
-        .eq('id', modulId);
+    await _client.from(DbTables.modulTanimlari).update(veri).eq('id', modulId);
 
     await _logKaydet('modul_guncelle', 'modul_tanimlari', modulId, veri);
   }
@@ -244,20 +283,15 @@ class PlatformAdminService {
 
   /// Tüm üretim dalı tanımlarını getirir.
   static Future<List<Map<String, dynamic>>> uretimDallariGetir() async {
-    final response = await _client
-        .from(DbTables.uretimModulleri)
-        .select()
-        .order('sira_no');
+    final response =
+        await _client.from(DbTables.uretimModulleri).select().order('sira_no');
     return List<Map<String, dynamic>>.from(response);
   }
 
   /// Üretim dalı tanımını günceller.
   static Future<void> uretimDaliGuncelle(
       String dalId, Map<String, dynamic> veri) async {
-    await _client
-        .from(DbTables.uretimModulleri)
-        .update(veri)
-        .eq('id', dalId);
+    await _client.from(DbTables.uretimModulleri).update(veri).eq('id', dalId);
 
     await _logKaydet('uretim_dali_guncelle', 'uretim_modulleri', dalId, veri);
   }
@@ -281,8 +315,7 @@ class PlatformAdminService {
   }
 
   /// Destek talebini cevaplar.
-  static Future<void> destekCevapla(
-      String talepId, String cevap) async {
+  static Future<void> destekCevapla(String talepId, String cevap) async {
     final userId = _client.auth.currentUser?.id;
     await _client.from('destek_talepleri').update({
       'cevap': cevap,
@@ -334,10 +367,7 @@ class PlatformAdminService {
     final sirali = aylikGelir.entries.toList()
       ..sort((a, b) => b.key.compareTo(a.key));
 
-    return sirali
-        .take(12)
-        .map((e) => {'ay': e.key, 'gelir': e.value})
-        .toList();
+    return sirali.take(12).map((e) => {'ay': e.key, 'gelir': e.value}).toList();
   }
 
   /// Yeni kayıt trendini getirir (son 12 ay firma kayıt sayıları).

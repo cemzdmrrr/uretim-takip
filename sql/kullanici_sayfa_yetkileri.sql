@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS public.kullanici_sayfa_yetkileri (
   user_id UUID NOT NULL,
   sayfa_kodu TEXT NOT NULL,
   aktif BOOLEAN NOT NULL DEFAULT true,
+  duzenleme_yetkisi BOOLEAN NOT NULL DEFAULT false,
+  silme_yetkisi BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(firma_id, user_id, sayfa_kodu)

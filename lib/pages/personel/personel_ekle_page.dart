@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/models/personel_model.dart';
@@ -51,29 +51,48 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
     adController = TextEditingController(text: widget.mevcut?.ad ?? '');
     soyadController = TextEditingController(text: widget.mevcut?.soyad ?? '');
     tcknController = TextEditingController(text: widget.mevcut?.tckn ?? '');
-    pozisyonController = TextEditingController(text: widget.mevcut?.pozisyon ?? '');
-    departmanController = TextEditingController(text: widget.mevcut?.departman ?? '');
+    pozisyonController =
+        TextEditingController(text: widget.mevcut?.pozisyon ?? '');
+    departmanController =
+        TextEditingController(text: widget.mevcut?.departman ?? '');
     emailController = TextEditingController(text: widget.mevcut?.email ?? '');
-    telefonController = TextEditingController(text: widget.mevcut?.telefon ?? '');
-    iseBaslangicController = TextEditingController(text: widget.mevcut?.iseBaslangic ?? '');
-    brutMaasController = TextEditingController(text: widget.mevcut?.brutMaas ?? '');
-    sgkSicilNoController = TextEditingController(text: widget.mevcut?.sgkSicilNo ?? '');
-    gunlukCalismaSaatiController = TextEditingController(text: widget.mevcut?.gunlukCalismaSaati ?? '');
-    haftalikCalismaGunuController = TextEditingController(text: widget.mevcut?.haftalikCalismaGunu ?? '');
-    yolUcretiController = TextEditingController(text: widget.mevcut?.yolUcreti ?? '');
-    yemekUcretiController = TextEditingController(text: widget.mevcut?.yemekUcreti ?? '');
-    ekstraPrimController = TextEditingController(text: widget.mevcut?.ekstraPrim ?? '');
-    eldenMaasController = TextEditingController(text: widget.mevcut?.eldenMaas ?? '');
-    bankaMaasController = TextEditingController(text: widget.mevcut?.bankaMaas ?? '');
+    telefonController =
+        TextEditingController(text: widget.mevcut?.telefon ?? '');
+    iseBaslangicController =
+        TextEditingController(text: widget.mevcut?.iseBaslangic ?? '');
+    brutMaasController =
+        TextEditingController(text: widget.mevcut?.brutMaas ?? '');
+    sgkSicilNoController =
+        TextEditingController(text: widget.mevcut?.sgkSicilNo ?? '');
+    gunlukCalismaSaatiController =
+        TextEditingController(text: widget.mevcut?.gunlukCalismaSaati ?? '');
+    haftalikCalismaGunuController =
+        TextEditingController(text: widget.mevcut?.haftalikCalismaGunu ?? '');
+    yolUcretiController =
+        TextEditingController(text: widget.mevcut?.yolUcreti ?? '');
+    yemekUcretiController =
+        TextEditingController(text: widget.mevcut?.yemekUcreti ?? '');
+    ekstraPrimController =
+        TextEditingController(text: widget.mevcut?.ekstraPrim ?? '');
+    eldenMaasController =
+        TextEditingController(text: widget.mevcut?.eldenMaas ?? '');
+    bankaMaasController =
+        TextEditingController(text: widget.mevcut?.bankaMaas ?? '');
     adresController = TextEditingController(text: widget.mevcut?.adres ?? '');
-    netMaasController = TextEditingController(text: widget.mevcut?.netMaas ?? '');
-    yillikIzinHakkiController = TextEditingController(text: widget.mevcut?.yillikIzinHakki ?? '14');
+    netMaasController =
+        TextEditingController(text: widget.mevcut?.netMaas ?? '');
+    yillikIzinHakkiController =
+        TextEditingController(text: widget.mevcut?.yillikIzinHakki ?? '14');
     passwordController = TextEditingController();
     seciliRol = DbTables.personel;
-    yolUcretiVar = widget.mevcut?.yolUcreti != null && widget.mevcut!.yolUcreti != '';
-    yemekUcretiVar = widget.mevcut?.yemekUcreti != null && widget.mevcut!.yemekUcreti != '';
-    ekstraPrimVar = widget.mevcut?.ekstraPrim != null && widget.mevcut!.ekstraPrim != '';
-    eldenMaasVar = widget.mevcut?.eldenMaas != null && widget.mevcut!.eldenMaas != '';
+    yolUcretiVar =
+        widget.mevcut?.yolUcreti != null && widget.mevcut!.yolUcreti != '';
+    yemekUcretiVar =
+        widget.mevcut?.yemekUcreti != null && widget.mevcut!.yemekUcreti != '';
+    ekstraPrimVar =
+        widget.mevcut?.ekstraPrim != null && widget.mevcut!.ekstraPrim != '';
+    eldenMaasVar =
+        widget.mevcut?.eldenMaas != null && widget.mevcut!.eldenMaas != '';
   }
 
   @override
@@ -107,17 +126,19 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
     final bool duzenleme = widget.mevcut != null;
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 768;
-    
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: Row(
           children: [
-            Icon(duzenleme ? Icons.edit : Icons.person_add, color: Colors.white),
+            Icon(duzenleme ? Icons.edit : Icons.person_add,
+                color: Colors.white),
             const SizedBox(width: 8),
             Text(
               duzenleme ? 'Personel Düzenle' : 'Yeni Personel Ekle',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -137,7 +158,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                   // Header bilgi kartı
                   Card(
                     elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
@@ -160,7 +182,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                                   color: Colors.blue.shade100,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: Icon(Icons.info_outline, color: Colors.blue.shade700, size: 24),
+                                child: Icon(Icons.info_outline,
+                                    color: Colors.blue.shade700, size: 24),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -168,7 +191,9 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      duzenleme ? 'Personel Bilgilerini Güncelle' : 'Yeni Personel Kaydı',
+                                      duzenleme
+                                          ? 'Personel Bilgilerini Güncelle'
+                                          : 'Yeni Personel Kaydı',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
@@ -177,10 +202,11 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      duzenleme 
-                                        ? 'Mevcut personel bilgilerini güncelleyin.'
-                                        : 'Tüm gerekli alanları doldurarak yeni personel ekleyin.',
-                                      style: TextStyle(color: Colors.grey.shade600),
+                                      duzenleme
+                                          ? 'Mevcut personel bilgilerini güncelleyin.'
+                                          : 'Tüm gerekli alanları doldurarak yeni personel ekleyin.',
+                                      style: TextStyle(
+                                          color: Colors.grey.shade600),
                                     ),
                                   ],
                                 ),
@@ -191,16 +217,16 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Ana form alanları
-                  isMobile 
-                    ? _buildMobileLayout(duzenleme)
-                    : _buildDesktopLayout(duzenleme),
-                  
+                  isMobile
+                      ? _buildMobileLayout(duzenleme)
+                      : _buildDesktopLayout(duzenleme),
+
                   const SizedBox(height: 32),
-                  
+
                   // Kaydet butonu
                   _buildSaveButton(duzenleme),
                 ],
@@ -253,6 +279,7 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
       ],
     );
   }
+
   Widget _buildKisiselBilgilerSection(bool duzenleme) {
     return _buildSection(
       title: 'Kişisel Bilgiler',
@@ -265,7 +292,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                 controller: adController,
                 label: 'Ad',
                 icon: Icons.person_outline,
-                validator: (v) => v == null || v.isEmpty ? 'Zorunlu alan' : null,
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Zorunlu alan' : null,
               ),
             ),
             const SizedBox(width: 16),
@@ -274,7 +302,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                 controller: soyadController,
                 label: 'Soyad',
                 icon: Icons.person_outline,
-                validator: (v) => v == null || v.isEmpty ? 'Zorunlu alan' : null,
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Zorunlu alan' : null,
               ),
             ),
           ],
@@ -286,7 +315,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
           icon: Icons.credit_card,
           keyboardType: TextInputType.number,
           enabled: !duzenleme,
-          validator: (v) => v == null || v.length != 11 ? '11 haneli TCKN giriniz' : null,
+          validator: (v) =>
+              v == null || v.length != 11 ? '11 haneli TCKN giriniz' : null,
         ),
         if (!duzenleme) ...[
           const SizedBox(height: 16),
@@ -303,7 +333,9 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
             label: 'Parola',
             icon: Icons.lock,
             obscureText: true,
-            validator: (v) => v == null || v.length < 6 ? 'En az 6 karakterli parola girin' : null,
+            validator: (v) => v == null || v.length < 6
+                ? 'En az 6 karakterli parola girin'
+                : null,
           ),
         ],
         const SizedBox(height: 16),
@@ -451,7 +483,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
                 final banka = double.tryParse(bankaMaasController.text) ?? 0;
                 if (net > 0 && banka >= 0) {
                   final elden = (net - banka).toStringAsFixed(2);
-                  eldenMaasController.text = (elden == '0.00' || net < banka) ? '' : elden;
+                  eldenMaasController.text =
+                      (elden == '0.00' || net < banka) ? '' : elden;
                 }
               },
             ),
@@ -468,6 +501,7 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
       ],
     );
   }
+
   Widget _buildEkOdemelerSection() {
     return _buildSection(
       title: 'Ek Ödemeler',
@@ -491,9 +525,9 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
             suffix: '₺',
           ),
         ],
-        
+
         const SizedBox(height: 16),
-        
+
         // Yemek Ücreti
         _buildSwitchTile(
           title: 'Yemek Ücreti',
@@ -512,9 +546,9 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
             suffix: '₺',
           ),
         ],
-        
+
         const SizedBox(height: 16),
-        
+
         // Ekstra Prim
         _buildSwitchTile(
           title: 'Ekstra Prim',
@@ -614,7 +648,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
         ),
         filled: true,
         fillColor: enabled ? Colors.white : Colors.grey.shade100,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
       keyboardType: keyboardType,
       validator: validator,
@@ -748,24 +783,29 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
 
       final eldenMaasDegeri = eldenMaasVar ? eldenMaasController.text : '';
       String userId = widget.userId ?? '';
-      
+
       // Eğer yeni personel ekleniyorsa önce kullanıcı oluştur
       if (!duzenleme && userId.isEmpty) {
         try {
           // Admin kontrolü
           final currentUser = Supabase.instance.client.auth.currentUser;
-          final adminCheck = currentUser != null ? await Supabase.instance.client
-            .from(DbTables.userRoles)
-            .select('role, aktif')
-            .eq('user_id', currentUser.id)
-            .maybeSingle() : null;
-          if (currentUser == null || adminCheck == null || adminCheck['role'] != 'admin' || adminCheck['aktif'] != true) {
+          final adminCheck = currentUser != null
+              ? await Supabase.instance.client
+                  .from(DbTables.userRoles)
+                  .select('role, aktif')
+                  .eq('user_id', currentUser.id)
+                  .maybeSingle()
+              : null;
+          if (currentUser == null ||
+              adminCheck == null ||
+              adminCheck['role'] != 'admin' ||
+              adminCheck['aktif'] != true) {
             if (!mounted) return;
             Navigator.pop(context); // Loading'i kapat
             context.showErrorSnackBar('Bu işlemi yapmak için yetkiniz yok.');
             return;
           }
-          
+
           // Kullanıcı oluştur (adminClient ile)
           final adminClient = SupabaseConfig.adminClient;
           final response = await adminClient.auth.admin.createUser(
@@ -778,11 +818,11 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
           if (response.user != null) {
             userId = response.user!.id;
             // user_roles tablosuna ekle
-            await Supabase.instance.client.from(DbTables.userRoles).insert({
+            await Supabase.instance.client.from(DbTables.userRoles).upsert({
               'user_id': userId,
               'role': DbTables.personel,
               'aktif': true,
-            });
+            }, onConflict: 'user_id');
           } else {
             if (!mounted) return;
             Navigator.pop(context); // Loading'i kapat
@@ -792,17 +832,17 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
         } catch (e) {
           if (e is AuthException && e.code == 'user_already_exists') {
             // Kullanıcı zaten varsa userId'yi bul ve user_roles tablosuna ekle
-            final existingUser = await Supabase.instance.client
-              .from(DbTables.users)
-              .select('id')
-              .eq('email', emailController.text.trim())
-              .single();
-            userId = existingUser['id'];
-            await Supabase.instance.client.from(DbTables.userRoles).insert({
+            final adminClient = SupabaseConfig.adminClient;
+            final authUsers = await adminClient.auth.admin.listUsers();
+            final existingUser = authUsers.firstWhere(
+              (user) => user.email == emailController.text.trim(),
+            );
+            userId = existingUser.id;
+            await Supabase.instance.client.from(DbTables.userRoles).upsert({
               'user_id': userId,
               'role': DbTables.personel,
               'aktif': true,
-            });
+            }, onConflict: 'user_id');
           } else {
             if (!mounted) return;
             Navigator.pop(context); // Loading'i kapat
@@ -830,17 +870,18 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
           debugPrint('⚠️ firma_kullanicilari ekleme hatası: $e');
         }
       }
-      
+
       // İşe giriş tarihi formatını kontrol et ve kaydet
       String iseBaslangic = iseBaslangicController.text.trim();
       // GG.AA.YYYY formatı ise YYYY-MM-DD'ye çevir
       if (iseBaslangic.contains('.') && iseBaslangic.length == 10) {
         final parts = iseBaslangic.split('.');
         if (parts.length == 3) {
-          iseBaslangic = '${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}';
+          iseBaslangic =
+              '${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}';
         }
       }
-      
+
       final yeniPersonel = PersonelModel(
         userId: userId,
         ad: adController.text,
@@ -858,13 +899,16 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
         yolUcreti: yolUcretiVar ? yolUcretiController.text : '',
         yemekUcreti: yemekUcretiVar ? yemekUcretiController.text : '',
         ekstraPrim: ekstraPrimVar ? ekstraPrimController.text : '',
-        eldenMaas: (eldenMaasDegeri.isEmpty || num.tryParse(eldenMaasDegeri) == null) ? '0' : eldenMaasDegeri,
+        eldenMaas:
+            (eldenMaasDegeri.isEmpty || num.tryParse(eldenMaasDegeri) == null)
+                ? '0'
+                : eldenMaasDegeri,
         bankaMaas: bankaMaasController.text,
         adres: adresController.text,
         netMaas: netMaasController.text,
         yillikIzinHakki: yillikIzinHakkiController.text,
       );
-      
+
       if (duzenleme) {
         await PersonelService().updatePersonel(yeniPersonel);
         if (!mounted) return;
@@ -878,7 +922,7 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
           Navigator.pop(context, true);
         }
       }
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -886,7 +930,8 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
             children: [
               const Icon(Icons.check_circle, color: Colors.white),
               const SizedBox(width: 8),
-              Text(duzenleme ? 'Personel güncellendi.' : 'Personel kaydedildi.'),
+              Text(
+                  duzenleme ? 'Personel güncellendi.' : 'Personel kaydedildi.'),
             ],
           ),
           backgroundColor: Colors.green,
@@ -894,18 +939,16 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
-      
+
       // Personel ekleme işlemi tamamlandıktan sonra kendi users tablosuna da kayıt ekle/güncelle
       if (!duzenleme && userId.isNotEmpty) {
         try {
           // Her durumda role alanını zorunlu olarak güncelle
-          await Supabase.instance.client
-            .from(DbTables.users)
-            .upsert({
-              'id': userId,
-              'email': emailController.text.trim(),
-              'role': DbTables.personel,
-            }, onConflict: 'id');
+          await Supabase.instance.client.from(DbTables.users).upsert({
+            'id': userId,
+            'email': emailController.text.trim(),
+            'role': DbTables.personel,
+          }, onConflict: 'id');
         } catch (e) {
           debugPrint('Kendi users tablosuna upsert hatası: $e');
         }

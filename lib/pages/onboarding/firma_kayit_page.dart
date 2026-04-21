@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:uretim_takip/models/abonelik_model.dart';
 import 'package:uretim_takip/pages/onboarding/firma_bilgileri_page.dart';
 import 'package:uretim_takip/pages/onboarding/davet_katil_page.dart';
 
 /// Firma oluştur veya davete katıl seçim ekranı.
 class FirmaKayitPage extends StatelessWidget {
-  const FirmaKayitPage({super.key});
+  final AbonelikPlani? secilenPlan;
+  final bool yillik;
+
+  const FirmaKayitPage({
+    super.key,
+    this.secilenPlan,
+    this.yillik = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +25,8 @@ class FirmaKayitPage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.business, size: 72, color: Theme.of(context).primaryColor),
+                Icon(Icons.business,
+                    size: 72, color: Theme.of(context).primaryColor),
                 const SizedBox(height: 24),
                 const Text(
                   'TexPilot\'e Hoş Geldiniz',
@@ -37,10 +46,16 @@ class FirmaKayitPage extends StatelessWidget {
                   child: FilledButton.icon(
                     onPressed: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const FirmaBilgileriPage()),
+                      MaterialPageRoute(
+                        builder: (_) => FirmaBilgileriPage(
+                          secilenPlan: secilenPlan,
+                          yillik: yillik,
+                        ),
+                      ),
                     ),
                     icon: const Icon(Icons.add_business),
-                    label: const Text('Yeni Firma Oluştur', style: TextStyle(fontSize: 16)),
+                    label: const Text('Yeni Firma Oluştur',
+                        style: TextStyle(fontSize: 16)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -53,7 +68,8 @@ class FirmaKayitPage extends StatelessWidget {
                       MaterialPageRoute(builder: (_) => const DavetKatilPage()),
                     ),
                     icon: const Icon(Icons.mail_outline),
-                    label: const Text('Davet Kodu ile Katıl', style: TextStyle(fontSize: 16)),
+                    label: const Text('Davet Kodu ile Katıl',
+                        style: TextStyle(fontSize: 16)),
                   ),
                 ),
               ],

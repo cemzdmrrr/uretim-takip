@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uretim_takip/pages/abonelik/abonelik_plan_fiyat_yonetimi_page.dart';
 import 'package:uretim_takip/services/platform_admin_service.dart';
 import 'package:intl/intl.dart';
 
@@ -28,9 +29,8 @@ class _AbonelikYonetimiAdminPageState extends State<AbonelikYonetimiAdminPage> {
       _abonelikler = await PlatformAdminService.tumAbonelikleriGetir();
 
       if (_durumFiltre != null) {
-        _abonelikler = _abonelikler
-            .where((a) => a['durum'] == _durumFiltre)
-            .toList();
+        _abonelikler =
+            _abonelikler.where((a) => a['durum'] == _durumFiltre).toList();
       }
     } catch (e) {
       if (mounted) {
@@ -51,6 +51,16 @@ class _AbonelikYonetimiAdminPageState extends State<AbonelikYonetimiAdminPage> {
         backgroundColor: const Color(0xFF00695C),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.price_change),
+            tooltip: 'Plan fiyatlari',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AbonelikPlanFiyatYonetimiPage(),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _verileriYukle,
@@ -113,14 +123,10 @@ class _AbonelikYonetimiAdminPageState extends State<AbonelikYonetimiAdminPage> {
       itemBuilder: (context, index) {
         final a = _abonelikler[index];
         final durum = a['durum']?.toString() ?? '-';
-        final firmaAdi =
-            a['firmalar']?['firma_adi']?.toString() ?? '-';
-        final planAdi =
-            a['abonelik_planlari']?['plan_adi']?.toString() ?? '-';
-        final planKodu =
-            a['abonelik_planlari']?['plan_kodu']?.toString() ?? '';
-        final aylikUcret =
-            a['abonelik_planlari']?['aylik_ucret'];
+        final firmaAdi = a['firmalar']?['firma_adi']?.toString() ?? '-';
+        final planAdi = a['abonelik_planlari']?['plan_adi']?.toString() ?? '-';
+        final planKodu = a['abonelik_planlari']?['plan_kodu']?.toString() ?? '';
+        final aylikUcret = a['abonelik_planlari']?['aylik_ucret'];
         final denemeBitis = a['deneme_bitis']?.toString();
 
         return Card(
@@ -262,8 +268,7 @@ class _AbonelikYonetimiAdminPageState extends State<AbonelikYonetimiAdminPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Abonelik Durumu Değiştir'),
-        content:
-            Text('Abonelik durumu "$yeniDurum" olarak değiştirilecek.'),
+        content: Text('Abonelik durumu "$yeniDurum" olarak değiştirilecek.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -280,8 +285,7 @@ class _AbonelikYonetimiAdminPageState extends State<AbonelikYonetimiAdminPage> {
     if (onay != true) return;
 
     try {
-      await PlatformAdminService.abonelikDurumGuncelle(
-          abonelikId, yeniDurum);
+      await PlatformAdminService.abonelikDurumGuncelle(abonelikId, yeniDurum);
       await _verileriYukle();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
