@@ -1,4 +1,4 @@
-﻿import 'package:uretim_takip/utils/app_exceptions.dart';
+import 'package:uretim_takip/utils/app_exceptions.dart';
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:uretim_takip/utils/web_download.dart';
+import 'package:uretim_takip/utils/excel_export.dart';
 
 part 'uretim_raporu_filtreler.dart';
 part 'uretim_raporu_tabs.dart';
@@ -25,26 +26,27 @@ class UretimRaporuPage extends StatefulWidget {
   State<UretimRaporuPage> createState() => _UretimRaporuPageState();
 }
 
-class _UretimRaporuPageState extends State<UretimRaporuPage> with SingleTickerProviderStateMixin {
+class _UretimRaporuPageState extends State<UretimRaporuPage>
+    with SingleTickerProviderStateMixin {
   final _service = UretimRaporuService();
   final _supabase = Supabase.instance.client;
   bool _yukleniyor = true;
   String? _hata;
   late TabController _tabController;
   StreamSubscription? _realtimeSubscription;
-  
+
   // Arama
   final TextEditingController _aramaController = TextEditingController();
   String _aramaMetni = '';
   Timer? _aramaDebounce;
-  
+
   // Filtreler
   String _secilenMarka = 'Tümü';
   String _secilenDurum = 'Tümü';
   String _secilenAsama = 'Tümü';
   DateTimeRange? _tarihAraligi;
   List<String> _markaListesi = ['Tümü'];
-  
+
   // Aşama listesi
   final List<Map<String, dynamic>> _asamaListesi = [
     {'key': 'Tümü', 'label': 'Tüm Aşamalar', 'color': Colors.grey},
@@ -54,17 +56,21 @@ class _UretimRaporuPageState extends State<UretimRaporuPage> with SingleTickerPr
     {'key': 'yikama', 'label': 'Yıkama', 'color': Colors.blue},
     {'key': 'utu', 'label': 'Ütü', 'color': Colors.purple},
     {'key': 'ilik_dugme', 'label': 'İlik Düğme', 'color': Colors.teal},
-    {'key': 'kalite_kontrol', 'label': 'Kalite Kontrol', 'color': Colors.indigo},
+    {
+      'key': 'kalite_kontrol',
+      'label': 'Kalite Kontrol',
+      'color': Colors.indigo
+    },
     {'key': 'paketleme', 'label': 'Paketleme', 'color': Colors.green},
   ];
-  
+
   // Veriler — ham ve filtrelenmiş
   List<Map<String, dynamic>> _tumModeller = [];
   List<Map<String, dynamic>> _modeller = [];
   Map<String, dynamic> _ozet = {};
   Map<String, Map<String, int>> _fireAnaliz = {};
   List<Map<String, dynamic>> _tedarikciler = [];
-  
+
   // Pagination
   static const int _sayfaBasinaModel = 20;
   int _gorunenModelSayisi = _sayfaBasinaModel;
@@ -90,8 +96,7 @@ class _UretimRaporuPageState extends State<UretimRaporuPage> with SingleTickerPr
   void _realtimeBaslat() {
     _realtimeSubscription = _supabase
         .from(DbTables.trikoTakip)
-        .stream(primaryKey: ['id'])
-        .listen((_) {
+        .stream(primaryKey: ['id']).listen((_) {
       _aramaDebounce?.cancel();
       _aramaDebounce = Timer(const Duration(seconds: 2), () {
         if (mounted) _verileriYukle();
@@ -114,7 +119,9 @@ class _UretimRaporuPageState extends State<UretimRaporuPage> with SingleTickerPr
       _filtreleriUygula();
     } catch (e) {
       setState(() {
-        _hata = e is AppException ? e.message : 'Veriler yüklenirken hata oluştu: $e';
+        _hata = e is AppException
+            ? e.message
+            : 'Veriler yüklenirken hata oluştu: $e';
         _yukleniyor = false;
       });
     }
@@ -153,7 +160,7 @@ class _UretimRaporuPageState extends State<UretimRaporuPage> with SingleTickerPr
 
   // ==================== FİLTRE PRESET ====================
   static const _presetKey = 'uretim_raporu_filtre_presets';
-  
+
   Future<List<Map<String, dynamic>>> _filtrePresetleriYukle() async {
     final prefs = await SharedPreferences.getInstance();
     final json = prefs.getString(_presetKey);
@@ -197,67 +204,124 @@ class _UretimRaporuPageState extends State<UretimRaporuPage> with SingleTickerPr
   Map<String, dynamic> _getAsamaBilgisi(String asamaKey) {
     switch (asamaKey) {
       case 'dokuma':
-        return {'label': 'Dokuma', 'color': Colors.brown, 'icon': Icons.grid_on};
+        return {
+          'label': 'Dokuma',
+          'color': Colors.brown,
+          'icon': Icons.grid_on
+        };
       case 'nakis':
         return {'label': 'Nakış', 'color': Colors.pink, 'icon': Icons.brush};
       case 'konfeksiyon':
-        return {'label': 'Konfeksiyon', 'color': Colors.orange, 'icon': Icons.checkroom};
+        return {
+          'label': 'Konfeksiyon',
+          'color': Colors.orange,
+          'icon': Icons.checkroom
+        };
       case 'yikama':
-        return {'label': 'Yıkama', 'color': Colors.blue, 'icon': Icons.local_laundry_service};
+        return {
+          'label': 'Yıkama',
+          'color': Colors.blue,
+          'icon': Icons.local_laundry_service
+        };
       case 'utu':
         return {'label': 'Ütü', 'color': Colors.purple, 'icon': Icons.iron};
       case 'ilik_dugme':
-        return {'label': 'İlik Düğme', 'color': Colors.teal, 'icon': Icons.radio_button_checked};
+        return {
+          'label': 'İlik Düğme',
+          'color': Colors.teal,
+          'icon': Icons.radio_button_checked
+        };
       case 'kalite_kontrol':
-        return {'label': 'Kalite', 'color': Colors.indigo, 'icon': Icons.verified};
+        return {
+          'label': 'Kalite',
+          'color': Colors.indigo,
+          'icon': Icons.verified
+        };
       case 'paketleme':
-        return {'label': 'Paketleme', 'color': Colors.green, 'icon': Icons.inventory_2};
+        return {
+          'label': 'Paketleme',
+          'color': Colors.green,
+          'icon': Icons.inventory_2
+        };
       case 'tamamlandi':
-        return {'label': 'Tamamlandı', 'color': Colors.green.shade700, 'icon': Icons.check_circle};
+        return {
+          'label': 'Tamamlandı',
+          'color': Colors.green.shade700,
+          'icon': Icons.check_circle
+        };
       case 'beklemede':
-        return {'label': 'Beklemede', 'color': Colors.grey, 'icon': Icons.hourglass_empty};
+        return {
+          'label': 'Beklemede',
+          'color': Colors.grey,
+          'icon': Icons.hourglass_empty
+        };
       default:
-        return {'label': 'Beklemede', 'color': Colors.grey, 'icon': Icons.hourglass_empty};
+        return {
+          'label': 'Beklemede',
+          'color': Colors.grey,
+          'icon': Icons.hourglass_empty
+        };
     }
   }
 
   String _durumMetni(dynamic durum) {
     if (durum == null) return 'Bekliyor';
     switch (durum.toString()) {
-      case 'atandi': return 'Atandı';
-      case 'beklemede': return 'Beklemede';
-      case 'onaylandi': return 'Onaylandı';
-      case 'uretimde': return 'Üretimde';
-      case 'baslatildi': return 'Başlatıldı';
-      case 'tamamlandi': return 'Tamamlandı';
-      case 'kismi_tamamlandi': return 'Kısmi Tamamlandı';
-      case 'reddedildi': return 'Reddedildi';
-      default: return durum.toString();
+      case 'atandi':
+        return 'Atandı';
+      case 'beklemede':
+        return 'Beklemede';
+      case 'onaylandi':
+        return 'Onaylandı';
+      case 'uretimde':
+        return 'Üretimde';
+      case 'baslatildi':
+        return 'Başlatıldı';
+      case 'tamamlandi':
+        return 'Tamamlandı';
+      case 'kismi_tamamlandi':
+        return 'Kısmi Tamamlandı';
+      case 'reddedildi':
+        return 'Reddedildi';
+      default:
+        return durum.toString();
     }
   }
 
   Color _getDurumRenk(String durum) {
     switch (durum) {
-      case 'tamamlandi': return Colors.green;
+      case 'tamamlandi':
+        return Colors.green;
       case 'uretimde':
-      case 'isleniyor': return Colors.orange;
+      case 'isleniyor':
+        return Colors.orange;
       case 'atandi':
-      case 'onaylandi': return Colors.blue;
-      case 'reddedildi': return Colors.red;
-      default: return Colors.grey;
+      case 'onaylandi':
+        return Colors.blue;
+      case 'reddedildi':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
   String _getDurumMetin(String durum) {
     switch (durum) {
-      case 'tamamlandi': return 'Tamamlandı';
+      case 'tamamlandi':
+        return 'Tamamlandı';
       case 'uretimde':
-      case 'isleniyor': return 'İşlemde';
-      case 'atandi': return 'Atandı';
-      case 'onaylandi': return 'Onaylandı';
-      case 'reddedildi': return 'Reddedildi';
-      case 'beklemede': return 'Beklemede';
-      default: return 'Bekliyor';
+      case 'isleniyor':
+        return 'İşlemde';
+      case 'atandi':
+        return 'Atandı';
+      case 'onaylandi':
+        return 'Onaylandı';
+      case 'reddedildi':
+        return 'Reddedildi';
+      case 'beklemede':
+        return 'Beklemede';
+      default:
+        return 'Bekliyor';
     }
   }
 
@@ -326,7 +390,8 @@ class _UretimRaporuPageState extends State<UretimRaporuPage> with SingleTickerPr
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                      const Icon(Icons.error_outline,
+                          size: 64, color: Colors.red),
                       const SizedBox(height: 16),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),

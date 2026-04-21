@@ -19,35 +19,43 @@ class UretimRaporuService {
   static const _asamaTablolari = {
     'dokuma': {
       'tablo': DbTables.dokumaAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
     },
     'nakis': {
       'tablo': DbTables.nakisAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
     },
     'konfeksiyon': {
       'tablo': DbTables.konfeksiyonAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
     },
     'yikama': {
       'tablo': DbTables.yikamaAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
     },
     'utu': {
       'tablo': DbTables.utuAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
     },
     'ilik_dugme': {
       'tablo': DbTables.ilikDugmeAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
     },
     'kalite_kontrol': {
       'tablo': DbTables.kaliteKontrolAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, kontrol_edilecek_adet, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, kontrol_edilecek_adet, created_at',
     },
     'paketleme': {
       'tablo': DbTables.paketlemeAtamalari,
-      'select': 'model_id, durum, tamamlanan_adet, talep_edilen_adet, created_at',
+      'select':
+          'model_id, durum, tamamlanan_adet, talep_edilen_adet, created_at',
     },
   };
 
@@ -72,6 +80,10 @@ class UretimRaporuService {
           .select('*')
           .eq('firma_id', _firmaId)
           .order('created_at', ascending: false);
+      final modelListesi = List<Map<String, dynamic>>.from(modeller);
+
+      // 1.1 Yükleme kayıtlarından gönderilen/kalan adetleri hesapla
+      final yuklenenAdetler = await _yuklenenAdetleriGetir(modelListesi);
 
       // 2. Tüm aşama tablolarını paralel olarak çek
       final asamaVerileri = <String, List<Map<String, dynamic>>>{};
@@ -98,7 +110,10 @@ class UretimRaporuService {
       List<Map<String, dynamic>> tedarikciler = [];
       try {
         tedarikciler = List<Map<String, dynamic>>.from(
-          await _supabase.from(DbTables.tedarikciler).select('id, firma_adi').eq('firma_id', _firmaId),
+          await _supabase
+              .from(DbTables.tedarikciler)
+              .select('id, firma_adi')
+              .eq('firma_id', _firmaId),
         );
       } catch (e) {
         AppLogger.debug('Tedarikçiler yüklenemedi: $e');
@@ -106,9 +121,10 @@ class UretimRaporuService {
 
       // 4. Modelleri aşama verileriyle zenginleştir
       final zenginModeller = _modelleriZenginlestir(
-        List<Map<String, dynamic>>.from(modeller),
+        modelListesi,
         asamaVerileri,
         tedarikciler,
+        yuklenenAdetler,
       );
 
       // 5. Marka listesini oluştur
@@ -135,10 +151,10 @@ class UretimRaporuService {
     List<Map<String, dynamic>> modeller,
     Map<String, List<Map<String, dynamic>>> asamaVerileri,
     List<Map<String, dynamic>> tedarikciler,
+    Map<String, int> yuklenenAdetler,
   ) {
     // Model bazlı aşama verilerini indexle (en son kayıt)
-    final modelAsamaIndex =
-        <String, Map<String, Map<String, dynamic>>>{};
+    final modelAsamaIndex = <String, Map<String, Map<String, dynamic>>>{};
 
     for (final entry in asamaVerileri.entries) {
       final asamaKey = entry.key;
@@ -189,17 +205,26 @@ class UretimRaporuService {
       // Tedarikçi bilgisini mevcut aşamadan al
       String tedarikciAdi = '';
       final mevcutAsamaData = asamaDurumlari[mevcutAsama];
-      if (mevcutAsamaData != null &&
-          mevcutAsamaData['tedarikci_id'] != null) {
+      if (mevcutAsamaData != null && mevcutAsamaData['tedarikci_id'] != null) {
         tedarikciAdi =
             tedarikciIndex[mevcutAsamaData['tedarikci_id'].toString()] ?? '';
       }
 
+      final toplamAdet = _intDeger(model['toplam_adet'] ?? model['adet']);
+      final yuklenenAdet = yuklenenAdetler[modelId] ??
+          _intDeger(model['yuklenen_adet'] ?? model['gonderilen_adet']);
+      final kalanAdet = (toplamAdet - yuklenenAdet).clamp(0, toplamAdet);
+
       zenginModeller.add({
         ...model,
+        'adet': toplamAdet,
+        'toplam_adet': toplamAdet,
         'asamalar': asamaDurumlari,
         'mevcut_asama': mevcutAsama,
         'tedarikci_adi': tedarikciAdi,
+        'gonderilen_adet': yuklenenAdet,
+        'yuklenen_adet': yuklenenAdet,
+        'kalan_adet': kalanAdet.toInt(),
       });
     }
 
@@ -209,13 +234,50 @@ class UretimRaporuService {
     return zenginModeller;
   }
 
+  Future<Map<String, int>> _yuklenenAdetleriGetir(
+    List<Map<String, dynamic>> modeller,
+  ) async {
+    final modelIds = modeller
+        .map((model) => model['id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    if (modelIds.isEmpty) return {};
+
+    try {
+      final yuklemeler = await _supabase
+          .from(DbTables.yuklemeKayitlari)
+          .select('model_id, adet')
+          .inFilter('model_id', modelIds);
+
+      final sonuc = <String, int>{};
+      for (final kayit in List<Map<String, dynamic>>.from(yuklemeler)) {
+        final modelId = kayit['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        sonuc[modelId] = (sonuc[modelId] ?? 0) + _intDeger(kayit['adet']);
+      }
+      return sonuc;
+    } catch (e) {
+      AppLogger.debug('Yükleme kayıtları yüklenemedi: $e');
+      return {};
+    }
+  }
+
+  static int _intDeger(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
   /// Tahmini tamamlanma tarihi - tamamlanmış modellerin aşama sürelerinden hesaplar
   void _tahminiTamamlanmaTarihiHesapla(List<Map<String, dynamic>> modeller) {
     // Tamamlanan modellerden aşama başına ortalama süre hesapla
     int toplamSure = 0;
     int toplamTamamlanan = 0;
     for (final model in modeller) {
-      if (model['mevcut_asama'] == 'tamamlandi' && model['created_at'] != null) {
+      if (model['mevcut_asama'] == 'tamamlandi' &&
+          model['created_at'] != null) {
         final baslangic = DateTime.tryParse(model['created_at'].toString());
         final bitis = DateTime.tryParse(model['updated_at']?.toString() ?? '');
         if (baslangic != null && bitis != null) {
@@ -224,35 +286,36 @@ class UretimRaporuService {
         }
       }
     }
-    
+
     // Aşama başına ortalama gün (toplam süre / toplam aşama sayısı)
     final ortalamaAsamaGun = toplamTamamlanan > 0
         ? toplamSure / (toplamTamamlanan * asamaSirasi.length)
         : 5.0; // Varsayılan: aşama başına 5 gün
-    
+
     for (final model in modeller) {
       if (model['mevcut_asama'] == 'tamamlandi') {
         model['tahmini_tamamlanma'] = null; // Zaten tamamlandı
         continue;
       }
-      
+
       final mevcutAsama = model['mevcut_asama'] as String? ?? 'beklemede';
       final mevcutAsamaIdx = asamaSirasi.indexOf(mevcutAsama);
       if (mevcutAsamaIdx < 0) {
         // Henüz üretime başlanmamış (beklemede)
         final kalanGun = (asamaSirasi.length * ortalamaAsamaGun).ceil();
-        model['tahmini_tamamlanma'] = DateTime.now().add(Duration(days: kalanGun)).toIso8601String();
+        model['tahmini_tamamlanma'] =
+            DateTime.now().add(Duration(days: kalanGun)).toIso8601String();
         continue;
       }
       final kalanAsamaSayisi = asamaSirasi.length - mevcutAsamaIdx;
       final kalanGun = (kalanAsamaSayisi * ortalamaAsamaGun).ceil();
-      model['tahmini_tamamlanma'] = DateTime.now().add(Duration(days: kalanGun)).toIso8601String();
+      model['tahmini_tamamlanma'] =
+          DateTime.now().add(Duration(days: kalanGun)).toIso8601String();
     }
   }
 
   /// Modelin mevcut üretim aşamasını belirler
-  String _mevcutAsamayiBelirle(
-      Map<String, Map<String, dynamic>> asamalar) {
+  String _mevcutAsamayiBelirle(Map<String, Map<String, dynamic>> asamalar) {
     String? aktifAsama;
     bool tumAsamalarTamamlandi = true;
     bool hicAsamaAtanmamis = true;
@@ -316,8 +379,7 @@ class UretimRaporuService {
         final createdAt = DateTime.tryParse(m['created_at'] ?? '');
         if (createdAt == null) return true;
         return !createdAt.isBefore(tarihAraligi.start) &&
-            !createdAt.isAfter(
-                tarihAraligi.end.add(const Duration(days: 1)));
+            !createdAt.isAfter(tarihAraligi.end.add(const Duration(days: 1)));
       }).toList();
     }
 
@@ -331,9 +393,8 @@ class UretimRaporuService {
 
     // Aşama filtresi
     if (secilenAsama != 'Tümü') {
-      filtrelenmis = filtrelenmis
-          .where((m) => m['mevcut_asama'] == secilenAsama)
-          .toList();
+      filtrelenmis =
+          filtrelenmis.where((m) => m['mevcut_asama'] == secilenAsama).toList();
     }
 
     // Arama filtresi
@@ -412,8 +473,7 @@ class UretimRaporuService {
         toplamFire += fire;
 
         if (fireAnaliz.containsKey(asamaKey)) {
-          fireAnaliz[asamaKey]!['fire'] =
-              fireAnaliz[asamaKey]!['fire']! + fire;
+          fireAnaliz[asamaKey]!['fire'] = fireAnaliz[asamaKey]!['fire']! + fire;
           fireAnaliz[asamaKey]!['toplam'] =
               fireAnaliz[asamaKey]!['toplam']! + talep;
         }
@@ -437,8 +497,7 @@ class UretimRaporuService {
       }
 
       // Tedarikçi istatistik
-      final tedarikciAdi =
-          model['tedarikci_adi']?.toString() ?? '';
+      final tedarikciAdi = model['tedarikci_adi']?.toString() ?? '';
       if (tedarikciAdi.isNotEmpty) {
         tedarikciIstatistik.putIfAbsent(
             tedarikciAdi,
@@ -461,14 +520,20 @@ class UretimRaporuService {
         }
         // Fire
         int modelFire = 0;
-        final asamalar = model['asamalar'] as Map<String, Map<String, dynamic>>? ?? {};
-        for (var a in asamalar.values) { modelFire += (a['fire_adet'] ?? 0) as int; }
+        final asamalar =
+            model['asamalar'] as Map<String, Map<String, dynamic>>? ?? {};
+        for (var a in asamalar.values) {
+          modelFire += (a['fire_adet'] ?? 0) as int;
+        }
         tedarikciIstatistik[tedarikciAdi]!['toplam_fire'] =
-            (tedarikciIstatistik[tedarikciAdi]!['toplam_fire'] as int) + modelFire;
+            (tedarikciIstatistik[tedarikciAdi]!['toplam_fire'] as int) +
+                modelFire;
         // Gecikme
         if (terminStr != null && terminStr.isNotEmpty) {
           final termin = DateTime.tryParse(terminStr);
-          if (termin != null && termin.isBefore(now) && model['tamamlandi'] != true) {
+          if (termin != null &&
+              termin.isBefore(now) &&
+              model['tamamlandi'] != true) {
             tedarikciIstatistik[tedarikciAdi]!['geciken'] =
                 (tedarikciIstatistik[tedarikciAdi]!['geciken'] as int) + 1;
           }
@@ -485,20 +550,21 @@ class UretimRaporuService {
       final fireT = (data['toplam_fire'] as int);
       final adetT = (data['toplam_adet'] as int);
       final gecik = (data['geciken'] as int);
-      
+
       final tamamOran = topM > 0 ? (tamam / topM * 100) : 0.0;
       final fireOrn = adetT > 0 ? (fireT / adetT * 100) : 0.0;
       final gecikOran = topM > 0 ? (gecik / topM * 100) : 0.0;
-      
+
       // Puan: 100 - (fire penalty) - (gecikme penalty) + (tamamlanma bonus)
-      final puan = (tamamOran * 0.4) + ((100 - fireOrn.clamp(0, 100)) * 0.3) + ((100 - gecikOran.clamp(0, 100)) * 0.3);
+      final puan = (tamamOran * 0.4) +
+          ((100 - fireOrn.clamp(0, 100)) * 0.3) +
+          ((100 - gecikOran.clamp(0, 100)) * 0.3);
       data['performans_puani'] = puan.clamp(0, 100).roundToDouble();
     }
 
     // KPI metrikleri hesapla
-    final double verimlilikOrani = toplamAdet > 0
-        ? ((toplamAdet - toplamFire) / toplamAdet * 100)
-        : 100.0;
+    final double verimlilikOrani =
+        toplamAdet > 0 ? ((toplamAdet - toplamFire) / toplamAdet * 100) : 100.0;
     final double zamanindaTeslimOrani = toplamModel > 0
         ? ((toplamModel - gecikenSiparis) / toplamModel * 100)
         : 100.0;
