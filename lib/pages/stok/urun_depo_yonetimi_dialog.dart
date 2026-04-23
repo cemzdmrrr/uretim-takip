@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'urun_depo_yonetimi.dart';
 
 /// Urun depo yonetimi - dialog ve widget metotlari
@@ -54,10 +54,12 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                       return DropdownButtonFormField<String>(
                         decoration: InputDecoration(
                           hintText: 'Bir marka seç',
-                          prefixIcon: const Icon(Icons.store, color: _UrunDepoYonetimiPageState.siyah),
+                          prefixIcon: const Icon(Icons.store,
+                              color: _UrunDepoYonetimiPageState.siyah),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: _UrunDepoYonetimiPageState.siyah),
+                            borderSide: const BorderSide(
+                                color: _UrunDepoYonetimiPageState.siyah),
                           ),
                           filled: true,
                           fillColor: _UrunDepoYonetimiPageState.beyaz,
@@ -102,21 +104,25 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                     Builder(
                       builder: (context) {
                         // Benzersiz model listesi oluştur
-                        final benzersizModeller = <String, Map<String, dynamic>>{};
+                        final benzersizModeller =
+                            <String, Map<String, dynamic>>{};
                         for (var model in modelListesi) {
                           final itemNo = model['item_no']?.toString() ?? '';
-                          if (itemNo.isNotEmpty && !benzersizModeller.containsKey(itemNo)) {
+                          if (itemNo.isNotEmpty &&
+                              !benzersizModeller.containsKey(itemNo)) {
                             benzersizModeller[itemNo] = model;
                           }
                         }
-                        
+
                         return DropdownButtonFormField<String>(
                           decoration: InputDecoration(
                             hintText: 'Bir model seç',
-                            prefixIcon: const Icon(Icons.checkroom, color: _UrunDepoYonetimiPageState.siyah),
+                            prefixIcon: const Icon(Icons.checkroom,
+                                color: _UrunDepoYonetimiPageState.siyah),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: _UrunDepoYonetimiPageState.siyah),
+                              borderSide: const BorderSide(
+                                  color: _UrunDepoYonetimiPageState.siyah),
                             ),
                             filled: true,
                             fillColor: _UrunDepoYonetimiPageState.beyaz,
@@ -125,8 +131,12 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                           items: benzersizModeller.entries.map((entry) {
                             final itemNo = entry.key;
                             final toplamAdet = modelListesi
-                                .where((m) => m['item_no']?.toString() == itemNo)
-                                .fold<int>(0, (sum, m) => sum + ((m['adet'] as int?) ?? 0));
+                                .where(
+                                    (m) => m['item_no']?.toString() == itemNo)
+                                .fold<int>(
+                                    0,
+                                    (sum, m) =>
+                                        sum + ((m['adet'] as int?) ?? 0));
                             final label = '$itemNo ($toplamAdet adet)';
                             return DropdownMenuItem(
                               value: itemNo,
@@ -139,7 +149,8 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                               secilenRenk = null;
                               // Seçilen modele ait renkleri listele
                               final renkler = modelListesi
-                                  .where((m) => m['item_no']?.toString() == value)
+                                  .where(
+                                      (m) => m['item_no']?.toString() == value)
                                   .map((m) => m['renk']?.toString() ?? '')
                                   .where((r) => r.isNotEmpty)
                                   .toSet()
@@ -172,34 +183,37 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                               color: _UrunDepoYonetimiPageState.acikGri,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Text('Bu model için renk bilgisi bulunamadı'),
+                            child: const Text(
+                                'Bu model için renk bilgisi bulunamadı'),
                           )
                         : DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        hintText: 'Bir renk seç',
-                        prefixIcon: const Icon(Icons.palette, color: _UrunDepoYonetimiPageState.siyah),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: _UrunDepoYonetimiPageState.siyah),
-                        ),
-                        filled: true,
-                        fillColor: _UrunDepoYonetimiPageState.beyaz,
-                      ),
-                      initialValue: secilenRenk,
-                      items: renkListesi.map((renk) {
-                        return DropdownMenuItem(
-                          value: renk,
-                          child: Text(renk),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setStateDialog(() {
-                          secilenRenk = value;
-                        });
-                      },
-                      validator: (value) =>
-                          value == null ? 'Lütfen renk seçin' : null,
-                    ),
+                            decoration: InputDecoration(
+                              hintText: 'Bir renk seç',
+                              prefixIcon: const Icon(Icons.palette,
+                                  color: _UrunDepoYonetimiPageState.siyah),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                    color: _UrunDepoYonetimiPageState.siyah),
+                              ),
+                              filled: true,
+                              fillColor: _UrunDepoYonetimiPageState.beyaz,
+                            ),
+                            initialValue: secilenRenk,
+                            items: renkListesi.map((renk) {
+                              return DropdownMenuItem(
+                                value: renk,
+                                child: Text(renk),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setStateDialog(() {
+                                secilenRenk = value;
+                              });
+                            },
+                            validator: (value) =>
+                                value == null ? 'Lütfen renk seçin' : null,
+                          ),
                     const SizedBox(height: 20),
                   ],
 
@@ -215,10 +229,12 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   TextFormField(
                     decoration: InputDecoration(
                       hintText: '1',
-                      prefixIcon: const Icon(Icons.shopping_cart, color: _UrunDepoYonetimiPageState.siyah),
+                      prefixIcon: const Icon(Icons.shopping_cart,
+                          color: _UrunDepoYonetimiPageState.siyah),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: _UrunDepoYonetimiPageState.siyah),
+                        borderSide: const BorderSide(
+                            color: _UrunDepoYonetimiPageState.siyah),
                       ),
                       filled: true,
                       fillColor: _UrunDepoYonetimiPageState.beyaz,
@@ -255,10 +271,12 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   TextFormField(
                     decoration: InputDecoration(
                       hintText: 'Örn: Lekeyle geldi, Renk sorunu',
-                      prefixIcon: const Icon(Icons.note, color: _UrunDepoYonetimiPageState.siyah),
+                      prefixIcon: const Icon(Icons.note,
+                          color: _UrunDepoYonetimiPageState.siyah),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: _UrunDepoYonetimiPageState.siyah),
+                        borderSide: const BorderSide(
+                            color: _UrunDepoYonetimiPageState.siyah),
                       ),
                       filled: true,
                       fillColor: _UrunDepoYonetimiPageState.beyaz,
@@ -277,15 +295,17 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('İptal', style: TextStyle(color: _UrunDepoYonetimiPageState.siyah)),
+              child: const Text('İptal',
+                  style: TextStyle(color: _UrunDepoYonetimiPageState.siyah)),
             ),
             ElevatedButton.icon(
               onPressed: () async {
                 if (formKey.currentState!.validate()) {
                   // Seçilen modelin id'sini bul (item_no ve renk'e göre)
                   final secilenModelData = modelListesi.firstWhere(
-                    (m) => m['item_no'].toString() == secilenModel && 
-                           m['renk']?.toString() == secilenRenk,
+                    (m) =>
+                        m['item_no'].toString() == secilenModel &&
+                        m['renk']?.toString() == secilenRenk,
                     orElse: () => {},
                   );
                   final modelId = secilenModelData['id']?.toString();
@@ -341,19 +361,19 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
         'firma_id': _firmaId,
       });
 
-      debugPrint('? Ürün depoya eklendi: $kaliteTipi - $adet adet');
+      debugPrint('Ürün depoya eklendi: $kaliteTipi - $adet adet');
       await urunDepoListesiniGetir();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('? Ürün başarıyla eklendi'),
+            content: Text('Ürün başarıyla eklendi'),
             backgroundColor: _UrunDepoYonetimiPageState.siyah,
           ),
         );
       }
     } catch (e) {
-      debugPrint('? Ürün ekleme hatası: $e');
+      debugPrint('Ürün ekleme hatası: $e');
       if (mounted) {
         context.showErrorSnackBar('Hata: $e');
       }
@@ -362,21 +382,25 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
 
   Future<void> _urunSil(String urunId) async {
     try {
-      await _supabase.from(DbTables.urunDepo).delete().eq('id', urunId);
+      await _supabase
+          .from(DbTables.urunDepo)
+          .delete()
+          .eq('firma_id', _firmaId)
+          .eq('id', urunId);
 
-      debugPrint('? Ürün silindi: $urunId');
+      debugPrint('Ürün silindi: $urunId');
       await urunDepoListesiniGetir();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('? Ürün silindi'),
+            content: Text('Ürün silindi'),
             backgroundColor: _UrunDepoYonetimiPageState.siyah,
           ),
         );
       }
     } catch (e) {
-      debugPrint('? Ürün silme hatası: $e');
+      debugPrint('Ürün silme hatası: $e');
       if (mounted) {
         context.showErrorSnackBar('Hata: $e');
       }
@@ -431,8 +455,7 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                             'Marka: ${urun['marka']}',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        if (urun['renk'] != null)
-                          Text('Renk: ${urun['renk']}'),
+                        if (urun['renk'] != null) Text('Renk: ${urun['renk']}'),
                         Text('Kalan Stok: $kalanAdet adet'),
                       ],
                     ),
@@ -476,7 +499,7 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
 
                   // SATIŞ TUTARI
                   const Text(
-                    'Satış Tutarı (?)',
+                    'Satış Tutarı (TL)',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -484,14 +507,16 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                     decoration: InputDecoration(
                       hintText: 'Toplam tutar',
                       prefixIcon: const Icon(Icons.attach_money),
-                      suffixText: '?',
+                      suffixText: 'TL',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (value) {
-                      satilacakTutar = double.tryParse(value.replaceAll(',', '.')) ?? 0;
+                      satilacakTutar =
+                          double.tryParse(value.replaceAll(',', '.')) ?? 0;
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -546,29 +571,35 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
     try {
       final urunId = urun['id'].toString();
       final mevcutSatilanAdet = (urun['satilan_adet'] as int?) ?? 0;
-      final mevcutSatilanTutar = ((urun['satilan_tutar'] ?? 0) as num).toDouble();
+      final mevcutSatilanTutar =
+          ((urun['satilan_tutar'] ?? 0) as num).toDouble();
       final mevcutAdet = (urun['adet'] as int?) ?? 0;
-      
+
       final yeniSatilanAdet = mevcutSatilanAdet + satilacakAdet;
       final yeniSatilanTutar = mevcutSatilanTutar + satilacakTutar;
       final tamamenSatildi = yeniSatilanAdet >= mevcutAdet;
 
       // Ürün depo tablosunu güncelle
-      await _supabase.from(DbTables.urunDepo).update({
-        'satilan_adet': yeniSatilanAdet,
-        'satilan_tutar': yeniSatilanTutar,
-        'satildi': tamamenSatildi,
-        'satis_tarihi': DateTime.now().toIso8601String(),
-      }).eq('id', urunId);
+      await _supabase
+          .from(DbTables.urunDepo)
+          .update({
+            'satilan_adet': yeniSatilanAdet,
+            'satilan_tutar': yeniSatilanTutar,
+            'satildi': tamamenSatildi,
+            'satis_tarihi': DateTime.now().toIso8601String(),
+          })
+          .eq('firma_id', _firmaId)
+          .eq('id', urunId);
 
-      debugPrint('? Satış kaydedildi: $satilacakAdet adet, $satilacakTutar TL');
+      debugPrint('Satış kaydedildi: $satilacakAdet adet, $satilacakTutar TL');
       await urunDepoListesiniGetir();
 
       if (mounted) {
-        context.showSuccessSnackBar('? $satilacakAdet adet satış kaydedildi (${satilacakTutar.toStringAsFixed(2)} ?)');
+        context.showSuccessSnackBar(
+            '$satilacakAdet adet satış kaydedildi (${satilacakTutar.toStringAsFixed(2)} TL)');
       }
     } catch (e) {
-      debugPrint('? Satış hatası: $e');
+      debugPrint('Satış hatası: $e');
       if (mounted) {
         context.showErrorSnackBar('Satış hatası: $e');
       }
@@ -576,209 +607,486 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
   }
 
   List<Map<String, dynamic>> _filtreliUrunler(String kaliteTipi) {
+    final aramaMetni = arama.trim().toLowerCase();
     return urunDepoListesi
         .where((urun) =>
             urun['kalite_tipi'] == kaliteTipi &&
-            (arama.isEmpty ||
-                (urun['aciklama']?.toString().toLowerCase().contains(arama.toLowerCase()) ??
+            (aramaMetni.isEmpty ||
+                [
+                  urun['marka'],
+                  urun['renk'],
+                  urun['aciklama'],
+                  urun['kalite_tipi'],
+                ].any((value) =>
+                    value?.toString().toLowerCase().contains(aramaMetni) ??
                     false)))
         .toList();
   }
 
   Widget _urunTabi(String kaliteTipi) {
     final filtrelUrunler = _filtreliUrunler(kaliteTipi);
-    final toplam =
-        filtrelUrunler.fold<int>(0, (sum, item) => sum + ((item['adet'] as int?) ?? 0));
+    final toplam = filtrelUrunler.fold<int>(
+        0, (sum, item) => sum + ((item['adet'] as int?) ?? 0));
+    final satilan = filtrelUrunler.fold<int>(
+        0, (sum, item) => sum + ((item['satilan_adet'] as int?) ?? 0));
+    final kalan = toplam - satilan;
 
-    return Container(
-      color: _UrunDepoYonetimiPageState.beyaz,
-      child: Column(
-        children: [
-          // BAŞLIK BANNER
-          Container(
-            decoration: const BoxDecoration(
-              color: _UrunDepoYonetimiPageState.beyaz,
-              border: Border(bottom: BorderSide(color: _UrunDepoYonetimiPageState.siyah, width: 2)),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final kisaEkran = constraints.maxHeight < 540;
+        final ustBolum = [
+          _buildUrunAracCubugu(kaliteTipi),
+          const SizedBox(height: 12),
+          _buildUrunOzetleri(filtrelUrunler.length, toplam, satilan, kalan),
+          const SizedBox(height: 12),
+        ];
+
+        if (kisaEkran) {
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                ...ustBolum,
+                SizedBox(
+                  height: constraints.maxHeight < 420
+                      ? 260
+                      : constraints.maxHeight * 0.52,
+                  child: _buildUrunListeAlani(filtrelUrunler, kaliteTipi),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              ...ustBolum,
+              Expanded(child: _buildUrunListeAlani(filtrelUrunler, kaliteTipi)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildUrunAracCubugu(String kaliteTipi) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dar = constraints.maxWidth < 760;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: dar ? constraints.maxWidth : 360,
+                child: TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Marka, renk veya açıklama ara',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (value) => setState(() => arama = value),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _urunEkleDialog(kaliteTipi),
+                icon: const Icon(Icons.add_circle_outline),
+                label: Text('$kaliteTipi Ekle'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _UrunDepoYonetimiPageState.primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildUrunOzetleri(
+      int urunSayisi, int toplam, int satilan, int kalan) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final kartlar = [
+          _buildOzetKutusu('Ürün', '$urunSayisi', Icons.inventory_2_outlined,
+              _UrunDepoYonetimiPageState.primaryColor),
+          _buildOzetKutusu(
+              'Toplam', '$toplam', Icons.all_inbox, const Color(0xFF7C3AED)),
+          _buildOzetKutusu('Satılan', '$satilan', Icons.sell_outlined,
+              _UrunDepoYonetimiPageState.successColor),
+          _buildOzetKutusu('Kalan', '$kalan', Icons.pending_actions,
+              _UrunDepoYonetimiPageState.warningColor),
+        ];
+
+        if (constraints.maxWidth < 520) {
+          return Column(
+            children: kartlar
+                .map((kart) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: kart,
+                    ))
+                .toList(),
+          );
+        }
+
+        if (constraints.maxWidth < 900) {
+          final width = (constraints.maxWidth - 8) / 2;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: kartlar
+                .map((kart) => SizedBox(width: width, child: kart))
+                .toList(),
+          );
+        }
+
+        return Row(
+          children: kartlar
+              .map((kart) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: kart,
+                    ),
+                  ))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildOzetKutusu(
+      String baslik, String deger, IconData icon, Color renk) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: renk.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: renk, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      kaliteTipi == '1. Kalite' ? Icons.verified : Icons.warning,
-                      color: _UrunDepoYonetimiPageState.siyah,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      kaliteTipi,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: _UrunDepoYonetimiPageState.siyah,
-                      ),
-                    ),
-                  ],
+                Text(
+                  deger,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _UrunDepoYonetimiPageState.acikGri,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              '${filtrelUrunler.length}',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: _UrunDepoYonetimiPageState.siyah,
-                              ),
-                            ),
-                            const Text(
-                              'Ürün',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _UrunDepoYonetimiPageState.siyah,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _UrunDepoYonetimiPageState.acikGri,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              '$toplam',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: _UrunDepoYonetimiPageState.siyah,
-                              ),
-                            ),
-                            const Text(
-                              'Adet',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _UrunDepoYonetimiPageState.siyah,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // ÜRÜN EKLE BUTONU
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _urunEkleDialog(kaliteTipi),
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: Text('$kaliteTipi Ürün Ekle'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _UrunDepoYonetimiPageState.siyah,
-                      foregroundColor: _UrunDepoYonetimiPageState.beyaz,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+                Text(
+                  baslik,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-          ),
-
-          // ARAMA
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Açıklama ile ara...',
-                prefixIcon: const Icon(Icons.search, color: _UrunDepoYonetimiPageState.siyah),
-                filled: true,
-                fillColor: _UrunDepoYonetimiPageState.beyaz,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: _UrunDepoYonetimiPageState.siyah),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: _UrunDepoYonetimiPageState.siyah),
-                ),
-              ),
-              onChanged: (value) => setState(() => arama = value),
-            ),
-          ),
-
-          // ÜRÜNLER LİSTESİ
-          Expanded(
-            child: yukleniyor
-                ? const Center(
-                    child: CircularProgressIndicator(),
-                  )
-                : filtrelUrunler.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.inventory_2,
-                              size: 64,
-                              color: _UrunDepoYonetimiPageState.siyah.withValues(alpha: 0.3),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Henüz $kaliteTipi ürün eklenmedi',
-                              style: TextStyle(
-                                color: _UrunDepoYonetimiPageState.siyah.withValues(alpha: 0.6),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        itemCount: filtrelUrunler.length,
-                        itemBuilder: (context, index) {
-                          final urun = filtrelUrunler[index];
-                          return _urunKartiUygulama(urun);
-                        },
-                      ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildUrunListeAlani(
+      List<Map<String, dynamic>> urunler, String kaliteTipi) {
+    if (yukleniyor) return const LoadingWidget();
+    if (urunler.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inventory_2_outlined,
+              size: 56,
+              color: _UrunDepoYonetimiPageState.siyah.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Henüz $kaliteTipi ürün eklenmedi',
+              style: TextStyle(
+                color: _UrunDepoYonetimiPageState.siyah.withValues(alpha: 0.6),
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 84),
+      itemCount: urunler.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) => _urunKartiUygulama(urunler[index]),
+    );
+  }
+
+  Widget _buildMiniBilgi(String baslik, String deger) {
+    return SizedBox(
+      width: 112,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            baslik,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+          Text(
+            deger,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDurumEtiketi(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  String _formatUrunTarihi(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    final tarih = DateTime.tryParse(text);
+    if (tarih == null) return '-';
+    return DateFormat('dd.MM.yyyy').format(tarih);
+  }
+
   Widget _urunKartiUygulama(Map<String, dynamic> urun) {
+    final mevcutAdet = (urun['adet'] as int?) ?? 0;
+    final satilanAdet = (urun['satilan_adet'] as int?) ?? 0;
+    final satilanTutar = ((urun['satilan_tutar'] ?? 0) as num).toDouble();
+    final kalanAdet = mevcutAdet - satilanAdet;
+    final tamamenSatildi = kalanAdet <= 0 || urun['satildi'] == true;
+    final durumRenk = tamamenSatildi
+        ? _UrunDepoYonetimiPageState.successColor
+        : _UrunDepoYonetimiPageState.primaryColor;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dar = constraints.maxWidth < 720;
+          final bilgi = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: durumRenk.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  tamamenSatildi
+                      ? Icons.check_circle_outline
+                      : Icons.inventory_2_outlined,
+                  color: durumRenk,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${urun['marka'] ?? 'Marka yok'} / ${urun['renk'] ?? 'Renk yok'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildDurumEtiketi(
+                          tamamenSatildi ? 'Satıldı' : 'Stokta',
+                          durumRenk,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        _buildMiniBilgi('Toplam', '$mevcutAdet'),
+                        _buildMiniBilgi('Satılan', '$satilanAdet'),
+                        _buildMiniBilgi('Kalan', '$kalanAdet'),
+                        _buildMiniBilgi(
+                            'Tarih', _formatUrunTarihi(urun['created_at'])),
+                        if (satilanTutar > 0)
+                          _buildMiniBilgi(
+                              'Satış', '${satilanTutar.toStringAsFixed(2)} TL'),
+                      ],
+                    ),
+                    if (urun['aciklama'] != null &&
+                        urun['aciklama'].toString().trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        urun['aciklama'].toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF475569),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          final aksiyonlar = _buildUrunAksiyonlari(urun, kalanAdet);
+          if (dar) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                bilgi,
+                const SizedBox(height: 10),
+                aksiyonlar,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: bilgi),
+              const SizedBox(width: 12),
+              aksiyonlar,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildUrunAksiyonlari(Map<String, dynamic> urun, int kalanAdet) {
+    final tamamenSatildi = kalanAdet <= 0 || urun['satildi'] == true;
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        if (!tamamenSatildi)
+          ElevatedButton.icon(
+            onPressed: () => _satisDialog(urun),
+            icon: const Icon(Icons.sell, size: 18),
+            label: const Text('Satış Yap'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _UrunDepoYonetimiPageState.successColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+          ),
+        if (tamamenSatildi)
+          _buildDurumEtiketi(
+              'Satıldı', _UrunDepoYonetimiPageState.successColor),
+        IconButton(
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Sil'),
+                content:
+                    const Text('Bu ürünü silmek istediğinizden emin misiniz?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('İptal'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      _urunSil(urun['id'].toString());
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Sil',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          icon: const Icon(Icons.delete_outline),
+          color: _UrunDepoYonetimiPageState.dangerColor,
+          tooltip: 'Sil',
+        ),
+      ],
+    );
+  }
+
+  // ignore: unused_element
+  Widget _urunKartiUygulamaLegacy(Map<String, dynamic> urun) {
     final bool satildi = urun['satildi'] == true;
     final int mevcutAdet = (urun['adet'] as int?) ?? 0;
     final int satilanAdet = (urun['satilan_adet'] as int?) ?? 0;
-    final double satilanTutar = ((urun['satilan_tutar'] ?? 0) as num).toDouble();
+    final double satilanTutar =
+        ((urun['satilan_tutar'] ?? 0) as num).toDouble();
     final int kalanAdet = mevcutAdet - satilanAdet;
     final bool tamamenSatildi = kalanAdet <= 0;
 
@@ -786,13 +1094,17 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
       margin: const EdgeInsets.symmetric(vertical: 6),
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      color: satildi || tamamenSatildi ? Colors.green.shade50 : _UrunDepoYonetimiPageState.beyaz,
+      color: satildi || tamamenSatildi
+          ? Colors.green.shade50
+          : _UrunDepoYonetimiPageState.beyaz,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           border: Border(
             left: BorderSide(
-              color: satildi || tamamenSatildi ? Colors.green : _UrunDepoYonetimiPageState.siyah,
+              color: satildi || tamamenSatildi
+                  ? Colors.green
+                  : _UrunDepoYonetimiPageState.siyah,
               width: 4,
             ),
           ),
@@ -807,7 +1119,8 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                 children: [
                   if (urun['marka'] != null) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: _UrunDepoYonetimiPageState.siyah,
                         borderRadius: BorderRadius.circular(4),
@@ -825,11 +1138,14 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   ],
                   if (urun['renk'] != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: _UrunDepoYonetimiPageState.acikGri,
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: _UrunDepoYonetimiPageState.siyah.withValues(alpha: 0.3)),
+                        border: Border.all(
+                            color: _UrunDepoYonetimiPageState.siyah
+                                .withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         urun['renk'],
@@ -852,13 +1168,14 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                 ],
               ),
               const SizedBox(height: 10),
-              
+
               // ADET BİLGİLERİ
               Row(
                 children: [
                   // TOPLAM ADET
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: _UrunDepoYonetimiPageState.acikGri,
                       borderRadius: BorderRadius.circular(6),
@@ -876,7 +1193,8 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   // SATILAN ADET
                   if (satilanAdet > 0)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.green.shade100,
                         borderRadius: BorderRadius.circular(6),
@@ -893,9 +1211,12 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   const SizedBox(width: 8),
                   // KALAN ADET
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: kalanAdet > 0 ? Colors.blue.shade50 : Colors.orange.shade100,
+                      color: kalanAdet > 0
+                          ? Colors.blue.shade50
+                          : Colors.orange.shade100,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -903,18 +1224,21 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: kalanAdet > 0 ? Colors.blue.shade800 : Colors.orange.shade800,
+                        color: kalanAdet > 0
+                            ? Colors.blue.shade800
+                            : Colors.orange.shade800,
                       ),
                     ),
                   ),
                 ],
               ),
-              
+
               // SATIŞ TUTARI (varsa)
               if (satilanTutar > 0) ...[
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.green.shade50,
                     borderRadius: BorderRadius.circular(6),
@@ -923,7 +1247,8 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.attach_money, size: 16, color: Colors.green.shade700),
+                      Icon(Icons.attach_money,
+                          size: 16, color: Colors.green.shade700),
                       Text(
                         'Satış Tutarı: ${satilanTutar.toStringAsFixed(2)} ?',
                         style: TextStyle(
@@ -936,7 +1261,7 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   ),
                 ),
               ],
-              
+
               // AÇIKLAMA
               if (urun['aciklama'] != null) ...[
                 const SizedBox(height: 8),
@@ -950,9 +1275,9 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
-              
+
               const SizedBox(height: 10),
-              
+
               // BUTONLAR
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -966,13 +1291,15 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         textStyle: const TextStyle(fontSize: 12),
                       ),
                     ),
                   if (tamamenSatildi)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.green,
                         borderRadius: BorderRadius.circular(6),
@@ -980,7 +1307,8 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check_circle, color: Colors.white, size: 18),
+                          Icon(Icons.check_circle,
+                              color: Colors.white, size: 18),
                           SizedBox(width: 4),
                           Text(
                             'SATILDI',
@@ -1001,7 +1329,8 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
                         context: context,
                         builder: (context) => AlertDialog(
                           title: const Text('Sil'),
-                          content: const Text('Bu ürünü silmek istediğinizden emin misiniz?'),
+                          content: const Text(
+                              'Bu ürünü silmek istediğinizden emin misiniz?'),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context),
@@ -1032,5 +1361,4 @@ extension _DialogWidgetExt on _UrunDepoYonetimiPageState {
       ),
     );
   }
-
 }

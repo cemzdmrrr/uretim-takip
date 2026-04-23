@@ -15,6 +15,7 @@ class FirmaDetayAdminPage extends StatefulWidget {
 class _FirmaDetayAdminPageState extends State<FirmaDetayAdminPage>
     with SingleTickerProviderStateMixin {
   bool _yukleniyor = true;
+  bool _islemSuruyor = false;
   Map<String, dynamic>? _firma;
   List<Map<String, dynamic>> _kullanicilar = [];
   List<Map<String, dynamic>> _moduller = [];
@@ -147,14 +148,33 @@ class _FirmaDetayAdminPageState extends State<FirmaDetayAdminPage>
                     ],
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _firmaDurumDegistir(!aktif),
-                  icon: Icon(aktif ? Icons.block : Icons.check),
-                  label: Text(aktif ? 'Pasif Yap' : 'Aktif Yap'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: aktif ? Colors.red : Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _islemSuruyor
+                          ? null
+                          : () => _firmaDurumDegistir(!aktif),
+                      icon: Icon(aktif ? Icons.block : Icons.check),
+                      label: Text(aktif ? 'Pasif Yap' : 'Aktif Yap'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: aktif ? Colors.red : Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed:
+                          _islemSuruyor ? null : _firmaSilOnayDialogunuAc,
+                      icon: const Icon(Icons.delete_forever_outlined),
+                      label: const Text('Firmayi Sil'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red[700],
+                        side: BorderSide(color: Colors.red.withAlpha(120)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -383,6 +403,8 @@ class _FirmaDetayAdminPageState extends State<FirmaDetayAdminPage>
   }
 
   Future<void> _firmaDurumDegistir(bool yeniDurum) async {
+    if (_islemSuruyor) return;
+
     final firmaAdi = _firma?['firma_adi'] ?? '';
     final islem = yeniDurum ? 'aktif' : 'pasif';
 
@@ -411,6 +433,7 @@ class _FirmaDetayAdminPageState extends State<FirmaDetayAdminPage>
     if (onay != true) return;
 
     try {
+      setState(() => _islemSuruyor = true);
       await PlatformAdminService.firmaDurumDegistir(
           widget.firmaId, yeniDurum);
       await _verileriYukle();
@@ -424,6 +447,133 @@ class _FirmaDetayAdminPageState extends State<FirmaDetayAdminPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Hata: $e')),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _islemSuruyor = false);
+      }
+    }
+  }
+
+  Future<void> _firmaSilOnayDialogunuAc() async {
+    if (_islemSuruyor || _firma == null) return;
+
+    final firmaAdi = _firma!['firma_adi']?.toString() ?? '';
+    final firmaKodu = _firma!['firma_kodu']?.toString() ?? '';
+    final dogrulamaMetni = firmaKodu.isNotEmpty ? firmaKodu : firmaAdi;
+    final onayController = TextEditingController();
+
+    final onaylandi = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final eslesiyor = onayController.text.trim() == dogrulamaMetni;
+
+          return AlertDialog(
+            title: const Text('Firmayi kalici olarak sil'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '"$firmaAdi" firmasinin tum verileri kalici olarak silinecek.',
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Bu islem geri alinmaz. Devam etmek icin asagidaki kodu yazin:',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    dogrulamaMetni,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: onayController,
+                  autofocus: true,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Onay kodu',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Iptal'),
+              ),
+              ElevatedButton.icon(
+                onPressed: eslesiyor ? () => Navigator.pop(ctx, true) : null,
+                icon: const Icon(Icons.delete_forever),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                label: const Text('Kalici Sil'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    onayController.dispose();
+
+    if (onaylandi == true) {
+      await _firmayiSil();
+    }
+  }
+
+  Future<void> _firmayiSil() async {
+    if (_islemSuruyor) return;
+
+    try {
+      setState(() => _islemSuruyor = true);
+      final sonuc = await PlatformAdminService.firmaSil(widget.firmaId);
+      if (!mounted) return;
+
+      final silinenKullanici = sonuc['silinen_kullanici_sayisi'];
+      final silinenKayit = sonuc['silinen_kayit_sayisi'];
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Firma silindi'
+            '${silinenKullanici != null ? ' - kullanici: $silinenKullanici' : ''}'
+            '${silinenKayit != null ? ', kayit: $silinenKayit' : ''}',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _islemSuruyor = false);
       }
     }
   }

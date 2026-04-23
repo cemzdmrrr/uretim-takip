@@ -25,6 +25,10 @@ class PersonelModel {
   final String netMaas;
   final String yillikIzinHakki;
   final String? firmaId;
+  final String durum;
+  final String istenCikisTarihi;
+  final String istenCikisNedeni;
+  final String silmeTarihi;
 
   PersonelModel({
     required this.userId,
@@ -49,7 +53,16 @@ class PersonelModel {
     this.netMaas = '',
     this.yillikIzinHakki = '14',
     this.firmaId,
+    this.durum = 'aktif',
+    this.istenCikisTarihi = '',
+    this.istenCikisNedeni = '',
+    this.silmeTarihi = '',
   });
+
+  String get tamAd => '${ad.trim()} ${soyad.trim()}'.trim();
+  bool get aktifMi => durum.isEmpty || durum == 'aktif';
+  bool get istenCikarildiMi => durum == 'isten_cikarildi';
+  bool get pasifMi => durum == 'pasif';
 
   factory PersonelModel.fromJson(Map<String, dynamic> json) => PersonelModel.fromMap(json);
 
@@ -77,6 +90,10 @@ class PersonelModel {
       netMaas: e['net_maas']?.toString() ?? '',
       yillikIzinHakki: e['yillik_izin_hakki']?.toString() ?? '14',
       firmaId: e['firma_id'],
+      durum: e['durum']?.toString() ?? 'aktif',
+      istenCikisTarihi: e['isten_cikis_tarihi']?.toString() ?? '',
+      istenCikisNedeni: e['isten_cikis_nedeni']?.toString() ?? '',
+      silmeTarihi: e['silme_tarihi']?.toString() ?? '',
     );
   }
 
@@ -106,6 +123,10 @@ class PersonelModel {
       'net_maas': netMaas,
       'yillik_izin_hakki': yillikIzinHakki,
       'firma_id': firmaId,
+      'durum': durum,
+      'isten_cikis_tarihi': istenCikisTarihi,
+      'isten_cikis_nedeni': istenCikisNedeni,
+      'silme_tarihi': silmeTarihi,
     };
   }
 }

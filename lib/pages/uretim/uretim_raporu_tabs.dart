@@ -1,14 +1,19 @@
 // ignore_for_file: invalid_use_of_protected_member
 part of 'uretim_raporu_page.dart';
 
+const _tableHeaderStyle = TextStyle(
+  color: Color(0xFF64748B),
+  fontSize: 12,
+  fontWeight: FontWeight.w900,
+);
+
 /// Uretim raporu tab icerikleri - ozet, fire analizi, termin takibi, tedarikci
 extension _TabsRaporExt on _UretimRaporuPageState {
   Widget _buildOzetKartlari() {
     final gecikenSiparis = _ozet['geciken_siparis'] ?? 0;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 800;
-        final isMobile = constraints.maxWidth < 500;
+        final isMobile = constraints.maxWidth < 560;
 
         final kartlar = [
           _buildOzetKart('Toplam Model', _ozet['toplam_model'] ?? 0,
@@ -25,78 +30,84 @@ extension _TabsRaporExt on _UretimRaporuPageState {
               Icons.warning_amber, isMobile),
         ];
 
-        if (isMobile) {
-          // Mobil: 2x3 grid
-          return Container(
-            padding: const EdgeInsets.all(6),
-            child: GridView.count(
-              crossAxisCount: 2,
+        final cols = constraints.maxWidth >= 1080
+            ? 6
+            : constraints.maxWidth >= 760
+                ? 3
+                : 2;
+
+        return Padding(
+          padding:
+              EdgeInsets.fromLTRB(isMobile ? 10 : 16, 0, isMobile ? 10 : 16, 8),
+          child: _buildPanel(
+            child: GridView.builder(
+              itemCount: kartlar.length,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-              childAspectRatio: 1.9,
-              children: kartlar,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: isMobile ? 84 : 92,
+              ),
+              itemBuilder: (context, index) => kartlar[index],
             ),
-          );
-        } else if (isNarrow) {
-          // Tablet: 3x2 grid
-          return Container(
-            padding: const EdgeInsets.all(8),
-            child: GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-              childAspectRatio: 2.25,
-              children: kartlar,
-            ),
-          );
-        } else {
-          // Desktop: tek satır
-          return Container(
-            padding: const EdgeInsets.all(10),
-            child: Row(
-              children: kartlar.map((k) => Expanded(child: k)).toList(),
-            ),
-          );
-        }
+          ),
+        );
       },
     );
   }
 
   Widget _buildOzetKart(String baslik, int deger, Color renk, IconData icon,
       [bool isMobile = false]) {
-    return Card(
-      elevation: 1,
-      child: Container(
-        padding: EdgeInsets.all(isMobile ? 6 : 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          gradient: LinearGradient(
-            colors: [renk.withValues(alpha: 0.1), Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: renk, size: isMobile ? 18 : 22),
-            SizedBox(height: isMobile ? 3 : 5),
-            Text(
-              deger.toString(),
-              style: TextStyle(
-                  fontSize: isMobile ? 15 : 18,
-                  fontWeight: FontWeight.bold,
-                  color: renk),
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 10 : 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: renk.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            Text(baslik,
-                style: TextStyle(
-                    fontSize: isMobile ? 9 : 11, color: Colors.grey.shade600)),
-          ],
-        ),
+            child: Icon(icon, color: renk, size: isMobile ? 17 : 19),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  deger.toString(),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF111827),
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  baslik,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -106,32 +117,154 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       return const Center(child: Text('Gösterilecek model bulunamadı'));
     }
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollEndNotification &&
-            notification.metrics.extentAfter < 200 &&
-            _gorunenModelSayisi < _modeller.length) {
-          setState(() {
-            _gorunenModelSayisi =
-                (_gorunenModelSayisi + _UretimRaporuPageState._sayfaBasinaModel)
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final limit = _gorunenModelSayisi.clamp(0, _modeller.length);
+        final visibleModels = _modeller.take(limit).toList();
+        final tableMode = constraints.maxWidth >= 920;
+
+        return NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollEndNotification &&
+                notification.metrics.extentAfter < 200 &&
+                _gorunenModelSayisi < _modeller.length) {
+              setState(() {
+                _gorunenModelSayisi = (_gorunenModelSayisi +
+                        _UretimRaporuPageState._sayfaBasinaModel)
                     .clamp(0, _modeller.length);
-          });
-        }
-        return false;
+              });
+            }
+            return false;
+          },
+          child: tableMode
+              ? _buildModelTablosu(visibleModels)
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
+                  itemCount: visibleModels.length +
+                      (_gorunenModelSayisi < _modeller.length ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index >= visibleModels.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    return _buildModelKart(visibleModels[index]);
+                  },
+                ),
+        );
       },
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _gorunenModelSayisi.clamp(0, _modeller.length) +
-            (_gorunenModelSayisi < _modeller.length ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= _gorunenModelSayisi.clamp(0, _modeller.length)) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          return _buildModelKart(_modeller[index]);
-        },
+    );
+  }
+
+  Widget _buildModelTablosu(List<Map<String, dynamic>> modeller) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      children: [
+        _buildPanel(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              _buildModelTableHeader(),
+              const Divider(height: 1, color: Color(0xFFE2E8F0)),
+              ...modeller.map(_buildModelTableRow),
+              if (_gorunenModelSayisi < _modeller.length)
+                const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModelTableHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      color: const Color(0xFFF8FAFC),
+      child: const Row(
+        children: [
+          Expanded(flex: 3, child: Text('Model', style: _tableHeaderStyle)),
+          Expanded(flex: 2, child: Text('Renk', style: _tableHeaderStyle)),
+          Expanded(flex: 1, child: Text('Adet', style: _tableHeaderStyle)),
+          Expanded(flex: 2, child: Text('Aşama', style: _tableHeaderStyle)),
+          Expanded(flex: 2, child: Text('Termin', style: _tableHeaderStyle)),
+          SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelTableRow(Map<String, dynamic> model) {
+    final mevcutAsama = model['mevcut_asama'] as String? ?? 'beklemede';
+    final asamaBilgisi = _getAsamaBilgisi(mevcutAsama);
+    final color = asamaBilgisi['color'] as Color;
+    final termin = DateTime.tryParse(model['termin_tarihi']?.toString() ?? '');
+
+    return InkWell(
+      onTap: () => _modelDetayaGit(model),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(
+                '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1F2937),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                model['renk']?.toString() ?? '-',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Text(
+                '${model['adet'] ?? 0}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildAsamaBadge(asamaBilgisi['label'] as String, color),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                termin != null ? DateFormat('dd.MM.yyyy').format(termin) : '-',
+                style: TextStyle(
+                  color: termin != null &&
+                          termin.isBefore(DateTime.now()) &&
+                          model['tamamlandi'] != true
+                      ? const Color(0xFFD32F2F)
+                      : const Color(0xFF475569),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(
+              width: 40,
+              child:
+                  Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -141,15 +274,19 @@ extension _TabsRaporExt on _UretimRaporuPageState {
     final mevcutAsama = model['mevcut_asama'] as String? ?? 'beklemede';
     final asamaBilgisi = _getAsamaBilgisi(mevcutAsama);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 1,
-      shape: RoundedRectangleBorder(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: asamaBilgisi['color'] as Color,
-          width: 1.5,
-        ),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: InkWell(
         onTap: () => _modelDetayaGit(model),
@@ -173,22 +310,12 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                   '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: asamaBilgisi['color'] as Color,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  asamaBilgisi['label'] as String,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              _buildAsamaBadge(
+                asamaBilgisi['label'] as String,
+                asamaBilgisi['color'] as Color,
               ),
             ],
           ),
@@ -220,6 +347,26 @@ extension _TabsRaporExt on _UretimRaporuPageState {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAsamaBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -426,7 +573,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                   style: const TextStyle(
                       fontSize: 11, fontWeight: FontWeight.bold)),
               if (fire > 0)
-                Text('🔥$fire',
+                Text('$fire fire',
                     style: const TextStyle(fontSize: 10, color: Colors.red)),
             ],
           ),
@@ -484,10 +631,10 @@ extension _TabsRaporExt on _UretimRaporuPageState {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '🔥 Aşama Bazlı Fire Analizi',
-                style: TextStyle(
-                    fontSize: isMobile ? 18 : 20, fontWeight: FontWeight.bold),
+              _buildSectionHeader(
+                'Aşama Bazlı Fire Analizi',
+                Icons.local_fire_department_rounded,
+                const Color(0xFFD32F2F),
               ),
               const SizedBox(height: 16),
               GridView.builder(
@@ -550,7 +697,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '🔥 $fire adet',
+                                  '$fire adet',
                                   style: TextStyle(
                                       fontSize: isMobile ? 14 : 16,
                                       fontWeight: FontWeight.bold,
@@ -585,7 +732,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
               ),
               const SizedBox(height: 24),
               Text(
-                '⚠️ En Çok Fire Veren Modeller',
+                'En Çok Fire Veren Modeller',
                 style: TextStyle(
                     fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold),
               ),
@@ -665,7 +812,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                '🔥 $toplamFire',
+                '$toplamFire fire',
                 style: const TextStyle(
                     color: Colors.white, fontWeight: FontWeight.bold),
               ),
@@ -769,12 +916,10 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                     ),
               const SizedBox(height: 24),
               if (gecikenler.isNotEmpty) ...[
-                const Text(
-                  '🚨 Geciken Siparişler',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red),
+                _buildSectionHeader(
+                  'Geciken Siparişler',
+                  Icons.warning_amber_rounded,
+                  Colors.red,
                 ),
                 const SizedBox(height: 12),
                 _buildTerminListesi(gecikenler, Colors.red),
@@ -783,12 +928,10 @@ extension _TabsRaporExt on _UretimRaporuPageState {
 
               // Yaklaşan terminler
               if (yaklasanlar.isNotEmpty) ...[
-                const Text(
-                  '⚠️ 7 Gün İçinde Bitmesi Gereken',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange),
+                _buildSectionHeader(
+                  '7 Gün İçinde Bitmesi Gereken',
+                  Icons.schedule_rounded,
+                  Colors.orange,
                 ),
                 const SizedBox(height: 12),
                 _buildTerminListesi(yaklasanlar, Colors.orange),
@@ -797,12 +940,10 @@ extension _TabsRaporExt on _UretimRaporuPageState {
 
               // Normal terminler
               if (normal.isNotEmpty) ...[
-                const Text(
-                  '✅ Diğer Siparişler',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green),
+                _buildSectionHeader(
+                  'Diğer Siparişler',
+                  Icons.check_circle_outline_rounded,
+                  Colors.green,
                 ),
                 const SizedBox(height: 12),
                 _buildTerminListesi(normal, Colors.green),
@@ -955,9 +1096,10 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '🏭 Tedarikçi Performans Özeti',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          _buildSectionHeader(
+            'Tedarikçi Performans Özeti',
+            Icons.business_rounded,
+            const Color(0xFF1565C0),
           ),
           const SizedBox(height: 16),
           // Tedarikçi kartları
@@ -1176,9 +1318,10 @@ extension _TabsRaporExt on _UretimRaporuPageState {
           }),
 
           const SizedBox(height: 24),
-          const Text(
-            '📊 Marka Bazlı Dağılım',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          _buildSectionHeader(
+            'Marka Bazlı Dağılım',
+            Icons.bar_chart_rounded,
+            const Color(0xFF1565C0),
           ),
           const SizedBox(height: 12),
           _buildMarkaDagilimi(),

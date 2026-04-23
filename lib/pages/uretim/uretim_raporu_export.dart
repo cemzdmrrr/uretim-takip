@@ -1,58 +1,73 @@
 // ignore_for_file: invalid_use_of_protected_member
 part of 'uretim_raporu_page.dart';
 
-/// Export fonksiyonları — CSV ve PDF
+const List<Map<String, String>> _uretimRaporuExcelAsamalari = [
+  {'key': 'dokuma', 'label': 'DOKUMA/ORME'},
+  {'key': 'nakis', 'label': 'NAKIS'},
+  {'key': 'konfeksiyon', 'label': 'KONFEKSIYON'},
+  {'key': 'yikama', 'label': 'YIKAMA'},
+  {'key': 'ilik_dugme', 'label': 'ILIK DUGME'},
+  {'key': 'utu', 'label': 'UTU'},
+  {'key': 'kalite_kontrol', 'label': 'KALITE KONTROL'},
+  {'key': 'paketleme', 'label': 'PAKETLEME'},
+];
+
 extension _ExportExt on _UretimRaporuPageState {
-  /// Excel export
   Future<void> _exportExcel() async {
     try {
       final data = _modeller.map(_excelSatiriOlustur).toList();
       final fileName =
           'uretim_durumu_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
 
+      final columns = <String, String>{
+        'marka': 'MARKA',
+        'item_no': 'MODEL KODU',
+        'model_adi': 'MODEL ADI',
+        'ana_renk': 'ANA RENK',
+        'yaka_tipi': 'YAKA TIPI',
+        'iplik_karisimi': 'IPLIK KARISIMI',
+        'termin_tarihi': 'TERMIN TARIHI',
+        'mevcut_asama': 'MEVCUT ASAMA',
+        'toplam_adet': 'TOPLAM ADET',
+        'gonderilen_adet': 'GONDERILEN ADET',
+        'kalan_adet': 'KALAN ADET',
+      };
+
+      for (final asama in _uretimRaporuExcelAsamalari) {
+        columns['${asama['key']}_durum'] = '${asama['label']} DURUM';
+        columns['${asama['key']}_tamamlanan'] = '${asama['label']} TAMAMLANAN';
+        columns['${asama['key']}_fire'] = '${asama['label']} FIRE';
+      }
+
       await ExcelHelper.exportToExcel(
         data: data,
         fileName: fileName,
-        columns: const {
-          'model_adi': 'MODEL ADI',
-          'ana_renk': 'ANA RENK',
-          'yaka_tipi': 'YAKA TİPİ',
-          'iplik_karisimi': 'İPLİK KARIŞIMI',
-          'termin_tarihi': 'TERMİN TARİHİ',
-          'toplam_adet': 'TOPLAM ADET',
-          'gonderilen_adet': 'GÖNDERİLEN ADET',
-          'kalan_adet': 'KALAN ADET',
-          'dokuma_durumu': 'DOKUMA/ÖRME',
-          'nakis_durumu': 'NAKIŞ',
-          'konfeksiyon_durumu': 'KONFEKSİYON',
-          'yikama_durumu': 'YIKAMA',
-          'ilik_dugme_durumu': 'İLİK DÜĞME',
-          'utu_durumu': 'ÜTÜ',
-          'kalite_kontrol_durumu': 'KALİTE KONTROL',
-          'paketleme_durumu': 'PAKETLEME',
-        },
+        columns: columns,
       );
 
       if (mounted) {
-        context
-            .showSuccessSnackBar('Excel raporu başarıyla indirildi: $fileName');
+        context.showSuccessSnackBar(
+          'Excel raporu basariyla indirildi: $fileName',
+        );
       }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Export hatası: $e');
+      if (mounted) {
+        context.showErrorSnackBar('Export hatasi: $e');
+      }
     }
   }
 
-  /// Excel/CSV export
   // ignore: unused_element
   void _exportExcelLegacy() {
     try {
       final StringBuffer csv = StringBuffer();
-      csv.write('\uFEFF'); // BOM
+      csv.write('\uFEFF');
 
       csv.writeln(
-          'Marka;Item No;Renk;Toplam Adet;Bedenler;Mevcut Aşama;Termin Tarihi;Durum;Tedarikçi;Dokuma Durumu;Dokuma Adet;Dokuma Fire;Nakış Durumu;Nakış Adet;Nakış Fire;Konfeksiyon Durumu;Konfeksiyon Adet;Konfeksiyon Fire;Yıkama Durumu;Yıkama Adet;İlik/Düğme Durumu;Ütü Durumu;Ütü Adet;Kalite Durumu;Paketleme Durumu;Fire Toplam;Oluşturma Tarihi');
+        'Marka;Item No;Renk;Toplam Adet;Bedenler;Mevcut Asama;Termin Tarihi;Durum;Tedarikci;Dokuma Durumu;Dokuma Adet;Dokuma Fire;Nakis Durumu;Nakis Adet;Nakis Fire;Konfeksiyon Durumu;Konfeksiyon Adet;Konfeksiyon Fire;Yikama Durumu;Yikama Adet;Ilik/Dugme Durumu;Utu Durumu;Utu Adet;Kalite Durumu;Paketleme Durumu;Fire Toplam;Olusturma Tarihi',
+      );
 
-      for (var model in _modeller) {
+      for (final model in _modeller) {
         final marka = _escapeCsvField(model['marka'] ?? '');
         final itemNo = _escapeCsvField(model['item_no'] ?? '');
         final renk = _escapeCsvField(model['renk'] ?? '');
@@ -75,9 +90,7 @@ extension _ExportExt on _UretimRaporuPageState {
         }
         bedenlerStr = _escapeCsvField(bedenlerStr);
 
-        final mevcutAsama = _escapeCsvField(
-            _getAsamaBilgisi(model['mevcut_asama'] ?? '')['label'] ??
-                'Belirsiz');
+        final mevcutAsama = _escapeCsvField(_mevcutAsamaExportMetni(model));
 
         String terminStr = '';
         if (model['termin_tarihi'] != null) {
@@ -85,13 +98,13 @@ extension _ExportExt on _UretimRaporuPageState {
             final terminDate =
                 DateTime.parse(model['termin_tarihi'].toString());
             terminStr = DateFormat('dd.MM.yyyy').format(terminDate);
-          } catch (e) {
+          } catch (_) {
             terminStr = model['termin_tarihi'].toString();
           }
         }
 
         final durum =
-            model['tamamlandi'] == true ? 'Tamamlandı' : 'Devam Ediyor';
+            model['tamamlandi'] == true ? 'Tamamlandi' : 'Devam Ediyor';
         final tedarikci = _escapeCsvField(model['tedarikci_adi'] ?? '');
 
         final asamalar =
@@ -124,12 +137,13 @@ extension _ExportExt on _UretimRaporuPageState {
             _escapeCsvField(_durumMetni(asamalar['utu']?['durum']));
         final utuAdet = asamalar['utu']?['tamamlanan_adet'] ?? '';
 
-        final kaliteDurum =
-            _escapeCsvField(_durumMetni(asamalar['kalite_kontrol']?['durum']));
+        final kaliteDurum = _escapeCsvField(
+          _durumMetni(asamalar['kalite_kontrol']?['durum']),
+        );
         final paketlemeDurum =
             _escapeCsvField(_durumMetni(asamalar['paketleme']?['durum']));
 
-        int toplamFire = 0;
+        var toplamFire = 0;
         if (dokumaFire is int) toplamFire += dokumaFire;
         if (nakisFire is int) toplamFire += nakisFire;
         if (konfeksiyonFire is int) toplamFire += konfeksiyonFire;
@@ -145,18 +159,24 @@ extension _ExportExt on _UretimRaporuPageState {
         }
 
         csv.writeln(
-            '$marka;$itemNo;$renk;$adet;$bedenlerStr;$mevcutAsama;$terminStr;$durum;$tedarikci;$dokumaDurum;$dokumaAdet;$dokumaFire;$nakisDurum;$nakisAdet;$nakisFire;$konfeksiyonDurum;$konfeksiyonAdet;$konfeksiyonFire;$yikamaDurum;$yikamaAdet;$ilikDugmeDurum;$utuDurum;$utuAdet;$kaliteDurum;$paketlemeDurum;$toplamFire;$olusturmaTarihi');
+          '$marka;$itemNo;$renk;$adet;$bedenlerStr;$mevcutAsama;$terminStr;$durum;$tedarikci;$dokumaDurum;$dokumaAdet;$dokumaFire;$nakisDurum;$nakisAdet;$nakisFire;$konfeksiyonDurum;$konfeksiyonAdet;$konfeksiyonFire;$yikamaDurum;$yikamaAdet;$ilikDugmeDurum;$utuDurum;$utuAdet;$kaliteDurum;$paketlemeDurum;$toplamFire;$olusturmaTarihi',
+        );
       }
 
       final bytes = utf8.encode(csv.toString());
-      downloadFileWeb(bytes,
-          'uretim_raporu_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv',
-          mimeType: 'text/csv;charset=utf-8');
+      downloadFileWeb(
+        bytes,
+        'uretim_raporu_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv',
+        mimeType: 'text/csv;charset=utf-8',
+      );
 
-      if (mounted)
-        context.showSuccessSnackBar('CSV raporu başarıyla indirildi');
+      if (mounted) {
+        context.showSuccessSnackBar('CSV raporu basariyla indirildi');
+      }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Export hatası: $e');
+      if (mounted) {
+        context.showErrorSnackBar('Export hatasi: $e');
+      }
     }
   }
 
@@ -169,25 +189,28 @@ extension _ExportExt on _UretimRaporuPageState {
     final kalanAdet =
         _intDeger(model['kalan_adet'] ?? (toplamAdet - gonderilenAdet));
 
-    return {
+    final satir = <String, dynamic>{
+      'marka': model['marka'] ?? '',
+      'item_no': model['item_no'] ?? '',
       'model_adi': model['model_adi'] ?? model['item_no'] ?? '',
       'ana_renk': _anaRenkDeger(model),
       'yaka_tipi': model['yaka_tipi'] ?? '',
       'iplik_karisimi': model['iplik_karisimi'] ?? '',
       'termin_tarihi': _formatTarih(model['termin_tarihi']),
+      'mevcut_asama': _mevcutAsamaExportMetni(model),
       'toplam_adet': toplamAdet,
       'gonderilen_adet': gonderilenAdet,
       'kalan_adet': kalanAdet < 0 ? 0 : kalanAdet,
-      'dokuma_durumu': _asamaDurumExportMetni(asamalar['dokuma']),
-      'nakis_durumu': _asamaDurumExportMetni(asamalar['nakis']),
-      'konfeksiyon_durumu': _asamaDurumExportMetni(asamalar['konfeksiyon']),
-      'yikama_durumu': _asamaDurumExportMetni(asamalar['yikama']),
-      'ilik_dugme_durumu': _asamaDurumExportMetni(asamalar['ilik_dugme']),
-      'utu_durumu': _asamaDurumExportMetni(asamalar['utu']),
-      'kalite_kontrol_durumu':
-          _asamaDurumExportMetni(asamalar['kalite_kontrol']),
-      'paketleme_durumu': _asamaDurumExportMetni(asamalar['paketleme']),
     };
+
+    for (final asama in _uretimRaporuExcelAsamalari) {
+      final asamaData = asamalar[asama['key']];
+      satir['${asama['key']}_durum'] = _asamaDurumExportMetni(asamaData);
+      satir['${asama['key']}_tamamlanan'] = _asamaTamamlananAdet(asamaData);
+      satir['${asama['key']}_fire'] = _asamaFireAdet(asamaData);
+    }
+
+    return satir;
   }
 
   String _asamaDurumExportMetni(Map<String, dynamic>? asama) {
@@ -203,6 +226,21 @@ extension _ExportExt on _UretimRaporuPageState {
 
     if (toplamAdet <= 0) return durum;
     return '$durum ($tamamlananAdet/$toplamAdet)';
+  }
+
+  int _asamaTamamlananAdet(Map<String, dynamic>? asama) {
+    if (asama == null || asama.isEmpty) return 0;
+    return _intDeger(asama['tamamlanan_adet']);
+  }
+
+  int _asamaFireAdet(Map<String, dynamic>? asama) {
+    if (asama == null || asama.isEmpty) return 0;
+    return _intDeger(asama['fire_adet']);
+  }
+
+  String _mevcutAsamaExportMetni(Map<String, dynamic> model) {
+    final asamaInfo = _getAsamaBilgisi(model['mevcut_asama'] ?? '');
+    return (asamaInfo['label'] ?? 'Beklemede').toString();
   }
 
   String _anaRenkDeger(Map<String, dynamic> model) {
@@ -227,78 +265,86 @@ extension _ExportExt on _UretimRaporuPageState {
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
-  /// PDF export
   void _exportPdf() {
     try {
       final StringBuffer html = StringBuffer();
       html.write('\uFEFF');
-
-      // HTML tabanlı yazdırılabilir rapor
       html.writeln('<html><head><meta charset="utf-8">');
       html.writeln('<style>');
       html.writeln(
-          'body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }');
+        'body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }',
+      );
       html.writeln(
-          'h1 { color: #303F9F; border-bottom: 2px solid #303F9F; padding-bottom: 8px; }');
+        'h1 { color: #303F9F; border-bottom: 2px solid #303F9F; padding-bottom: 8px; }',
+      );
       html.writeln('h2 { color: #455A64; margin-top: 24px; }');
       html.writeln(
-          '.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }');
+        '.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }',
+      );
       html.writeln(
-          '.kpi-card { text-align: center; padding: 12px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa; }');
+        '.kpi-card { text-align: center; padding: 12px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa; }',
+      );
       html.writeln('.kpi-value { font-size: 24px; font-weight: bold; }');
       html.writeln('.kpi-label { font-size: 11px; color: #666; }');
       html.writeln(
-          'table { width: 100%; border-collapse: collapse; margin-top: 12px; }');
+        'table { width: 100%; border-collapse: collapse; margin-top: 12px; }',
+      );
       html.writeln(
-          'th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 11px; }');
+        'th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 11px; }',
+      );
       html.writeln('th { background: #303F9F; color: white; }');
       html.writeln('tr:nth-child(even) { background: #f5f5f5; }');
-      html.writeln(
-          '.badge { padding: 2px 8px; border-radius: 10px; font-size: 10px; color: white; }');
       html.writeln(
           '.footer { margin-top: 24px; text-align: center; color: #999; font-size: 10px; }');
       html.writeln('@media print { body { margin: 0; } }');
       html.writeln('</style></head><body>');
 
-      // Başlık
-      html.writeln('<h1>TexPilot Üretim Raporu</h1>');
+      html.writeln('<h1>TexPilot Uretim Raporu</h1>');
       html.writeln(
-          '<p>Rapor Tarihi: ${DateFormat('dd MMMM yyyy HH:mm', 'tr').format(DateTime.now())}</p>');
+        '<p>Rapor Tarihi: ${DateFormat('dd MMMM yyyy HH:mm', 'tr').format(DateTime.now())}</p>',
+      );
 
-      // KPI Kartları
       html.writeln('<div class="kpi-grid">');
       html.writeln(
-          '<div class="kpi-card"><div class="kpi-value" style="color:#1565C0">${_ozet['toplam_model'] ?? 0}</div><div class="kpi-label">Toplam Model</div></div>');
+        '<div class="kpi-card"><div class="kpi-value" style="color:#1565C0">${_ozet['toplam_model'] ?? 0}</div><div class="kpi-label">Toplam Model</div></div>',
+      );
       html.writeln(
-          '<div class="kpi-card"><div class="kpi-value" style="color:#E65100">${_ozet['devam_eden'] ?? 0}</div><div class="kpi-label">Devam Eden</div></div>');
+        '<div class="kpi-card"><div class="kpi-value" style="color:#E65100">${_ozet['devam_eden'] ?? 0}</div><div class="kpi-label">Devam Eden</div></div>',
+      );
       html.writeln(
-          '<div class="kpi-card"><div class="kpi-value" style="color:#2E7D32">${_ozet['tamamlanan'] ?? 0}</div><div class="kpi-label">Tamamlanan</div></div>');
+        '<div class="kpi-card"><div class="kpi-value" style="color:#2E7D32">${_ozet['tamamlanan'] ?? 0}</div><div class="kpi-label">Tamamlanan</div></div>',
+      );
       html.writeln(
-          '<div class="kpi-card"><div class="kpi-value" style="color:#C62828">${_ozet['geciken_siparis'] ?? 0}</div><div class="kpi-label">Geciken</div></div>');
+        '<div class="kpi-card"><div class="kpi-value" style="color:#C62828">${_ozet['geciken_siparis'] ?? 0}</div><div class="kpi-label">Geciken</div></div>',
+      );
       html.writeln('</div>');
 
-      // Verimlilik
       html.writeln('<h2>Verimlilik Metrikleri</h2>');
-      html.writeln('<table><tr><th>Metrik</th><th>Değer</th></tr>');
+      html.writeln('<table><tr><th>Metrik</th><th>Deger</th></tr>');
       html.writeln(
-          '<tr><td>Üretim Verimliliği</td><td>%${((_ozet['verimlilik_orani'] as double?) ?? 100).toStringAsFixed(1)}</td></tr>');
+        '<tr><td>Uretim Verimliligi</td><td>%${((_ozet['verimlilik_orani'] as double?) ?? 100).toStringAsFixed(1)}</td></tr>',
+      );
       html.writeln(
-          '<tr><td>Tamamlanma Oranı</td><td>%${((_ozet['tamamlanma_orani'] as double?) ?? 0).toStringAsFixed(1)}</td></tr>');
+        '<tr><td>Tamamlanma Orani</td><td>%${((_ozet['tamamlanma_orani'] as double?) ?? 0).toStringAsFixed(1)}</td></tr>',
+      );
       html.writeln(
-          '<tr><td>Zamanında Teslim</td><td>%${((_ozet['zamaninda_teslim_orani'] as double?) ?? 100).toStringAsFixed(1)}</td></tr>');
+        '<tr><td>Zamaninda Teslim</td><td>%${((_ozet['zamaninda_teslim_orani'] as double?) ?? 100).toStringAsFixed(1)}</td></tr>',
+      );
       html.writeln(
-          '<tr><td>Fire Oranı</td><td>%${((_ozet['fire_orani'] as double?) ?? 0).toStringAsFixed(1)}</td></tr>');
+        '<tr><td>Fire Orani</td><td>%${((_ozet['fire_orani'] as double?) ?? 0).toStringAsFixed(1)}</td></tr>',
+      );
       html.writeln(
-          '<tr><td>Ort. Üretim Süresi</td><td>${((_ozet['ortalama_uretim_suresi'] as double?) ?? 0).toStringAsFixed(0)} gün</td></tr>');
+        '<tr><td>Ort. Uretim Suresi</td><td>${((_ozet['ortalama_uretim_suresi'] as double?) ?? 0).toStringAsFixed(0)} gun</td></tr>',
+      );
       html.writeln('</table>');
 
-      // Model Tablosu
       html.writeln('<h2>Model Listesi (${_modeller.length} model)</h2>');
       html.writeln('<table>');
       html.writeln(
-          '<tr><th>#</th><th>Marka</th><th>Item No</th><th>Renk</th><th>Adet</th><th>Aşama</th><th>Termin</th><th>Durum</th></tr>');
+        '<tr><th>#</th><th>Marka</th><th>Item No</th><th>Renk</th><th>Adet</th><th>Asama</th><th>Termin</th><th>Durum</th></tr>',
+      );
 
-      for (int i = 0; i < _modeller.length; i++) {
+      for (var i = 0; i < _modeller.length; i++) {
         final model = _modeller[i];
         final asamaInfo = _getAsamaBilgisi(model['mevcut_asama'] ?? '');
         String terminStr = '';
@@ -318,16 +364,16 @@ extension _ExportExt on _UretimRaporuPageState {
         html.writeln('<td>${asamaInfo['label']}</td>');
         html.writeln('<td>$terminStr</td>');
         html.writeln(
-            '<td>${model['tamamlandi'] == true ? 'Tamamlandı' : 'Devam Ediyor'}</td>');
+          '<td>${model['tamamlandi'] == true ? 'Tamamlandi' : 'Devam Ediyor'}</td>',
+        );
         html.writeln('</tr>');
       }
 
       html.writeln('</table>');
 
-      // Fire analizi
       html.writeln('<h2>Fire Analizi</h2>');
       html.writeln(
-          '<table><tr><th>Aşama</th><th>Fire</th><th>Toplam</th><th>Oran</th></tr>');
+          '<table><tr><th>Asama</th><th>Fire</th><th>Toplam</th><th>Oran</th></tr>');
       for (final entry in _fireAnaliz.entries) {
         final fire = entry.value['fire'] ?? 0;
         final toplam = entry.value['toplam'] ?? 0;
@@ -335,24 +381,32 @@ extension _ExportExt on _UretimRaporuPageState {
             toplam > 0 ? (fire / toplam * 100).toStringAsFixed(1) : '0.0';
         final info = _getAsamaBilgisi(entry.key);
         html.writeln(
-            '<tr><td>${info['label']}</td><td>$fire</td><td>$toplam</td><td>%$oran</td></tr>');
+          '<tr><td>${info['label']}</td><td>$fire</td><td>$toplam</td><td>%$oran</td></tr>',
+        );
       }
       html.writeln('</table>');
 
       html.writeln(
-          '<div class="footer">TexPilot Üretim Yönetim Sistemi — ${DateFormat('yyyy').format(DateTime.now())}</div>');
+        '<div class="footer">TexPilot Uretim Yonetim Sistemi - ${DateFormat('yyyy').format(DateTime.now())}</div>',
+      );
       html.writeln('</body></html>');
 
       final bytes = utf8.encode(html.toString());
-      downloadFileWeb(bytes,
-          'uretim_raporu_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.html',
-          mimeType: 'text/html;charset=utf-8');
+      downloadFileWeb(
+        bytes,
+        'uretim_raporu_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.html',
+        mimeType: 'text/html;charset=utf-8',
+      );
 
-      if (mounted)
+      if (mounted) {
         context.showSuccessSnackBar(
-            'PDF rapor (HTML) başarıyla indirildi. Tarayıcıda açıp Ctrl+P ile yazdırabilirsiniz.');
+          'PDF rapor (HTML) basariyla indirildi. Tarayicida acip Ctrl+P ile yazdirabilirsiniz.',
+        );
+      }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('PDF export hatası: $e');
+      if (mounted) {
+        context.showErrorSnackBar('PDF export hatasi: $e');
+      }
     }
   }
 

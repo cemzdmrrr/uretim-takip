@@ -524,35 +524,50 @@ extension _TabsExt on _GelismisRaporlarPageState {
 
   Color _getRenkFromName(String renkAdi) {
     final lowerName = renkAdi.toLowerCase();
-    if (lowerName.contains('siyah') || lowerName.contains('black'))
+    if (lowerName.contains('siyah') || lowerName.contains('black')) {
       return Colors.black;
-    if (lowerName.contains('beyaz') || lowerName.contains('white'))
+    }
+    if (lowerName.contains('beyaz') || lowerName.contains('white')) {
       return Colors.grey[300]!;
-    if (lowerName.contains('kırmızı') || lowerName.contains('red'))
+    }
+    if (lowerName.contains('kırmızı') || lowerName.contains('red')) {
       return Colors.red;
-    if (lowerName.contains('mavi') || lowerName.contains('blue'))
+    }
+    if (lowerName.contains('mavi') || lowerName.contains('blue')) {
       return Colors.blue;
-    if (lowerName.contains('yeşil') || lowerName.contains('green'))
+    }
+    if (lowerName.contains('yeşil') || lowerName.contains('green')) {
       return Colors.green;
-    if (lowerName.contains('sarı') || lowerName.contains('yellow'))
+    }
+    if (lowerName.contains('sarı') || lowerName.contains('yellow')) {
       return Colors.yellow;
-    if (lowerName.contains('turuncu') || lowerName.contains('orange'))
+    }
+    if (lowerName.contains('turuncu') || lowerName.contains('orange')) {
       return Colors.orange;
-    if (lowerName.contains('mor') || lowerName.contains('purple'))
+    }
+    if (lowerName.contains('mor') || lowerName.contains('purple')) {
       return Colors.purple;
-    if (lowerName.contains('pembe') || lowerName.contains('pink'))
+    }
+    if (lowerName.contains('pembe') || lowerName.contains('pink')) {
       return Colors.pink;
+    }
     if (lowerName.contains('gri') ||
         lowerName.contains('grey') ||
-        lowerName.contains('gray')) return Colors.grey;
-    if (lowerName.contains('kahve') || lowerName.contains('brown'))
+        lowerName.contains('gray')) {
+      return Colors.grey;
+    }
+    if (lowerName.contains('kahve') || lowerName.contains('brown')) {
       return Colors.brown;
-    if (lowerName.contains('bej') || lowerName.contains('beige'))
+    }
+    if (lowerName.contains('bej') || lowerName.contains('beige')) {
       return const Color(0xFFF5F5DC);
-    if (lowerName.contains('lacivert') || lowerName.contains('navy'))
+    }
+    if (lowerName.contains('lacivert') || lowerName.contains('navy')) {
       return const Color(0xFF000080);
-    if (lowerName.contains('ekru') || lowerName.contains('ecru'))
+    }
+    if (lowerName.contains('ekru') || lowerName.contains('ecru')) {
       return const Color(0xFFF5F5E1);
+    }
     return Colors.blueGrey;
   }
 
@@ -1907,36 +1922,75 @@ extension _TabsExt on _GelismisRaporlarPageState {
   }
 
   Widget _buildKPICard(String title, String value, IconData icon, Color color) {
-    return Card(
-        elevation: 4,
-        child: Padding(
-            padding: const EdgeInsets.all(16),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Icon(icon, color: color, size: 20)),
-                const Spacer()
-              ]),
-              const SizedBox(height: 12),
-              Text(value,
-                  style: TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold, color: color)),
-              const SizedBox(height: 4),
-              Text(title,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-            ])));
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildSectionTitle(String title, [Color? color]) => Text(title,
-      style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: color ?? Colors.black87));
+  Widget _buildSectionTitle(String title, [Color? color]) {
+    return _buildSectionHeader(
+      title,
+      Icons.analytics_rounded,
+      color ?? const Color(0xFF1565C0),
+    );
+  }
 
   Widget _buildFinansOzet(String title, num value, Color color) =>
       Column(children: [

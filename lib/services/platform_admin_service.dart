@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/app_logger.dart';
+import 'package:uretim_takip/services/edge_function_service.dart';
 
 /// Platform yönetim paneli servisi (Super Admin).
 ///
@@ -169,6 +170,19 @@ class PlatformAdminService {
     await _logKaydet('firma_durum_degistir', 'firmalar', firmaId, {
       'yeni_durum': aktif ? 'aktif' : 'pasif',
     });
+  }
+
+  static Future<Map<String, dynamic>> firmaSil(String firmaId) async {
+    final response = await EdgeFunctionService.instance.firmaSil(
+      firmaId: firmaId,
+    );
+
+    await _logKaydet('firma_sil', 'firmalar', firmaId, {
+      'silinen_firma_id': firmaId,
+      'ozet': response,
+    });
+
+    return response;
   }
 
   // ── Abonelik Yönetimi ─────────────────────────────────────

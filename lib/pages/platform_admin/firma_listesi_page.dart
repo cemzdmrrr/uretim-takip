@@ -197,13 +197,19 @@ class _FirmaListesiPageState extends State<FirmaListesiPage> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
-              await Navigator.push(
+              final sonuc = await Navigator.push<bool>(
                 context,
                 MaterialPageRoute(
                   builder: (_) =>
                       FirmaDetayAdminPage(firmaId: firma['id']?.toString() ?? ''),
                 ),
               );
+              if (!context.mounted) return;
+              if (sonuc == true) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Firma kalici olarak silindi')),
+                );
+              }
               _verileriYukle();
             },
           ),

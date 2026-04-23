@@ -1,15 +1,16 @@
 import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Edge Function çağrılarını merkezi olarak yöneten servis.
-/// Tüm SaaS edge function'ları bu servis üzerinden çağrılır.
+/// Edge function cagri yonetimi.
 class EdgeFunctionService {
   EdgeFunctionService._();
+
   static final EdgeFunctionService instance = EdgeFunctionService._();
 
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// Yeni firma oluşturur (onboarding akışında kullanılır)
+  /// Yeni firma olusturur.
   Future<Map<String, dynamic>> firmaOlustur({
     required String firmaAdi,
     required String firmaKodu,
@@ -30,7 +31,7 @@ class EdgeFunctionService {
     return _handleResponse(response);
   }
 
-  /// Firmaya kullanıcı davet eder
+  /// Firmaya kullanici davet eder.
   Future<Map<String, dynamic>> kullaniciDavetEt({
     required String firmaId,
     required String email,
@@ -47,7 +48,7 @@ class EdgeFunctionService {
     return _handleResponse(response);
   }
 
-  /// Modül aktifleştirir veya deaktif eder
+  /// Modul aktivasyonunu degistirir.
   Future<Map<String, dynamic>> modulAktivasyonDegistir({
     required String firmaId,
     required String modulKodu,
@@ -64,7 +65,7 @@ class EdgeFunctionService {
     return _handleResponse(response);
   }
 
-  /// Platform raporu alır (admin paneli)
+  /// Platform raporu alir.
   Future<Map<String, dynamic>> platformRaporAl({
     String tip = 'genel',
     String? firmaId,
@@ -74,7 +75,8 @@ class EdgeFunctionService {
     if (firmaId != null) params['firma_id'] = firmaId;
     if (gun != null) params['gun'] = gun.toString();
 
-    final queryString = params.entries.map((e) => '${e.key}=${e.value}').join('&');
+    final queryString =
+        params.entries.map((e) => '${e.key}=${e.value}').join('&');
 
     final response = await _client.functions.invoke(
       'platform-rapor?$queryString',
@@ -83,11 +85,60 @@ class EdgeFunctionService {
     return _handleResponse(response);
   }
 
-  /// Edge function yanıtını işler
+  /// Firmayi ve iliskili tenant verilerini siler.
+  Future<Map<String, dynamic>> firmaSil({
+    required String firmaId,
+  }) async {
+    final response = await _client.functions.invoke(
+      'firma-sil',
+      body: {
+        'firma_id': firmaId,
+      },
+    );
+    return _handleResponse(response);
+  }
+
+  /// Yeni auth kullanicisi olusturup personel kaydini ekler.
+  Future<Map<String, dynamic>> personelOlustur(
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _client.functions.invoke(
+      'personel-olustur',
+      body: body,
+    );
+    return _handleResponse(response);
+  }
+
+  /// Personel durum veya silme islemlerini yonetir.
+  Future<Map<String, dynamic>> personelYonet({
+    required String action,
+    required String firmaId,
+    required String userId,
+    required String tckn,
+    String? neden,
+    String? cikisTarihi,
+  }) async {
+    final response = await _client.functions.invoke(
+      'personel-yonet',
+      body: {
+        'action': action,
+        'firma_id': firmaId,
+        'user_id': userId,
+        'tckn': tckn,
+        if (neden != null && neden.trim().isNotEmpty) 'neden': neden.trim(),
+        if (cikisTarihi != null && cikisTarihi.trim().isNotEmpty)
+          'cikis_tarihi': cikisTarihi.trim(),
+      },
+    );
+    return _handleResponse(response);
+  }
+
   Map<String, dynamic> _handleResponse(FunctionResponse response) {
     if (response.status >= 400) {
       final body = response.data;
-      final errorMsg = body is Map ? body['error'] ?? 'Bilinmeyen hata' : 'HTTP ${response.status}';
+      final errorMsg = body is Map
+          ? body['error'] ?? 'Bilinmeyen hata'
+          : 'HTTP ${response.status}';
       throw EdgeFunctionException(errorMsg.toString(), response.status);
     }
 
@@ -102,7 +153,6 @@ class EdgeFunctionService {
   }
 }
 
-/// Edge function hatalarını temsil eder
 class EdgeFunctionException implements Exception {
   final String message;
   final int statusCode;

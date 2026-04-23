@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 part 'urun_depo_yonetimi_dialog.dart';
-
 
 class UrunDepoYonetimiPage extends StatefulWidget {
   const UrunDepoYonetimiPage({super.key});
@@ -25,10 +24,14 @@ class _UrunDepoYonetimiPageState extends State<UrunDepoYonetimiPage>
   bool yukleniyor = true;
   String arama = '';
 
-  // Renkler - Siyah Beyaz Paleti
-  static const Color siyah = Colors.black87;
+  static const Color siyah = Color(0xFF0F172A);
   static const Color beyaz = Colors.white;
-  static const Color acikGri = Color(0xFFEEEEEE);
+  static const Color acikGri = Color(0xFFF1F5F9);
+  static const Color primaryColor = Color(0xFF2563EB);
+  static const Color successColor = Color(0xFF059669);
+  static const Color warningColor = Color(0xFFD97706);
+  static const Color dangerColor = Color(0xFFDC2626);
+  static const Color surfaceColor = Color(0xFFF8FAFC);
 
   @override
   void initState() {
@@ -62,7 +65,9 @@ class _UrunDepoYonetimiPageState extends State<UrunDepoYonetimiPage>
         context.showErrorSnackBar('Hata: $e');
       }
     } finally {
-      setState(() => yukleniyor = false);
+      if (mounted) {
+        setState(() => yukleniyor = false);
+      }
     }
   }
 
@@ -107,44 +112,109 @@ class _UrunDepoYonetimiPageState extends State<UrunDepoYonetimiPage>
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Ürün Depo Yönetimi',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: siyah,
-        foregroundColor: beyaz,
-        elevation: 2,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
-          child: TabBar(
-            controller: _tabController,
-            labelColor: beyaz,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: beyaz,
-            indicatorWeight: 3,
-            tabs: const [
-              Tab(
-                icon: Icon(Icons.verified),
-                text: '1. Kalite',
+      backgroundColor: surfaceColor,
+      body: Column(
+        children: [
+          _buildUrunDepoUstBar(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _urunTabi('1. Kalite'),
+                _urunTabi('2. & 3. Kalite'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUrunDepoUstBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child:
+                    const Icon(Icons.storefront_outlined, color: primaryColor),
               ),
-              Tab(
-                icon: Icon(Icons.info),
-                text: '2. & 3. Kalite',
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ürün Depo Yönetimi',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                        color: siyah,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Kalite bazlı ürün stok, kalan adet ve satış takibi',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: urunDepoListesiniGetir,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Yenile',
               ),
             ],
           ),
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _urunTabi('1. Kalite'),
-          _urunTabi('2. & 3. Kalite'),
+          const SizedBox(height: 14),
+          Container(
+            decoration: BoxDecoration(
+              color: acikGri,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              labelColor: Colors.white,
+              unselectedLabelColor: const Color(0xFF475569),
+              indicatorSize: TabBarIndicatorSize.tab,
+              indicator: BoxDecoration(
+                color: primaryColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              dividerColor: Colors.transparent,
+              tabs: const [
+                Tab(icon: Icon(Icons.verified), text: '1. Kalite'),
+                Tab(icon: Icon(Icons.info_outline), text: '2. & 3. Kalite'),
+              ],
+            ),
+          ),
         ],
       ),
     );

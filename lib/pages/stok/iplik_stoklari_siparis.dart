@@ -1,23 +1,14 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'iplik_stoklari.dart';
 
 /// Order management (Excel, bulk orders, individual orders) for _IplikStoklariPageState.
 extension _IplikSiparisExt on _IplikStoklariPageState {
-
-
-
-
-
-
-
-
-
   Future<void> _excelSablonIndir() async {
     try {
       // Excel dosyası oluştur
       final excel = excel_package.Excel.createExcel();
       final excel_package.Sheet sheetObject = excel['İplik Sipariş Formu'];
-      
+
       // Başlık stilini tanımla
       final excel_package.CellStyle headerStyle = excel_package.CellStyle(
         bold: true,
@@ -25,140 +16,233 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
         backgroundColorHex: '#D2B48C',
         fontColorHex: '#000000',
       );
-      
+
       final excel_package.CellStyle titleStyle = excel_package.CellStyle(
         bold: true,
         fontSize: 14,
         backgroundColorHex: '#FFF2CC',
         fontColorHex: '#000000',
       );
-      
+
       // Başlık
-      sheetObject.cell(excel_package.CellIndex.indexByString('A1')).value = 'İPLİK SİPARİŞ FORMU';
-      sheetObject.cell(excel_package.CellIndex.indexByString('A1')).cellStyle = titleStyle;
-      sheetObject.merge(excel_package.CellIndex.indexByString('A1'), excel_package.CellIndex.indexByString('K1'));
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A1')).value =
+          'İPLİK SİPARİŞ FORMU';
+      sheetObject.cell(excel_package.CellIndex.indexByString('A1')).cellStyle =
+          titleStyle;
+      sheetObject.merge(excel_package.CellIndex.indexByString('A1'),
+          excel_package.CellIndex.indexByString('K1'));
+
       // Genel bilgiler
       int row = 3;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'SİPARİŞ GENEL BİLGİLERİ';
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).cellStyle = headerStyle;
-      sheetObject.merge(excel_package.CellIndex.indexByString('A$row'), excel_package.CellIndex.indexByString('G$row'));
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'SİPARİŞ GENEL BİLGİLERİ';
+      sheetObject
+          .cell(excel_package.CellIndex.indexByString('A$row'))
+          .cellStyle = headerStyle;
+      sheetObject.merge(excel_package.CellIndex.indexByString('A$row'),
+          excel_package.CellIndex.indexByString('G$row'));
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Sipariş Tarihi:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = DateFormat('dd.MM.yyyy').format(DateTime.now());
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Sipariş Tarihi:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          DateFormat('dd.MM.yyyy').format(DateTime.now());
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Tedarikçi Firma:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '[Tedarikçi firma adını yazın]';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Tedarikçi Firma:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '[Tedarikçi firma adını yazın]';
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Tedarikçi Telefon:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '[Telefon numarası]';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Tedarikçi Telefon:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '[Telefon numarası]';
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Dokuma Firması:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '[Dokuma firması adını yazın]';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Dokuma Firması:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '[Dokuma firması adını yazın]';
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Marka:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '[Marka adını yazın]';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Marka:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '[Marka adını yazın]';
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Termin Tarihi:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '[gg.aa.yyyy formatında]';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Termin Tarihi:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '[gg.aa.yyyy formatında]';
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Genel Açıklama:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '[İsteğe bağlı açıklama]';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Genel Açıklama:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '[İsteğe bağlı açıklama]';
+
       // Sipariş detayları başlığı
       row += 2;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'SİPARİŞ DETAYLARI';
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).cellStyle = headerStyle;
-      sheetObject.merge(excel_package.CellIndex.indexByString('A$row'), excel_package.CellIndex.indexByString('K$row'));
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'SİPARİŞ DETAYLARI';
+      sheetObject
+          .cell(excel_package.CellIndex.indexByString('A$row'))
+          .cellStyle = headerStyle;
+      sheetObject.merge(excel_package.CellIndex.indexByString('A$row'),
+          excel_package.CellIndex.indexByString('K$row'));
+
       // Tablo başlıkları
       row++;
-      final headers = ['Sıra', 'İplik Adı/Türü', 'Renk', 'Renk Kodu', 'Miktar (kg)', 'Birim Fiyat', 'Para Birimi', 'Toplam', 'Açıklama'];
+      final headers = [
+        'Sıra',
+        'İplik Adı/Türü',
+        'Renk',
+        'Renk Kodu',
+        'Miktar (kg)',
+        'Birim Fiyat',
+        'Para Birimi',
+        'Toplam',
+        'Açıklama'
+      ];
       for (int i = 0; i < headers.length; i++) {
-        sheetObject.cell(excel_package.CellIndex.indexByString('${String.fromCharCode(65 + i)}$row')).value = headers[i];
-        sheetObject.cell(excel_package.CellIndex.indexByString('${String.fromCharCode(65 + i)}$row')).cellStyle = headerStyle;
+        sheetObject
+            .cell(excel_package.CellIndex.indexByString(
+                '${String.fromCharCode(65 + i)}$row'))
+            .value = headers[i];
+        sheetObject
+            .cell(excel_package.CellIndex.indexByString(
+                '${String.fromCharCode(65 + i)}$row'))
+            .cellStyle = headerStyle;
       }
-      
+
       // Örnek veriler ve boş satırlar
       row++;
-      
+
       // Örnek veriler
       final ornekVeriler = [
-        ['1', 'Pamuk İplik 30/1', 'Ekru', '', '100', '15.50', 'TL', '', 'Örnek veri'],
-        ['2', 'Polyester İplik 20/1', 'Siyah', 'RAL9005', '50', '18.75', 'TL', '', ''],
-        ['3', 'Viskon İplik 32/1', 'Beyaz', '#FFFFFF', '75', '22.00', 'TL', '', ''],
+        [
+          '1',
+          'Pamuk İplik 30/1',
+          'Ekru',
+          '',
+          '100',
+          '15.50',
+          'TL',
+          '',
+          'Örnek veri'
+        ],
+        [
+          '2',
+          'Polyester İplik 20/1',
+          'Siyah',
+          'RAL9005',
+          '50',
+          '18.75',
+          'TL',
+          '',
+          ''
+        ],
+        [
+          '3',
+          'Viskon İplik 32/1',
+          'Beyaz',
+          '#FFFFFF',
+          '75',
+          '22.00',
+          'TL',
+          '',
+          ''
+        ],
       ];
-      
+
       for (var veri in ornekVeriler) {
         for (int i = 0; i < veri.length; i++) {
-          if (i == 7) { // Toplam kolonu - hesapla
+          if (i == 7) {
+            // Toplam kolonu - hesapla
             if (veri[4].isNotEmpty && veri[5].isNotEmpty) {
               final double miktar = double.tryParse(veri[4]) ?? 0;
               final double fiyat = double.tryParse(veri[5]) ?? 0;
-              sheetObject.cell(excel_package.CellIndex.indexByString('${String.fromCharCode(65 + i)}$row')).value = (miktar * fiyat).toStringAsFixed(2);
+              sheetObject
+                  .cell(excel_package.CellIndex.indexByString(
+                      '${String.fromCharCode(65 + i)}$row'))
+                  .value = (miktar * fiyat).toStringAsFixed(2);
             }
           } else {
-            sheetObject.cell(excel_package.CellIndex.indexByString('${String.fromCharCode(65 + i)}$row')).value = veri[i];
+            sheetObject
+                .cell(excel_package.CellIndex.indexByString(
+                    '${String.fromCharCode(65 + i)}$row'))
+                .value = veri[i];
           }
         }
         row++;
       }
-      
+
       // 17 boş satır daha ekle
       for (int i = 0; i < 17; i++) {
-        sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = (i + 4).toString();
+        sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+            (i + 4).toString();
         row++;
       }
-      
+
       // Özet bölümü
       row += 2;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'ÖZET BİLGİLER';
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).cellStyle = headerStyle;
-      sheetObject.merge(excel_package.CellIndex.indexByString('A$row'), excel_package.CellIndex.indexByString('K$row'));
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'ÖZET BİLGİLER';
+      sheetObject
+          .cell(excel_package.CellIndex.indexByString('A$row'))
+          .cellStyle = headerStyle;
+      sheetObject.merge(excel_package.CellIndex.indexByString('A$row'),
+          excel_package.CellIndex.indexByString('K$row'));
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Toplam Kalem:';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '(Manuel hesaplayın)';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Toplam Kalem:';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '(Manuel hesaplayın)';
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Toplam Miktar (kg):';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '(Manuel hesaplayın)';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Toplam Miktar (kg):';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '(Manuel hesaplayın)';
+
       row++;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'Genel Toplam (TL):';
-      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value = '(Manuel hesaplayın)';
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'Genel Toplam (TL):';
+      sheetObject.cell(excel_package.CellIndex.indexByString('B$row')).value =
+          '(Manuel hesaplayın)';
+
       // Kullanım talimatları
       row += 3;
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = 'KULLANIM TALİMATLARI';
-      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).cellStyle = headerStyle;
-      
+      sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+          'KULLANIM TALİMATLARI';
+      sheetObject
+          .cell(excel_package.CellIndex.indexByString('A$row'))
+          .cellStyle = headerStyle;
+
       final talimatlar = [
         '1. Yukarıdaki genel bilgileri doldurun',
         '2. Sipariş detayları tablosuna ürün bilgilerini girin',
-        '3. Para birimi olarak TL, USD veya EUR kullanın', 
+        '3. Para birimi olarak TL, USD veya EUR kullanın',
         '4. Boş satırları doldurmak zorunda değilsiniz',
         '5. Dosyayı kaydedin ve uygulamaya yükleyin',
         '',
         'DİKKAT: Bu format yapısını değiştirmeyin!'
       ];
-      
+
       for (var talimat in talimatlar) {
         row++;
-        sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value = talimat;
+        sheetObject.cell(excel_package.CellIndex.indexByString('A$row')).value =
+            talimat;
       }
-      
+
       // Excel dosyasını kaydet
       final fileBytes = excel.save();
       await ExcelHelper.saveExcelFile(fileBytes!, 'Iplik_Siparis_Sablonu.xlsx');
-      
+
       if (mounted) {
         context.showSuccessSnackBar('Excel şablon dosyası başarıyla indirildi');
       }
@@ -176,129 +260,157 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls'],
         allowMultiple: false,
+        withData: true,
       );
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final bytes = await file.readAsBytes();
-        
+      if (result != null) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null || bytes.isEmpty) {
+          throw 'Excel dosyası okunamadı. Lütfen .xlsx dosyasını tekrar seçin.';
+        }
+
         // Excel dosyasını oku
         final excel = excel_package.Excel.decodeBytes(bytes);
-        
+
         // İlk sheet'i al
         final sheet = excel.tables.keys.first;
         final table = excel.tables[sheet];
-        
+
         if (table == null) {
           throw 'Excel dosyası okunamadı';
         }
-        
+
         // Genel bilgileri oku
         String? tedarikciAdi;
         String? terminTarihiStr;
         String? genelAciklama;
         String? dokumaFirmasiAdi;
         String? markaAdi;
-        
+
         // Genel bilgileri bul
         for (int row = 0; row < table.maxRows; row++) {
-          final cell0 = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row));
-          final cell1 = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row));
-          
-          if (cell0.value.toString().contains('Tedarikçi Firma') == true) {
-            tedarikciAdi = cell1.value.toString();
-          } else if (cell0.value.toString().contains('Dokuma Firması') == true) {
-            dokumaFirmasiAdi = cell1.value.toString();
-          } else if (cell0.value.toString().contains('Marka') == true) {
-            markaAdi = cell1.value.toString();
-          } else if (cell0.value.toString().contains('Termin Tarihi') == true) {
-            terminTarihiStr = cell1.value.toString();
-          } else if (cell0.value.toString().contains('Genel Açıklama') == true) {
-            genelAciklama = cell1.value.toString();
+          final cell0 = table.cell(excel_package.CellIndex.indexByColumnRow(
+              columnIndex: 0, rowIndex: row));
+          final cell1 = table.cell(excel_package.CellIndex.indexByColumnRow(
+              columnIndex: 1, rowIndex: row));
+          final label = _excelCellText(cell0);
+          final value = _excelCellText(cell1);
+
+          if (label.contains('Tedarikçi Firma')) {
+            tedarikciAdi = value;
+          } else if (label.contains('Dokuma Firması')) {
+            dokumaFirmasiAdi = value;
+          } else if (label.contains('Marka')) {
+            markaAdi = value;
+          } else if (label.contains('Termin Tarihi')) {
+            terminTarihiStr = value;
+          } else if (label.contains('Genel Açıklama')) {
+            genelAciklama = value;
           }
         }
-        
+
         // Tedarikçi seçim dialog
         Map<String, dynamic>? seciliTedarikci;
-        if (tedarikciAdi != null && tedarikciAdi.isNotEmpty && !tedarikciAdi.startsWith('[')) {
+        if (tedarikciAdi != null &&
+            tedarikciAdi.isNotEmpty &&
+            !tedarikciAdi.startsWith('[')) {
           final tedarikciAdiLower = tedarikciAdi.toLowerCase();
           // Tedarikçi adına göre ara
-          seciliTedarikci = tedarikciler.where((t) => 
-            (t['sirket']?.toString().toLowerCase().contains(tedarikciAdiLower) == true) ||
-            (t['ad']?.toString().toLowerCase().contains(tedarikciAdiLower) == true)
-          ).isNotEmpty ? tedarikciler.firstWhere((t) => 
-            (t['sirket']?.toString().toLowerCase().contains(tedarikciAdiLower) == true) ||
-            (t['ad']?.toString().toLowerCase().contains(tedarikciAdiLower) == true)
-          ) : null;
+          seciliTedarikci = tedarikciler
+                  .where((t) =>
+                      (t['sirket']
+                              ?.toString()
+                              .toLowerCase()
+                              .contains(tedarikciAdiLower) ==
+                          true) ||
+                      (t['ad']
+                              ?.toString()
+                              .toLowerCase()
+                              .contains(tedarikciAdiLower) ==
+                          true))
+                  .isNotEmpty
+              ? tedarikciler.firstWhere((t) =>
+                  (t['sirket']
+                          ?.toString()
+                          .toLowerCase()
+                          .contains(tedarikciAdiLower) ==
+                      true) ||
+                  (t['ad']
+                          ?.toString()
+                          .toLowerCase()
+                          .contains(tedarikciAdiLower) ==
+                      true))
+              : null;
         }
-        
+
         if (seciliTedarikci == null) {
           // Manuel tedarikçi seçimi
           seciliTedarikci = await _tedarikciSecDialog();
           if (seciliTedarikci == null) return;
         }
-        
+
         // Termin tarihi parse et
-        DateTime? terminTarihi;
-        if (terminTarihiStr != null && terminTarihiStr.isNotEmpty && !terminTarihiStr.startsWith('[')) {
-          try {
-            if (terminTarihiStr.contains('.')) {
-              final parts = terminTarihiStr.split('.');
-              if (parts.length == 3) {
-                terminTarihi = DateTime(
-                  int.parse(parts[2]),
-                  int.parse(parts[1]),
-                  int.parse(parts[0])
-                );
-              }
-            }
-          } catch (e) {
-            debugPrint('Tarih parse hatası: $e');
-          }
-        }
-        
+        final terminTarihi =
+            terminTarihiStr != null ? _parseDateText(terminTarihiStr) : null;
+
         // Sipariş detaylarını oku
         final List<Map<String, dynamic>> siparisDetaylari = [];
         bool detayBaslangici = false;
-        
+
         for (int row = 0; row < table.maxRows; row++) {
-          final cell0 = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row));
-          
+          final cell0 = table.cell(excel_package.CellIndex.indexByColumnRow(
+              columnIndex: 0, rowIndex: row));
+          final cell0Text = _excelCellText(cell0);
+
           // Detay başlangıcını bul
-          if (cell0.value.toString().contains('SİPARİŞ DETAYLARI') == true) {
+          if (cell0Text.contains('SİPARİŞ DETAYLARI')) {
             detayBaslangici = true;
             continue;
           }
-          
+
           // Başlık satırını atla
-          if (detayBaslangici && cell0.value.toString() == 'Sıra') {
+          if (detayBaslangici && cell0Text == 'Sıra') {
             continue;
           }
-          
+
           // Detay verilerini oku
           if (detayBaslangici) {
-            final sira = cell0.value.toString();
-            final iplikAdi = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value.toString();
-            final renk = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row)).value.toString();
-            final renkKodu = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row)).value.toString();
-            final miktarStr = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row)).value.toString();
-            final birimFiyatStr = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row)).value.toString();
-            final paraBirimi = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: row)).value.toString();
-            final aciklama = table.cell(excel_package.CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: row)).value.toString();
-            
+            final sira = cell0Text;
+            final iplikAdi = _excelCellText(table.cell(
+                excel_package.CellIndex.indexByColumnRow(
+                    columnIndex: 1, rowIndex: row)));
+            final renk = _excelCellText(table.cell(
+                excel_package.CellIndex.indexByColumnRow(
+                    columnIndex: 2, rowIndex: row)));
+            final renkKodu = _excelCellText(table.cell(
+                excel_package.CellIndex.indexByColumnRow(
+                    columnIndex: 3, rowIndex: row)));
+            final miktarStr = _excelCellText(table.cell(
+                excel_package.CellIndex.indexByColumnRow(
+                    columnIndex: 4, rowIndex: row)));
+            final birimFiyatStr = _excelCellText(table.cell(
+                excel_package.CellIndex.indexByColumnRow(
+                    columnIndex: 5, rowIndex: row)));
+            final paraBirimi = _excelCellText(table.cell(
+                excel_package.CellIndex.indexByColumnRow(
+                    columnIndex: 6, rowIndex: row)));
+            final aciklama = _excelCellText(table.cell(
+                excel_package.CellIndex.indexByColumnRow(
+                    columnIndex: 8, rowIndex: row)));
+
             // Boş satır kontrolü
             if (iplikAdi.isEmpty || miktarStr.isEmpty) {
               continue;
             }
-            
+
             // Özet bölümüne geldiysek dur
             if (iplikAdi.contains('ÖZET') || sira.contains('ÖZET')) {
               break;
             }
-            
-            final miktar = double.tryParse(miktarStr);
-            final birimFiyat = double.tryParse(birimFiyatStr);
-            
+
+            final miktar = _parseDecimal(miktarStr);
+            final birimFiyat = _parseDecimal(birimFiyatStr);
+
             // Renk bilgisini birleştir (tekli siparişle aynı format)
             String? renkBilgisi;
             if (renk.isNotEmpty || renkKodu.isNotEmpty) {
@@ -310,7 +422,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                 renkBilgisi = renkKodu;
               }
             }
-            
+
             if (miktar != null && miktar > 0) {
               siparisDetaylari.add({
                 'iplik_adi': iplikAdi,
@@ -323,34 +435,59 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
             }
           }
         }
-        
+
         if (siparisDetaylari.isEmpty) {
           throw 'Excel dosyasında geçerli sipariş detayı bulunamadı';
         }
-        
+
         // Dokuma firması eşleştirme
         Map<String, dynamic>? seciliDokumaFirmasi;
-        if (dokumaFirmasiAdi != null && dokumaFirmasiAdi.isNotEmpty && !dokumaFirmasiAdi.startsWith('[')) {
+        if (dokumaFirmasiAdi != null &&
+            dokumaFirmasiAdi.isNotEmpty &&
+            !dokumaFirmasiAdi.startsWith('[')) {
           final dokumaAdiLower = dokumaFirmasiAdi.toLowerCase();
-          seciliDokumaFirmasi = tedarikciler.where((t) => 
-            (t['sirket']?.toString().toLowerCase().contains(dokumaAdiLower) == true) ||
-            (t['ad']?.toString().toLowerCase().contains(dokumaAdiLower) == true)
-          ).isNotEmpty ? tedarikciler.firstWhere((t) => 
-            (t['sirket']?.toString().toLowerCase().contains(dokumaAdiLower) == true) ||
-            (t['ad']?.toString().toLowerCase().contains(dokumaAdiLower) == true)
-          ) : null;
+          seciliDokumaFirmasi = tedarikciler
+                  .where((t) =>
+                      (t['sirket']
+                              ?.toString()
+                              .toLowerCase()
+                              .contains(dokumaAdiLower) ==
+                          true) ||
+                      (t['ad']
+                              ?.toString()
+                              .toLowerCase()
+                              .contains(dokumaAdiLower) ==
+                          true))
+                  .isNotEmpty
+              ? tedarikciler.firstWhere((t) =>
+                  (t['sirket']
+                          ?.toString()
+                          .toLowerCase()
+                          .contains(dokumaAdiLower) ==
+                      true) ||
+                  (t['ad']?.toString().toLowerCase().contains(dokumaAdiLower) ==
+                      true))
+              : null;
         }
-        
+
         // Onay dialog göster
-        final onay = await _topluSiparisOnayDialog(siparisDetaylari, seciliTedarikci, terminTarihi, genelAciklama);
+        final onay = await _topluSiparisOnayDialog(
+            siparisDetaylari, seciliTedarikci, terminTarihi, genelAciklama);
         if (!onay) return;
-        
+
         // Siparişleri kaydet
-        await _topluSiparisleriKaydet(siparisDetaylari, seciliTedarikci, terminTarihi, genelAciklama, 
-          marka: (markaAdi != null && markaAdi.isNotEmpty && !markaAdi.startsWith('[')) ? markaAdi : null,
+        await _topluSiparisleriKaydet(
+          siparisDetaylari,
+          seciliTedarikci,
+          terminTarihi,
+          genelAciklama,
+          marka: (markaAdi != null &&
+                  markaAdi.isNotEmpty &&
+                  !markaAdi.startsWith('['))
+              ? markaAdi
+              : null,
           dokumaFirmasi: seciliDokumaFirmasi,
         );
-        
       }
     } catch (e) {
       if (mounted) {
@@ -361,7 +498,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
 
   Future<Map<String, dynamic>?> _tedarikciSecDialog() async {
     Map<String, dynamic>? seciliTedarikci;
-    
+
     await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -397,14 +534,15 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
               child: const Text('İptal'),
             ),
             ElevatedButton(
-              onPressed: seciliTedarikci != null ? () => Navigator.pop(context) : null,
+              onPressed:
+                  seciliTedarikci != null ? () => Navigator.pop(context) : null,
               child: const Text('Seç'),
             ),
           ],
         ),
       ),
     );
-    
+
     return seciliTedarikci;
   }
 
@@ -415,7 +553,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     String? genelAciklama,
   ) async {
     bool onay = false;
-    
+
     await showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -454,7 +592,6 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                   ],
                 ),
               ),
-              
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -468,9 +605,11 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Tedarikçi: ${tedarikci['sirket'] ?? tedarikci['ad']}'),
+                              Text(
+                                  'Tedarikçi: ${tedarikci['sirket'] ?? tedarikci['ad']}'),
                               if (terminTarihi != null)
-                                Text('Termin: ${DateFormat('dd.MM.yyyy').format(terminTarihi)}'),
+                                Text(
+                                    'Termin: ${DateFormat('dd.MM.yyyy').format(terminTarihi)}'),
                               if (genelAciklama?.isNotEmpty == true)
                                 Text('Açıklama: $genelAciklama'),
                               Text('Toplam Kalem: ${siparisDetaylari.length}'),
@@ -478,10 +617,11 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      const Text('Sipariş Detayları:', style: TextStyle(fontWeight: FontWeight.bold)),
-                      
+                      const Text('Sipariş Detayları:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+
                       // Sipariş listesi
                       Expanded(
                         child: ListView.builder(
@@ -498,8 +638,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                                 ),
                                 title: Text(detay['iplik_adi']),
                                 subtitle: Text(
-                                  '${detay['renk'] ?? 'Renk yok'} - ${detay['miktar']} kg${detay['birim_fiyat'] != null ? ' - ${detay['birim_fiyat']} ${detay['para_birimi']}' : ''}'
-                                ),
+                                    '${detay['renk'] ?? 'Renk yok'} - ${detay['miktar']} kg${detay['birim_fiyat'] != null ? ' - ${detay['birim_fiyat']} ${detay['para_birimi']}' : ''}'),
                               ),
                             );
                           },
@@ -509,7 +648,6 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                   ),
                 ),
               ),
-              
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -539,7 +677,8 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
                         ),
-                        child: Text('${siparisDetaylari.length} Siparişi Oluştur'),
+                        child:
+                            Text('${siparisDetaylari.length} Siparişi Oluştur'),
                       ),
                     ),
                   ],
@@ -550,7 +689,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
         ),
       ),
     );
-    
+
     return onay;
   }
 
@@ -565,12 +704,13 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     try {
       int basariliSayisi = 0;
       final List<String> hatalar = [];
-      
+
       for (int i = 0; i < siparisDetaylari.length; i++) {
         try {
           final detay = siparisDetaylari[i];
-          final siparisNo = 'SIP${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}-${i + 1}';
-          
+          final siparisNo =
+              'SIP${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}-${i + 1}';
+
           final siparisData = {
             'siparis_no': siparisNo,
             'tedarikci_id': tedarikci['id'],
@@ -590,27 +730,28 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
           };
 
           if (detay['birim_fiyat'] != null) {
-            siparisData['toplam_tutar'] = detay['miktar'] * detay['birim_fiyat'];
+            siparisData['toplam_tutar'] =
+                detay['miktar'] * detay['birim_fiyat'];
           }
 
           await supabase.from(DbTables.iplikSiparisleri).insert(siparisData);
           basariliSayisi++;
-          
+
           // Her 5 siparişte bir kısa bekle
           if (i % 5 == 0) {
             await Future.delayed(const Duration(milliseconds: 100));
           }
-          
         } catch (e) {
           hatalar.add('${i + 1}. sipariş: ${e.toString()}');
         }
       }
-      
+
       await _verileriYukle(); // Veriyi yenile
-      
+
       if (mounted) {
         if (hatalar.isEmpty) {
-          context.showSuccessSnackBar('$basariliSayisi sipariş başarıyla oluşturuldu');
+          context.showSuccessSnackBar(
+              '$basariliSayisi sipariş başarıyla oluşturuldu');
         } else {
           showDialog(
             context: context,
@@ -624,8 +765,10 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                   Text('Hatalı: ${hatalar.length}'),
                   if (hatalar.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    const Text('Hatalar:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ...hatalar.take(5).map((e) => Text('• $e', style: const TextStyle(fontSize: 12))),
+                    const Text('Hatalar:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    ...hatalar.take(5).map((e) =>
+                        Text('• $e', style: const TextStyle(fontSize: 12))),
                     if (hatalar.length > 5)
                       Text('... ve ${hatalar.length - 5} hata daha'),
                   ],
@@ -648,7 +791,6 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     }
   }
 
-
   Future<void> _yeniSiparisOlustur() async {
     final siparisNoController = TextEditingController();
     final iplikAdiController = TextEditingController();
@@ -658,69 +800,73 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     final birimFiyatController = TextEditingController();
     final aciklamaController = TextEditingController();
     final markaController = TextEditingController();
-    
+
     Map<String, dynamic>? seciliTedarikci;
     Map<String, dynamic>? seciliDokumaFirmasi;
     String seciliParaBirimi = 'TL';
     DateTime? terminTarihi;
     DateTime siparisTarihi = DateTime.now();
     const String siparisDurumu = 'beklemede';
-    
+
     // İplik firması olan tedarikçileri getir
     // İplik firması olan tedarikçileri getir
     final iplikTedarikcileri = tedarikciler.where((tedarikci) {
       final turu = tedarikci['tedarikci_turu']?.toString().toLowerCase() ?? '';
       final faaliyet = tedarikci['faaliyet']?.toString().toLowerCase() ?? '';
-      final faaliyetAlani = tedarikci['faaliyet_alani']?.toString().toLowerCase() ?? '';
+      final faaliyetAlani =
+          tedarikci['faaliyet_alani']?.toString().toLowerCase() ?? '';
       final sirket = tedarikci['sirket']?.toString().toLowerCase() ?? '';
       final ad = tedarikci['ad']?.toString().toLowerCase() ?? '';
-      
+
       // İplik firmalarını filtrele
       return turu == 'iplik firması' ||
-             turu.contains('iplik') ||
-             faaliyet == 'iplik' ||
-             faaliyet.contains('iplik') ||
-             faaliyetAlani == 'iplik' ||
-             faaliyetAlani.contains('iplik') ||
-             sirket.contains('iplik') ||
-             ad.contains('iplik');
+          turu.contains('iplik') ||
+          faaliyet == 'iplik' ||
+          faaliyet.contains('iplik') ||
+          faaliyetAlani == 'iplik' ||
+          faaliyetAlani.contains('iplik') ||
+          sirket.contains('iplik') ||
+          ad.contains('iplik');
     }).toList();
-    
+
     // Dokuma firması olan tedarikçileri getir (Dokuma faaliyet alanı)
     final dokumaFirmalari = tedarikciler.where((tedarikci) {
       final turu = tedarikci['tedarikci_turu']?.toString().toLowerCase() ?? '';
       final faaliyet = tedarikci['faaliyet']?.toString().toLowerCase() ?? '';
-      final faaliyetAlani = tedarikci['faaliyet_alani']?.toString().toLowerCase() ?? '';
+      final faaliyetAlani =
+          tedarikci['faaliyet_alani']?.toString().toLowerCase() ?? '';
       final sirket = tedarikci['sirket']?.toString().toLowerCase() ?? '';
       final ad = tedarikci['ad']?.toString().toLowerCase() ?? '';
-      
+
       // Debug için
-      debugPrint('Tedarikçi: ${tedarikci['sirket'] ?? tedarikci['ad']}, Tür: "$turu", Faaliyet: "$faaliyet", Faaliyet Alanı: "$faaliyetAlani"');
-      
+      debugPrint(
+          'Tedarikçi: ${tedarikci['sirket'] ?? tedarikci['ad']}, Tür: "$turu", Faaliyet: "$faaliyet", Faaliyet Alanı: "$faaliyetAlani"');
+
       // Dokuma faaliyet alanı olan firmaları filtrele
       return (turu == 'üretici' && faaliyet == 'dokuma') ||
-             (turu == 'üretici' && faaliyetAlani == 'dokuma') ||
-             turu == 'dokuma firması' || 
-             turu.contains('dokuma') ||
-             faaliyet == 'dokuma' ||
-             faaliyet.contains('dokuma') ||
-             faaliyetAlani == 'dokuma' ||
-             faaliyetAlani.contains('dokuma') ||
-             sirket.contains('dokuma') ||
-             ad.contains('dokuma');
+          (turu == 'üretici' && faaliyetAlani == 'dokuma') ||
+          turu == 'dokuma firması' ||
+          turu.contains('dokuma') ||
+          faaliyet == 'dokuma' ||
+          faaliyet.contains('dokuma') ||
+          faaliyetAlani == 'dokuma' ||
+          faaliyetAlani.contains('dokuma') ||
+          sirket.contains('dokuma') ||
+          ad.contains('dokuma');
     }).toList();
-    
+
     // Debug için sonuç sayısını yazdır
     debugPrint('Toplam tedarikçi sayısı: ${tedarikciler.length}');
     debugPrint('İplik firması sayısı: ${iplikTedarikcileri.length}');
     debugPrint('Dokuma firması sayısı: ${dokumaFirmalari.length}');
-    
+
     // Otomatik sipariş numarası oluştur
-    final siparisNo = 'SIP${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final siparisNo =
+        'SIP${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     siparisNoController.text = siparisNo;
-    
+
     if (!mounted) return;
-    
+
     await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -765,7 +911,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                     ],
                   ),
                 ),
-                
+
                 // Form içeriği
                 Expanded(
                   child: SingleChildScrollView(
@@ -794,8 +940,10 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                                   final tarih = await showDatePicker(
                                     context: context,
                                     initialDate: siparisTarihi,
-                                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                                    firstDate: DateTime.now()
+                                        .subtract(const Duration(days: 365)),
+                                    lastDate: DateTime.now()
+                                        .add(const Duration(days: 30)),
                                   );
                                   if (tarih != null) {
                                     setState(() {
@@ -810,7 +958,8 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                                     prefixIcon: Icon(Icons.calendar_today),
                                   ),
                                   child: Text(
-                                    DateFormat('dd.MM.yyyy').format(siparisTarihi),
+                                    DateFormat('dd.MM.yyyy')
+                                        .format(siparisTarihi),
                                   ),
                                 ),
                               ),
@@ -818,7 +967,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Tedarikçi Seçimi
                         DropdownButtonFormField<Map<String, dynamic>>(
                           initialValue: seciliTedarikci,
@@ -832,18 +981,21 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                               value: tedarikci,
                               child: Text(
                                 '${tedarikci['sirket'] ?? tedarikci['ad'] ?? 'İsimsiz'}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             );
                           }).toList(),
-                          onChanged: iplikTedarikcileri.isEmpty ? null : (value) {
-                            setState(() {
-                              seciliTedarikci = value;
-                            });
-                          },
+                          onChanged: iplikTedarikcileri.isEmpty
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    seciliTedarikci = value;
+                                  });
+                                },
                         ),
-                        
+
                         // İplik firması yoksa uyarı göster
                         if (iplikTedarikcileri.isEmpty)
                           Container(
@@ -856,11 +1008,13 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                             ),
                             child: const Row(
                               children: [
-                                Icon(Icons.warning, color: Colors.orange, size: 20),
+                                Icon(Icons.warning,
+                                    color: Colors.orange, size: 20),
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Tedarikçi bulunamadı!',
@@ -880,7 +1034,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                             ),
                           ),
                         const SizedBox(height: 12),
-                        
+
                         // Marka ve Dokuma Firması
                         Row(
                           children: [
@@ -897,7 +1051,8 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: DropdownButtonFormField<Map<String, dynamic>>(
+                              child:
+                                  DropdownButtonFormField<Map<String, dynamic>>(
                                 initialValue: seciliDokumaFirmasi,
                                 decoration: const InputDecoration(
                                   labelText: 'Dokuma Firması (Teslimat) *',
@@ -909,21 +1064,24 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                                     value: firma,
                                     child: Text(
                                       '${firma['sirket'] ?? firma['ad'] ?? 'İsimsiz'}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   );
                                 }).toList(),
-                                onChanged: dokumaFirmalari.isEmpty ? null : (value) {
-                                  setState(() {
-                                    seciliDokumaFirmasi = value;
-                                  });
-                                },
+                                onChanged: dokumaFirmalari.isEmpty
+                                    ? null
+                                    : (value) {
+                                        setState(() {
+                                          seciliDokumaFirmasi = value;
+                                        });
+                                      },
                               ),
                             ),
                           ],
                         ),
-                        
+
                         // Dokuma firması yoksa uyarı göster
                         if (dokumaFirmalari.isEmpty)
                           Container(
@@ -940,7 +1098,8 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Dokuma firması bulunamadı!',
@@ -960,7 +1119,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                             ),
                           ),
                         const SizedBox(height: 12),
-                        
+
                         // İplik Bilgileri
                         TextField(
                           controller: iplikAdiController,
@@ -968,11 +1127,12 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                             labelText: 'İplik Adı/Türü *',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.category),
-                            hintText: 'Örn: Pamuk İplik 30/1, Polyester İplik 20/1',
+                            hintText:
+                                'Örn: Pamuk İplik 30/1, Polyester İplik 20/1',
                           ),
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Renk ve Renk Kodu
                         Row(
                           children: [
@@ -1002,7 +1162,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Miktar ve Fiyat
                         Row(
                           children: [
@@ -1039,9 +1199,12 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                                   border: OutlineInputBorder(),
                                 ),
                                 items: const [
-                                  DropdownMenuItem(value: 'TL', child: Text('₺ TL')),
-                                  DropdownMenuItem(value: 'USD', child: Text('\$ USD')),
-                                  DropdownMenuItem(value: 'EUR', child: Text('€ EUR')),
+                                  DropdownMenuItem(
+                                      value: 'TL', child: Text('₺ TL')),
+                                  DropdownMenuItem(
+                                      value: 'USD', child: Text('\$ USD')),
+                                  DropdownMenuItem(
+                                      value: 'EUR', child: Text('€ EUR')),
                                 ],
                                 onChanged: (value) {
                                   setState(() {
@@ -1053,15 +1216,17 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Termin Tarihi
                         InkWell(
                           onTap: () async {
                             final tarih = await showDatePicker(
                               context: context,
-                              initialDate: DateTime.now().add(const Duration(days: 7)),
+                              initialDate:
+                                  DateTime.now().add(const Duration(days: 7)),
                               firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                              lastDate:
+                                  DateTime.now().add(const Duration(days: 365)),
                             );
                             if (tarih != null) {
                               setState(() {
@@ -1076,17 +1241,20 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                               prefixIcon: Icon(Icons.event),
                             ),
                             child: Text(
-                              terminTarihi != null 
-                                ? DateFormat('dd.MM.yyyy').format(terminTarihi!)
-                                : 'Termin tarihi seçin',
+                              terminTarihi != null
+                                  ? DateFormat('dd.MM.yyyy')
+                                      .format(terminTarihi!)
+                                  : 'Termin tarihi seçin',
                               style: TextStyle(
-                                color: terminTarihi != null ? Colors.black : Colors.grey,
+                                color: terminTarihi != null
+                                    ? Colors.black
+                                    : Colors.grey,
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Açıklama
                         TextField(
                           controller: aciklamaController,
@@ -1098,15 +1266,19 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           maxLines: 2,
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Toplam Tutar Gösterimi
-                        if (miktarController.text.isNotEmpty && birimFiyatController.text.isNotEmpty)
+                        if (miktarController.text.isNotEmpty &&
+                            birimFiyatController.text.isNotEmpty)
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFD2B48C).withValues(alpha: 0.1),
+                              color: const Color(0xFFD2B48C)
+                                  .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFD2B48C).withValues(alpha: 0.3)),
+                              border: Border.all(
+                                  color: const Color(0xFFD2B48C)
+                                      .withValues(alpha: 0.3)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1133,7 +1305,7 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                     ),
                   ),
                 ),
-                
+
                 // Alt butonlar
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -1217,7 +1389,11 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     required String aciklama,
   }) async {
     try {
-      if (tedarikci == null || dokumaFirmasi == null || marka.trim().isEmpty || iplikAdi.trim().isEmpty || miktar.trim().isEmpty) {
+      if (tedarikci == null ||
+          dokumaFirmasi == null ||
+          marka.trim().isEmpty ||
+          iplikAdi.trim().isEmpty ||
+          miktar.trim().isEmpty) {
         throw 'Tedarikçi, dokuma firması, marka, iplik adı ve miktar zorunludur';
       }
 
@@ -1226,9 +1402,9 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
         throw 'Geçerli bir miktar girin';
       }
 
-      final birimFiyatSayi = birimFiyat.trim().isNotEmpty 
-        ? double.tryParse(birimFiyat.trim()) 
-        : null;
+      final birimFiyatSayi = birimFiyat.trim().isNotEmpty
+          ? double.tryParse(birimFiyat.trim())
+          : null;
 
       // Renk bilgisini birleştir
       String? renkBilgisi;
@@ -1246,7 +1422,8 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
       final siparisData = {
         'siparis_no': siparisNo,
         'tedarikci_id': tedarikci['id'],
-        'orgu_firmasi_id': dokumaFirmasi['id'], // Dokuma firması ID'si orgu_firmasi_id alanına kaydediliyor
+        'orgu_firmasi_id': dokumaFirmasi[
+            'id'], // Dokuma firması ID'si orgu_firmasi_id alanına kaydediliyor
         'marka': marka.trim(),
         'iplik_adi': iplikAdi.trim(),
         'renk': renkBilgisi,

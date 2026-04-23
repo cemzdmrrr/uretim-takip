@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,7 +26,7 @@ class _ModelListeleState extends State<ModelListele> {
   List<Map<String, dynamic>> modeller = [];
   bool yukleniyor = true;
   String arama = '';
-  
+
   // Admin kontrolü - gerçek kullanıcı rolünden alınacak
   bool isAdmin = false;
   String currentUserRole = '';
@@ -40,12 +40,19 @@ class _ModelListeleState extends State<ModelListele> {
 
   // Realtime subscription
   RealtimeChannel? _realtimeChannel;
-  
+
   // Toplu işlem seçenekleri
   List<String> seciliIdler = [];
   bool tumunuSec = false;
-  
-  final List<String> durumOptions = ['Tümü', 'Beklemede', 'Planlama', 'Üretim', 'Tamamlandı', 'İptal'];
+
+  final List<String> durumOptions = [
+    'Tümü',
+    'Beklemede',
+    'Planlama',
+    'Üretim',
+    'Tamamlandı',
+    'İptal'
+  ];
 
   @override
   void initState() {
@@ -68,7 +75,7 @@ class _ModelListeleState extends State<ModelListele> {
       }
 
       debugPrint('🔍 ModelListele: ${user.email} için rol sorgulanıyor...');
-      
+
       final response = await Supabase.instance.client
           .from(DbTables.userRoles)
           .select()
@@ -81,8 +88,9 @@ class _ModelListeleState extends State<ModelListele> {
         currentUserRole = response?['role'] ?? 'user';
         isAdmin = currentUserRole == 'admin';
       });
-      
-      debugPrint('✅ ModelListele: Rol set edildi - currentUserRole: $currentUserRole, isAdmin: $isAdmin');
+
+      debugPrint(
+          '✅ ModelListele: Rol set edildi - currentUserRole: $currentUserRole, isAdmin: $isAdmin');
     } catch (e) {
       debugPrint('❌ ModelListele: Kullanıcı rolü alınamadı: $e');
     }
@@ -104,12 +112,11 @@ class _ModelListeleState extends State<ModelListele> {
     setState(() => yukleniyor = true);
     try {
       List<Map<String, dynamic>> response = [];
-      
+
       if (currentUserRole == 'admin') {
         // Admin tüm modelleri görebilir
-        final adminResponse = await supabase
-            .from(DbTables.trikoTakip)
-            .select('''
+        final adminResponse =
+            await supabase.from(DbTables.trikoTakip).select('''
               id,
               marka,
               item_no,
@@ -136,28 +143,50 @@ class _ModelListeleState extends State<ModelListele> {
               orgu_firmasi,
               konfeksiyon_firmasi,
               utu_pres_firmasi
-            ''')
-            .eq('firma_id', _firmaId)
-            .order('created_at', ascending: false);
-        
+            ''').eq('firma_id', _firmaId).order('created_at', ascending: false);
+
         response = List<Map<String, dynamic>>.from(adminResponse);
       } else {
         // Diğer kullanıcılar sadece kendilerine atanan modelleri görebilir
         final user = supabase.auth.currentUser;
         if (user?.id != null) {
           final Set<String> atanmisModelIdleri = {};
-          
+
           // Tüm atama tablolarından bu kullanıcıya atanan model ID'lerini çek
           final fId = TenantManager.instance.requireFirmaId;
           final futures = [
-            supabase.from(DbTables.dokumaAtamalari).select('model_id').eq('atanan_kullanici_id', user!.id).eq('firma_id', fId),
-            supabase.from(DbTables.konfeksiyonAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-            supabase.from(DbTables.nakisAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-            supabase.from(DbTables.yikamaAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-            supabase.from(DbTables.ilikDugmeAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-            supabase.from(DbTables.utuAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
+            supabase
+                .from(DbTables.dokumaAtamalari)
+                .select('model_id')
+                .eq('atanan_kullanici_id', user!.id)
+                .eq('firma_id', fId),
+            supabase
+                .from(DbTables.konfeksiyonAtamalari)
+                .select('model_id')
+                .eq('atanan_kullanici_id', user.id)
+                .eq('firma_id', fId),
+            supabase
+                .from(DbTables.nakisAtamalari)
+                .select('model_id')
+                .eq('atanan_kullanici_id', user.id)
+                .eq('firma_id', fId),
+            supabase
+                .from(DbTables.yikamaAtamalari)
+                .select('model_id')
+                .eq('atanan_kullanici_id', user.id)
+                .eq('firma_id', fId),
+            supabase
+                .from(DbTables.ilikDugmeAtamalari)
+                .select('model_id')
+                .eq('atanan_kullanici_id', user.id)
+                .eq('firma_id', fId),
+            supabase
+                .from(DbTables.utuAtamalari)
+                .select('model_id')
+                .eq('atanan_kullanici_id', user.id)
+                .eq('firma_id', fId),
           ];
-          
+
           final atamaResults = await Future.wait(futures.map((future) async {
             try {
               return await future;
@@ -166,16 +195,16 @@ class _ModelListeleState extends State<ModelListele> {
               return [];
             }
           }));
-          
+
           // Tüm atanmış model ID'lerini topla
           for (var atamaList in atamaResults) {
             for (var atama in atamaList) {
               atanmisModelIdleri.add(atama['model_id']);
             }
           }
-          
+
           debugPrint('Atanmış model ID sayısı: ${atanmisModelIdleri.length}');
-          
+
           if (atanmisModelIdleri.isNotEmpty) {
             // Atanmış modellerin detaylarını çek
             final modelResponse = await supabase
@@ -215,14 +244,14 @@ class _ModelListeleState extends State<ModelListele> {
           }
         }
       }
-      
+
       debugPrint('📊 Gelen veri sayısı: ${response.length}');
-      
+
       setState(() {
         modeller = response;
         yukleniyor = false;
       });
-      
+
       debugPrint('✅ Model listesi güncellendi');
     } catch (e) {
       debugPrint('❌ Veri çekme hatası: $e');
@@ -235,14 +264,15 @@ class _ModelListeleState extends State<ModelListele> {
 
   List<Map<String, dynamic>> get filtreliModeller {
     List<Map<String, dynamic>> filtered = List.from(modeller);
-    
+
     // EN ÖNEMLİ: Tamamlanmış modelleri ana listeden çıkar
-    debugPrint('🔍 Filtreleme başlıyor - Toplam model sayısı: ${filtered.length}');
-    
+    debugPrint(
+        '🔍 Filtreleme başlıyor - Toplam model sayısı: ${filtered.length}');
+
     filtered = filtered.where((model) {
       final tamamlandi = model['tamamlandi'];
       bool tamamlandiMi = false;
-      
+
       // Tüm olası veri tiplerini kontrol et
       if (tamamlandi is bool) {
         tamamlandiMi = tamamlandi;
@@ -251,67 +281,91 @@ class _ModelListeleState extends State<ModelListele> {
       } else if (tamamlandi is String) {
         tamamlandiMi = tamamlandi.toLowerCase() == 'true' || tamamlandi == '1';
       }
-      
+
       if (tamamlandiMi) {
         debugPrint('🚫 Tamamlanmış model filtrelendi: ${model['item_no']}');
       }
-      
+
       return !tamamlandiMi; // Tamamlanmamış olanları göster
     }).toList();
-    
+
     debugPrint('✅ Tamamlanmamış model sayısı: ${filtered.length}');
-    
+
     if (arama.isNotEmpty) {
       filtered = filtered.where((model) {
         final itemNo = model['item_no']?.toString().toLowerCase() ?? '';
         final marka = model['marka']?.toString().toLowerCase() ?? '';
         final modelAdi = model['model_adi']?.toString().toLowerCase() ?? '';
         final aramaKelime = arama.toLowerCase();
-        
-        return itemNo.contains(aramaKelime) || 
-               marka.contains(aramaKelime) || 
-               modelAdi.contains(aramaKelime);
+
+        return itemNo.contains(aramaKelime) ||
+            marka.contains(aramaKelime) ||
+            modelAdi.contains(aramaKelime);
       }).toList();
     }
-    
+
     if (seciliMarka != null && seciliMarka != 'Tümü') {
-      filtered = filtered.where((model) => model['marka'] == seciliMarka).toList();
+      filtered =
+          filtered.where((model) => model['marka'] == seciliMarka).toList();
     }
-    
+
     if (seciliModelAdi != null && seciliModelAdi != 'Tümü') {
-      filtered = filtered.where((model) => model['model_adi'] == seciliModelAdi).toList();
+      filtered = filtered
+          .where((model) => model['model_adi'] == seciliModelAdi)
+          .toList();
     }
-    
+
     if (seciliDurum != null && seciliDurum != 'Tümü') {
-      filtered = filtered.where((model) => model['durum'] == seciliDurum).toList();
+      filtered =
+          filtered.where((model) => model['durum'] == seciliDurum).toList();
     }
-    
+
     if (seciliUrunKategorisi != null && seciliUrunKategorisi != 'Tümü') {
-      filtered = filtered.where((model) => model['urun_kategorisi'] == seciliUrunKategorisi).toList();
+      filtered = filtered
+          .where((model) => model['urun_kategorisi'] == seciliUrunKategorisi)
+          .toList();
     }
-    
+
     if (seciliCinsiyet != null && seciliCinsiyet != 'Tümü') {
-      filtered = filtered.where((model) => model['cinsiyet'] == seciliCinsiyet).toList();
+      filtered = filtered
+          .where((model) => model['cinsiyet'] == seciliCinsiyet)
+          .toList();
     }
-    
+
     debugPrint('🎯 Final filtrelenmiş model sayısı: ${filtered.length}');
     return filtered;
   }
 
   Set<String> get markalar {
-    return modeller.map((m) => m['marka']?.toString()).where((m) => m != null).cast<String>().toSet();
+    return modeller
+        .map((m) => m['marka']?.toString())
+        .where((m) => m != null)
+        .cast<String>()
+        .toSet();
   }
 
   Set<String> get modelAdlari {
-    return modeller.map((m) => m['model_adi']?.toString()).where((m) => m != null && m.isNotEmpty).cast<String>().toSet();
+    return modeller
+        .map((m) => m['model_adi']?.toString())
+        .where((m) => m != null && m.isNotEmpty)
+        .cast<String>()
+        .toSet();
   }
 
   Set<String> get urunKategorileri {
-    return modeller.map((m) => m['urun_kategorisi']?.toString()).where((m) => m != null).cast<String>().toSet();
+    return modeller
+        .map((m) => m['urun_kategorisi']?.toString())
+        .where((m) => m != null)
+        .cast<String>()
+        .toSet();
   }
 
   Set<String> get cinsiyetler {
-    return modeller.map((m) => m['cinsiyet']?.toString()).where((m) => m != null && m.isNotEmpty).cast<String>().toSet();
+    return modeller
+        .map((m) => m['cinsiyet']?.toString())
+        .where((m) => m != null && m.isNotEmpty)
+        .cast<String>()
+        .toSet();
   }
 
   Color getTerminRengi(String? terminTarihi) {
@@ -327,21 +381,117 @@ class _ModelListeleState extends State<ModelListele> {
 
   String formatBedenler(Map<String, dynamic>? bedenler) {
     if (bedenler == null) return '';
-    
+
     final List<String> bedenListesi = [];
     bedenler.forEach((beden, adet) {
       if (adet != null && adet > 0) {
         bedenListesi.add('$beden: $adet');
       }
     });
-    
+
     return bedenListesi.join(', ');
   }
 
-  Future<void> modelKopyala(dynamic modelId, String? marka, String? itemNo) async {
+  int _intDeger(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  Map<String, dynamic> _kopyaModelPayloadiHazirla(
+    Map<String, dynamic> originalModel,
+    String yeniItemNo,
+  ) {
+    final yeniModel = Map<String, dynamic>.from(originalModel);
+    final toplamAdet = _intDeger(yeniModel['toplam_adet'] ?? yeniModel['adet']);
+
+    yeniModel.remove('id');
+    yeniModel.remove('created_at');
+    yeniModel.remove('updated_at');
+
+    yeniModel['item_no'] = yeniItemNo;
+    yeniModel['durum'] = 'Beklemede';
+    yeniModel['tamamlandi'] = false;
+    yeniModel['iplik_geldi'] = false;
+    yeniModel['kase_onayi'] = false;
+
+    for (final key in const [
+      'yuklenen_adet',
+      'gonderilen_adet',
+      'tamamlanan_adet',
+      'fire_adet',
+    ]) {
+      if (yeniModel.containsKey(key)) {
+        yeniModel[key] = 0;
+      }
+    }
+
+    if (yeniModel.containsKey('kalan_adet')) {
+      yeniModel['kalan_adet'] = toplamAdet;
+    }
+
+    if (yeniModel.containsKey('mevcut_asama')) {
+      yeniModel['mevcut_asama'] = 'beklemede';
+    }
+
+    for (final key in const [
+      'dokuma_durumu',
+      'orgu_durumu',
+      'nakis_durumu',
+      'konfeksiyon_durumu',
+      'yikama_durumu',
+      'ilik_dugme_durumu',
+      'utu_durumu',
+      'kalite_durumu',
+      'kalite_kontrol_durumu',
+      'paketleme_durumu',
+    ]) {
+      if (yeniModel.containsKey(key)) {
+        yeniModel[key] = 'beklemede';
+      }
+    }
+
+    for (final key in const [
+      'tamamlama_tarihi',
+      'gonderim_tarihi',
+      'yukleme_tarihi',
+      'son_islem_tarihi',
+    ]) {
+      if (yeniModel.containsKey(key)) {
+        yeniModel[key] = null;
+      }
+    }
+
+    return yeniModel;
+  }
+
+  Future<void> _iliskiliKayitlariKopyala({
+    required String tableName,
+    required dynamic eskiModelId,
+    required String yeniModelId,
+  }) async {
+    final kayitlar =
+        await supabase.from(tableName).select('*').eq('model_id', eskiModelId);
+
+    final payload = List<Map<String, dynamic>>.from(kayitlar).map((kayit) {
+      final yeniKayit = Map<String, dynamic>.from(kayit);
+      yeniKayit.remove('id');
+      yeniKayit.remove('created_at');
+      yeniKayit.remove('updated_at');
+      yeniKayit['model_id'] = yeniModelId;
+      return yeniKayit;
+    }).toList();
+
+    if (payload.isEmpty) return;
+    await supabase.from(tableName).insert(payload);
+  }
+
+  Future<void> modelKopyala(
+      dynamic modelId, String? marka, String? itemNo) async {
     // Yeni item_no için kullanıcıdan giriş al
-    final yeniItemNoController = TextEditingController(text: '${itemNo ?? ''}-KOPYA');
-    
+    final yeniItemNoController =
+        TextEditingController(text: '${itemNo ?? ''}-KOPYA');
+
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -350,9 +500,11 @@ class _ModelListeleState extends State<ModelListele> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${marka ?? ''} - ${itemNo ?? ''} modelini kopyalamak istediğinizden emin misiniz?'),
+            Text(
+                '${marka ?? ''} - ${itemNo ?? ''} modelini kopyalamak istediğinizden emin misiniz?'),
             const SizedBox(height: 16),
-            const Text('Yeni Model Kodu (benzersiz olmalı):', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Yeni Model Kodu (benzersiz olmalı):',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextField(
               controller: yeniItemNoController,
@@ -402,16 +554,7 @@ class _ModelListeleState extends State<ModelListele> {
           .single();
 
       // Benzersiz ve sıfırlanması gereken alanları düzenle
-      final yeniModel = Map<String, dynamic>.from(originalModel);
-      yeniModel.remove('id');
-      yeniModel.remove('created_at');
-      yeniModel.remove('updated_at');
-      yeniModel['item_no'] = result; // Yeni benzersiz model kodu
-      yeniModel['durum'] = 'Beklemede';
-      yeniModel['tamamlandi'] = false;
-      // siparis_tarihi ve termin_tarihi orijinalden kopyalanır
-      yeniModel['iplik_geldi'] = false;
-      yeniModel['kase_onayi'] = false;
+      final yeniModel = _kopyaModelPayloadiHazirla(originalModel, result);
 
       // Yeni modeli kaydet
       final response = await supabase
@@ -423,36 +566,35 @@ class _ModelListeleState extends State<ModelListele> {
 
       // Beden dağılımını kopyala
       try {
-        final bedenler = await supabase
-            .from(DbTables.modelBedenDagilimi)
-            .select('*')
-            .eq('model_id', modelId);
-        for (final beden in bedenler) {
-          final yeniBeden = Map<String, dynamic>.from(beden);
-          yeniBeden.remove('id');
-          yeniBeden.remove('created_at');
-          yeniBeden['model_id'] = yeniModelId;
-          await supabase.from(DbTables.modelBedenDagilimi).insert(yeniBeden);
-        }
+        await _iliskiliKayitlariKopyala(
+          tableName: DbTables.modelBedenDagilimi,
+          eskiModelId: modelId,
+          yeniModelId: yeniModelId,
+        );
       } catch (e) {
         debugPrint('Beden dağılımı kopyalama hatası: $e');
       }
 
       // Aksesuarları kopyala
       try {
-        final aksesuarlar = await supabase
-            .from(DbTables.modelAksesuar)
-            .select('*')
-            .eq('model_id', modelId);
-        for (final aksesuar in aksesuarlar) {
-          final yeniAksesuar = Map<String, dynamic>.from(aksesuar);
-          yeniAksesuar.remove('id');
-          yeniAksesuar.remove('created_at');
-          yeniAksesuar['model_id'] = yeniModelId;
-          await supabase.from(DbTables.modelAksesuar).insert(yeniAksesuar);
-        }
+        await _iliskiliKayitlariKopyala(
+          tableName: DbTables.modelAksesuar,
+          eskiModelId: modelId,
+          yeniModelId: yeniModelId,
+        );
       } catch (e) {
         debugPrint('Aksesuar kopyalama hatası: $e');
+      }
+
+      // Teknik dosya kayıtlarını kopyala
+      try {
+        await _iliskiliKayitlariKopyala(
+          tableName: DbTables.teknikDosyalar,
+          eskiModelId: modelId,
+          yeniModelId: yeniModelId,
+        );
+      } catch (e) {
+        debugPrint('Teknik dosya kopyalama hatası: $e');
       }
 
       if (mounted) {
@@ -472,7 +614,8 @@ class _ModelListeleState extends State<ModelListele> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Model Sil'),
-        content: Text('${marka ?? ''} - ${itemNo ?? ''} modelini silmek istediğinizden emin misiniz?'),
+        content: Text(
+            '${marka ?? ''} - ${itemNo ?? ''} modelini silmek istediğinizden emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -501,7 +644,7 @@ class _ModelListeleState extends State<ModelListele> {
           DbTables.paketlemeAtamalari,
           DbTables.sevkiyatKayitlari,
         ];
-        
+
         for (final tablo in atamaTablolari) {
           try {
             await supabase.from(tablo).delete().eq('model_id', modelId);
@@ -509,21 +652,21 @@ class _ModelListeleState extends State<ModelListele> {
             // Tablo yoksa veya kayıt yoksa devam et
           }
         }
-        
+
         // Modeli sil
         await supabase.from(DbTables.trikoTakip).delete().eq('id', modelId);
-        
+
         // Önce local listeden kaldır (anında görünüm güncellemesi)
         if (!mounted) return;
         setState(() {
           modeller.removeWhere((m) => m['id'] == modelId);
           filtreliModeller.removeWhere((m) => m['id'] == modelId);
         });
-        
+
         if (mounted) {
           context.showSuccessSnackBar('Model başarıyla silindi');
         }
-        
+
         // Listeyi veritabanından yenile
         await modelleriGetir();
       } catch (e) {
@@ -554,7 +697,7 @@ class _ModelListeleState extends State<ModelListele> {
   @override
   Widget build(BuildContext context) {
     final seciliModelSayisi = seciliIdler.length;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('TexPilot'),
@@ -580,7 +723,9 @@ class _ModelListeleState extends State<ModelListele> {
                 // ========== DURUM GÜNCELLEMELERİ ==========
                 const PopupMenuItem(
                   enabled: false,
-                  child: Text('DURUM GÜNCELLEMELERİ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  child: Text('DURUM GÜNCELLEMELERİ',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.grey)),
                 ),
                 const PopupMenuItem(
                   value: 'durum_guncelle',
@@ -623,11 +768,13 @@ class _ModelListeleState extends State<ModelListele> {
                   ),
                 ),
                 const PopupMenuDivider(),
-                
+
                 // ========== EXCEL DIŞA AKTARMA ==========
                 const PopupMenuItem(
                   enabled: false,
-                  child: Text('EXCEL DIŞA AKTARMA', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  child: Text('EXCEL DIŞA AKTARMA',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.grey)),
                 ),
                 const PopupMenuItem(
                   value: 'excel_urun_bilgileri',
@@ -649,14 +796,16 @@ class _ModelListeleState extends State<ModelListele> {
                     ],
                   ),
                 ),
-                
+
                 // Admin tüm işlem butonlarına erişebilir
                 if (isAdmin || currentUserRole == 'admin') ...[
                   const PopupMenuDivider(),
                   // ========== TEDARİKÇİ ATAMA ==========
                   const PopupMenuItem(
                     enabled: false,
-                    child: Text('TEDARİKÇİ ATAMA', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                    child: Text('TEDARİKÇİ ATAMA',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, color: Colors.grey)),
                   ),
                   const PopupMenuItem(
                     value: 'dokuma_tedarikci_ata',
@@ -745,7 +894,7 @@ class _ModelListeleState extends State<ModelListele> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Toplu seçim ve filtre satırı
                 Row(
                   children: [
@@ -764,7 +913,7 @@ class _ModelListeleState extends State<ModelListele> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Filtre satırı
                 Row(
                   children: [
@@ -777,7 +926,8 @@ class _ModelListeleState extends State<ModelListele> {
                         ),
                         initialValue: seciliMarka,
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü')),
+                          const DropdownMenuItem(
+                              value: null, child: Text('Tümü')),
                           ...markalar.map((marka) => DropdownMenuItem(
                                 value: marka,
                                 child: Text(marka),
@@ -791,7 +941,7 @@ class _ModelListeleState extends State<ModelListele> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Model Adı filtresi
                     Expanded(
                       child: DropdownButtonFormField<String>(
@@ -801,7 +951,8 @@ class _ModelListeleState extends State<ModelListele> {
                         ),
                         initialValue: seciliModelAdi,
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü')),
+                          const DropdownMenuItem(
+                              value: null, child: Text('Tümü')),
                           ...modelAdlari.map((ad) => DropdownMenuItem(
                                 value: ad,
                                 child: Text(ad),
@@ -815,7 +966,7 @@ class _ModelListeleState extends State<ModelListele> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Durum filtresi
                     Expanded(
                       child: DropdownButtonFormField<String>(
@@ -824,10 +975,12 @@ class _ModelListeleState extends State<ModelListele> {
                           border: OutlineInputBorder(),
                         ),
                         initialValue: seciliDurum,
-                        items: durumOptions.map((durum) => DropdownMenuItem(
-                              value: durum == 'Tümü' ? null : durum,
-                              child: Text(durum),
-                            )).toList(),
+                        items: durumOptions
+                            .map((durum) => DropdownMenuItem(
+                                  value: durum == 'Tümü' ? null : durum,
+                                  child: Text(durum),
+                                ))
+                            .toList(),
                         onChanged: (value) {
                           setState(() {
                             seciliDurum = value;
@@ -836,7 +989,7 @@ class _ModelListeleState extends State<ModelListele> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Ürün kategorisi filtresi
                     Expanded(
                       child: DropdownButtonFormField<String>(
@@ -846,11 +999,13 @@ class _ModelListeleState extends State<ModelListele> {
                         ),
                         initialValue: seciliUrunKategorisi,
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü')),
-                          ...urunKategorileri.map((kategori) => DropdownMenuItem(
-                                value: kategori,
-                                child: Text(kategori),
-                              )),
+                          const DropdownMenuItem(
+                              value: null, child: Text('Tümü')),
+                          ...urunKategorileri
+                              .map((kategori) => DropdownMenuItem(
+                                    value: kategori,
+                                    child: Text(kategori),
+                                  )),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -860,7 +1015,7 @@ class _ModelListeleState extends State<ModelListele> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Cinsiyet filtresi
                     Expanded(
                       child: DropdownButtonFormField<String>(
@@ -870,7 +1025,8 @@ class _ModelListeleState extends State<ModelListele> {
                         ),
                         initialValue: seciliCinsiyet,
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü')),
+                          const DropdownMenuItem(
+                              value: null, child: Text('Tümü')),
                           ...cinsiyetler.map((cinsiyet) => DropdownMenuItem(
                                 value: cinsiyet,
                                 child: Text(cinsiyet),
@@ -904,15 +1060,17 @@ class _ModelListeleState extends State<ModelListele> {
                         itemCount: filtreliModeller.length,
                         itemBuilder: (context, index) {
                           final model = filtreliModeller[index];
-                          final secili = seciliIdler.contains(model['id'].toString());
-                          
+                          final secili =
+                              seciliIdler.contains(model['id'].toString());
+
                           return Card(
                             elevation: 2,
                             margin: const EdgeInsets.only(bottom: 8),
                             color: getTerminRengi(model['termin_tarihi']),
                             child: InkWell(
                               onTap: () async {
-                                debugPrint('Model detay sayfasına gidiliyor - ID: ${model['id']}');
+                                debugPrint(
+                                    'Model detay sayfasına gidiliyor - ID: ${model['id']}');
                                 final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -922,21 +1080,25 @@ class _ModelListeleState extends State<ModelListele> {
                                     ),
                                   ),
                                 );
-                                
-                                debugPrint('🔄 Model detay sayfasından dönüldü - result: $result');
-                                
+
+                                debugPrint(
+                                    '🔄 Model detay sayfasından dönüldü - result: $result');
+
                                 // Model tamamlandıysa listeyi yenile
                                 if (result == true) {
-                                  debugPrint('✅ Model tamamlandı bildirimi alındı!');
-                                  debugPrint('🔄 Sunucudan fresh veri çekiliyor...');
+                                  debugPrint(
+                                      '✅ Model tamamlandı bildirimi alındı!');
+                                  debugPrint(
+                                      '🔄 Sunucudan fresh veri çekiliyor...');
                                   await modelleriGetir();
                                   debugPrint('✅ Liste yenilendi.');
                                 } else {
-                                  debugPrint('ℹ️ Normal dönüş - model tamamlanmadı');
+                                  debugPrint(
+                                      'ℹ️ Normal dönüş - model tamamlanmadı');
                                   // Normal durumda da listeyi yenile
                                   await modelleriGetir();
                                 }
-                                
+
                                 debugPrint('🎨 UI zorla güncelleniyor...');
                                 if (!mounted) return;
                                 setState(() {}); // UI'yi zorla güncelle
@@ -950,27 +1112,35 @@ class _ModelListeleState extends State<ModelListele> {
                                       onTap: () {
                                         setState(() {
                                           if (secili) {
-                                            seciliIdler.remove(model['id'].toString());
+                                            seciliIdler
+                                                .remove(model['id'].toString());
                                           } else {
-                                            seciliIdler.add(model['id'].toString());
+                                            seciliIdler
+                                                .add(model['id'].toString());
                                           }
-                                          tumunuSec = seciliIdler.length == filtreliModeller.length;
+                                          tumunuSec = seciliIdler.length ==
+                                              filtreliModeller.length;
                                         });
                                       },
                                       child: Container(
                                         padding: const EdgeInsets.all(4),
                                         child: Icon(
-                                          secili ? Icons.check_box : Icons.check_box_outline_blank,
-                                          color: secili ? Theme.of(context).primaryColor : Colors.grey,
+                                          secili
+                                              ? Icons.check_box
+                                              : Icons.check_box_outline_blank,
+                                          color: secili
+                                              ? Theme.of(context).primaryColor
+                                              : Colors.grey,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 16),
-                                    
+
                                     // Ana içerik
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           // Başlık
                                           Text(
@@ -981,51 +1151,77 @@ class _ModelListeleState extends State<ModelListele> {
                                             ),
                                           ),
                                           const SizedBox(height: 8),
-                                          
+
                                           // Özet bilgiler: Model Adı, Renk, Adet, Termin
                                           if (model['model_adi'] != null)
                                             Text(
                                               model['model_adi'],
-                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                              style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500),
                                             ),
                                           const SizedBox(height: 4),
                                           Wrap(
                                             spacing: 12,
                                             runSpacing: 4,
                                             children: [
-                                              if (model['renk'] != null && model['renk'].toString().isNotEmpty)
+                                              if (model['renk'] != null &&
+                                                  model['renk']
+                                                      .toString()
+                                                      .isNotEmpty)
                                                 Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
-                                                    Icon(Icons.palette, size: 14, color: Colors.grey[600]),
+                                                    Icon(Icons.palette,
+                                                        size: 14,
+                                                        color:
+                                                            Colors.grey[600]),
                                                     const SizedBox(width: 4),
                                                     Text(
                                                       model['renk'],
-                                                      style: TextStyle(fontSize: 13, color: Colors.grey[800]),
+                                                      style: TextStyle(
+                                                          fontSize: 13,
+                                                          color:
+                                                              Colors.grey[800]),
                                                     ),
                                                   ],
                                                 ),
                                               if (model['toplam_adet'] != null)
                                                 Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
-                                                    Icon(Icons.inventory_2, size: 14, color: Colors.grey[600]),
+                                                    Icon(Icons.inventory_2,
+                                                        size: 14,
+                                                        color:
+                                                            Colors.grey[600]),
                                                     const SizedBox(width: 4),
                                                     Text(
                                                       '${model['toplam_adet']} adet',
-                                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                                      style: const TextStyle(
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight.bold),
                                                     ),
                                                   ],
                                                 ),
-                                              if (model['termin_tarihi'] != null)
+                                              if (model['termin_tarihi'] !=
+                                                  null)
                                                 Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
-                                                    Icon(Icons.event, size: 14, color: Colors.grey[600]),
+                                                    Icon(Icons.event,
+                                                        size: 14,
+                                                        color:
+                                                            Colors.grey[600]),
                                                     const SizedBox(width: 4),
                                                     Text(
-                                                      formatTarih(model['termin_tarihi']),
-                                                      style: const TextStyle(fontSize: 13),
+                                                      formatTarih(model[
+                                                          'termin_tarihi']),
+                                                      style: const TextStyle(
+                                                          fontSize: 13),
                                                     ),
                                                   ],
                                                 ),
@@ -1034,16 +1230,19 @@ class _ModelListeleState extends State<ModelListele> {
                                         ],
                                       ),
                                     ),
-                                    
+
                                     // Sağ taraf butonları
                                     Column(
                                       children: [
                                         // Durum göstergesi
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(
-                                            color: _getDurumRengi(model['durum']),
-                                            borderRadius: BorderRadius.circular(4),
+                                            color:
+                                                _getDurumRengi(model['durum']),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
                                           ),
                                           child: Text(
                                             model['durum'] ?? 'Beklemede',
@@ -1054,25 +1253,32 @@ class _ModelListeleState extends State<ModelListele> {
                                             ),
                                           ),
                                         ),
-                                        
+
                                         // Kritikler ikonu - tüm kullanıcılar görebilir
                                         const SizedBox(height: 8),
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
                                           children: [
                                             GestureDetector(
                                               onTap: () {
                                                 showDialog(
                                                   context: context,
-                                                  builder: (context) => ModelKritikleriDialog(
+                                                  builder: (context) =>
+                                                      ModelKritikleriDialog(
                                                     modelId: model['id'],
-                                                    modelMarka: model['marka'] ?? 'Bilinmeyen',
-                                                    modelItemNo: model['item_no'] ?? 'Bilinmeyen',
+                                                    modelMarka:
+                                                        model['marka'] ??
+                                                            'Bilinmeyen',
+                                                    modelItemNo:
+                                                        model['item_no'] ??
+                                                            'Bilinmeyen',
                                                   ),
                                                 );
                                               },
                                               child: Container(
-                                                padding: const EdgeInsets.all(6),
+                                                padding:
+                                                    const EdgeInsets.all(6),
                                                 decoration: BoxDecoration(
                                                   color: Colors.orange[100],
                                                   shape: BoxShape.circle,
@@ -1086,20 +1292,27 @@ class _ModelListeleState extends State<ModelListele> {
                                             ),
                                           ],
                                         ),
-                                        
+
                                         // Admin butonları - admin tüm işlemleri yapabilir
-                                        if (isAdmin || currentUserRole == 'admin') ...[
+                                        if (isAdmin ||
+                                            currentUserRole == 'admin') ...[
                                           const SizedBox(height: 8),
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               GestureDetector(
                                                 onTap: () {
-                                                  modelKopyala(model['id'], model['marka'], model['item_no']);
+                                                  modelKopyala(
+                                                      model['id'],
+                                                      model['marka'],
+                                                      model['item_no']);
                                                 },
                                                 child: Container(
-                                                  padding: const EdgeInsets.all(8),
-                                                  child: const Icon(Icons.copy, color: Colors.green, size: 20),
+                                                  padding:
+                                                      const EdgeInsets.all(8),
+                                                  child: const Icon(Icons.copy,
+                                                      color: Colors.green,
+                                                      size: 20),
                                                 ),
                                               ),
                                               GestureDetector(
@@ -1108,25 +1321,37 @@ class _ModelListeleState extends State<ModelListele> {
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
-                                                      builder: (context) => ModelDuzenlePage(
-                                                        modelId: model['id'].toString(),
+                                                      builder: (context) =>
+                                                          ModelDuzenlePage(
+                                                        modelId: model['id']
+                                                            .toString(),
                                                         modelData: model,
                                                       ),
                                                     ),
                                                   );
                                                 },
                                                 child: Container(
-                                                  padding: const EdgeInsets.all(8),
-                                                  child: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                                                  padding:
+                                                      const EdgeInsets.all(8),
+                                                  child: const Icon(Icons.edit,
+                                                      color: Colors.blue,
+                                                      size: 20),
                                                 ),
                                               ),
                                               GestureDetector(
                                                 onTap: () {
-                                                  modelSil(model['id'], model['marka'], model['item_no']);
+                                                  modelSil(
+                                                      model['id'],
+                                                      model['marka'],
+                                                      model['item_no']);
                                                 },
                                                 child: Container(
-                                                  padding: const EdgeInsets.all(8),
-                                                  child: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                                  padding:
+                                                      const EdgeInsets.all(8),
+                                                  child: const Icon(
+                                                      Icons.delete,
+                                                      color: Colors.red,
+                                                      size: 20),
                                                 ),
                                               ),
                                             ],

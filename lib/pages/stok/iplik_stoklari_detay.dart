@@ -1,8 +1,7 @@
-﻿part of 'iplik_stoklari.dart';
+part of 'iplik_stoklari.dart';
 
 /// Detail view and utility methods for _IplikStoklariPageState.
 extension _IplikDetayExt on _IplikStoklariPageState {
-
   Future<void> _iplikDetayGoster(Map<String, dynamic> stok) async {
     try {
       // Bu ipliğin tüm hareketlerini getir
@@ -52,7 +51,7 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                     ],
                   ),
                 ),
-                
+
                 // Kaydırılabilir İçerik Alanı
                 Expanded(
                   child: SingleChildScrollView(
@@ -72,46 +71,76 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                   // Başlık
                                   Row(
                                     children: [
-                                      const Icon(Icons.info_outline, color: Color(0xFFD2B48C), size: 20),
+                                      const Icon(Icons.info_outline,
+                                          color: Color(0xFFD2B48C), size: 20),
                                       const SizedBox(width: 8),
                                       Text(
                                         'İplik Bilgileri',
-                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: const Color(0xFFD2B48C),
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: const Color(0xFFD2B48C),
+                                            ),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  
+
                                   // Bilgiler - Kompakt grid düzeni
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 2,
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final solKolon = Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          _buildKompaktDetayRow(
+                                              'İplik', stok['ad']),
+                                          _buildKompaktDetayRow(
+                                              'Renk', stok['renk'] ?? '-'),
+                                          _buildKompaktDetayRow(
+                                              'Lot No', stok['lot_no'] ?? '-'),
+                                        ],
+                                      );
+                                      final sagKolon = Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          _buildKompaktDetayRow('Miktar',
+                                              '${stok['miktar']} ${stok['birim'] ?? 'kg'}'),
+                                          if (stok['birim_fiyat'] != null)
+                                            _buildKompaktDetayRow('Birim Fiyat',
+                                                '${_getParaBirimiSembolu(stok['para_birimi'])}${(stok['birim_fiyat'] as num).toStringAsFixed(2)}'),
+                                          _buildKompaktDetayRow(
+                                              'Tarih',
+                                              _formatKisaTarih(
+                                                  stok['created_at'])),
+                                        ],
+                                      );
+
+                                      if (constraints.maxWidth < 460) {
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            _buildKompaktDetayRow('İplik', stok['ad']),
-                                            _buildKompaktDetayRow('Renk', stok['renk'] ?? '-'),
-                                            _buildKompaktDetayRow('Lot No', stok['lot_no'] ?? '-'),
+                                            solKolon,
+                                            const SizedBox(height: 6),
+                                            sagKolon,
                                           ],
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            _buildKompaktDetayRow('Miktar', '${stok['miktar']} ${stok['birim'] ?? 'kg'}'),
-                                            if (stok['birim_fiyat'] != null)
-                                              _buildKompaktDetayRow('Birim Fiyat', '${_getParaBirimiSembolu(stok['para_birimi'])}${(stok['birim_fiyat'] as num).toStringAsFixed(2)}'),
-                                            _buildKompaktDetayRow('Tarih', _formatKisaTarih(stok['created_at'])),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                                        );
+                                      }
+
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(flex: 2, child: solKolon),
+                                          const SizedBox(width: 12),
+                                          Expanded(flex: 2, child: sagKolon),
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ],
                               ),
@@ -130,7 +159,8 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFD2B48C).withValues(alpha: 0.1),
+                                    color: const Color(0xFFD2B48C)
+                                        .withValues(alpha: 0.1),
                                     borderRadius: const BorderRadius.only(
                                       topLeft: Radius.circular(8),
                                       topRight: Radius.circular(8),
@@ -138,22 +168,28 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.history, color: Color(0xFFD2B48C), size: 24),
+                                      const Icon(Icons.history,
+                                          color: Color(0xFFD2B48C), size: 24),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
                                           'Hareket Geçmişi',
-                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xFFD2B48C),
-                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFFD2B48C),
+                                              ),
                                         ),
                                       ),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 4),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFD2B48C),
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${hareketler.length} kayıt',
@@ -167,14 +203,15 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                     ],
                                   ),
                                 ),
-                                
+
                                 // Hareket listesi - Sabit yükseklik yerine flexible
                                 if (hareketler.isEmpty)
                                   SizedBox(
                                     height: 200,
                                     child: Center(
                                       child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Icon(
                                             Icons.history_outlined,
@@ -206,19 +243,26 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                   // Hareket kartları - Her biri ayrı widget olarak
                                   Column(
                                     children: hareketler.map((hareket) {
-                                      final hareketRenk = _getHareketRenk(hareket['hareket_tipi']);
-                                      final hareketIcon = _getHareketIcon(hareket['hareket_tipi']);
-                                      final hareketBaslik = _getHareketBaslik(hareket['hareket_tipi']);
-                                      
+                                      final hareketRenk = _getHareketRenk(
+                                          hareket['hareket_tipi']);
+                                      final hareketIcon = _getHareketIcon(
+                                          hareket['hareket_tipi']);
+                                      final hareketBaslik = _getHareketBaslik(
+                                          hareket['hareket_tipi']);
+
                                       return Container(
-                                        margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                                        margin: const EdgeInsets.fromLTRB(
+                                            8, 8, 8, 0),
                                         child: Card(
                                           elevation: 2,
-                                          shadowColor: hareketRenk.withValues(alpha: 0.2),
+                                          shadowColor: hareketRenk.withValues(
+                                              alpha: 0.2),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                             side: BorderSide(
-                                              color: hareketRenk.withValues(alpha: 0.2),
+                                              color: hareketRenk.withValues(
+                                                  alpha: 0.2),
                                               width: 1,
                                             ),
                                           ),
@@ -232,15 +276,21 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                                   height: 60,
                                                   decoration: BoxDecoration(
                                                     color: hareketRenk,
-                                                    borderRadius: BorderRadius.circular(2),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            2),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 12),
                                                 Container(
-                                                  padding: const EdgeInsets.all(10),
+                                                  padding:
+                                                      const EdgeInsets.all(10),
                                                   decoration: BoxDecoration(
-                                                    color: hareketRenk.withValues(alpha: 0.1),
-                                                    borderRadius: BorderRadius.circular(10),
+                                                    color: hareketRenk
+                                                        .withValues(alpha: 0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10),
                                                   ),
                                                   child: Icon(
                                                     hareketIcon,
@@ -249,11 +299,13 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                                   ),
                                                 ),
                                                 const SizedBox(width: 12),
-                                                
+
                                                 // Hareket detayları
                                                 Expanded(
                                                   child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
                                                       // Hareket tipi ve miktar
                                                       Row(
@@ -261,64 +313,92 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                                           Expanded(
                                                             child: Text(
                                                               hareketBaslik,
-                                                              style: const TextStyle(
-                                                                fontWeight: FontWeight.bold,
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
                                                                 fontSize: 14,
                                                               ),
                                                             ),
                                                           ),
                                                           Container(
-                                                            padding: const EdgeInsets.symmetric(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
                                                               horizontal: 8,
                                                               vertical: 4,
                                                             ),
-                                                            decoration: BoxDecoration(
-                                                              color: hareketRenk.withValues(alpha: 0.1),
-                                                              borderRadius: BorderRadius.circular(6),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: hareketRenk
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          0.1),
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          6),
                                                             ),
                                                             child: Text(
                                                               '${hareket['miktar']} ${stok['birim'] ?? 'kg'}',
                                                               style: TextStyle(
-                                                                fontWeight: FontWeight.bold,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
                                                                 fontSize: 13,
-                                                                color: hareketRenk,
+                                                                color:
+                                                                    hareketRenk,
                                                               ),
                                                             ),
                                                           ),
                                                         ],
                                                       ),
                                                       const SizedBox(height: 4),
-                                                      
+
                                                       // Açıklama
-                                                      if (hareket['aciklama'] != null)
+                                                      if (hareket['aciklama'] !=
+                                                          null)
                                                         Padding(
-                                                          padding: const EdgeInsets.only(bottom: 4),
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .only(
+                                                                  bottom: 4),
                                                           child: Text(
                                                             hareket['aciklama'],
                                                             style: TextStyle(
                                                               fontSize: 12,
-                                                              color: Colors.grey[700],
+                                                              color: Colors
+                                                                  .grey[700],
                                                             ),
                                                             maxLines: 2,
-                                                            overflow: TextOverflow.ellipsis,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
                                                           ),
                                                         ),
-                                                      
+
                                                       // Tarih
                                                       Row(
                                                         children: [
                                                           Icon(
                                                             Icons.schedule,
                                                             size: 12,
-                                                            color: Colors.grey[500],
+                                                            color: Colors
+                                                                .grey[500],
                                                           ),
-                                                          const SizedBox(width: 4),
+                                                          const SizedBox(
+                                                              width: 4),
                                                           Text(
-                                                            _formatTarih(hareket['created_at']),
+                                                            _formatTarih(hareket[
+                                                                'created_at']),
                                                             style: TextStyle(
                                                               fontSize: 11,
-                                                              color: Colors.grey[500],
-                                                              fontWeight: FontWeight.w500,
+                                                              color: Colors
+                                                                  .grey[500],
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
                                                             ),
                                                           ),
                                                         ],
@@ -333,7 +413,7 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                       );
                                     }).toList(),
                                   ),
-                                
+
                                 // Alt özet bilgisi
                                 if (hareketler.isNotEmpty)
                                   Container(
@@ -347,29 +427,43 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                       ),
                                     ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceAround,
                                       children: [
                                         _buildHareketOzet(
                                           'Giriş',
-                                          hareketler.where((h) => h['hareket_tipi'] == 'giris').length,
+                                          hareketler
+                                              .where((h) =>
+                                                  h['hareket_tipi'] == 'giris')
+                                              .length,
                                           Colors.green,
                                           Icons.call_received,
                                         ),
                                         _buildHareketOzet(
                                           'Çıkış',
-                                          hareketler.where((h) => h['hareket_tipi'] == 'cikis').length,
+                                          hareketler
+                                              .where((h) =>
+                                                  h['hareket_tipi'] == 'cikis')
+                                              .length,
                                           Colors.red,
                                           Icons.call_made,
                                         ),
                                         _buildHareketOzet(
                                           'Transfer',
-                                          hareketler.where((h) => h['hareket_tipi'] == 'transfer').length,
+                                          hareketler
+                                              .where((h) =>
+                                                  h['hareket_tipi'] ==
+                                                  'transfer')
+                                              .length,
                                           Colors.blue,
                                           Icons.swap_horiz,
                                         ),
                                         _buildHareketOzet(
                                           'Sayım',
-                                          hareketler.where((h) => h['hareket_tipi'] == 'sayim').length,
+                                          hareketler
+                                              .where((h) =>
+                                                  h['hareket_tipi'] == 'sayim')
+                                              .length,
                                           Colors.orange,
                                           Icons.inventory,
                                         ),
@@ -380,7 +474,7 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                             ),
                           ),
                         ),
-                        
+
                         // Aşağıda biraz boşluk bırak
                         const SizedBox(height: 16),
                       ],
@@ -390,27 +484,32 @@ extension _IplikDetayExt on _IplikStoklariPageState {
 
                 // Sabit Alt Butonlar
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.grey[50],
-                    border: Border(top: BorderSide(color: Colors.grey[300]!, width: 1)),
+                    border: Border(
+                        top: BorderSide(color: Colors.grey[300]!, width: 1)),
                   ),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: TextButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _stokDuzenle(stok);
-                          },
-                          icon: const Icon(Icons.edit, size: 18),
-                          label: const Text('Düzenle'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.blue,
+                      if (_adminMi) ...[
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _stokDuzenle(stok);
+                            },
+                            icon: const Icon(Icons.edit, size: 18),
+                            label: const Text('Düzenle'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.blue,
+                            ),
                           ),
                         ),
-                      ),
-                      Container(width: 1, height: 20, color: Colors.grey[300]),
+                        Container(
+                            width: 1, height: 20, color: Colors.grey[300]),
+                      ],
                       Expanded(
                         child: TextButton.icon(
                           onPressed: () {
@@ -537,7 +636,6 @@ extension _IplikDetayExt on _IplikStoklariPageState {
         return '₺';
     }
   }
-
 
   String _formatTarih(String? tarihStr) {
     if (tarihStr == null) return '-';

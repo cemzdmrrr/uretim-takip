@@ -8,6 +8,73 @@ class GelismisRaporServisleri {
   static final _supabase = Supabase.instance.client;
   static String get _firmaId => TenantManager.instance.requireFirmaId;
 
+  static String _modelRengi(Map<String, dynamic> model) {
+    for (final key in ['renk', 'renk_kombinasyonu']) {
+      final value = model[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    final itemNo = model['item_no']?.toString().trim();
+    if (itemNo == null || itemNo.isEmpty) return '';
+
+    final parts = itemNo
+        .replaceAll(RegExp(r'[-_/]+'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+    if (parts.length < 2) return '';
+
+    final suffix = parts.last.replaceAll(RegExp(r'[^A-Za-zÇĞİÖŞÜçğıöşü]'), '');
+    if (suffix.length < 2 ||
+        suffix.length > 10 ||
+        RegExp(r'^\d+$').hasMatch(suffix)) {
+      return '';
+    }
+
+    return _renkKodunuGenislet(suffix);
+  }
+
+  static String _renkKodunuGenislet(String kod) {
+    final normalized = kod
+        .toUpperCase()
+        .replaceAll('İ', 'I')
+        .replaceAll('Ş', 'S')
+        .replaceAll('Ğ', 'G')
+        .replaceAll('Ü', 'U')
+        .replaceAll('Ö', 'O')
+        .replaceAll('Ç', 'C');
+
+    const renkKodlari = {
+      'KAH': 'KAHVE',
+      'KHV': 'KAHVE',
+      'BRD': 'BORDO',
+      'LAC': 'LACİVERT',
+      'LACI': 'LACİVERT',
+      'EKR': 'EKRU',
+      'VIZ': 'VİZON',
+      'BEJ': 'BEJ',
+      'SYH': 'SİYAH',
+      'SIY': 'SİYAH',
+      'BEY': 'BEYAZ',
+      'MAV': 'MAVİ',
+      'MVI': 'MAVİ',
+      'YES': 'YEŞİL',
+      'YSL': 'YEŞİL',
+      'KIR': 'KIRMIZI',
+      'KRM': 'KIRMIZI',
+      'GRI': 'GRİ',
+      'GR': 'GRİ',
+      'MOR': 'MOR',
+      'PEM': 'PEMBE',
+      'PUD': 'PUDRA',
+      'SRT': 'SARI',
+    };
+
+    return renkKodlari[normalized] ?? kod.toUpperCase();
+  }
+
   // ==============================================
   // PERSONEL VERİMLİLİK ANALİZİ
   // ==============================================
@@ -19,11 +86,16 @@ class GelismisRaporServisleri {
   }) async {
     try {
       // Personel listesini getir
-      final personelQuery = _supabase.from(DbTables.personel).select('*').eq('firma_id', _firmaId).eq('aktif', true);
+      final personelQuery = _supabase
+          .from(DbTables.personel)
+          .select('*')
+          .eq('firma_id', _firmaId)
+          .eq('aktif', true);
       final personeller = await personelQuery;
 
       final int toplamPersonel = personeller.length;
-      final int aktifPersonel = personeller.where((p) => p['aktif'] == true).length;
+      final int aktifPersonel =
+          personeller.where((p) => p['aktif'] == true).length;
       final Map<String, int> departmanDagilimi = {};
       final Map<String, int> pozisyonDagilimi = {};
       final List<Map<String, dynamic>> personelPerformanslari = [];
@@ -39,31 +111,45 @@ class GelismisRaporServisleri {
 
       // Mesai verilerini getir
       try {
-        var mesaiQuery = _supabase.from(DbTables.mesaiKayitlari).select('*').eq('firma_id', _firmaId);
+        var mesaiQuery = _supabase
+            .from(DbTables.mesaiKayitlari)
+            .select('*')
+            .eq('firma_id', _firmaId);
         if (baslangicTarihi != null) {
-          mesaiQuery = mesaiQuery.gte('tarih', baslangicTarihi.toIso8601String().split('T')[0]);
+          mesaiQuery = mesaiQuery.gte(
+              'tarih', baslangicTarihi.toIso8601String().split('T')[0]);
         }
         if (bitisTarihi != null) {
-          mesaiQuery = mesaiQuery.lte('tarih', bitisTarihi.toIso8601String().split('T')[0]);
+          mesaiQuery = mesaiQuery.lte(
+              'tarih', bitisTarihi.toIso8601String().split('T')[0]);
         }
         final mesailer = await mesaiQuery;
 
         for (var mesai in mesailer) {
-          final saat = ((mesai['mesai_saati'] ?? mesai['toplam_saat'] ?? 0) as num).toDouble();
+          final saat =
+              ((mesai['mesai_saati'] ?? mesai['toplam_saat'] ?? 0) as num)
+                  .toDouble();
           toplamMesaiSaati += saat;
         }
-      } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+      } catch (e) {
+        AppLogger.debug('Veri isleme hatasi: $e');
+      }
 
       // İzin verilerini getir
       int toplamIzinGunu = 0;
       int kullanilanIzin = 0;
       try {
-        var izinQuery = _supabase.from(DbTables.izinKayitlari).select('*').eq('firma_id', _firmaId);
+        var izinQuery = _supabase
+            .from(DbTables.izinKayitlari)
+            .select('*')
+            .eq('firma_id', _firmaId);
         if (baslangicTarihi != null) {
-          izinQuery = izinQuery.gte('baslangic_tarihi', baslangicTarihi.toIso8601String().split('T')[0]);
+          izinQuery = izinQuery.gte('baslangic_tarihi',
+              baslangicTarihi.toIso8601String().split('T')[0]);
         }
         if (bitisTarihi != null) {
-          izinQuery = izinQuery.lte('bitis_tarihi', bitisTarihi.toIso8601String().split('T')[0]);
+          izinQuery = izinQuery.lte(
+              'bitis_tarihi', bitisTarihi.toIso8601String().split('T')[0]);
         }
         final izinler = await izinQuery;
         kullanilanIzin = izinler.length;
@@ -71,7 +157,9 @@ class GelismisRaporServisleri {
           final gun = ((izin['gun_sayisi'] ?? 1) as num).toInt();
           toplamIzinGunu += gun;
         }
-      } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+      } catch (e) {
+        AppLogger.debug('Veri isleme hatasi: $e');
+      }
 
       // Departman bazlı sıralama
       final siraliDepartmanlar = departmanDagilimi.entries.toList()
@@ -83,7 +171,8 @@ class GelismisRaporServisleri {
         'departmanDagilimi': Map.fromEntries(siraliDepartmanlar),
         'pozisyonDagilimi': pozisyonDagilimi,
         'toplamMesaiSaati': toplamMesaiSaati,
-        'ortalamaMesaiSaati': toplamPersonel > 0 ? toplamMesaiSaati / toplamPersonel : 0,
+        'ortalamaMesaiSaati':
+            toplamPersonel > 0 ? toplamMesaiSaati / toplamPersonel : 0,
         'toplamIzinGunu': toplamIzinGunu,
         'kullanilanIzin': kullanilanIzin,
         'personelPerformanslari': personelPerformanslari,
@@ -119,32 +208,50 @@ class GelismisRaporServisleri {
       // Modelleri getir
       final modeller = await _supabase
           .from(DbTables.trikoTakip)
-          .select('toplam_adet, adet, yuklenen_adet, pesin_fiyat, iplik_maliyeti, orgu_fiyat, dikim_fiyat, utu_fiyat, yikama_fiyat, ilik_dugme_fiyat, aksesuar_fiyat, genel_aksesuar_fiyat, genel_gider_fiyat, created_at')
+          .select(
+              'toplam_adet, adet, yuklenen_adet, pesin_fiyat, iplik_maliyeti, orgu_fiyat, dikim_fiyat, utu_fiyat, yikama_fiyat, ilik_dugme_fiyat, aksesuar_fiyat, genel_aksesuar_fiyat, genel_gider_fiyat, created_at')
           .eq('firma_id', _firmaId)
           .gte('created_at', baslangic.toIso8601String());
 
       // Aylık bazda grupla
       final Map<String, Map<String, dynamic>> aylikVeriler = {};
-      final ayIsimleri = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+      final ayIsimleri = [
+        'Oca',
+        'Şub',
+        'Mar',
+        'Nis',
+        'May',
+        'Haz',
+        'Tem',
+        'Ağu',
+        'Eyl',
+        'Eki',
+        'Kas',
+        'Ara'
+      ];
 
       for (var model in modeller) {
         if (model['created_at'] == null) continue;
         try {
           final tarih = DateTime.parse(model['created_at']);
-          final ayKey = '${tarih.year}-${tarih.month.toString().padLeft(2, '0')}';
+          final ayKey =
+              '${tarih.year}-${tarih.month.toString().padLeft(2, '0')}';
           final ayLabel = '${ayIsimleri[tarih.month - 1]} ${tarih.year}';
 
-          aylikVeriler.putIfAbsent(ayKey, () => {
-            'ayLabel': ayLabel,
-            'siparisAdedi': 0,
-            'toplamAdet': 0,
-            'yuklenenAdet': 0,
-            'toplamGelir': 0.0,
-            'toplamMaliyet': 0.0,
-            'modelSayisi': 0,
-          });
+          aylikVeriler.putIfAbsent(
+              ayKey,
+              () => {
+                    'ayLabel': ayLabel,
+                    'siparisAdedi': 0,
+                    'toplamAdet': 0,
+                    'yuklenenAdet': 0,
+                    'toplamGelir': 0.0,
+                    'toplamMaliyet': 0.0,
+                    'modelSayisi': 0,
+                  });
 
-          final adet = ((model['toplam_adet'] ?? model['adet'] ?? 0) as num).toInt();
+          final adet =
+              ((model['toplam_adet'] ?? model['adet'] ?? 0) as num).toInt();
           final yuklenenAdet = ((model['yuklenen_adet'] ?? 0) as num).toInt();
           final fiyat = ((model['pesin_fiyat'] ?? 0) as num).toDouble();
           final iplik = ((model['iplik_maliyeti'] ?? 0) as num).toDouble();
@@ -152,19 +259,39 @@ class GelismisRaporServisleri {
           final dikim = ((model['dikim_fiyat'] ?? 0) as num).toDouble();
           final utu = ((model['utu_fiyat'] ?? 0) as num).toDouble();
           final yikama = ((model['yikama_fiyat'] ?? 0) as num).toDouble();
-          final ilikDugme = ((model['ilik_dugme_fiyat'] ?? 0) as num).toDouble();
+          final ilikDugme =
+              ((model['ilik_dugme_fiyat'] ?? 0) as num).toDouble();
           final aksesuar = ((model['aksesuar_fiyat'] ?? 0) as num).toDouble();
-          final genelAksesuar = ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
-          final genelGider = ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
-          final birimMaliyet = iplik + orgu + dikim + utu + yikama + ilikDugme + aksesuar + genelAksesuar + genelGider;
+          final genelAksesuar =
+              ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
+          final genelGider =
+              ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
+          final birimMaliyet = iplik +
+              orgu +
+              dikim +
+              utu +
+              yikama +
+              ilikDugme +
+              aksesuar +
+              genelAksesuar +
+              genelGider;
 
-          aylikVeriler[ayKey]!['modelSayisi'] = (aylikVeriler[ayKey]!['modelSayisi'] as int) + 1;
-          aylikVeriler[ayKey]!['toplamAdet'] = (aylikVeriler[ayKey]!['toplamAdet'] as int) + adet;
-          aylikVeriler[ayKey]!['yuklenenAdet'] = (aylikVeriler[ayKey]!['yuklenenAdet'] as int) + yuklenenAdet;
+          aylikVeriler[ayKey]!['modelSayisi'] =
+              (aylikVeriler[ayKey]!['modelSayisi'] as int) + 1;
+          aylikVeriler[ayKey]!['toplamAdet'] =
+              (aylikVeriler[ayKey]!['toplamAdet'] as int) + adet;
+          aylikVeriler[ayKey]!['yuklenenAdet'] =
+              (aylikVeriler[ayKey]!['yuklenenAdet'] as int) + yuklenenAdet;
           // Gelir ve maliyet sadece yüklenen adet üzerinden hesaplanır
-          aylikVeriler[ayKey]!['toplamGelir'] = (aylikVeriler[ayKey]!['toplamGelir'] as double) + (yuklenenAdet > 0 ? fiyat * yuklenenAdet : 0.0);
-          aylikVeriler[ayKey]!['toplamMaliyet'] = (aylikVeriler[ayKey]!['toplamMaliyet'] as double) + (yuklenenAdet > 0 ? birimMaliyet * yuklenenAdet : 0.0);
-        } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+          aylikVeriler[ayKey]!['toplamGelir'] =
+              (aylikVeriler[ayKey]!['toplamGelir'] as double) +
+                  (yuklenenAdet > 0 ? fiyat * yuklenenAdet : 0.0);
+          aylikVeriler[ayKey]!['toplamMaliyet'] =
+              (aylikVeriler[ayKey]!['toplamMaliyet'] as double) +
+                  (yuklenenAdet > 0 ? birimMaliyet * yuklenenAdet : 0.0);
+        } catch (e) {
+          AppLogger.debug('Veri isleme hatasi: $e');
+        }
       }
 
       // Kronolojik sırala
@@ -176,7 +303,8 @@ class GelismisRaporServisleri {
         final gelir = entry.value['toplamGelir'] as double;
         final maliyet = entry.value['toplamMaliyet'] as double;
         entry.value['kar'] = gelir - maliyet;
-        entry.value['karMarji'] = gelir > 0 ? ((gelir - maliyet) / gelir) * 100 : 0.0;
+        entry.value['karMarji'] =
+            gelir > 0 ? ((gelir - maliyet) / gelir) * 100 : 0.0;
       }
 
       return {
@@ -204,7 +332,7 @@ class GelismisRaporServisleri {
     try {
       // Modelleri getir - gerçek veritabanı sütunları
       var query = _supabase.from(DbTables.trikoTakip).select('''
-        id, marka, item_no, renk, adet, toplam_adet, yuklenen_adet, created_at, termin_tarihi,
+        id, marka, item_no, renk, renk_kombinasyonu, adet, toplam_adet, yuklenen_adet, created_at, termin_tarihi,
         iplik_maliyeti, iplik_kg_fiyati, orgu_fiyat, dikim_fiyat, 
         utu_fiyat, yikama_fiyat, ilik_dugme_fiyat, aksesuar_fiyat,
         genel_aksesuar_fiyat, genel_gider_fiyat, kar_marji, pesin_fiyat
@@ -230,12 +358,13 @@ class GelismisRaporServisleri {
       final List<Map<String, dynamic>> modelMaliyetleri = [];
 
       for (var model in modeller) {
-        final adet = ((model['toplam_adet'] ?? model['adet'] ?? 0) as num).toInt();
+        final adet =
+            ((model['toplam_adet'] ?? model['adet'] ?? 0) as num).toInt();
         final yuklenenAdet = ((model['yuklenen_adet'] ?? 0) as num).toInt();
-        
+
         // İplik maliyeti
         final iplik = ((model['iplik_maliyeti'] ?? 0) as num).toDouble();
-        
+
         // İşçilik maliyetleri (örgü, dikim, ütü, yıkama, ilik düğme)
         final orgu = ((model['orgu_fiyat'] ?? 0) as num).toDouble();
         final dikim = ((model['dikim_fiyat'] ?? 0) as num).toDouble();
@@ -243,27 +372,31 @@ class GelismisRaporServisleri {
         final yikama = ((model['yikama_fiyat'] ?? 0) as num).toDouble();
         final ilikDugme = ((model['ilik_dugme_fiyat'] ?? 0) as num).toDouble();
         final iscilikToplam = orgu + dikim + utu + yikama + ilikDugme;
-        
+
         // Aksesuar maliyetleri
         final aksesuar = ((model['aksesuar_fiyat'] ?? 0) as num).toDouble();
-        final genelAksesuar = ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
+        final genelAksesuar =
+            ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
         final aksesuarToplam = aksesuar + genelAksesuar;
-        
+
         // Genel gider
-        final genelGider = ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
-        
+        final genelGider =
+            ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
+
         // Satış fiyatı (peşin fiyat)
         final satis = ((model['pesin_fiyat'] ?? 0) as num).toDouble();
-        
+
         // Birim maliyet hesapla
-        final birimMaliyet = iplik + iscilikToplam + aksesuarToplam + genelGider;
-        
+        final birimMaliyet =
+            iplik + iscilikToplam + aksesuarToplam + genelGider;
+
         // Sadece yüklenen adet üzerinden hesapla - yükleme yoksa satış/maliyet yok
         final hesapAdet = yuklenenAdet > 0 ? yuklenenAdet : 0;
         final toplamModelMaliyet = birimMaliyet * hesapAdet;
         final toplamModelSatis = satis * hesapAdet;
         final kar = toplamModelSatis - toplamModelMaliyet;
-        final karMarji = toplamModelSatis > 0 ? (kar / toplamModelSatis) * 100 : 0;
+        final karMarji =
+            toplamModelSatis > 0 ? (kar / toplamModelSatis) * 100 : 0;
 
         toplamMaliyet += toplamModelMaliyet;
         toplamIplikMaliyeti += iplik * hesapAdet;
@@ -277,7 +410,7 @@ class GelismisRaporServisleri {
           'id': model['id'],
           'marka': model['marka'] ?? '',
           'itemNo': model['item_no'] ?? '',
-          'renk': model['renk'] ?? '',
+          'renk': _modelRengi(model),
           'adet': adet,
           'yuklenenAdet': yuklenenAdet,
           'iplikMaliyeti': iplik,
@@ -294,8 +427,9 @@ class GelismisRaporServisleri {
       }
 
       // En karlı ve en az karlı modeller
-      modelMaliyetleri.sort((a, b) => (b['kar'] as double).compareTo(a['kar'] as double));
-      
+      modelMaliyetleri
+          .sort((a, b) => (b['kar'] as double).compareTo(a['kar'] as double));
+
       return {
         'modelMaliyetleri': modelMaliyetleri,
         'toplamMaliyet': toplamMaliyet,
@@ -306,8 +440,8 @@ class GelismisRaporServisleri {
         'toplamSatisFiyati': toplamSatisFiyati,
         'toplamAdet': toplamAdet,
         'toplamKar': toplamSatisFiyati - toplamMaliyet,
-        'ortalamaKarMarji': toplamSatisFiyati > 0 
-            ? ((toplamSatisFiyati - toplamMaliyet) / toplamSatisFiyati) * 100 
+        'ortalamaKarMarji': toplamSatisFiyati > 0
+            ? ((toplamSatisFiyati - toplamMaliyet) / toplamSatisFiyati) * 100
             : 0,
         'maliyetDagilimi': {
           'İplik': toplamIplikMaliyeti,
@@ -344,7 +478,6 @@ class GelismisRaporServisleri {
     DateTime? baslangicTarihi,
     DateTime? bitisTarihi,
   }) async {
-    
     double toplamGelir = 0;
     double toplamGider = 0;
     double faturaGeliri = 0;
@@ -358,49 +491,70 @@ class GelismisRaporServisleri {
     int faturaSayisi = 0;
     int hareketSayisi = 0;
     int depoSatisSayisi = 0;
-    
+
     try {
       // 1. Fatura gelirlerini getir
       try {
-        var faturaQuery = _supabase.from(DbTables.faturalar).select('*').eq('firma_id', _firmaId);
+        var faturaQuery = _supabase
+            .from(DbTables.faturalar)
+            .select('*')
+            .eq('firma_id', _firmaId);
         if (baslangicTarihi != null) {
-          faturaQuery = faturaQuery.gte('fatura_tarihi', baslangicTarihi.toIso8601String().split('T')[0]);
+          faturaQuery = faturaQuery.gte(
+              'fatura_tarihi', baslangicTarihi.toIso8601String().split('T')[0]);
         }
         if (bitisTarihi != null) {
-          faturaQuery = faturaQuery.lte('fatura_tarihi', bitisTarihi.toIso8601String().split('T')[0]);
+          faturaQuery = faturaQuery.lte(
+              'fatura_tarihi', bitisTarihi.toIso8601String().split('T')[0]);
         }
         final faturalar = await faturaQuery;
-        
+
         for (var fatura in faturalar) {
           final faturaTuru = fatura['fatura_turu']?.toString() ?? '';
           if (faturaTuru == 'satis' || faturaTuru == 'satış') {
-            final tutar = ((fatura['toplam_tutar'] ?? fatura['tutar'] ?? 0) as num).toDouble();
+            final tutar =
+                ((fatura['toplam_tutar'] ?? fatura['tutar'] ?? 0) as num)
+                    .toDouble();
             faturaGeliri += tutar;
             faturaSayisi++;
-            
-            final musteri = fatura['musteri_adi']?.toString() ?? fatura['musteri']?.toString() ?? 'Bilinmeyen';
-            musteriBazliGelir[musteri] = (musteriBazliGelir[musteri] ?? 0) + tutar;
+
+            final musteri = fatura['musteri_adi']?.toString() ??
+                fatura['musteri']?.toString() ??
+                'Bilinmeyen';
+            musteriBazliGelir[musteri] =
+                (musteriBazliGelir[musteri] ?? 0) + tutar;
           }
         }
-      } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+      } catch (e) {
+        AppLogger.debug('Veri isleme hatasi: $e');
+      }
 
       // 2. Kasa/banka hareketlerini getir
       try {
-        var hareketQuery = _supabase.from(DbTables.kasaBankaHareketleri).select('*').eq('firma_id', _firmaId);
+        var hareketQuery = _supabase
+            .from(DbTables.kasaBankaHareketleri)
+            .select('*')
+            .eq('firma_id', _firmaId);
         if (baslangicTarihi != null) {
-          hareketQuery = hareketQuery.gte('tarih', baslangicTarihi.toIso8601String().split('T')[0]);
+          hareketQuery = hareketQuery.gte(
+              'tarih', baslangicTarihi.toIso8601String().split('T')[0]);
         }
         if (bitisTarihi != null) {
-          hareketQuery = hareketQuery.lte('tarih', bitisTarihi.toIso8601String().split('T')[0]);
+          hareketQuery = hareketQuery.lte(
+              'tarih', bitisTarihi.toIso8601String().split('T')[0]);
         }
         final hareketler = await hareketQuery;
         hareketSayisi = hareketler.length;
-        
+
         for (var hareket in hareketler) {
           final tutar = ((hareket['tutar'] ?? 0) as num).toDouble();
-          final tip = hareket['islem_tipi']?.toString() ?? hareket['hareket_tipi']?.toString() ?? '';
-          final kategori = hareket['kategori']?.toString() ?? hareket['aciklama']?.toString() ?? 'Diğer';
-          
+          final tip = hareket['islem_tipi']?.toString() ??
+              hareket['hareket_tipi']?.toString() ??
+              '';
+          final kategori = hareket['kategori']?.toString() ??
+              hareket['aciklama']?.toString() ??
+              'Diğer';
+
           if (tip == 'gelir' || tip == 'giris' || tip == 'tahsilat') {
             kasaGeliri += tutar;
             kategoriGelir[kategori] = (kategoriGelir[kategori] ?? 0) + tutar;
@@ -409,33 +563,43 @@ class GelismisRaporServisleri {
             kategoriGider[kategori] = (kategoriGider[kategori] ?? 0) + tutar;
           }
         }
-      } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+      } catch (e) {
+        AppLogger.debug('Veri isleme hatasi: $e');
+      }
 
       // 3. Ürün Depo Satışlarını getir
       try {
-        final depoQuery = _supabase.from(DbTables.urunDepo).select('*').eq('firma_id', _firmaId);
+        final depoQuery = _supabase
+            .from(DbTables.urunDepo)
+            .select('*')
+            .eq('firma_id', _firmaId);
         final depoVerileri = await depoQuery;
-        
+
         for (var kayit in depoVerileri) {
           // satilan_tutar, satilan_adet veya benzeri sütunları kontrol et
-          final satilanTutar = ((kayit['satilan_tutar'] ?? 0) as num).toDouble();
+          final satilanTutar =
+              ((kayit['satilan_tutar'] ?? 0) as num).toDouble();
           final satilanAdet = ((kayit['satilan_adet'] ?? 0) as num).toInt();
-          final birimFiyat = ((kayit['birim_fiyat'] ?? kayit['satis_fiyati'] ?? 0) as num).toDouble();
-          
+          final birimFiyat =
+              ((kayit['birim_fiyat'] ?? kayit['satis_fiyati'] ?? 0) as num)
+                  .toDouble();
+
           double tutar = satilanTutar;
           if (tutar == 0 && satilanAdet > 0 && birimFiyat > 0) {
             tutar = satilanAdet * birimFiyat;
           }
-          
+
           if (tutar > 0) {
             depoSatisGeliri += tutar;
             depoSatisSayisi++;
-            
+
             final marka = kayit['marka']?.toString() ?? 'Diğer';
             markaBazliSatis[marka] = (markaBazliSatis[marka] ?? 0) + tutar;
           }
         }
-      } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+      } catch (e) {
+        AppLogger.debug('Veri isleme hatasi: $e');
+      }
 
       // 4. Model bazlı gelir (triko_takip tablosundan satış fiyatları)
       double modelMaliyeti = 0; // Model üretim maliyetleri
@@ -446,60 +610,76 @@ class GelismisRaporServisleri {
           ilik_dugme_fiyat, aksesuar_fiyat, genel_aksesuar_fiyat, genel_gider_fiyat, fermuar_fiyat
         ''').eq('firma_id', _firmaId);
         if (baslangicTarihi != null) {
-          modelQuery = modelQuery.gte('created_at', baslangicTarihi.toIso8601String());
+          modelQuery =
+              modelQuery.gte('created_at', baslangicTarihi.toIso8601String());
         }
         if (bitisTarihi != null) {
-          modelQuery = modelQuery.lte('created_at', bitisTarihi.toIso8601String());
+          modelQuery =
+              modelQuery.lte('created_at', bitisTarihi.toIso8601String());
         }
         final modeller = await modelQuery;
-        
+
         double modelSatisGeliri = 0;
         for (var model in modeller) {
-          final adet = ((model['toplam_adet'] ?? model['adet'] ?? 0) as num).toInt();
           final yuklenenAdet = ((model['yuklenen_adet'] ?? 0) as num).toInt();
           final fiyat = ((model['pesin_fiyat'] ?? 0) as num).toDouble();
           // Sadece yüklenen adet üzerinden hesapla
           final hesapAdet = yuklenenAdet > 0 ? yuklenenAdet : 0;
           modelSatisGeliri += hesapAdet * fiyat;
-          
+
           // Model maliyetlerini hesapla
           final iplik = ((model['iplik_maliyeti'] ?? 0) as num).toDouble();
           final orgu = ((model['orgu_fiyat'] ?? 0) as num).toDouble();
           final dikim = ((model['dikim_fiyat'] ?? 0) as num).toDouble();
           final utu = ((model['utu_fiyat'] ?? 0) as num).toDouble();
           final yikama = ((model['yikama_fiyat'] ?? 0) as num).toDouble();
-          final ilikDugme = ((model['ilik_dugme_fiyat'] ?? 0) as num).toDouble();
+          final ilikDugme =
+              ((model['ilik_dugme_fiyat'] ?? 0) as num).toDouble();
           final aksesuar = ((model['aksesuar_fiyat'] ?? 0) as num).toDouble();
-          final genelAksesuar = ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
-          final genelGider = ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
+          final genelAksesuar =
+              ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
+          final genelGider =
+              ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
           final fermuar = ((model['fermuar_fiyat'] ?? 0) as num).toDouble();
-          
-          final birimMaliyet = iplik + orgu + dikim + utu + yikama + ilikDugme + aksesuar + genelAksesuar + genelGider + fermuar;
+
+          final birimMaliyet = iplik +
+              orgu +
+              dikim +
+              utu +
+              yikama +
+              ilikDugme +
+              aksesuar +
+              genelAksesuar +
+              genelGider +
+              fermuar;
           modelMaliyeti += birimMaliyet * hesapAdet;
-          
+
           if (hesapAdet > 0) {
             final marka = model['marka']?.toString() ?? 'Diğer';
-            musteriBazliGelir[marka] = (musteriBazliGelir[marka] ?? 0) + (hesapAdet * fiyat);
+            musteriBazliGelir[marka] =
+                (musteriBazliGelir[marka] ?? 0) + (hesapAdet * fiyat);
           }
         }
-        
+
         // Model maliyetlerini kategori giderine ekle
         if (modelMaliyeti > 0) {
-          kategoriGider['Üretim Maliyeti'] = (kategoriGider['Üretim Maliyeti'] ?? 0) + modelMaliyeti;
+          kategoriGider['Üretim Maliyeti'] =
+              (kategoriGider['Üretim Maliyeti'] ?? 0) + modelMaliyeti;
         }
 
-        
         // Model satış gelirini kategori gelirine ekle
         if (modelSatisGeliri > 0) {
-          kategoriGelir['Satış'] = (kategoriGelir['Satış'] ?? 0) + modelSatisGeliri;
+          kategoriGelir['Satış'] =
+              (kategoriGelir['Satış'] ?? 0) + modelSatisGeliri;
         }
 
-        
         // Eğer fatura geliri yoksa model satış gelirini kullan
         if (faturaGeliri == 0) {
           faturaGeliri = modelSatisGeliri;
         }
-      } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+      } catch (e) {
+        AppLogger.debug('Veri isleme hatasi: $e');
+      }
 
       // Depo satışlarını kategori gelirine ekle
       if (depoSatisGeliri > 0) {
@@ -563,15 +743,18 @@ class GelismisRaporServisleri {
   }) async {
     try {
       // Tedarikçileri getir
-      final tedarikciler = await _supabase.from(DbTables.tedarikciler).select('*').eq('firma_id', _firmaId);
+      final tedarikciler = await _supabase
+          .from(DbTables.tedarikciler)
+          .select('*')
+          .eq('firma_id', _firmaId);
 
       // Her tedarikçi için atama verilerini topla
       final List<Map<String, dynamic>> tedarikciPerformanslari = [];
-      
+
       for (var tedarikci in tedarikciler) {
         final tedarikciId = tedarikci['id'];
         final faaliyet = tedarikci['faaliyet'] ?? '';
-        
+
         // İlgili atama tablosunu belirle
         String atamaTablosu = '';
         switch (faaliyet.toString().toLowerCase()) {
@@ -605,20 +788,28 @@ class GelismisRaporServisleri {
           final query = _supabase
               .from(atamaTablosu)
               .select('id, durum, atama_tarihi, tamamlama_tarihi')
+              .eq('firma_id', _firmaId)
               .eq('tedarikci_id', tedarikciId);
 
           final atamalar = await query;
 
           final int toplamAtama = atamalar.length;
-          final int tamamlanan = atamalar.where((a) => a['durum'] == 'tamamlandi').length;
-          final int devamEden = atamalar.where((a) => a['durum'] == 'uretimde' || a['durum'] == 'onaylandi').length;
-          final int bekleyen = atamalar.where((a) => a['durum'] == 'atandi' || a['durum'] == null).length;
-          
+          final int tamamlanan =
+              atamalar.where((a) => a['durum'] == 'tamamlandi').length;
+          final int devamEden = atamalar
+              .where(
+                  (a) => a['durum'] == 'uretimde' || a['durum'] == 'onaylandi')
+              .length;
+          final int bekleyen = atamalar
+              .where((a) => a['durum'] == 'atandi' || a['durum'] == null)
+              .length;
+
           // Ortalama tamamlama süresi
           double toplamSure = 0;
           int sureliAtama = 0;
           for (var atama in atamalar) {
-            if (atama['atama_tarihi'] != null && atama['tamamlama_tarihi'] != null) {
+            if (atama['atama_tarihi'] != null &&
+                atama['tamamlama_tarihi'] != null) {
               final baslangic = DateTime.parse(atama['atama_tarihi']);
               final bitis = DateTime.parse(atama['tamamlama_tarihi']);
               toplamSure += bitis.difference(baslangic).inHours;
@@ -635,7 +826,8 @@ class GelismisRaporServisleri {
             'tamamlanan': tamamlanan,
             'devamEden': devamEden,
             'bekleyen': bekleyen,
-            'tamamlanmaOrani': toplamAtama > 0 ? (tamamlanan / toplamAtama) * 100 : 0,
+            'tamamlanmaOrani':
+                toplamAtama > 0 ? (tamamlanan / toplamAtama) * 100 : 0,
             'ortalamaTamamlamaSuresi': ortalamaSure,
           });
         } catch (e) {
@@ -645,14 +837,16 @@ class GelismisRaporServisleri {
       }
 
       // Performansa göre sırala
-      tedarikciPerformanslari.sort((a, b) => 
-          (b['tamamlanmaOrani'] as double).compareTo(a['tamamlanmaOrani'] as double));
+      tedarikciPerformanslari.sort((a, b) => (b['tamamlanmaOrani'] as double)
+          .compareTo(a['tamamlanmaOrani'] as double));
 
       return {
         'tedarikciPerformanslari': tedarikciPerformanslari,
         'toplamTedarikci': tedarikciPerformanslari.length,
         'ortalamaPerformans': tedarikciPerformanslari.isNotEmpty
-            ? tedarikciPerformanslari.fold(0.0, (sum, t) => sum + (t['tamamlanmaOrani'] as double)) / tedarikciPerformanslari.length
+            ? tedarikciPerformanslari.fold(
+                    0.0, (sum, t) => sum + (t['tamamlanmaOrani'] as double)) /
+                tedarikciPerformanslari.length
             : 0,
       };
     } catch (e) {
@@ -685,20 +879,30 @@ class GelismisRaporServisleri {
       ];
 
       final Map<String, Map<String, dynamic>> asamaVerileri = {};
-      
+
       for (var tablo in tablolar) {
         try {
           final response = await _supabase
               .from(tablo)
-              .select('id, durum, atama_tarihi, tamamlama_tarihi, tamamlanan_adet');
+              .select(
+                  'id, durum, atama_tarihi, tamamlama_tarihi, tamamlanan_adet')
+              .eq('firma_id', _firmaId);
 
-          final asamaAdi = tablo.replaceAll('_atamalari', '').replaceAll('_', ' ').capitalize();
-          
+          final asamaAdi = tablo
+              .replaceAll('_atamalari', '')
+              .replaceAll('_', ' ')
+              .capitalize();
+
           final int toplam = response.length;
-          final int tamamlanan = response.where((r) => r['durum'] == 'tamamlandi').length;
-          final int uretimde = response.where((r) => r['durum'] == 'uretimde').length;
-          final int bekleyen = response.where((r) => r['durum'] == 'atandi' || r['durum'] == null).length;
-          final int tamamlananAdet = response.fold(0, (sum, r) => sum + ((r['tamamlanan_adet'] ?? 0) as int));
+          final int tamamlanan =
+              response.where((r) => r['durum'] == 'tamamlandi').length;
+          final int uretimde =
+              response.where((r) => r['durum'] == 'uretimde').length;
+          final int bekleyen = response
+              .where((r) => r['durum'] == 'atandi' || r['durum'] == null)
+              .length;
+          final int tamamlananAdet = response.fold(
+              0, (sum, r) => sum + ((r['tamamlanan_adet'] ?? 0) as int));
 
           asamaVerileri[asamaAdi] = {
             'toplam': toplam,
@@ -715,9 +919,12 @@ class GelismisRaporServisleri {
       }
 
       // Genel verimlilik hesapla
-      final int toplamIs = asamaVerileri.values.fold(0, (sum, v) => sum + (v['toplam'] as int));
-      final int toplamTamamlanan = asamaVerileri.values.fold(0, (sum, v) => sum + (v['tamamlanan'] as int));
-      final double genelVerimlilik = toplamIs > 0 ? (toplamTamamlanan / toplamIs) * 100 : 0;
+      final int toplamIs =
+          asamaVerileri.values.fold(0, (sum, v) => sum + (v['toplam'] as int));
+      final int toplamTamamlanan = asamaVerileri.values
+          .fold(0, (sum, v) => sum + (v['tamamlanan'] as int));
+      final double genelVerimlilik =
+          toplamIs > 0 ? (toplamTamamlanan / toplamIs) * 100 : 0;
 
       return {
         'asamaVerileri': asamaVerileri,
@@ -745,8 +952,11 @@ class GelismisRaporServisleri {
     DateTime? bitisTarihi,
   }) async {
     try {
-      var query = _supabase.from(DbTables.trikoTakip).select('*').eq('firma_id', _firmaId);
-      
+      var query = _supabase
+          .from(DbTables.trikoTakip)
+          .select('*')
+          .eq('firma_id', _firmaId);
+
       if (baslangicTarihi != null) {
         query = query.gte('created_at', baslangicTarihi.toIso8601String());
       }
@@ -757,13 +967,16 @@ class GelismisRaporServisleri {
       final modeller = await query;
 
       final Map<String, Map<String, dynamic>> markaVerileri = {};
-      
+
       for (var model in modeller) {
         final marka = model['marka'] ?? 'Bilinmeyen';
-        final adet = ((model['toplam_adet'] ?? model['adet'] ?? 0) as num).toInt();
+        final adet =
+            ((model['toplam_adet'] ?? model['adet'] ?? 0) as num).toInt();
         final yuklenenAdet = ((model['yuklenen_adet'] ?? 0) as num).toInt();
         // pesin_fiyat kullan (satis_fiyati yerine)
-        final satisFiyati = ((model['pesin_fiyat'] ?? model['satis_fiyati'] ?? 0) as num).toDouble();
+        final satisFiyati =
+            ((model['pesin_fiyat'] ?? model['satis_fiyati'] ?? 0) as num)
+                .toDouble();
         // Birim maliyet hesapla
         final iplik = ((model['iplik_maliyeti'] ?? 0) as num).toDouble();
         final orgu = ((model['orgu_fiyat'] ?? 0) as num).toDouble();
@@ -772,9 +985,19 @@ class GelismisRaporServisleri {
         final yikama = ((model['yikama_fiyat'] ?? 0) as num).toDouble();
         final ilikDugme = ((model['ilik_dugme_fiyat'] ?? 0) as num).toDouble();
         final aksesuar = ((model['aksesuar_fiyat'] ?? 0) as num).toDouble();
-        final genelAksesuar = ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
-        final genelGider = ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
-        final birimMaliyet = iplik + orgu + dikim + utu + yikama + ilikDugme + aksesuar + genelAksesuar + genelGider;
+        final genelAksesuar =
+            ((model['genel_aksesuar_fiyat'] ?? 0) as num).toDouble();
+        final genelGider =
+            ((model['genel_gider_fiyat'] ?? 0) as num).toDouble();
+        final birimMaliyet = iplik +
+            orgu +
+            dikim +
+            utu +
+            yikama +
+            ilikDugme +
+            aksesuar +
+            genelAksesuar +
+            genelGider;
 
         // Sadece yüklenen adet üzerinden satış/maliyet hesapla
         final hesapAdet = yuklenenAdet > 0 ? yuklenenAdet : 0;
@@ -789,11 +1012,18 @@ class GelismisRaporServisleri {
           };
         }
 
-        markaVerileri[marka]!['modelSayisi'] = (markaVerileri[marka]!['modelSayisi'] as int) + 1;
-        markaVerileri[marka]!['toplamAdet'] = (markaVerileri[marka]!['toplamAdet'] as int) + adet;
-        markaVerileri[marka]!['yuklenenAdet'] = (markaVerileri[marka]!['yuklenenAdet'] as int) + yuklenenAdet;
-        markaVerileri[marka]!['toplamSatis'] = (markaVerileri[marka]!['toplamSatis'] as double) + (satisFiyati * hesapAdet);
-        markaVerileri[marka]!['toplamMaliyet'] = (markaVerileri[marka]!['toplamMaliyet'] as double) + (birimMaliyet * hesapAdet);
+        markaVerileri[marka]!['modelSayisi'] =
+            (markaVerileri[marka]!['modelSayisi'] as int) + 1;
+        markaVerileri[marka]!['toplamAdet'] =
+            (markaVerileri[marka]!['toplamAdet'] as int) + adet;
+        markaVerileri[marka]!['yuklenenAdet'] =
+            (markaVerileri[marka]!['yuklenenAdet'] as int) + yuklenenAdet;
+        markaVerileri[marka]!['toplamSatis'] =
+            (markaVerileri[marka]!['toplamSatis'] as double) +
+                (satisFiyati * hesapAdet);
+        markaVerileri[marka]!['toplamMaliyet'] =
+            (markaVerileri[marka]!['toplamMaliyet'] as double) +
+                (birimMaliyet * hesapAdet);
       }
 
       // Kar hesapla
@@ -806,7 +1036,8 @@ class GelismisRaporServisleri {
 
       // En çok sipariş alan markaları sırala
       final siraliMarkalar = markaVerileri.entries.toList()
-        ..sort((a, b) => (b.value['toplamAdet'] as int).compareTo(a.value['toplamAdet'] as int));
+        ..sort((a, b) => (b.value['toplamAdet'] as int)
+            .compareTo(a.value['toplamAdet'] as int));
 
       return {
         'markaVerileri': Map.fromEntries(siraliMarkalar),

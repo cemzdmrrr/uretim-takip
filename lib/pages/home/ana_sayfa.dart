@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:uretim_takip/pages/model/model_ekle.dart';
 import 'package:uretim_takip/pages/model/toplu_model_ekle.dart';
@@ -58,7 +56,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   String get _firmaId => TenantManager.instance.requireFirmaId;
   Timer? _refreshTimer;
   Set<String> _sayfaYetkileri = {};
-  bool _yetkilerYuklendi = false;
 
   // Animasyon
   late AnimationController _animController;
@@ -205,77 +202,129 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
   // --- UI Bileşenleri ---
 
+  Widget _buildPanel({required Widget child, EdgeInsets? padding}) {
+    return Container(
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildPanelHeader(String title, IconData icon, Color color,
+      {String? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F2937),
+              letterSpacing: 0,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (trailing != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              trailing,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildStatCard(
       String title, String value, IconData icon, Color color) {
     final intValue = int.tryParse(value) ?? 0;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                color.withValues(alpha: 0.12),
-                color.withValues(alpha: 0.04),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: color.withValues(alpha: 0.2),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.1),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 18),
+                child: Icon(icon, color: color, size: 19),
               ),
-              const SizedBox(height: 8),
-              TweenAnimationBuilder<int>(
-                tween: IntTween(begin: 0, end: intValue),
-                duration: const Duration(milliseconds: 1500),
-                curve: Curves.easeOutCubic,
-                builder: (context, val, _) => Text(
-                  '$val',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                    height: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[700],
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.1,
-                ),
-              ),
+              const Spacer(),
+              Icon(Icons.trending_flat_rounded,
+                  color: color.withValues(alpha: 0.45), size: 18),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+          TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: intValue),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (context, val, _) => Text(
+              '$val',
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF111827),
+                height: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -286,55 +335,42 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        borderRadius: BorderRadius.circular(8),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [color, color.withValues(alpha: 0.75)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.35),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: 0.18)),
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: color.withValues(alpha: 0.16)),
                 ),
-                child: Icon(icon, color: Colors.white, size: 22),
+                child: Icon(icon, color: color, size: 20),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 11),
               Expanded(
                 child: Text(
                   text,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
+                    color: Color(0xFF243447),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.arrow_forward_rounded,
-                    color: Colors.white, size: 18),
-              ),
+              Icon(Icons.arrow_forward_ios_rounded,
+                  color: color.withValues(alpha: 0.75), size: 14),
             ],
           ),
         ),
@@ -348,93 +384,53 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       opacity: _fadeAnim,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0, 0.15),
+          begin: const Offset(0, 0.08),
           end: Offset.zero,
         ).animate(_fadeAnim),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 14, bottom: 8),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          color.withValues(alpha: 0.15),
-                          color.withValues(alpha: 0.05),
-                        ],
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: _buildPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPanelHeader(title, icon, color,
+                    trailing: '${butonlar.length} sayfa'),
+                const SizedBox(height: 14),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final w = constraints.maxWidth;
+                    final cols = w >= 1120
+                        ? 4
+                        : w >= 820
+                            ? 3
+                            : w >= 540
+                                ? 2
+                                : 1;
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: cols,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        mainAxisExtent: 66,
                       ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(icon, color: color, size: 16),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.grey[800],
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      color: color.withValues(alpha: 0.12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final w = constraints.maxWidth;
-                int cols;
-                if (kIsWeb) {
-                  if (w > 1100) {
-                    cols = 4;
-                  } else if (w > 800) {
-                    cols = 3;
-                  } else if (w > 500) {
-                    cols = 2;
-                  } else {
-                    cols = 1;
-                  }
-                } else {
-                  if (w > 700) {
-                    cols = 3;
-                  } else if (w > 450) {
-                    cols = 2;
-                  } else {
-                    cols = 1;
-                  }
-                }
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: cols,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: cols == 1 ? 4.9 : 3.7,
-                  ),
-                  itemCount: butonlar.length,
-                  itemBuilder: (context, index) {
-                    final b = butonlar[index];
-                    return _buildModulCard(b['text'], b['icon'], b['onPressed'],
-                        color: b['color']);
+                      itemCount: butonlar.length,
+                      itemBuilder: (context, index) {
+                        final b = butonlar[index];
+                        return _buildModulCard(
+                          b['text'],
+                          b['icon'],
+                          b['onPressed'],
+                          color: b['color'],
+                        );
+                      },
+                    );
                   },
-                );
-              },
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -446,63 +442,44 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(10),
-        splashColor: color.withValues(alpha: 0.1),
-        highlightColor: color.withValues(alpha: 0.05),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        borderRadius: BorderRadius.circular(8),
+        splashColor: color.withValues(alpha: 0.08),
+        highlightColor: color.withValues(alpha: 0.04),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.1)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE5EAF1)),
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(7),
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withValues(alpha: 0.15),
-                      color.withValues(alpha: 0.05),
-                    ],
-                  ),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 16),
+                child: Icon(icon, color: color, size: 19),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   text,
-                  style: TextStyle(
-                    color: Colors.grey[800],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  style: const TextStyle(
+                    color: Color(0xFF243447),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 0,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Icon(Icons.chevron_right_rounded,
-                    color: color.withValues(alpha: 0.6), size: 14),
-              ),
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right_rounded,
+                  color: color.withValues(alpha: 0.65), size: 20),
             ],
           ),
         ),
@@ -513,192 +490,291 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (yukleniyor) {
-      return Scaffold(
-        body: Container(
-          color: const Color(0xFFF8F9FA),
-          child: const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: Color(0xFF1976D2)),
-                SizedBox(height: 16),
-                Text('Yükleniyor...',
-                    style: TextStyle(fontSize: 16, color: Color(0xFF546E7A))),
-              ],
-            ),
+      return const Scaffold(
+        backgroundColor: Color(0xFFF6F8FB),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Color(0xFF1565C0)),
+              SizedBox(height: 16),
+              Text('Yükleniyor...',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF546E7A))),
+            ],
           ),
         ),
       );
     }
 
-    // Kategori butonları
     final kategoriler = _buildKategoriler();
     final user = Supabase.instance.client.auth.currentUser;
     final email = user?.email ?? '';
     final tenant = context.watch<TenantProvider>();
     final firmaAdi = tenant.firmaAdi;
+    final modulSayisi =
+        kategoriler.values.fold<int>(0, (total, items) => total + items.length);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      body: RefreshIndicator(
-        onRefresh: _dashboardVerileriniYukle,
-        child: CustomScrollView(
-          slivers: [
-            // --- Modern AppBar ---
-            SliverAppBar(
-              expandedHeight: 80,
-              floating: false,
-              pinned: true,
-              elevation: 0,
-              backgroundColor: const Color(0xFF1565C0),
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF1976D2), Color(0xFF0D47A1)],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: Row(
-                        children: [
-                          // Logo ve başlık
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                                Icons.precision_manufacturing_rounded,
-                                color: Colors.white,
-                                size: 22),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'TexPilot',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    if (firmaAdi.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          firmaAdi,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  email.isNotEmpty
-                                      ? email
-                                      : 'Üretim Takip Sistemi',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.white.withValues(alpha: 0.8),
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+      backgroundColor: const Color(0xFFF6F8FB),
+      appBar: AppBar(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: const Color(0xFF1565C0),
+        titleSpacing: 12,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
               ),
-              actions: [
-                if (tenant.cokluFirma)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: IconButton(
-                      icon: const Icon(Icons.swap_horiz_rounded,
-                          color: Colors.white, size: 22),
-                      tooltip: 'Firma Değiştir',
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const FirmaSecimPage()),
-                        );
-                      },
+              child: const Icon(Icons.precision_manufacturing_rounded,
+                  color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'TexPilot',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
                     ),
                   ),
-                const BildirimPopup(),
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: IconButton(
-                    icon: const Icon(Icons.logout_rounded,
-                        color: Colors.white, size: 22),
-                    tooltip: 'Çıkış Yap',
-                    onPressed: cikisYap,
+                  Text(
+                    firmaAdi.isNotEmpty ? firmaAdi : 'Üretim Takip Sistemi',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.78),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
-            ),
-
-            // --- İçerik ---
-            SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // KPI İstatistik Kartları (üretim modülü aktifse)
-                    if (_modulAktif('uretim')) ...[
-                      _buildStatsRow(),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // Kategoriler
-                    ...kategoriler.entries.map((entry) {
-                      final meta = _categoryMeta(entry.key);
-                      return _buildCategorySection(
-                          entry.key,
-                          meta['icon'] as IconData,
-                          meta['color'] as Color,
-                          entry.value);
-                    }),
-
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                ],
               ),
             ),
           ],
         ),
+        actions: [
+          if (tenant.cokluFirma)
+            IconButton(
+              icon: const Icon(Icons.swap_horiz_rounded,
+                  color: Colors.white, size: 22),
+              tooltip: 'Firma Değiştir',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FirmaSecimPage()),
+                );
+              },
+            ),
+          const BildirimPopup(),
+          IconButton(
+            icon:
+                const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
+            tooltip: 'Çıkış Yap',
+            onPressed: cikisYap,
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _dashboardVerileriniYukle,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding = constraints.maxWidth >= 900 ? 24.0 : 12.0;
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                16,
+                horizontalPadding,
+                24,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1180),
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildWorkspaceHeader(
+                          firmaAdi: firmaAdi,
+                          email: email,
+                          modulSayisi: modulSayisi,
+                        ),
+                        const SizedBox(height: 14),
+                        if (_modulAktif('uretim')) ...[
+                          _buildStatsRow(),
+                          const SizedBox(height: 14),
+                          _buildFocusPanel(),
+                          const SizedBox(height: 14),
+                        ],
+                        _buildQuickActionsRow(),
+                        if (_hasQuickActions()) const SizedBox(height: 14),
+                        if (kategoriler.isEmpty)
+                          _buildEmptyHomeState()
+                        else
+                          ...kategoriler.entries.map((entry) {
+                            final meta = _categoryMeta(entry.key);
+                            return _buildCategorySection(
+                              entry.key,
+                              meta['icon'] as IconData,
+                              meta['color'] as Color,
+                              entry.value,
+                            );
+                          }),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkspaceHeader({
+    required String firmaAdi,
+    required String email,
+    required int modulSayisi,
+  }) {
+    return _buildPanel(
+      padding: const EdgeInsets.all(18),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 680;
+          final titleBlock = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Operasyon Merkezi',
+                style: TextStyle(
+                  color: Color(0xFF111827),
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildInfoChip(
+                    Icons.business_rounded,
+                    firmaAdi.isNotEmpty ? firmaAdi : 'Firma seçili değil',
+                    const Color(0xFF1565C0),
+                  ),
+                  _buildInfoChip(
+                    Icons.verified_user_rounded,
+                    kullaniciRolu,
+                    const Color(0xFF2E7D32),
+                  ),
+                  _buildInfoChip(
+                    Icons.apps_rounded,
+                    '$modulSayisi sayfa',
+                    const Color(0xFF5C6BC0),
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          final userBlock = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisSize: narrow ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                const Icon(Icons.account_circle_rounded,
+                    color: Color(0xFF64748B), size: 22),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    email.isNotEmpty ? email : 'Kullanıcı',
+                    style: const TextStyle(
+                      color: Color(0xFF475569),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                const SizedBox(height: 12),
+                userBlock,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: titleBlock),
+              const SizedBox(width: 16),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: userBlock,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String label, Color color) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -706,55 +782,179 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   // --- Yardımcı build metotları ---
 
   Widget _buildStatsRow() {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.2),
-          end: Offset.zero,
-        ).animate(_fadeAnim),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isMobile = constraints.maxWidth < 600;
-            final stats = [
-              _buildStatCard(
-                  'Toplam Model',
-                  '${_dashboardStats['toplam_model']}',
-                  Icons.layers_rounded,
-                  const Color(0xFF1976D2)),
-              _buildStatCard('Devam Eden', '${_dashboardStats['devam_eden']}',
-                  Icons.autorenew_rounded, const Color(0xFFF57C00)),
-              _buildStatCard('Tamamlanan', '${_dashboardStats['tamamlanan']}',
-                  Icons.check_circle_rounded, const Color(0xFF2E7D32)),
-              _buildStatCard('Geciken', '${_dashboardStats['geciken']}',
-                  Icons.warning_amber_rounded, const Color(0xFFD32F2F)),
-            ];
+    return _buildPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPanelHeader(
+            'Üretim Özeti',
+            Icons.query_stats_rounded,
+            const Color(0xFF1565C0),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cols = constraints.maxWidth >= 920
+                  ? 4
+                  : constraints.maxWidth >= 520
+                      ? 2
+                      : 1;
+              final stats = [
+                _buildStatCard(
+                    'Toplam Model',
+                    '${_dashboardStats['toplam_model']}',
+                    Icons.layers_rounded,
+                    const Color(0xFF1565C0)),
+                _buildStatCard('Devam Eden', '${_dashboardStats['devam_eden']}',
+                    Icons.autorenew_rounded, const Color(0xFFF57C00)),
+                _buildStatCard('Tamamlanan', '${_dashboardStats['tamamlanan']}',
+                    Icons.check_circle_rounded, const Color(0xFF2E7D32)),
+                _buildStatCard('Geciken', '${_dashboardStats['geciken']}',
+                    Icons.warning_amber_rounded, const Color(0xFFD32F2F)),
+              ];
 
-            final statsWidget = isMobile
-                ? GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 1.2,
-                    children: stats,
-                  )
-                : Row(
-                    children: stats
-                        .map((s) => Expanded(
-                            child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 4),
-                                child: s)))
-                        .toList(),
-                  );
-
-            return statsWidget;
-          },
-        ),
+              return GridView.builder(
+                itemCount: stats.length,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  mainAxisExtent: 132,
+                ),
+                itemBuilder: (context, index) => stats[index],
+              );
+            },
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildFocusPanel() {
+    final toplam = _dashboardStats['toplam_model'] ?? 0;
+    final tamamlanan = _dashboardStats['tamamlanan'] ?? 0;
+    final devamEden = _dashboardStats['devam_eden'] ?? 0;
+    final geciken = _dashboardStats['geciken'] ?? 0;
+    final oran = toplam == 0 ? 0 : ((tamamlanan / toplam) * 100).round();
+
+    return _buildPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPanelHeader(
+            'Bugün İzlenecekler',
+            Icons.fact_check_rounded,
+            const Color(0xFF0F766E),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 760;
+              final items = [
+                _buildFocusItem(
+                  Icons.priority_high_rounded,
+                  'Geciken',
+                  geciken == 0 ? 'Yok' : '$geciken model',
+                  geciken == 0
+                      ? const Color(0xFF2E7D32)
+                      : const Color(0xFFD32F2F),
+                ),
+                _buildFocusItem(
+                  Icons.sync_rounded,
+                  'Devam Eden',
+                  '$devamEden model',
+                  const Color(0xFFF57C00),
+                ),
+                _buildFocusItem(
+                  Icons.percent_rounded,
+                  'Tamamlanma',
+                  '%$oran',
+                  const Color(0xFF1565C0),
+                ),
+              ];
+
+              if (narrow) {
+                return Column(
+                  children: [
+                    for (var i = 0; i < items.length; i++) ...[
+                      items[i],
+                      if (i < items.length - 1) const SizedBox(height: 10),
+                    ],
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  for (var i = 0; i < items.length; i++) ...[
+                    Expanded(child: items[i]),
+                    if (i < items.length - 1) const SizedBox(width: 10),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFocusItem(
+      IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Color(0xFF111827),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _hasQuickActions() {
+    return _sayfaErisimVar('uretim_raporu') ||
+        _sayfaErisimVar('yeni_model_ekle') ||
+        _sayfaErisimVar('kayitli_modeller');
   }
 
   Widget _buildQuickActionsRow() {
@@ -788,27 +988,63 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     }
     if (actions.isEmpty) return const SizedBox.shrink();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 600) {
-          return Column(
-            children: [
-              for (var i = 0; i < actions.length; i++) ...[
-                SizedBox(width: double.infinity, child: actions[i]),
-                if (i < actions.length - 1) const SizedBox(height: 12),
-              ],
-            ],
-          );
-        }
-        return Row(
+    return _buildPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPanelHeader(
+            'Hızlı İşlemler',
+            Icons.flash_on_rounded,
+            const Color(0xFF5C6BC0),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 640) {
+                return Column(
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      SizedBox(width: double.infinity, child: actions[i]),
+                      if (i < actions.length - 1) const SizedBox(height: 10),
+                    ],
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  for (var i = 0; i < actions.length; i++) ...[
+                    Expanded(child: actions[i]),
+                    if (i < actions.length - 1) const SizedBox(width: 10),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyHomeState() {
+    return _buildPanel(
+      child: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Column(
           children: [
-            for (var i = 0; i < actions.length; i++) ...[
-              Expanded(child: actions[i]),
-              if (i < actions.length - 1) const SizedBox(width: 12),
-            ],
+            Icon(Icons.lock_outline_rounded,
+                color: Color(0xFF94A3B8), size: 42),
+            SizedBox(height: 10),
+            Text(
+              'Görüntülenebilir sayfa bulunamadı',
+              style: TextStyle(
+                color: Color(0xFF475569),
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -820,11 +1056,9 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
       setState(() {
         _sayfaYetkileri = yetkiler;
-        _yetkilerYuklendi = true;
       });
     } catch (e) {
       debugPrint('Sayfa yetkileri yüklenemedi: $e');
-      setState(() => _yetkilerYuklendi = true);
     }
   }
 

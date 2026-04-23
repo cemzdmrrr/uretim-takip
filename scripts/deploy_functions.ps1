@@ -31,6 +31,9 @@ Write-Host "========================================" -ForegroundColor Cyan
 $functions = @(
     "delete_user",
     "firma-olustur",
+    "firma-sil",
+    "personel-olustur",
+    "personel-yonet",
     "kullanici-davet", 
     "abonelik-kontrol",
     "odeme-webhook",

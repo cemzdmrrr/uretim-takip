@@ -1,9 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:uretim_takip/widgets/common_widgets.dart';
-import 'package:uretim_takip/config/database_tables.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/widgets/common_widgets.dart';
 
 class IplikSiparisTakipPage extends StatefulWidget {
   const IplikSiparisTakipPage({super.key});
@@ -14,10 +16,25 @@ class IplikSiparisTakipPage extends StatefulWidget {
 
 class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   final supabase = Supabase.instance.client;
+  final aramaController = TextEditingController();
 
   List<Map<String, dynamic>> siparisler = [];
+  List<Map<String, dynamic>> tedarikciler = [];
   bool _yukleniyor = false;
+
   String aramaMetni = '';
+  String durumFiltresi = 'tum';
+  String? tedarikciFiltresi;
+  String terminFiltresi = 'tum';
+  String kaliteFiltresi = 'tum';
+  String teslimFiltresi = 'tum';
+  String siralama = 'termin';
+
+  static const Color _primaryColor = Color(0xFF2563EB);
+  static const Color _successColor = Color(0xFF059669);
+  static const Color _warningColor = Color(0xFFD97706);
+  static const Color _dangerColor = Color(0xFFDC2626);
+  static const Color _surfaceColor = Color(0xFFF8FAFC);
 
   @override
   void initState() {
@@ -25,697 +42,1122 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     _verileriYukle();
   }
 
+  @override
+  void dispose() {
+    aramaController.dispose();
+    super.dispose();
+  }
+
   Future<void> _verileriYukle() async {
     setState(() => _yukleniyor = true);
 
     try {
-      // Basit sipariş takip view'inden veri çek
-      final siparisVeri = await supabase
-          .from(DbTables.vSiparisTakip)
-          .select()
-          .order('created_at', ascending: false);
+      final firmaId = TenantManager.instance.requireFirmaId;
+      final yeniTedarikciler = await _tedarikcileriYukle(firmaId);
+      final tedarikciMap = {
+        for (final tedarikci in yeniTedarikciler)
+          if (tedarikci['id'] != null) tedarikci['id'].toString(): tedarikci,
+      };
+
+      List<Map<String, dynamic>> yeniSiparisler;
+      try {
+        final viewData = await supabase
+            .from(DbTables.vSiparisTakip)
+            .select()
+            .eq('firma_id', firmaId)
+            .order('created_at', ascending: false);
+        yeniSiparisler = List<Map<String, dynamic>>.from(viewData);
+      } catch (viewError) {
+        debugPrint(
+          'Sipariş takip view firma filtresi desteklemiyor, tablo sorgusu deneniyor: $viewError',
+        );
+        final tableData = await supabase
+            .from(DbTables.iplikSiparisleri)
+            .select()
+            .eq('firma_id', firmaId)
+            .order('created_at', ascending: false);
+        yeniSiparisler = List<Map<String, dynamic>>.from(tableData);
+      }
+
+      yeniSiparisler = yeniSiparisler
+          .map((siparis) => _normalizeSiparis(siparis, tedarikciMap))
+          .toList();
 
       setState(() {
-        siparisler = List<Map<String, dynamic>>.from(siparisVeri);
+        tedarikciler = yeniTedarikciler;
+        siparisler = yeniSiparisler;
       });
 
       debugPrint('Sipariş takip verileri yüklendi: ${siparisler.length} adet');
     } catch (e) {
       debugPrint('Sipariş takip verisi yüklenirken hata: $e');
-      if (mounted) {
-        context.showErrorSnackBar('Veri yükleme hatası: $e');
-      }
+      if (mounted) context.showErrorSnackBar('Veri yükleme hatası: $e');
     } finally {
-      if (mounted) {
-        setState(() => _yukleniyor = false);
-      }
+      if (mounted) setState(() => _yukleniyor = false);
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _tedarikcileriYukle(String firmaId) async {
+    try {
+      final data = await supabase
+          .from(DbTables.tedarikciler)
+          .select('id, ad, sirket, telefon')
+          .eq('firma_id', firmaId)
+          .order('sirket');
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      debugPrint('Sipariş takip tedarikçi yükleme hatası: $e');
+      return [];
+    }
+  }
+
+  Map<String, dynamic> _normalizeSiparis(
+    Map<String, dynamic> source,
+    Map<String, Map<String, dynamic>> tedarikciMap,
+  ) {
+    final siparis = Map<String, dynamic>.from(source);
+    final miktar = _num(siparis['miktar']);
+    final teslimMiktari = _num(siparis['teslim_miktari']);
+    final teslimYuzdesi = miktar > 0
+        ? (siparis['teslim_yuzdesi'] == null
+            ? (teslimMiktari / miktar) * 100
+            : _num(siparis['teslim_yuzdesi']))
+        : 0.0;
+    final takipDurumu = _hesaplaTakipDurumu(siparis, miktar, teslimMiktari);
+    final tedarikci = tedarikciMap[siparis['tedarikci_id']?.toString()];
+
+    siparis['miktar'] = miktar;
+    siparis['teslim_miktari'] = teslimMiktari;
+    siparis['teslim_yuzdesi'] = teslimYuzdesi.clamp(0, 100).toDouble();
+    siparis['takip_durumu'] = takipDurumu;
+    siparis['kalan_miktar'] = math.max(0, miktar - teslimMiktari);
+    siparis['tedarikci_adi'] = _firstText([
+      siparis['tedarikci_adi'],
+      tedarikci?['sirket'],
+      tedarikci?['ad'],
+    ]);
+    siparis['tedarikci_telefon'] = _firstText([
+      siparis['tedarikci_telefon'],
+      tedarikci?['telefon'],
+    ]);
+    return siparis;
+  }
+
+  String _hesaplaTakipDurumu(
+    Map<String, dynamic> siparis,
+    double miktar,
+    double teslimMiktari,
+  ) {
+    if (siparis['teslim_edildi'] == true ||
+        teslimMiktari >= miktar && miktar > 0) {
+      return 'tamamlandi';
+    }
+    final durum = siparis['durum']?.toString();
+    if (durum == 'tamamlandi' || durum == 'teslim_edildi') return 'tamamlandi';
+    if (durum == 'iptal') return 'iptal';
+
+    final termin = _parseDate(siparis['termin_tarihi']);
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    if (termin != null && termin.isBefore(todayDate)) return 'gecikti';
+    if (teslimMiktari > 0) return 'kismi';
+    return 'beklemede';
+  }
+
+  List<Map<String, dynamic>> get _filtreliSiparisler {
+    final arama = aramaMetni.trim().toLowerCase();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekEnd = today.add(const Duration(days: 7));
+
+    final result = siparisler.where((siparis) {
+      final termin = _parseDate(siparis['termin_tarihi']);
+      final teslimYuzdesi = _num(siparis['teslim_yuzdesi']);
+      final metin =
+          '${siparis['siparis_no']} ${siparis['iplik_adi']} ${siparis['renk']} ${siparis['tedarikci_adi']} ${siparis['marka']}'
+              .toLowerCase();
+
+      final aramaUygun = arama.isEmpty || metin.contains(arama);
+      final durumUygun =
+          durumFiltresi == 'tum' || siparis['takip_durumu'] == durumFiltresi;
+      final tedarikciUygun = tedarikciFiltresi == null ||
+          siparis['tedarikci_id']?.toString() == tedarikciFiltresi;
+      final kaliteUygun = kaliteFiltresi == 'tum' ||
+          (siparis['kalite_durumu']?.toString() ?? '') == kaliteFiltresi;
+      final teslimUygun = switch (teslimFiltresi) {
+        'teslim_yok' => teslimYuzdesi <= 0,
+        'kismi' => teslimYuzdesi > 0 && teslimYuzdesi < 100,
+        'tam' => teslimYuzdesi >= 100,
+        _ => true,
+      };
+      final terminUygun = switch (terminFiltresi) {
+        'geciken' => termin != null &&
+            termin.isBefore(today) &&
+            siparis['takip_durumu'] != 'tamamlandi',
+        'bugun' => termin != null && _sameDay(termin, today),
+        'hafta' =>
+          termin != null && !termin.isBefore(today) && !termin.isAfter(weekEnd),
+        'termin_yok' => termin == null,
+        _ => true,
+      };
+
+      return aramaUygun &&
+          durumUygun &&
+          tedarikciUygun &&
+          kaliteUygun &&
+          teslimUygun &&
+          terminUygun;
+    }).toList();
+
+    result.sort((a, b) {
+      switch (siralama) {
+        case 'siparis_no':
+          return (a['siparis_no'] ?? '').toString().compareTo(
+                (b['siparis_no'] ?? '').toString(),
+              );
+        case 'teslim':
+          return _num(b['teslim_yuzdesi']).compareTo(_num(a['teslim_yuzdesi']));
+        case 'tedarikci':
+          return (a['tedarikci_adi'] ?? '').toString().compareTo(
+                (b['tedarikci_adi'] ?? '').toString(),
+              );
+        case 'created':
+          return (b['created_at'] ?? '').toString().compareTo(
+                (a['created_at'] ?? '').toString(),
+              );
+        case 'termin':
+        default:
+          final at = _parseDate(a['termin_tarihi']);
+          final bt = _parseDate(b['termin_tarihi']);
+          if (at == null && bt == null) return 0;
+          if (at == null) return 1;
+          if (bt == null) return -1;
+          return at.compareTo(bt);
+      }
+    });
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtreliSiparisler = siparisler.where((siparis) {
-      if (aramaMetni.isEmpty) return true;
-      final arama = aramaMetni.toLowerCase();
-      return siparis['siparis_no']?.toString().toLowerCase().contains(arama) ==
-              true ||
-          siparis['iplik_adi']?.toString().toLowerCase().contains(arama) ==
-              true ||
-          _siparisRengi(siparis).toLowerCase().contains(arama) ||
-          siparis['tedarikci_adi']?.toString().toLowerCase().contains(arama) ==
-              true;
-    }).toList();
+    final filtreliSiparisler = _filtreliSiparisler;
 
     return Scaffold(
-      body: Column(
-        children: [
-          // Başlık ve arama
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFD2B48C),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.track_changes,
-                        color: Colors.white, size: 28),
-                    const SizedBox(width: 12),
-                    Text(
-                      'İplik Sipariş Takip Sistemi',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: _verileriYukle,
-                      icon: const Icon(Icons.refresh, color: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Sipariş No, İplik Adı veya Tedarikçi Ara...',
-                    prefixIcon: Icon(Icons.search),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  onChanged: (value) {
-                    setState(() => aramaMetni = value);
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // İstatistik kartları
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                    child: _buildIstatistikKart(
-                        'Toplam', siparisler.length.toString(), Colors.blue)),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: _buildIstatistikKart(
-                        'Beklemede',
-                        siparisler
-                            .where((s) => s['takip_durumu'] == 'beklemede')
-                            .length
-                            .toString(),
-                        Colors.orange)),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: _buildIstatistikKart(
-                        'Tamamlanan',
-                        siparisler
-                            .where((s) => s['takip_durumu'] == 'tamamlandi')
-                            .length
-                            .toString(),
-                        Colors.green)),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: _buildIstatistikKart(
-                        'Geciken',
-                        siparisler
-                            .where((s) => s['takip_durumu'] == 'gecikti')
-                            .length
-                            .toString(),
-                        Colors.red)),
-              ],
-            ),
-          ),
-
-          // Sipariş listesi
-          Expanded(
-            child: _yukleniyor
-                ? const LoadingWidget()
-                : filtreliSiparisler.isEmpty
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.inbox, size: 64, color: Colors.grey),
-                            SizedBox(height: 16),
-                            Text('Sipariş bulunamadı'),
-                          ],
+      backgroundColor: _surfaceColor,
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 12),
+            _buildOzetler(),
+            const SizedBox(height: 12),
+            _buildFiltreler(),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _yukleniyor
+                  ? const LoadingWidget()
+                  : filtreliSiparisler.isEmpty
+                      ? _buildBosDurum()
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            if (constraints.maxWidth < 900) {
+                              return _buildKartListe(filtreliSiparisler);
+                            }
+                            return _buildTablo(filtreliSiparisler);
+                          },
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: filtreliSiparisler.length,
-                        itemBuilder: (context, index) {
-                          final siparis = filtreliSiparisler[index];
-                          return _buildSiparisKart(siparis);
-                        },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child:
+                const Icon(Icons.local_shipping_outlined, color: _primaryColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'İplik Sipariş Takip',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
                       ),
+                ),
+                const Text(
+                  'Termin, teslimat, kalite ve stok işleme takibi',
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _verileriYukle,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Yenile',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildIstatistikKart(String baslik, String deger, Color renk) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Text(
-              deger,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: renk,
+  Widget _buildOzetler() {
+    final toplam = siparisler.length;
+    final bekleyen =
+        siparisler.where((s) => s['takip_durumu'] == 'beklemede').length;
+    final kismi = siparisler.where((s) => s['takip_durumu'] == 'kismi').length;
+    final geciken =
+        siparisler.where((s) => s['takip_durumu'] == 'gecikti').length;
+    final tamamlanan =
+        siparisler.where((s) => s['takip_durumu'] == 'tamamlandi').length;
+    final kalanKg = siparisler.fold<double>(
+      0,
+      (sum, siparis) => sum + _num(siparis['kalan_miktar']),
+    );
+
+    final kartlar = [
+      _buildOzetKart(
+          'Toplam', toplam.toString(), Icons.receipt_long, _primaryColor),
+      _buildOzetKart('Bekleyen', bekleyen.toString(), Icons.hourglass_empty,
+          _warningColor),
+      _buildOzetKart('Kısmi', kismi.toString(), Icons.call_received,
+          const Color(0xFF7C3AED)),
+      _buildOzetKart(
+          'Geciken', geciken.toString(), Icons.warning_amber, _dangerColor),
+      _buildOzetKart('Tamamlanan', tamamlanan.toString(),
+          Icons.check_circle_outline, _successColor),
+      _buildOzetKart('Kalan Kg', kalanKg.toStringAsFixed(1), Icons.scale,
+          const Color(0xFF0891B2)),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1000) {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: kartlar
+                .map((kart) => SizedBox(width: 170, child: kart))
+                .toList(),
+          );
+        }
+        return Row(
+          children: kartlar
+              .map((kart) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: kart,
+                    ),
+                  ))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildOzetKart(
+      String baslik, String deger, IconData icon, Color renk) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: renk.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: renk, size: 19),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  deger,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Text(
+                  baslik,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFiltreler() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final full = constraints.maxWidth < 850;
+          final width = full ? constraints.maxWidth : 210.0;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: full ? constraints.maxWidth : 330,
+                child: TextField(
+                  controller: aramaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Sipariş no, iplik, renk, tedarikçi ara',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (value) => setState(() => aramaMetni = value),
+                ),
               ),
+              SizedBox(
+                width: width,
+                child: _dropdown(
+                  label: 'Durum',
+                  value: durumFiltresi,
+                  items: const {
+                    'tum': 'Tümü',
+                    'beklemede': 'Bekleyen',
+                    'kismi': 'Kısmi',
+                    'gecikti': 'Geciken',
+                    'tamamlandi': 'Tamamlanan',
+                    'iptal': 'İptal',
+                  },
+                  onChanged: (v) => setState(() => durumFiltresi = v),
+                ),
+              ),
+              SizedBox(
+                width: width,
+                child: DropdownButtonFormField<String?>(
+                  initialValue: tedarikciFiltresi,
+                  decoration: const InputDecoration(
+                    labelText: 'Tedarikçi',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tüm tedarikçiler'),
+                    ),
+                    ...tedarikciler.map(
+                      (tedarikci) => DropdownMenuItem<String?>(
+                        value: tedarikci['id']?.toString(),
+                        child: Text(
+                          _firstText([tedarikci['sirket'], tedarikci['ad']]),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => tedarikciFiltresi = value),
+                ),
+              ),
+              SizedBox(
+                width: width,
+                child: _dropdown(
+                  label: 'Termin',
+                  value: terminFiltresi,
+                  items: const {
+                    'tum': 'Tümü',
+                    'geciken': 'Geciken',
+                    'bugun': 'Bugün',
+                    'hafta': 'Bu hafta',
+                    'termin_yok': 'Termin yok',
+                  },
+                  onChanged: (v) => setState(() => terminFiltresi = v),
+                ),
+              ),
+              SizedBox(
+                width: width,
+                child: _dropdown(
+                  label: 'Teslim',
+                  value: teslimFiltresi,
+                  items: const {
+                    'tum': 'Tümü',
+                    'teslim_yok': 'Teslim yok',
+                    'kismi': 'Kısmi',
+                    'tam': 'Tam',
+                  },
+                  onChanged: (v) => setState(() => teslimFiltresi = v),
+                ),
+              ),
+              SizedBox(
+                width: width,
+                child: _dropdown(
+                  label: 'Kalite',
+                  value: kaliteFiltresi,
+                  items: const {
+                    'tum': 'Tümü',
+                    'onaylandi': 'Onaylandı',
+                    'beklemede': 'Kontrol bekliyor',
+                    'sartli_kabul': 'Şartlı kabul',
+                    'reddedildi': 'Reddedildi',
+                  },
+                  onChanged: (v) => setState(() => kaliteFiltresi = v),
+                ),
+              ),
+              SizedBox(
+                width: width,
+                child: _dropdown(
+                  label: 'Sıralama',
+                  value: siralama,
+                  items: const {
+                    'termin': 'Termin',
+                    'created': 'Son kayıt',
+                    'siparis_no': 'Sipariş no',
+                    'tedarikci': 'Tedarikçi',
+                    'teslim': 'Teslim oranı',
+                  },
+                  onChanged: (v) => setState(() => siralama = v),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _dropdown({
+    required String label,
+    required String value,
+    required Map<String, String> items,
+    required ValueChanged<String> onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: items.entries
+          .map((entry) =>
+              DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+          .toList(),
+      onChanged: (value) => onChanged(value ?? items.keys.first),
+    );
+  }
+
+  Widget _buildTablo(List<Map<String, dynamic>> data) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            child: DataTable(
+              headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+              columnSpacing: 20,
+              horizontalMargin: 16,
+              columns: const [
+                DataColumn(label: Text('Sipariş')),
+                DataColumn(label: Text('İplik / Renk')),
+                DataColumn(label: Text('Tedarikçi')),
+                DataColumn(label: Text('Termin')),
+                DataColumn(label: Text('Miktar')),
+                DataColumn(label: Text('Teslim')),
+                DataColumn(label: Text('Durum')),
+                DataColumn(label: Text('Kalite')),
+                DataColumn(label: Text('İşlem')),
+              ],
+              rows: data.map((siparis) {
+                final durum = _getDurumBilgi(siparis['takip_durumu']);
+                return DataRow(
+                  cells: [
+                    DataCell(_tableText(
+                        siparis['siparis_no']?.toString() ?? '-', 120, true)),
+                    DataCell(_tableText(
+                      '${siparis['iplik_adi'] ?? '-'} / ${_siparisRengi(siparis).isNotEmpty ? _siparisRengi(siparis) : '-'}',
+                      210,
+                      true,
+                    )),
+                    DataCell(_tableText(
+                        siparis['tedarikci_adi']?.toString() ?? '-',
+                        170,
+                        false)),
+                    DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
+                    DataCell(Text(
+                        '${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}')),
+                    DataCell(_buildTeslimHucre(siparis, width: 150)),
+                    DataCell(_durumEtiketi(durum.metin, durum.renk)),
+                    DataCell(_durumEtiketi(
+                        _kaliteMetni(siparis['kalite_durumu']),
+                        _kaliteRengi(siparis['kalite_durumu']))),
+                    DataCell(_buildAksiyonlar(siparis, compact: true)),
+                  ],
+                );
+              }).toList(),
             ),
-            Text(
-              baslik,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildKartListe(List<Map<String, dynamic>> data) {
+    return ListView.separated(
+      itemCount: data.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) => _buildSiparisKart(data[index]),
     );
   }
 
   Widget _buildSiparisKart(Map<String, dynamic> siparis) {
-    final takipDurumu = siparis['takip_durumu'] ?? 'beklemede';
-    final durum = _getDurumBilgi(takipDurumu);
-    final teslimYuzdesi =
-        (siparis['teslim_yuzdesi'] as num?)?.toDouble() ?? 0.0;
-    final siparisRengi = _siparisRengi(siparis);
-
-    // Miktar hesaplamaları
-    final siparisMiktari = (siparis['miktar'] as num?)?.toDouble() ?? 0.0;
-    final teslimMiktari =
-        (siparis['teslim_miktari'] as num?)?.toDouble() ?? 0.0;
-    final kalanMiktar = siparisMiktari - teslimMiktari;
+    final durum = _getDurumBilgi(siparis['takip_durumu']);
     final birim = siparis['birim'] ?? 'kg';
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: durum['renk'].withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${siparis['siparis_no'] ?? '-'} - ${siparis['iplik_adi'] ?? '-'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 15),
+                ),
               ),
-              child: Icon(durum['ikon'], color: durum['renk']),
-            ),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${siparis['siparis_no']} - ${siparis['iplik_adi']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (siparisRengi.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD2B48C).withValues(alpha: 0.16),
-                        border: Border.all(
-                          color: const Color(0xFFD2B48C).withValues(alpha: 0.5),
-                        ),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        siparisRengi,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF8B6B3F),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                    'Tedarikçi: ${siparis['tedarikci_adi'] ?? 'Belirtilmemiş'}'),
-                Text(
-                  'Renk: ${siparisRengi.isNotEmpty ? siparisRengi : 'Belirtilmemiş'}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: siparisRengi.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
-                    color: siparisRengi.isNotEmpty ? const Color(0xFF8B6B3F) : Colors.grey,
-                  ),
-                ),
-                Text('Sipariş: ${siparisMiktari.toStringAsFixed(1)} $birim'),
-                if (teslimMiktari > 0) ...[
-                  Text('Teslim: ${teslimMiktari.toStringAsFixed(1)} $birim'),
-                  Text(
-                    'Kalan: ${kalanMiktar.toStringAsFixed(1)} $birim',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: kalanMiktar > 0 ? Colors.orange : Colors.green,
-                    ),
-                  ),
-                ],
-                Text('Termin: ${_formatTarih(siparis['termin_tarihi'])}'),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: durum['renk'],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    durum['metin'],
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-                if (teslimYuzdesi > 0) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '%${teslimYuzdesi.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: teslimYuzdesi >= 100 ? Colors.green : Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              _durumEtiketi(durum.metin, durum.renk),
+            ],
           ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              _miniBilgi(
+                  'Renk',
+                  _siparisRengi(siparis).isNotEmpty
+                      ? _siparisRengi(siparis)
+                      : '-'),
+              _miniBilgi(
+                  'Tedarikçi', siparis['tedarikci_adi']?.toString() ?? '-'),
+              _miniBilgi('Termin', _formatTarih(siparis['termin_tarihi'])),
+              _miniBilgi('Sipariş',
+                  '${_num(siparis['miktar']).toStringAsFixed(1)} $birim'),
+              _miniBilgi('Teslim',
+                  '${_num(siparis['teslim_miktari']).toStringAsFixed(1)} $birim'),
+              _miniBilgi('Kalan',
+                  '${_num(siparis['kalan_miktar']).toStringAsFixed(1)} $birim'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildTeslimHucre(siparis),
+          const SizedBox(height: 12),
+          Row(children: [_buildAksiyonlar(siparis)]),
+        ],
+      ),
+    );
+  }
 
-          // İlerleme çubuğu ve miktar bilgisi
-          if (teslimYuzdesi > 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(
-                    value: teslimYuzdesi / 100,
-                    backgroundColor: Colors.grey[300],
-                    valueColor: AlwaysStoppedAnimation<Color>(durum['renk']),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${teslimMiktari.toStringAsFixed(1)} $birim teslim edildi',
-                        style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      if (kalanMiktar > 0)
-                        Text(
-                          '${kalanMiktar.toStringAsFixed(1)} $birim kaldı',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.orange,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-          // Aksiyon butonları
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _siparisDetayGoster(siparis),
-                    icon: const Icon(Icons.visibility),
-                    label: const Text('Detay'),
+  Widget _buildTeslimHucre(Map<String, dynamic> siparis, {double? width}) {
+    final yuzde = _num(siparis['teslim_yuzdesi']).clamp(0, 100).toDouble();
+    final color = yuzde >= 100
+        ? _successColor
+        : yuzde > 0
+            ? _primaryColor
+            : _warningColor;
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    minHeight: 7,
+                    value: yuzde / 100,
+                    backgroundColor: const Color(0xFFE2E8F0),
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
                 ),
-                const SizedBox(width: 8),
-                if (takipDurumu == 'beklemede' || kalanMiktar > 0)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _teslimatEkle(siparis),
-                      icon: const Icon(Icons.add_box),
-                      label: const Text('Teslimat Gir'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                if (takipDurumu == 'beklemede' || kalanMiktar > 0)
-                  const SizedBox(width: 8),
-                if (takipDurumu == 'beklemede' || kalanMiktar > 0)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _siparisiBitir(siparis),
-                      icon: const Icon(Icons.check_circle),
-                      label: const Text('Tamamlandı'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD2B48C),
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '%${yuzde.toStringAsFixed(0)}',
+                style:
+                    const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '${_num(siparis['teslim_miktari']).toStringAsFixed(1)} / ${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
           ),
         ],
       ),
     );
   }
 
-  String _siparisRengi(Map<String, dynamic> siparis) {
-    final renk = siparis['renk']?.toString().trim();
-    if (renk == null || renk.isEmpty) {
-      return '';
-    }
-    return renk;
-  }
-
-  Map<String, dynamic> _getDurumBilgi(String durum) {
-    switch (durum) {
-      case 'beklemede':
-        return {
-          'renk': Colors.orange,
-          'ikon': Icons.hourglass_empty,
-          'metin': 'Beklemede'
-        };
-      case 'tamamlandi':
-        return {
-          'renk': Colors.green,
-          'ikon': Icons.check_circle,
-          'metin': 'Tamamlandı'
-        };
-      case 'gecikti':
-        return {'renk': Colors.red, 'ikon': Icons.warning, 'metin': 'Gecikti'};
-      default:
-        return {'renk': Colors.grey, 'ikon': Icons.help, 'metin': 'Bilinmiyor'};
-    }
-  }
-
-  String _formatTarih(String? tarihStr) {
-    if (tarihStr == null) return '-';
-    try {
-      final tarih = DateTime.parse(tarihStr);
-      return DateFormat('dd.MM.yyyy').format(tarih);
-    } catch (e) {
-      return tarihStr;
-    }
+  Widget _buildAksiyonlar(Map<String, dynamic> siparis,
+      {bool compact = false}) {
+    final tamamlandi = siparis['takip_durumu'] == 'tamamlandi';
+    final kalan = _num(siparis['kalan_miktar']);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: () => _siparisDetayGoster(siparis),
+          icon: const Icon(Icons.visibility_outlined),
+          color: _primaryColor,
+          tooltip: 'Detay',
+          visualDensity:
+              compact ? VisualDensity.compact : VisualDensity.standard,
+        ),
+        if (!tamamlandi && kalan > 0)
+          IconButton(
+            onPressed: () => _teslimatEkle(siparis),
+            icon: const Icon(Icons.add_box_outlined),
+            color: _successColor,
+            tooltip: 'Teslimat gir',
+            visualDensity:
+                compact ? VisualDensity.compact : VisualDensity.standard,
+          ),
+        if (!tamamlandi)
+          IconButton(
+            onPressed: () => _siparisiBitir(siparis),
+            icon: const Icon(Icons.task_alt),
+            color: _warningColor,
+            tooltip: 'Tamamlandı işaretle',
+            visualDensity:
+                compact ? VisualDensity.compact : VisualDensity.standard,
+          ),
+      ],
+    );
   }
 
   Future<void> _teslimatEkle(Map<String, dynamic> siparis) async {
-    final miktarController = TextEditingController();
+    final miktarController = TextEditingController(
+      text: _num(siparis['kalan_miktar']).toStringAsFixed(1),
+    );
     final lotNoController = TextEditingController();
+    final aciklamaController = TextEditingController();
     DateTime teslimatTarihi = DateTime.now();
     String kaliteDurumu = 'onaylandi';
 
-    // Sipariş ve teslim bilgilerini hesapla
-    final siparisMiktari = (siparis['miktar'] as num).toDouble();
-    final mevcutTeslim = (siparis['teslim_miktari'] as num?)?.toDouble() ?? 0.0;
-    final kalanMiktar = siparisMiktari - mevcutTeslim;
-
-    // Varsayılan olarak kalan miktarı göster
-    miktarController.text = kalanMiktar.toStringAsFixed(1);
-
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text('Teslimat Ekle - ${siparis['siparis_no']}'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Sipariş özet bilgileri
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            final kalanMiktar = _num(siparis['kalan_miktar']);
+            return AlertDialog(
+              title: Text('Teslimat Gir - ${siparis['siparis_no'] ?? '-'}'),
+              content: SizedBox(
+                width: 460,
+                child: SingleChildScrollView(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('📦 Sipariş Özeti',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Text(
-                          'Toplam Miktar: ${siparisMiktari.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
-                      Text(
-                          'Teslim Edilen: ${mevcutTeslim.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
-                      Text(
-                        'Kalan Miktar: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: kalanMiktar > 0 ? Colors.orange : Colors.green,
+                      _buildTeslimatOzetKutusu(siparis),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: miktarController,
+                        decoration: InputDecoration(
+                          labelText: 'Teslim edilen miktar *',
+                          helperText:
+                              'Maksimum: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}',
+                          border: const OutlineInputBorder(),
                         ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: lotNoController,
+                        decoration: const InputDecoration(
+                          labelText: 'Lot / Parti No',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: kaliteDurumu,
+                        decoration: const InputDecoration(
+                          labelText: 'Kalite durumu',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'onaylandi', child: Text('Onaylandı')),
+                          DropdownMenuItem(
+                              value: 'beklemede',
+                              child: Text('Kontrol bekliyor')),
+                          DropdownMenuItem(
+                              value: 'sartli_kabul',
+                              child: Text('Şartlı kabul')),
+                          DropdownMenuItem(
+                              value: 'reddedildi', child: Text('Reddedildi')),
+                        ],
+                        onChanged: (value) => setDialogState(
+                            () => kaliteDurumu = value ?? 'onaylandi'),
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () async {
+                          final tarih = await showDatePicker(
+                            context: context,
+                            initialDate: teslimatTarihi,
+                            firstDate: DateTime.now()
+                                .subtract(const Duration(days: 365)),
+                            lastDate: DateTime.now(),
+                          );
+                          if (tarih != null) {
+                            setDialogState(() => teslimatTarihi = tarih);
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Teslimat tarihi',
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                              DateFormat('dd.MM.yyyy').format(teslimatTarihi)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: aciklamaController,
+                        decoration: const InputDecoration(
+                          labelText: 'Not',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: miktarController,
-                  decoration: InputDecoration(
-                    labelText: 'Teslim Edilen Miktar *',
-                    border: const OutlineInputBorder(),
-                    helperText:
-                        'Maksimum: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}',
-                    helperStyle: const TextStyle(color: Colors.orange),
-                  ),
-                  keyboardType: TextInputType.number,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('İptal'),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: lotNoController,
-                  decoration: const InputDecoration(
-                    labelText: 'Lot/Parti No',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: kaliteDurumu,
-                  decoration: const InputDecoration(
-                    labelText: 'Kalite Durumu',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'onaylandi', child: Text('Onaylandı')),
-                    DropdownMenuItem(
-                        value: 'beklemede',
-                        child: Text('Kalite Kontrolü Bekliyor')),
-                    DropdownMenuItem(
-                        value: 'sartli_kabul', child: Text('Şartlı Kabul')),
-                    DropdownMenuItem(
-                        value: 'reddedildi', child: Text('Reddedildi')),
-                  ],
-                  onChanged: (value) =>
-                      setState(() => kaliteDurumu = value ?? 'onaylandi'),
-                ),
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: () async {
-                    final tarih = await showDatePicker(
-                      context: context,
-                      initialDate: teslimatTarihi,
-                      firstDate:
-                          DateTime.now().subtract(const Duration(days: 365)),
-                      lastDate: DateTime.now(),
-                    );
-                    if (tarih != null) {
-                      setState(() => teslimatTarihi = tarih);
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      final miktar = _parseDecimal(miktarController.text);
+                      if (miktar == null || miktar <= 0) {
+                        throw 'Geçerli bir miktar girin';
+                      }
+                      if (miktar > kalanMiktar) {
+                        throw 'Teslim miktarı kalan miktardan fazla olamaz';
+                      }
+
+                      final lotNo = lotNoController.text.trim().isNotEmpty
+                          ? lotNoController.text.trim()
+                          : null;
+                      await _siparisTeslimatKaydet(
+                        siparis: siparis,
+                        miktar: miktar,
+                        lotNo: lotNo,
+                        kaliteDurumu: kaliteDurumu,
+                        teslimatTarihi: teslimatTarihi,
+                        aciklama: aciklamaController.text.trim().isNotEmpty
+                            ? aciklamaController.text.trim()
+                            : null,
+                      );
+
+                      if (!context.mounted) return;
+                      Navigator.pop(context);
+                      await _verileriYukle();
+                      if (!context.mounted) return;
+                      context.showSuccessSnackBar('Teslimat stoka işlendi');
+                    } catch (e) {
+                      if (context.mounted) {
+                        context.showErrorSnackBar('Hata: $e');
+                      }
                     }
                   },
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Teslimat Tarihi',
-                      border: OutlineInputBorder(),
-                    ),
-                    child:
-                        Text(DateFormat('dd.MM.yyyy').format(teslimatTarihi)),
-                  ),
+                  child: const Text('Kaydet'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('İptal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  final miktar = double.tryParse(miktarController.text);
-                  if (miktar == null || miktar <= 0) {
-                    throw 'Geçerli bir miktar girin';
-                  }
-
-                  // %100 sınır kontrolü
-                  if (miktar > kalanMiktar) {
-                    throw 'Teslim miktarı kalan miktardan (${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}) fazla olamaz!';
-                  }
-
-                  final toplamTeslim = mevcutTeslim + miktar;
-                  final teslimYuzdesi = (toplamTeslim / siparisMiktari) * 100;
-                  final teslimEdildi = toplamTeslim >= siparisMiktari;
-
-                  // Sipariş bilgilerini güncelle
-                  await supabase.from(DbTables.iplikSiparisleri).update({
-                    'teslim_miktari': toplamTeslim,
-                    'teslim_yuzdesi': teslimYuzdesi,
-                    'teslim_tarihi':
-                        teslimatTarihi.toIso8601String().split('T')[0],
-                    'teslim_edildi': teslimEdildi,
-                    'lot_no': lotNoController.text.trim().isNotEmpty
-                        ? lotNoController.text.trim()
-                        : null,
-                    'kalite_durumu': kaliteDurumu,
-                    'updated_at': DateTime.now().toIso8601String(),
-                  }).eq('id', siparis['id']);
-
-                  // İplik stoklarına otomatik ekle
-                  final stokData = {
-                    'ad': siparis['iplik_adi'],
-                    'renk': siparis['renk'],
-                    'lot_no': lotNoController.text.trim().isNotEmpty
-                        ? lotNoController.text.trim()
-                        : null,
-                    'miktar': miktar,
-                    'birim': siparis['birim'] ?? 'kg',
-                    'birim_fiyat': siparis['birim_fiyat'],
-                    'para_birimi': siparis['para_birimi'] ?? 'TL',
-                    'tedarikci_id': siparis['tedarikci_id'],
-                    'created_at': DateTime.now().toIso8601String(),
-                    'firma_id': TenantManager.instance.requireFirmaId,
-                  };
-
-                  if (siparis['birim_fiyat'] != null) {
-                    stokData['toplam_deger'] =
-                        miktar * (siparis['birim_fiyat'] as num).toDouble();
-                  }
-
-                  final stokResponse = await supabase
-                      .from(DbTables.iplikStoklari)
-                      .insert(stokData)
-                      .select('id')
-                      .single();
-
-                  // İplik hareketi kaydı ekle
-                  await supabase.from(DbTables.iplikHareketleri).insert({
-                    'iplik_id': stokResponse['id'],
-                    'hareket_tipi': 'giris',
-                    'miktar': miktar,
-                    'aciklama':
-                        'Sipariş teslimatından otomatik stok girişi - ${siparis['siparis_no']}',
-                    'firma_id': TenantManager.instance.requireFirmaId,
-                  });
-
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    await _verileriYukle();
-
-                    final kalanYeni = siparisMiktari - toplamTeslim;
-                    String mesaj = 'Teslimat başarıyla kaydedildi.';
-
-                    if (teslimEdildi) {
-                      mesaj += ' 🎉 Sipariş %100 tamamlandı!';
-                    } else {
-                      mesaj +=
-                          ' Kalan miktar: ${kalanYeni.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'} (%${(100 - teslimYuzdesi).toStringAsFixed(1)})';
-                    }
-
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(mesaj),
-                        backgroundColor:
-                            teslimEdildi ? Colors.green : Colors.blue,
-                        duration: const Duration(seconds: 4),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (!context.mounted) return;
-                  context.showErrorSnackBar('Hata: $e');
-                }
-              },
-              child: const Text('Kaydet'),
-            ),
-          ],
+            );
+          },
         ),
+      );
+    } finally {
+      miktarController.dispose();
+      lotNoController.dispose();
+      aciklamaController.dispose();
+    }
+  }
+
+  Widget _buildTeslimatOzetKutusu(Map<String, dynamic> siparis) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${siparis['iplik_adi'] ?? '-'} - ${_siparisRengi(siparis).isNotEmpty ? _siparisRengi(siparis) : '-'}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+              'Sipariş: ${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
+          Text(
+              'Teslim: ${_num(siparis['teslim_miktari']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
+          Text(
+            'Kalan: ${_num(siparis['kalan_miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}',
+            style: const TextStyle(
+                fontWeight: FontWeight.w800, color: _warningColor),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _siparisiBitir(Map<String, dynamic> siparis) async {
+  Future<void> _siparisTeslimatKaydet({
+    required Map<String, dynamic> siparis,
+    required double miktar,
+    required String? lotNo,
+    required String kaliteDurumu,
+    required DateTime teslimatTarihi,
+    String? aciklama,
+  }) async {
     try {
-      // Sipariş ve teslim bilgilerini hesapla
-      final siparisMiktari = (siparis['miktar'] as num?)?.toDouble() ?? 0.0;
-      final mevcutTeslim =
-          (siparis['teslim_miktari'] as num?)?.toDouble() ?? 0.0;
-      final kalanMiktar = siparisMiktari - mevcutTeslim;
-      final teslimYuzdesi =
-          siparisMiktari > 0 ? (mevcutTeslim / siparisMiktari) * 100 : 0.0;
+      await supabase.rpc(
+        'iplik_siparis_teslimat_kaydet',
+        params: {
+          'p_firma_id': TenantManager.instance.requireFirmaId,
+          'p_siparis_id': siparis['id'],
+          'p_miktar': miktar,
+          'p_lot_no': lotNo,
+          'p_kalite_durumu': kaliteDurumu,
+          'p_teslimat_tarihi': teslimatTarihi.toIso8601String().split('T')[0],
+          'p_aciklama': aciklama,
+        },
+      );
+    } catch (rpcError) {
+      debugPrint(
+          'İplik teslimat RPC kullanılamadı, klasik teslimat deneniyor: $rpcError');
+      await _teslimatFallbackKaydet(
+        siparis: siparis,
+        miktar: miktar,
+        lotNo: lotNo,
+        kaliteDurumu: kaliteDurumu,
+        teslimatTarihi: teslimatTarihi,
+        aciklama: aciklama,
+      );
+    }
+  }
 
-      String mesaj =
-          'Siparişi tamamlandı olarak işaretlemek istediğinizden emin misiniz?\n\n';
-      mesaj += 'Sipariş: ${siparis['siparis_no']}\n';
-      mesaj += 'İplik: ${siparis['iplik_adi']}\n';
-      mesaj +=
-          'Toplam Miktar: ${siparisMiktari.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}\n';
-      mesaj +=
-          'Teslim Edilen: ${mevcutTeslim.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}\n';
+  Future<void> _teslimatFallbackKaydet({
+    required Map<String, dynamic> siparis,
+    required double miktar,
+    required String? lotNo,
+    required String kaliteDurumu,
+    required DateTime teslimatTarihi,
+    String? aciklama,
+  }) async {
+    final siparisMiktari = _num(siparis['miktar']);
+    final toplamTeslim = _num(siparis['teslim_miktari']) + miktar;
+    final teslimYuzdesi =
+        siparisMiktari > 0 ? (toplamTeslim / siparisMiktari) * 100 : 0;
+    final teslimEdildi = siparisMiktari > 0 && toplamTeslim >= siparisMiktari;
+    final firmaId = TenantManager.instance.requireFirmaId;
 
-      if (kalanMiktar > 0) {
-        mesaj += '\n⚠️ DİKKAT: Sipariş tam teslim edilmemiş!\n';
-        mesaj +=
-            'Kalan Miktar: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'} (%${(100 - teslimYuzdesi).toStringAsFixed(1)})\n';
-        mesaj +=
-            '\nBu işlem siparişi eksik kalsa da tamamlandı olarak işaretleyecektir.';
-      } else {
-        mesaj += '\n✅ Sipariş tam teslim edilmiş.';
-      }
+    await supabase
+        .from(DbTables.iplikSiparisleri)
+        .update({
+          'teslim_miktari': toplamTeslim,
+          'teslim_yuzdesi': teslimYuzdesi,
+          'teslim_tarihi': teslimatTarihi.toIso8601String().split('T')[0],
+          'teslim_edildi': teslimEdildi,
+          'lot_no': lotNo,
+          'kalite_durumu': kaliteDurumu,
+          'durum': teslimEdildi ? 'teslim_edildi' : 'beklemede',
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', siparis['id'])
+        .eq('firma_id', firmaId);
 
+    final stokData = {
+      'ad': siparis['iplik_adi'],
+      'renk': siparis['renk'],
+      'lot_no': lotNo,
+      'miktar': miktar,
+      'birim': siparis['birim'] ?? 'kg',
+      'birim_fiyat': siparis['birim_fiyat'],
+      'para_birimi': siparis['para_birimi'] ?? 'TL',
+      'tedarikci_id': siparis['tedarikci_id'],
+      'firma_id': firmaId,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    if (siparis['birim_fiyat'] != null) {
+      stokData['toplam_deger'] = miktar * _num(siparis['birim_fiyat']);
+    }
+
+    final stokResponse = await supabase
+        .from(DbTables.iplikStoklari)
+        .insert(stokData)
+        .select('id')
+        .single();
+
+    await supabase.from(DbTables.iplikHareketleri).insert({
+      'iplik_id': stokResponse['id'],
+      'hareket_tipi': 'giris',
+      'miktar': miktar,
+      'aciklama': aciklama?.isNotEmpty == true
+          ? aciklama
+          : 'Sipariş teslimatından otomatik stok girişi - ${siparis['siparis_no']}',
+      'firma_id': firmaId,
+    });
+
+    await _teslimatKaydiEkle(
+      siparis: siparis,
+      miktar: miktar,
+      lotNo: lotNo,
+      kaliteDurumu: kaliteDurumu,
+      teslimatTarihi: teslimatTarihi,
+      aciklama: aciklama,
+    );
+  }
+
+  Future<void> _teslimatKaydiEkle({
+    required Map<String, dynamic> siparis,
+    required double miktar,
+    required String? lotNo,
+    required String kaliteDurumu,
+    required DateTime teslimatTarihi,
+    String? aciklama,
+  }) async {
+    try {
+      await supabase.from('iplik_siparis_teslimatlar').insert({
+        'siparis_id': siparis['id'],
+        'firma_id': TenantManager.instance.requireFirmaId,
+        'teslim_kg': miktar,
+        'iplik_lotu': lotNo,
+        'gelis_tarihi': teslimatTarihi.toIso8601String().split('T')[0],
+        'teslimat_durumu': miktar >= _num(siparis['kalan_miktar'])
+            ? 'tam_teslimat'
+            : 'kismi_teslimat',
+        'kalite_durumu': kaliteDurumu,
+        'aciklama': aciklama,
+      });
+    } catch (e) {
+      debugPrint('Teslimat geçmişi kaydı eklenemedi: $e');
+    }
+  }
+
+  Future<void> _siparisiBitir(Map<String, dynamic> siparis) async {
+    final notController = TextEditingController();
+    try {
+      final kalanMiktar = _num(siparis['kalan_miktar']);
       final onay = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Siparişi Bitir'),
-          content: Text(mesaj),
+          title: const Text('Siparişi Tamamlandı İşaretle'),
+          content: SizedBox(
+            width: 430,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Sipariş: ${siparis['siparis_no'] ?? '-'}'),
+                Text('İplik: ${siparis['iplik_adi'] ?? '-'}'),
+                Text(
+                    'Kalan: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
+                if (kalanMiktar > 0) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Bu sipariş eksik teslim edilmiş görünüyor. Tamamlandı işaretlenecekse not girin.',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, color: _warningColor),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: notController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tamamlama notu',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ],
+            ),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -723,156 +1165,440 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD2B48C),
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Tamamlandı İşaretle'),
             ),
           ],
         ),
       );
 
-      if (onay == true) {
-        // Sipariş durumunu tamamlandı olarak güncelle
-        await supabase.from(DbTables.iplikSiparisleri).update({
-          'takip_durumu': 'tamamlandi',
-          'teslim_edildi': true,
-          'kapanma_tarihi': DateTime.now().toIso8601String().split('T')[0],
-          'updated_at': DateTime.now().toIso8601String(),
-        }).eq('id', siparis['id']);
-
+      if (onay != true) return;
+      if (kalanMiktar > 0 && notController.text.trim().isEmpty) {
         if (mounted) {
-          await _verileriYukle();
-
-          String basariMesaji =
-              '✅ Sipariş ${siparis['siparis_no']} tamamlandı olarak işaretlendi!';
-          if (kalanMiktar > 0) {
-            basariMesaji +=
-                '\n⚠️ Kalan miktar: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}';
-          }
-
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(basariMesaji),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          context.showErrorSnackBar('Eksik teslimat için not zorunlu');
         }
+        return;
+      }
+
+      final eskiAciklama = siparis['aciklama']?.toString();
+      final yeniAciklama = [
+        if (eskiAciklama != null && eskiAciklama.trim().isNotEmpty)
+          eskiAciklama,
+        if (notController.text.trim().isNotEmpty)
+          'Manuel tamamlama: ${notController.text.trim()}',
+      ].join('\n');
+
+      await supabase
+          .from(DbTables.iplikSiparisleri)
+          .update({
+            'durum': 'teslim_edildi',
+            'teslim_edildi': true,
+            'kapanma_tarihi': DateTime.now().toIso8601String().split('T')[0],
+            'aciklama': yeniAciklama.isNotEmpty ? yeniAciklama : null,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', siparis['id'])
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
+
+      await _verileriYukle();
+      if (mounted) {
+        context.showSuccessSnackBar('Sipariş tamamlandı işaretlendi');
       }
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Hata: $e');
-      }
+      if (mounted) context.showErrorSnackBar('Hata: $e');
+    } finally {
+      notController.dispose();
     }
   }
 
-  void _siparisDetayGoster(Map<String, dynamic> siparis) {
-    // Miktar hesaplamaları
-    final siparisMiktari = (siparis['miktar'] as num?)?.toDouble() ?? 0.0;
-    final teslimMiktari =
-        (siparis['teslim_miktari'] as num?)?.toDouble() ?? 0.0;
-    final kalanMiktar = siparisMiktari - teslimMiktari;
-    final teslimYuzdesi =
-        siparisMiktari > 0 ? (teslimMiktari / siparisMiktari) * 100 : 0.0;
-    final birim = siparis['birim'] ?? 'kg';
+  Future<void> _siparisDetayGoster(Map<String, dynamic> siparis) async {
+    final teslimatlar = await _teslimatGecmisiYukle(siparis['id']);
+    if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Sipariş Detayları - ${siparis['siparis_no']}'),
-        content: SingleChildScrollView(
+      builder: (context) => Dialog(
+        child: SizedBox(
+          width: math.min(MediaQuery.of(context).size.width * 0.92, 920),
+          height: math.min(MediaQuery.of(context).size.height * 0.88, 760),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetayRow(
-                  'İplik Adı', siparis['iplik_adi']?.toString() ?? '-'),
-              _buildDetayRow('Renk', siparis['renk']?.toString() ?? '-'),
-
-              // Miktar bilgileri - özel düzen
-              const Divider(),
-              const Text('📦 Miktar Bilgileri',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 8),
-              _buildDetayRow('Sipariş Miktarı',
-                  '${siparisMiktari.toStringAsFixed(1)} $birim'),
-              _buildDetayRow('Teslim Edilen',
-                  '${teslimMiktari.toStringAsFixed(1)} $birim'),
-              _buildDetayRow('Kalan Miktar',
-                  '${kalanMiktar.toStringAsFixed(1)} $birim${kalanMiktar > 0 ? ' (${(100 - teslimYuzdesi).toStringAsFixed(1)}%)' : ' ✅'}',
-                  color: kalanMiktar > 0 ? Colors.orange : Colors.green),
-              if (teslimMiktari > 0)
-                _buildDetayRow(
-                    'Teslim Oranı', '%${teslimYuzdesi.toStringAsFixed(1)}',
-                    color: teslimYuzdesi >= 100 ? Colors.green : Colors.blue),
-
-              const Divider(),
-              const Text('🏪 Tedarikçi Bilgileri',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 8),
-              _buildDetayRow(
-                  'Tedarikçi', siparis['tedarikci_adi']?.toString() ?? '-'),
-              _buildDetayRow(
-                  'Telefon', siparis['tedarikci_telefon']?.toString() ?? '-'),
-
-              const Divider(),
-              const Text('📅 Tarih Bilgileri',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 8),
-              _buildDetayRow(
-                  'Termin Tarihi', _formatTarih(siparis['termin_tarihi'])),
-              _buildDetayRow(
-                  'Teslim Tarihi', _formatTarih(siparis['teslim_tarihi'])),
-
-              const Divider(),
-              const Text('ℹ️ Diğer Bilgiler',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 8),
-              _buildDetayRow('Lot No', siparis['lot_no']?.toString() ?? '-'),
-              _buildDetayRow(
-                  'Kalite Durumu', siparis['kalite_durumu']?.toString() ?? '-'),
-              _buildDetayRow(
-                  'Durum', _getDurumBilgi(siparis['takip_durumu'])['metin']),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: _primaryColor,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Sipariş Detayı - ${siparis['siparis_no'] ?? '-'}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: DefaultTabController(
+                  length: 3,
+                  child: Column(
+                    children: [
+                      const TabBar(
+                        tabs: [
+                          Tab(text: 'Özet'),
+                          Tab(text: 'Teslimatlar'),
+                          Tab(text: 'Stok Bağlantısı'),
+                        ],
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            _buildDetayOzet(siparis),
+                            _buildTeslimatGecmisi(teslimatlar),
+                            _buildStokBaglantisi(siparis, teslimatlar),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Kapat'),
+      ),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _teslimatGecmisiYukle(
+      dynamic siparisId) async {
+    try {
+      final data = await supabase
+          .from('iplik_siparis_teslimatlar')
+          .select()
+          .eq('siparis_id', siparisId)
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
+          .order('gelis_tarihi', ascending: false);
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      debugPrint('Teslimat geçmişi yüklenemedi: $e');
+      return [];
+    }
+  }
+
+  Widget _buildDetayOzet(Map<String, dynamic> siparis) {
+    final durum = _getDurumBilgi(siparis['takip_durumu']);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildTeslimHucre(siparis),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 16,
+            runSpacing: 10,
+            children: [
+              _detayBilgi('İplik', siparis['iplik_adi']),
+              _detayBilgi('Renk', _siparisRengi(siparis)),
+              _detayBilgi('Marka', siparis['marka']),
+              _detayBilgi('Tedarikçi', siparis['tedarikci_adi']),
+              _detayBilgi('Telefon', siparis['tedarikci_telefon']),
+              _detayBilgi('Termin', _formatTarih(siparis['termin_tarihi'])),
+              _detayBilgi('Sipariş miktarı',
+                  '${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
+              _detayBilgi('Teslim',
+                  '${_num(siparis['teslim_miktari']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
+              _detayBilgi('Kalan',
+                  '${_num(siparis['kalan_miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}'),
+              _detayBilgi('Durum', durum.metin),
+              _detayBilgi('Kalite', _kaliteMetni(siparis['kalite_durumu'])),
+              _detayBilgi('Lot', siparis['lot_no']),
+            ],
+          ),
+          if (siparis['aciklama']?.toString().trim().isNotEmpty == true) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                siparis['aciklama'].toString(),
+                style: const TextStyle(color: Color(0xFF475569)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeslimatGecmisi(List<Map<String, dynamic>> teslimatlar) {
+    if (teslimatlar.isEmpty) {
+      return const Center(child: Text('Teslimat geçmişi bulunamadı'));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: teslimatlar.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final item = teslimatlar[index];
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _successColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child:
+                    const Icon(Icons.inventory_outlined, color: _successColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_num(item['teslim_kg']).toStringAsFixed(1)} kg - Lot: ${item['iplik_lotu'] ?? '-'}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      'Tarih: ${_formatTarih(item['gelis_tarihi'])} | Kalite: ${_kaliteMetni(item['kalite_durumu'])}',
+                      style: const TextStyle(
+                          color: Color(0xFF64748B), fontSize: 12),
+                    ),
+                    if (item['aciklama']?.toString().trim().isNotEmpty == true)
+                      Text(
+                        item['aciklama'].toString(),
+                        style: const TextStyle(
+                            color: Color(0xFF64748B), fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStokBaglantisi(
+    Map<String, dynamic> siparis,
+    List<Map<String, dynamic>> teslimatlar,
+  ) {
+    final toplamTeslim = teslimatlar.fold<double>(
+      0,
+      (sum, item) => sum + _num(item['teslim_kg']),
+    );
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _detayBilgi('Stoka işlenen teslimat',
+              '${toplamTeslim.toStringAsFixed(1)} kg'),
+          _detayBilgi('Son lot', siparis['lot_no']),
+          _detayBilgi('Tedarikçi', siparis['tedarikci_adi']),
+          const SizedBox(height: 12),
+          const Text(
+            'Teslimat girildiğinde iplik stoğuna giriş hareketi oluşur. Yeni RPC aktifse sipariş, stok ve hareket tek transaction içinde işlenir.',
+            style: TextStyle(color: Color(0xFF64748B)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDetayRow(String baslik, String deger, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+  Widget _detayBilgi(String baslik, dynamic deger) {
+    return SizedBox(
+      width: 260,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$baslik:',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              deger,
-              style: TextStyle(
-                color: color,
-                fontWeight: color != null ? FontWeight.w600 : null,
-              ),
-            ),
+          Text(baslik,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          Text(
+            deger?.toString().trim().isNotEmpty == true
+                ? deger.toString()
+                : '-',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildBosDurum() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.inbox_outlined, size: 58, color: Color(0xFF94A3B8)),
+          SizedBox(height: 12),
+          Text('Sipariş bulunamadı',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          SizedBox(height: 4),
+          Text('Arama veya filtreleri değiştirin',
+              style: TextStyle(color: Color(0xFF64748B))),
+        ],
+      ),
+    );
+  }
+
+  Widget _tableText(String value, double width, bool bold) {
+    return SizedBox(
+      width: width,
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w500),
+      ),
+    );
+  }
+
+  Widget _miniBilgi(String baslik, String deger) {
+    return SizedBox(
+      width: 145,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(baslik,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          Text(
+            deger,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _durumEtiketi(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        text,
+        style:
+            TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12),
+      ),
+    );
+  }
+
+  _DurumBilgi _getDurumBilgi(dynamic durum) {
+    switch (durum?.toString()) {
+      case 'tamamlandi':
+        return const _DurumBilgi('Tamamlandı', _successColor);
+      case 'gecikti':
+        return const _DurumBilgi('Geciken', _dangerColor);
+      case 'kismi':
+        return const _DurumBilgi('Kısmi', _primaryColor);
+      case 'iptal':
+        return const _DurumBilgi('İptal', Color(0xFF64748B));
+      case 'beklemede':
+      default:
+        return const _DurumBilgi('Bekleyen', _warningColor);
+    }
+  }
+
+  String _kaliteMetni(dynamic kalite) {
+    switch (kalite?.toString()) {
+      case 'onaylandi':
+        return 'Onaylandı';
+      case 'beklemede':
+        return 'Kontrol bekliyor';
+      case 'sartli_kabul':
+        return 'Şartlı kabul';
+      case 'reddedildi':
+        return 'Reddedildi';
+      default:
+        return '-';
+    }
+  }
+
+  Color _kaliteRengi(dynamic kalite) {
+    switch (kalite?.toString()) {
+      case 'onaylandi':
+        return _successColor;
+      case 'reddedildi':
+        return _dangerColor;
+      case 'sartli_kabul':
+        return _warningColor;
+      case 'beklemede':
+        return _primaryColor;
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  String _siparisRengi(Map<String, dynamic> siparis) {
+    return siparis['renk']?.toString().trim() ?? '';
+  }
+
+  double? _parseDecimal(String value) {
+    final normalized = value.trim().replaceAll(' ', '').replaceAll(',', '.');
+    if (normalized.isEmpty) return null;
+    return double.tryParse(normalized);
+  }
+
+  double _num(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
+  }
+
+  String _firstText(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty && text != 'null') return text;
+    }
+    return '-';
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    final text = value?.toString();
+    if (text == null || text.trim().isEmpty || text == 'null') return null;
+    return DateTime.tryParse(text);
+  }
+
+  String _formatTarih(dynamic value) {
+    final tarih = _parseDate(value);
+    if (tarih == null) return '-';
+    return DateFormat('dd.MM.yyyy').format(tarih);
+  }
+
+  bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+}
+
+class _DurumBilgi {
+  const _DurumBilgi(this.metin, this.renk);
+
+  final String metin;
+  final Color renk;
 }

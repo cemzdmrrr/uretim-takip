@@ -1,26 +1,33 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'stok_yonetimi_aksesuarlar_coklu_beden.dart';
 
 /// Stok yonetimi aksesuarlar - dialog metotlari
 extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
   void _showAddEditDialog({Map<String, dynamic>? aksesuar}) {
     final isEdit = aksesuar != null;
-    
+
     // Form controllers
     final skuController = TextEditingController(text: aksesuar?['sku'] ?? '');
     final adController = TextEditingController(text: aksesuar?['ad'] ?? '');
-    final markaController = TextEditingController(text: aksesuar?['marka'] ?? '');
+    final markaController =
+        TextEditingController(text: aksesuar?['marka'] ?? '');
     final renkController = TextEditingController(text: aksesuar?['renk'] ?? '');
-    final renkKoduController = TextEditingController(text: aksesuar?['renk_kodu'] ?? '');
-    final birimController = TextEditingController(text: aksesuar?['birim'] ?? 'adet');
-    final birimFiyatController = TextEditingController(text: aksesuar?['birim_fiyat']?.toString() ?? '');
-    final malzemeController = TextEditingController(text: aksesuar?['malzeme'] ?? '');
-    final aciklamaController = TextEditingController(text: aksesuar?['aciklama'] ?? '');
-    final minimumStokController = TextEditingController(text: aksesuar?['minimum_stok']?.toString() ?? '10');
-    
+    final renkKoduController =
+        TextEditingController(text: aksesuar?['renk_kodu'] ?? '');
+    final birimController =
+        TextEditingController(text: aksesuar?['birim'] ?? 'adet');
+    final birimFiyatController =
+        TextEditingController(text: aksesuar?['birim_fiyat']?.toString() ?? '');
+    final malzemeController =
+        TextEditingController(text: aksesuar?['malzeme'] ?? '');
+    final aciklamaController =
+        TextEditingController(text: aksesuar?['aciklama'] ?? '');
+    final minimumStokController = TextEditingController(
+        text: aksesuar?['minimum_stok']?.toString() ?? '10');
+
     // Beden listesi
     final List<Map<String, dynamic>> bedenListesi = [];
-    
+
     // Mevcut aksesuarın bedenlerini yükle
     if (isEdit && aksesuar['aksesuar_bedenler'] != null) {
       for (var beden in aksesuar['aksesuar_bedenler']) {
@@ -70,7 +77,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
                   Row(
                     children: [
                       Expanded(
@@ -95,7 +102,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
                   Row(
                     children: [
                       Expanded(
@@ -120,7 +127,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
                   Row(
                     children: [
                       Expanded(
@@ -136,7 +143,8 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                       Expanded(
                         child: TextField(
                           controller: birimFiyatController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           decoration: const InputDecoration(
                             labelText: 'Birim Fiyat (TL)',
                             border: OutlineInputBorder(),
@@ -146,18 +154,19 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
                   TextField(
                     controller: minimumStokController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'Minimum Stok Uyarısı',
                       border: OutlineInputBorder(),
-                      helperText: 'Toplam stok bu değerin altına düştüğünde uyarı verilir',
+                      helperText:
+                          'Toplam stok bu değerin altına düştüğünde uyarı verilir',
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   TextField(
                     controller: aciklamaController,
                     maxLines: 2,
@@ -167,14 +176,14 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Beden-Stok Yönetimi
                   const Text(
                     'Beden ve Stok Yönetimi',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   // Mevcut bedenler listesi
                   if (bedenListesi.isNotEmpty) ...[
                     Container(
@@ -186,30 +195,38 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                         children: bedenListesi.asMap().entries.map((entry) {
                           final int index = entry.key;
                           final Map<String, dynamic> beden = entry.value;
-                          
+
                           return Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: index % 2 == 0 ? Colors.white : Colors.grey.shade50,
-                              border: index > 0 ? Border(top: BorderSide(color: Colors.grey.shade300)) : null,
+                              color: index % 2 == 0
+                                  ? Colors.white
+                                  : Colors.grey.shade50,
+                              border: index > 0
+                                  ? Border(
+                                      top: BorderSide(
+                                          color: Colors.grey.shade300))
+                                  : null,
                             ),
                             child: Row(
                               children: [
                                 Expanded(
                                   flex: 2,
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Beden: ${beden['beden']}',
-                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600),
                                       ),
                                       Text(
                                         'Stok: ${beden['stok_miktari']} adet',
                                         style: TextStyle(
-                                          color: beden['stok_miktari'] > 0 
-                                            ? Colors.green.shade700 
-                                            : Colors.red.shade700,
+                                          color: beden['stok_miktari'] > 0
+                                              ? Colors.green.shade700
+                                              : Colors.red.shade700,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -217,12 +234,18 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blue),
-                                  onPressed: () => _showBedenDuzenleDialog(index, beden, setStateModal, bedenListesi),
+                                  icon: const Icon(Icons.edit,
+                                      color: Colors.blue),
+                                  onPressed: () => _showBedenDuzenleDialog(
+                                      index,
+                                      beden,
+                                      setStateModal,
+                                      bedenListesi),
                                   tooltip: 'Düzenle',
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
                                   onPressed: () {
                                     setStateModal(() {
                                       bedenListesi.removeAt(index);
@@ -238,12 +261,13 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  
+
                   // Yeni beden ekleme butonu
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showBedenEklemeDialog(setStateModal, bedenListesi),
+                      onPressed: () =>
+                          _showBedenEklemeDialog(setStateModal, bedenListesi),
                       icon: const Icon(Icons.add),
                       label: const Text('Yeni Beden Ekle'),
                       style: ElevatedButton.styleFrom(
@@ -253,13 +277,14 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                       ),
                     ),
                   ),
-                  
+
                   if (bedenListesi.isEmpty)
                     const Padding(
                       padding: EdgeInsets.only(top: 8),
                       child: Text(
                         '⚠️ En az bir beden eklemek zorunludur',
-                        style: TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                            color: Colors.red, fontWeight: FontWeight.w500),
                       ),
                     ),
                 ],
@@ -296,10 +321,12 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
     );
   }
 
-  void _showBedenEklemeDialog(StateSetter setStateModal, List<Map<String, dynamic>> bedenListesi) {
+  void _showBedenEklemeDialog(
+      StateSetter setStateModal, List<Map<String, dynamic>> bedenListesi) {
     final TextEditingController bedenController = TextEditingController();
-    final TextEditingController stokController = TextEditingController(text: '0');
-    
+    final TextEditingController stokController =
+        TextEditingController(text: '0');
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -339,10 +366,10 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
             onPressed: () {
               if (bedenController.text.trim().isNotEmpty) {
                 // Aynı beden var mı kontrol et
-                final bool bedenMevcut = bedenListesi.any((b) => 
-                  b['beden'].toString().toLowerCase() == bedenController.text.trim().toLowerCase()
-                );
-                
+                final bool bedenMevcut = bedenListesi.any((b) =>
+                    b['beden'].toString().toLowerCase() ==
+                    bedenController.text.trim().toLowerCase());
+
                 if (bedenMevcut) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -352,7 +379,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                   );
                   return;
                 }
-                
+
                 setStateModal(() {
                   bedenListesi.add({
                     'beden': bedenController.text.trim(),
@@ -369,10 +396,13 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
     );
   }
 
-  void _showBedenDuzenleDialog(int index, Map<String, dynamic> beden, StateSetter setStateModal, List<Map<String, dynamic>> bedenListesi) {
-    final TextEditingController bedenController = TextEditingController(text: beden['beden']);
-    final TextEditingController stokController = TextEditingController(text: beden['stok_miktari'].toString());
-    
+  void _showBedenDuzenleDialog(int index, Map<String, dynamic> beden,
+      StateSetter setStateModal, List<Map<String, dynamic>> bedenListesi) {
+    final TextEditingController bedenController =
+        TextEditingController(text: beden['beden']);
+    final TextEditingController stokController =
+        TextEditingController(text: beden['stok_miktari'].toString());
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -447,58 +477,81 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
       context.showSnackBar('SKU ve Aksesuar adı gerekli');
       return;
     }
-    
+
     if (bedenListesi.isEmpty) {
       context.showSnackBar('En az bir beden eklemek zorunludur');
       return;
     }
 
     try {
+      final firmaId = TenantManager.instance.requireFirmaId;
       // 1. Ana aksesuar kaydını oluştur/güncelle
       final aksesuarData = {
         'sku': skuController.text.trim(),
         'ad': adController.text.trim(),
-        'marka': markaController.text.trim().isNotEmpty ? markaController.text.trim() : null,
-        'renk': renkController.text.trim().isNotEmpty ? renkController.text.trim() : null,
-        'renk_kodu': renkKoduController.text.trim().isNotEmpty ? renkKoduController.text.trim() : null,
-        'birim': birimController.text.trim().isNotEmpty ? birimController.text.trim() : 'adet',
-        'birim_fiyat': double.tryParse(birimFiyatController.text.replaceAll(',', '.')) ?? 0.0,
-        'malzeme': malzemeController.text.trim().isNotEmpty ? malzemeController.text.trim() : null,
-        'aciklama': aciklamaController.text.trim().isNotEmpty ? aciklamaController.text.trim() : null,
+        'marka': markaController.text.trim().isNotEmpty
+            ? markaController.text.trim()
+            : null,
+        'renk': renkController.text.trim().isNotEmpty
+            ? renkController.text.trim()
+            : null,
+        'renk_kodu': renkKoduController.text.trim().isNotEmpty
+            ? renkKoduController.text.trim()
+            : null,
+        'birim': birimController.text.trim().isNotEmpty
+            ? birimController.text.trim()
+            : 'adet',
+        'birim_fiyat':
+            double.tryParse(birimFiyatController.text.replaceAll(',', '.')) ??
+                0.0,
+        'malzeme': malzemeController.text.trim().isNotEmpty
+            ? malzemeController.text.trim()
+            : null,
+        'aciklama': aciklamaController.text.trim().isNotEmpty
+            ? aciklamaController.text.trim()
+            : null,
         'minimum_stok': int.tryParse(minimumStokController.text) ?? 10,
         'durum': 'aktif',
         'updated_at': DateTime.now().toIso8601String(),
-        if (!isEdit) 'firma_id': TenantManager.instance.requireFirmaId,
+        if (!isEdit) 'firma_id': firmaId,
       };
-      
+
       debugPrint('📝 Aksesuar kayıt verisi: $aksesuarData');
-      debugPrint('💰 Birim Fiyat Controller değeri: "${birimFiyatController.text}"');
-      debugPrint('💰 Birim Fiyat parse edilmiş: ${aksesuarData['birim_fiyat']}');
+      debugPrint(
+          '💰 Birim Fiyat Controller değeri: "${birimFiyatController.text}"');
+      debugPrint(
+          '💰 Birim Fiyat parse edilmiş: ${aksesuarData['birim_fiyat']}');
 
       String finalAksesuarId;
-      
+
       if (isEdit && aksesuarId != null) {
         // Güncelleme
         debugPrint('🔄 Aksesuar güncelleniyor: $aksesuarId');
         final updateResult = await supabase
             .from(DbTables.aksesuarlar)
             .update(aksesuarData)
+            .eq('firma_id', firmaId)
             .eq('id', aksesuarId)
             .select()
             .single();
         finalAksesuarId = aksesuarId;
         debugPrint('✅ Aksesuar güncellendi: $updateResult');
-        
+
         // Mevcut bedenlerini pasif yap
-        await supabase.from(DbTables.aksesuarBedenler)
+        await supabase
+            .from(DbTables.aksesuarBedenler)
             .update({'durum': 'pasif'})
+            .eq('firma_id', firmaId)
             .eq('aksesuar_id', aksesuarId);
         debugPrint('✅ Eski bedenler pasif yapıldı');
-        
       } else {
         // Yeni kayıt
         debugPrint('➕ Yeni aksesuar ekleniyor...');
-        final result = await supabase.from(DbTables.aksesuarlar).insert(aksesuarData).select('id').single();
+        final result = await supabase
+            .from(DbTables.aksesuarlar)
+            .insert(aksesuarData)
+            .select('id')
+            .single();
         finalAksesuarId = result['id'];
         debugPrint('✅ Yeni aksesuar eklendi: $finalAksesuarId');
       }
@@ -506,27 +559,32 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
       // 2. Beden kayıtlarını ekle/güncelle (upsert mantığı ile)
       debugPrint('📦 Beden kayıtları işleniyor: ${bedenListesi.length} adet');
       int toplamStok = 0;
-      
+
       for (var beden in bedenListesi) {
         final bedenAdi = beden['beden'];
         final stokMiktari = beden['stok_miktari'] as int? ?? 0;
         toplamStok += stokMiktari;
-        
+
         // Önce bu aksesuar+beden kombinasyonunun var olup olmadığını kontrol et
         final mevcutBeden = await supabase
             .from(DbTables.aksesuarBedenler)
             .select('id')
+            .eq('firma_id', firmaId)
             .eq('aksesuar_id', finalAksesuarId)
             .eq('beden', bedenAdi)
             .maybeSingle();
-        
+
         if (mevcutBeden != null) {
           // Mevcut bedeni güncelle
-          await supabase.from(DbTables.aksesuarBedenler).update({
-            'stok_miktari': stokMiktari,
-            'durum': 'aktif',
-            'updated_at': DateTime.now().toIso8601String(),
-          }).eq('id', mevcutBeden['id']);
+          await supabase
+              .from(DbTables.aksesuarBedenler)
+              .update({
+                'stok_miktari': stokMiktari,
+                'durum': 'aktif',
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('firma_id', firmaId)
+              .eq('id', mevcutBeden['id']);
           debugPrint('  ✅ Beden güncellendi: $bedenAdi (stok: $stokMiktari)');
         } else {
           // Yeni beden ekle
@@ -535,30 +593,35 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
             'beden': bedenAdi,
             'stok_miktari': stokMiktari,
             'durum': 'aktif',
-            'firma_id': TenantManager.instance.requireFirmaId,
+            'firma_id': firmaId,
           });
           debugPrint('  ✅ Yeni beden eklendi: $bedenAdi (stok: $stokMiktari)');
         }
       }
-      
+
       // 3. Ana aksesuar tablosundaki toplam miktar alanını güncelle
-      await supabase.from(DbTables.aksesuarlar).update({
-        'miktar': toplamStok,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', finalAksesuarId);
+      await supabase
+          .from(DbTables.aksesuarlar)
+          .update({
+            'miktar': toplamStok,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('firma_id', firmaId)
+          .eq('id', finalAksesuarId);
       debugPrint('📊 Toplam stok güncellendi: $toplamStok');
 
       if (!context.mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isEdit ? 'Aksesuar başarıyla güncellendi' : 'Aksesuar başarıyla eklendi'),
+          content: Text(isEdit
+              ? 'Aksesuar başarıyla güncellendi'
+              : 'Aksesuar başarıyla eklendi'),
           backgroundColor: Colors.green,
         ),
       );
-      
+
       await _loadAksesuarlar();
-      
     } catch (e, stackTrace) {
       debugPrint('❌ Aksesuar kaydetme hatası: $e');
       debugPrint('📍 Stack trace: $stackTrace');
@@ -575,7 +638,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
 
   int _getTotalStock(Map<String, dynamic> aksesuar) {
     if (aksesuar['aksesuar_bedenler'] == null) return 0;
-    
+
     int total = 0;
     for (var beden in aksesuar['aksesuar_bedenler']) {
       if (beden['durum'] == 'aktif') {
@@ -588,8 +651,10 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
   // ==================== SARF DİALOG ====================
   void _showSarfDialog(Map<String, dynamic> aksesuar) {
     final bedenler = (aksesuar['aksesuar_bedenler'] as List?)
-        ?.where((b) => b['durum'] == 'aktif' && (b['stok_miktari'] as int? ?? 0) > 0)
-        .toList() ?? [];
+            ?.where((b) =>
+                b['durum'] == 'aktif' && (b['stok_miktari'] as int? ?? 0) > 0)
+            .toList() ??
+        [];
 
     if (bedenler.isEmpty) {
       context.showErrorSnackBar('Bu aksesuarın stokta bedeni yok');
@@ -598,7 +663,8 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
 
     final adetController = TextEditingController();
     final aciklamaController = TextEditingController();
-    Map<String, dynamic>? seciliBeden = bedenler.length == 1 ? bedenler.first : null;
+    Map<String, dynamic>? seciliBeden =
+        bedenler.length == 1 ? bedenler.first : null;
     Map<String, dynamic>? seciliFirma;
     List<Map<String, dynamic>> firmalar = [];
     bool firmaYukleniyor = true;
@@ -673,11 +739,15 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                         labelText: 'Beden *',
                         border: OutlineInputBorder(),
                       ),
-                      items: bedenler.map((b) => DropdownMenuItem<Map<String, dynamic>>(
-                        value: b,
-                        child: Text('${b['beden']}  (Stok: ${b['stok_miktari']})'),
-                      )).toList(),
-                      onChanged: (val) => setStateDialog(() => seciliBeden = val),
+                      items: bedenler
+                          .map((b) => DropdownMenuItem<Map<String, dynamic>>(
+                                value: b,
+                                child: Text(
+                                    '${b['beden']}  (Stok: ${b['stok_miktari']})'),
+                              ))
+                          .toList(),
+                      onChanged: (val) =>
+                          setStateDialog(() => seciliBeden = val),
                     ),
                     const SizedBox(height: 12),
 
@@ -689,12 +759,15 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                         border: OutlineInputBorder(),
                       ),
                       items: firmalar.map((f) {
-                        final label = f['sirket'] != null && f['sirket'].toString().isNotEmpty
+                        final label = f['sirket'] != null &&
+                                f['sirket'].toString().isNotEmpty
                             ? f['sirket']
                             : '${f['ad'] ?? ''}'.trim();
-                        return DropdownMenuItem<Map<String, dynamic>>(value: f, child: Text(label));
+                        return DropdownMenuItem<Map<String, dynamic>>(
+                            value: f, child: Text(label));
                       }).toList(),
-                      onChanged: (val) => setStateDialog(() => seciliFirma = val),
+                      onChanged: (val) =>
+                          setStateDialog(() => seciliFirma = val),
                     ),
                     const SizedBox(height: 12),
 
@@ -705,7 +778,9 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                       decoration: InputDecoration(
                         labelText: 'Adet *',
                         border: const OutlineInputBorder(),
-                        helperText: seciliBeden != null ? 'Mevcut stok: $mevcutStok' : null,
+                        helperText: seciliBeden != null
+                            ? 'Mevcut stok: $mevcutStok'
+                            : null,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -752,7 +827,8 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                   }
                   final stok = (seciliBeden!['stok_miktari'] as int?) ?? 0;
                   if (adet > stok) {
-                    ctx.showErrorSnackBar('Stokta yeterli miktar yok (Mevcut: $stok)');
+                    ctx.showErrorSnackBar(
+                        'Stokta yeterli miktar yok (Mevcut: $stok)');
                     return;
                   }
 
@@ -763,12 +839,11 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     await supabase
                         .from(DbTables.aksesuarBedenler)
                         .update({'stok_miktari': stok - adet})
+                        .eq('firma_id', firmaId)
                         .eq('id', seciliBeden!['id']);
 
                     // 2. Kullanım kaydı oluştur
-                    await supabase
-                        .from(DbTables.aksesuarKullanim)
-                        .insert({
+                    await supabase.from(DbTables.aksesuarKullanim).insert({
                       'aksesuar_id': aksesuar['id'].toString(),
                       'beden_id': seciliBeden!['id'].toString(),
                       'beden': seciliBeden!['beden'],
@@ -780,6 +855,9 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                           : aciklamaController.text.trim(),
                       'firma_id': firmaId,
                     });
+
+                    await _aksesuarToplamStokGuncelle(
+                        aksesuar['id'].toString());
 
                     if (!dialogContext.mounted) return;
                     Navigator.pop(dialogContext);

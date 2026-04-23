@@ -341,88 +341,346 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Üretim Raporu'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.compare_arrows),
-            onPressed: _modelKarsilastirmaDialogu,
-            tooltip: 'Model Karşılaştır',
-          ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            onPressed: _exportPdf,
-            tooltip: 'PDF Rapor',
-          ),
-          IconButton(
-            icon: const Icon(Icons.file_download),
-            onPressed: _exportExcel,
-            tooltip: 'Excel\'e Aktar',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _verileriYukle,
-            tooltip: 'Yenile',
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(icon: Icon(Icons.dashboard), text: 'Özet'),
-            Tab(icon: Icon(Icons.list_alt), text: 'Modeller'),
-            Tab(icon: Icon(Icons.bar_chart), text: 'Grafikler'),
-            Tab(icon: Icon(Icons.local_fire_department), text: 'Fire'),
-            Tab(icon: Icon(Icons.schedule), text: 'Termin'),
-            Tab(icon: Icon(Icons.business), text: 'Tedarikçi'),
+      backgroundColor: const Color(0xFFF6F8FB),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildPageHeader(),
+            _buildTabBar(),
+            Expanded(child: _buildRaporBody()),
           ],
         ),
       ),
-      body: _yukleniyor
-          ? const LoadingWidget(mesaj: 'Üretim verileri yükleniyor...')
-          : _hata != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline,
-                          size: 64, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(_hata!, textAlign: TextAlign.center),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _verileriYukle,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Tekrar Dene'),
-                      ),
-                    ],
+    );
+  }
+
+  Widget _buildRaporBody() {
+    if (_yukleniyor) {
+      return const LoadingWidget(mesaj: 'Üretim verileri yükleniyor...');
+    }
+
+    if (_hata != null) {
+      return Center(
+        child: _buildPanel(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 52, color: Colors.red),
+              const SizedBox(height: 14),
+              Text(_hata!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _verileriYukle,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tekrar Dene'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _buildKpiDashboard(),
+        Column(
+          children: [
+            _buildFiltreler(),
+            _buildOzetKartlari(),
+            Expanded(child: _buildModelListesi()),
+          ],
+        ),
+        _buildGrafiklerTab(),
+        _buildFireAnaliziTab(),
+        _buildTerminTakibiTab(),
+        _buildTedarikciTab(),
+      ],
+    );
+  }
+
+  Widget _buildPageHeader() {
+    final toplamModel = _ozet['toplam_model'] ?? _tumModeller.length;
+    final toplamAdet = _ozet['toplam_adet'] ?? 0;
+    final geciken = _ozet['geciken_siparis'] ?? 0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 760;
+              final title = Row(
+                children: [
+                  Tooltip(
+                    message: 'Geri',
+                    child: IconButton(
+                      onPressed: () => Navigator.maybePop(context),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      color: const Color(0xFF334155),
+                    ),
                   ),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildKpiDashboard(),
-                    Column(
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.assessment_rounded,
+                        color: Color(0xFF1565C0), size: 23),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildFiltreler(),
-                        _buildOzetKartlari(),
-                        Expanded(child: _buildModelListesi()),
+                        const Text(
+                          'Üretim Raporu',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF111827),
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            _buildInfoPill(Icons.inventory_2_rounded,
+                                '$toplamModel model', const Color(0xFF1565C0)),
+                            _buildInfoPill(Icons.numbers_rounded,
+                                '$toplamAdet adet', const Color(0xFF0F766E)),
+                            _buildInfoPill(
+                              Icons.warning_amber_rounded,
+                              '$geciken geciken',
+                              geciken == 0
+                                  ? const Color(0xFF2E7D32)
+                                  : const Color(0xFFD32F2F),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                    _buildGrafiklerTab(),
-                    _buildFireAnaliziTab(),
-                    _buildTerminTakibiTab(),
-                    _buildTedarikciTab(),
+                  ),
+                ],
+              );
+
+              final actions = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: narrow ? WrapAlignment.start : WrapAlignment.end,
+                children: [
+                  _buildToolbarButton(
+                    icon: Icons.compare_arrows_rounded,
+                    label: 'Karşılaştır',
+                    onPressed: _modelKarsilastirmaDialogu,
+                  ),
+                  _buildToolbarButton(
+                    icon: Icons.picture_as_pdf_rounded,
+                    label: 'PDF',
+                    onPressed: _exportPdf,
+                  ),
+                  _buildToolbarButton(
+                    icon: Icons.file_download_rounded,
+                    label: 'Excel',
+                    onPressed: _exportExcel,
+                    filled: true,
+                  ),
+                  Tooltip(
+                    message: 'Yenile',
+                    child: IconButton.filledTonal(
+                      onPressed: _verileriYukle,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ),
+                ],
+              );
+
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    const SizedBox(height: 12),
+                    actions,
                   ],
-                ),
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: title),
+                  const SizedBox(width: 16),
+                  actions,
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolbarButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    bool filled = false,
+  }) {
+    final style = filled
+        ? FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF1565C0),
+            foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          )
+        : OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF334155),
+            side: const BorderSide(color: Color(0xFFD8E0EA)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          );
+
+    return filled
+        ? FilledButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 18),
+            label: Text(label),
+            style: style,
+          )
+        : OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 18),
+            label: Text(label),
+            style: style,
+          );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            indicatorColor: const Color(0xFF1565C0),
+            indicatorWeight: 3,
+            labelColor: const Color(0xFF1565C0),
+            unselectedLabelColor: const Color(0xFF64748B),
+            labelStyle: const TextStyle(fontWeight: FontWeight.w800),
+            tabs: const [
+              Tab(icon: Icon(Icons.dashboard_rounded), text: 'Özet'),
+              Tab(icon: Icon(Icons.list_alt_rounded), text: 'Modeller'),
+              Tab(icon: Icon(Icons.bar_chart_rounded), text: 'Grafikler'),
+              Tab(
+                  icon: Icon(Icons.local_fire_department_rounded),
+                  text: 'Fire'),
+              Tab(icon: Icon(Icons.schedule_rounded), text: 'Termin'),
+              Tab(icon: Icon(Icons.business_rounded), text: 'Tedarikçi'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPanel({required Widget child, EdgeInsets? padding}) {
+    return Container(
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, Color color,
+      {String? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 19),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF111827),
+              letterSpacing: 0,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (trailing != null)
+          Text(
+            trailing,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildInfoPill(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

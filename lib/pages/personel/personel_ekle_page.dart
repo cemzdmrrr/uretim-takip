@@ -5,6 +5,7 @@ import 'package:uretim_takip/models/personel_model.dart';
 import 'package:uretim_takip/services/personel_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/supabase_config.dart';
+import 'package:uretim_takip/services/edge_function_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 class PersonelEklePage extends StatefulWidget {
@@ -243,7 +244,7 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
       children: [
         _buildKisiselBilgilerSection(duzenleme),
         const SizedBox(height: 20),
-        _buildIletisimSection(),
+        _buildIletisimSection(duzenleme),
         const SizedBox(height: 20),
         _buildIsBilgileriSection(),
         const SizedBox(height: 20),
@@ -262,7 +263,7 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
           children: [
             Expanded(child: _buildKisiselBilgilerSection(duzenleme)),
             const SizedBox(width: 20),
-            Expanded(child: _buildIletisimSection()),
+            Expanded(child: _buildIletisimSection(duzenleme)),
           ],
         ),
         const SizedBox(height: 20),
@@ -349,18 +350,20 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
     );
   }
 
-  Widget _buildIletisimSection() {
+  Widget _buildIletisimSection(bool duzenleme) {
     return _buildSection(
       title: 'İletişim Bilgileri',
       icon: Icons.contact_phone,
       children: [
-        _buildTextField(
-          controller: emailController,
-          label: 'E-posta',
-          icon: Icons.email,
-          keyboardType: TextInputType.emailAddress,
-        ),
-        const SizedBox(height: 16),
+        if (duzenleme) ...[
+          _buildTextField(
+            controller: emailController,
+            label: 'E-posta',
+            icon: Icons.email,
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 16),
+        ],
         _buildTextField(
           controller: telefonController,
           label: 'Telefon',
@@ -782,7 +785,72 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
       );
 
       final eldenMaasDegeri = eldenMaasVar ? eldenMaasController.text : '';
-      String userId = widget.userId ?? '';
+      String userId = widget.userId ?? widget.mevcut?.userId ?? '';
+      final firmaId = TenantManager.instance.requireFirmaId;
+
+      if (!duzenleme) {
+        String iseBaslangicYeni = iseBaslangicController.text.trim();
+        if (iseBaslangicYeni.contains('.') && iseBaslangicYeni.length == 10) {
+          final parts = iseBaslangicYeni.split('.');
+          if (parts.length == 3) {
+            iseBaslangicYeni =
+                '${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}';
+          }
+        }
+
+        final sonuc = await EdgeFunctionService.instance.personelOlustur({
+          'firma_id': firmaId,
+          'ad': adController.text.trim(),
+          'soyad': soyadController.text.trim(),
+          'tckn': tcknController.text.trim(),
+          'email': emailController.text.trim(),
+          'password': passwordController.text.trim(),
+          'pozisyon': pozisyonController.text.trim(),
+          'departman': departmanController.text.trim(),
+          'telefon': telefonController.text.trim(),
+          'ise_baslangic':
+              iseBaslangicYeni.isEmpty ? null : iseBaslangicYeni,
+          'brut_maas': brutMaasController.text.trim().isEmpty
+              ? null
+              : num.tryParse(brutMaasController.text.trim()),
+          'sgk_sicil_no': sgkSicilNoController.text.trim(),
+          'gunluk_calisma_saati':
+              gunlukCalismaSaatiController.text.trim().isEmpty
+                  ? null
+                  : num.tryParse(gunlukCalismaSaatiController.text.trim()),
+          'haftalik_calisma_gunu':
+              haftalikCalismaGunuController.text.trim().isEmpty
+                  ? null
+                  : num.tryParse(haftalikCalismaGunuController.text.trim()),
+          'yol_ucreti': yolUcretiVar && yolUcretiController.text.trim().isNotEmpty
+              ? num.tryParse(yolUcretiController.text.trim())
+              : null,
+          'yemek_ucreti':
+              yemekUcretiVar && yemekUcretiController.text.trim().isNotEmpty
+                  ? num.tryParse(yemekUcretiController.text.trim())
+                  : null,
+          'ekstra_prim':
+              ekstraPrimVar && ekstraPrimController.text.trim().isNotEmpty
+                  ? num.tryParse(ekstraPrimController.text.trim())
+                  : null,
+          'elden_maas': num.tryParse(eldenMaasDegeri.trim()) ?? 0,
+          'banka_maas': bankaMaasController.text.trim().isEmpty
+              ? null
+              : num.tryParse(bankaMaasController.text.trim()),
+          'adres': adresController.text.trim(),
+          'net_maas': netMaasController.text.trim().isEmpty
+              ? null
+              : num.tryParse(netMaasController.text.trim()),
+          'yillik_izin_hakki': yillikIzinHakkiController.text.trim().isEmpty
+              ? null
+              : int.tryParse(yillikIzinHakkiController.text.trim()),
+        });
+
+        if (!mounted) return;
+        Navigator.pop(context);
+        Navigator.pop(context, sonuc['success'] == true);
+        return;
+      }
 
       // Eğer yeni personel ekleniyorsa önce kullanıcı oluştur
       if (!duzenleme && userId.isEmpty) {

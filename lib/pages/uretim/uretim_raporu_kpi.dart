@@ -68,51 +68,86 @@ extension _KpiExt on _UretimRaporuPageState {
 
     final crossAxisCount = isMobile ? 2 : (isTablet ? 4 : 4);
 
-    return GridView.count(
-      crossAxisCount: crossAxisCount,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 6,
-      crossAxisSpacing: 6,
-      childAspectRatio: isMobile ? 1.8 : 2.35,
-      children: kartlar,
+    return _buildPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Genel Performans',
+            Icons.dashboard_rounded,
+            const Color(0xFF1565C0),
+          ),
+          const SizedBox(height: 14),
+          GridView.builder(
+            itemCount: kartlar.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              mainAxisExtent: isMobile ? 86 : 96,
+            ),
+            itemBuilder: (context, index) => kartlar[index],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildKpiKart(
       String baslik, String deger, Color renk, IconData icon, bool isMobile) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Container(
-        padding: EdgeInsets.all(isMobile ? 8 : 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          gradient: LinearGradient(
-            colors: [renk.withValues(alpha: 0.12), Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: renk, size: isMobile ? 18 : 22),
-            SizedBox(height: isMobile ? 3 : 5),
-            FittedBox(
-              child: Text(
-                deger,
-                style: TextStyle(
-                    fontSize: isMobile ? 16 : 20,
-                    fontWeight: FontWeight.bold,
-                    color: renk),
-              ),
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 10 : 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: renk.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            Text(baslik,
-                style: TextStyle(
-                    fontSize: isMobile ? 9 : 11, color: Colors.grey.shade600)),
-          ],
-        ),
+            child: Icon(icon, color: renk, size: isMobile ? 18 : 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    deger,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  baslik,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

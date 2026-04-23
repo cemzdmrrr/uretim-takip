@@ -11,6 +11,24 @@ verify_jwt = true
 import_map = "./functions/firma-olustur/deno.json"
 entrypoint = "./functions/firma-olustur/index.ts"
 
+[functions.firma-sil]
+enabled = true
+verify_jwt = true
+import_map = "./functions/firma-sil/deno.json"
+entrypoint = "./functions/firma-sil/index.ts"
+
+[functions.personel-olustur]
+enabled = true
+verify_jwt = true
+import_map = "./functions/personel-olustur/deno.json"
+entrypoint = "./functions/personel-olustur/index.ts"
+
+[functions.personel-yonet]
+enabled = true
+verify_jwt = true
+import_map = "./functions/personel-yonet/deno.json"
+entrypoint = "./functions/personel-yonet/index.ts"
+
 [functions.kullanici-davet]
 enabled = true
 verify_jwt = true

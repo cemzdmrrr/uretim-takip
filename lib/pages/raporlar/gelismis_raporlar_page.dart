@@ -544,334 +544,472 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Raporlar'),
-        backgroundColor: const Color(0xFF1565C0),
-        foregroundColor: Colors.white,
-        elevation: 2,
-        actions: [
-          IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _verileriYukle,
-              tooltip: 'Yenile'),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(icon: Icon(Icons.dashboard), text: 'Özet'),
-            Tab(icon: Icon(Icons.account_balance_wallet), text: 'Kâr/Zarar'),
-            Tab(icon: Icon(Icons.calculate), text: 'Maliyet'),
-            Tab(icon: Icon(Icons.business), text: 'Tedarikçi'),
-            Tab(icon: Icon(Icons.speed), text: 'Verimlilik'),
-            Tab(icon: Icon(Icons.schedule), text: 'Termin'),
-            Tab(icon: Icon(Icons.inventory_2), text: 'Stok'),
-            Tab(icon: Icon(Icons.local_shipping), text: 'Sevkiyat'),
-            Tab(icon: Icon(Icons.verified), text: 'Kalite'),
+      backgroundColor: const Color(0xFFF6F8FB),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildPageHeader(),
+            _buildTabBar(),
+            Expanded(child: _buildRaporBody()),
           ],
         ),
       ),
-      body: isLoading
-          ? const Center(
-              child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+    );
+  }
+
+  Widget _buildRaporBody() {
+    if (isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Color(0xFF1565C0)),
+            SizedBox(height: 16),
+            Text('Raporlar yükleniyor...'),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        _buildFiltreBari(),
+        Expanded(
+          child: TabBarView(controller: _tabController, children: [
+            _buildOzetTab(),
+            _buildKarZararTab(),
+            _buildMaliyetTab(),
+            _buildTedarikciTab(),
+            _buildVerimlilikTab(),
+            _buildTerminTab(),
+            _buildStokTab(),
+            _buildSevkiyatTab(),
+            _buildKaliteTab(),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPageHeader() {
+    final ozet = _hesaplaFiltrelenmisOzet();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 780;
+              final titleBlock = Row(
+                children: [
+                  Tooltip(
+                    message: 'Geri',
+                    child: IconButton(
+                      onPressed: () => Navigator.maybePop(context),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      color: const Color(0xFF334155),
+                    ),
+                  ),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.analytics_rounded,
+                        color: Color(0xFF1565C0), size: 23),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Gelişmiş Raporlar',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF111827),
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            _buildInfoPill(
+                                Icons.inventory_2_rounded,
+                                '${ozet['toplamUrun']} model',
+                                const Color(0xFF1565C0)),
+                            _buildInfoPill(
+                                Icons.local_shipping_rounded,
+                                '${ozet['toplamYuklenenAdet']} yüklenen',
+                                const Color(0xFF0F766E)),
+                            _buildInfoPill(
+                              Icons.trending_up_rounded,
+                              currencyFormat.format(ozet['kar']),
+                              (ozet['kar'] as double) >= 0
+                                  ? const Color(0xFF2E7D32)
+                                  : const Color(0xFFD32F2F),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              final actions = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: narrow ? WrapAlignment.start : WrapAlignment.end,
+                children: [
+                  _buildToolbarButton(
+                    icon: Icons.picture_as_pdf_rounded,
+                    label: 'PDF',
+                    onPressed: _pdfOlustur,
+                  ),
+                  _buildToolbarButton(
+                    icon: Icons.table_chart_rounded,
+                    label: 'Excel',
+                    onPressed: _excelOlustur,
+                    filled: true,
+                  ),
+                  Tooltip(
+                    message: 'Yenile',
+                    child: IconButton.filledTonal(
+                      onPressed: _verileriYukle,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ),
+                ],
+              );
+
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Raporlar yükleniyor...')
-                ]))
-          : Column(
-              children: [
-                // FİLTRE BARI
-                _buildFiltreBari(),
-                // TAB İÇERİĞİ
-                Expanded(
-                  child: TabBarView(controller: _tabController, children: [
-                    _buildOzetTab(),
-                    _buildKarZararTab(),
-                    _buildMaliyetTab(),
-                    _buildTedarikciTab(),
-                    _buildVerimlilikTab(),
-                    _buildTerminTab(),
-                    _buildStokTab(),
-                    _buildSevkiyatTab(),
-                    _buildKaliteTab(),
-                  ]),
-                ),
-              ],
-            ),
+                    titleBlock,
+                    const SizedBox(height: 12),
+                    actions,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: titleBlock),
+                  const SizedBox(width: 16),
+                  actions,
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            indicatorColor: const Color(0xFF1565C0),
+            indicatorWeight: 3,
+            labelColor: const Color(0xFF1565C0),
+            unselectedLabelColor: const Color(0xFF64748B),
+            labelStyle: const TextStyle(fontWeight: FontWeight.w800),
+            tabs: const [
+              Tab(icon: Icon(Icons.dashboard_rounded), text: 'Özet'),
+              Tab(
+                  icon: Icon(Icons.account_balance_wallet_rounded),
+                  text: 'Kâr/Zarar'),
+              Tab(icon: Icon(Icons.calculate_rounded), text: 'Maliyet'),
+              Tab(icon: Icon(Icons.business_rounded), text: 'Tedarikçi'),
+              Tab(icon: Icon(Icons.speed_rounded), text: 'Verimlilik'),
+              Tab(icon: Icon(Icons.schedule_rounded), text: 'Termin'),
+              Tab(icon: Icon(Icons.inventory_2_rounded), text: 'Stok'),
+              Tab(icon: Icon(Icons.local_shipping_rounded), text: 'Sevkiyat'),
+              Tab(icon: Icon(Icons.verified_rounded), text: 'Kalite'),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildFiltreBari() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 900;
-        final isMobile = constraints.maxWidth < 600;
+        final isMobile = constraints.maxWidth < 680;
 
-        if (isMobile) {
-          // Mobil görünüm - dikey düzen
-          return Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
-              ],
-            ),
-            child: Column(
-              children: [
-                // İlk satır: Marka ve Model
-                Row(
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              isMobile ? 10 : 16, 14, isMobile ? 10 : 16, 8),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1240),
+              child: _buildPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: InputDecoration(
-                          labelText: 'Marka',
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          isDense: true,
-                        ),
-                        initialValue: secilenMarka,
-                        isExpanded: true,
-                        items: [
-                          const DropdownMenuItem(
-                              value: null,
-                              child: Text('Tümü',
-                                  overflow: TextOverflow.ellipsis)),
-                          ...markalar.map((m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(m, overflow: TextOverflow.ellipsis))),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            secilenMarka = value;
-                            secilenModel = null;
-                            _filtreUygula();
-                          });
-                        },
-                      ),
+                    _buildSectionHeader(
+                      'Filtreler',
+                      Icons.tune_rounded,
+                      const Color(0xFF1565C0),
+                      trailing: '${filtrelenmisModeller.length} kayıt',
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        decoration: InputDecoration(
-                          labelText: 'Yıl',
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          isDense: true,
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        SizedBox(
+                          width: isMobile ? double.infinity : 220,
+                          child: _buildMarkaDropdown(),
                         ),
-                        initialValue: secilenYil,
-                        isExpanded: true,
-                        items: [
-                          const DropdownMenuItem(
-                              value: null, child: Text('Tümü')),
-                          ...yillar.map((y) =>
-                              DropdownMenuItem(value: y, child: Text('$y'))),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            secilenYil = value;
-                            _filtreUygula();
-                          });
-                        },
-                      ),
+                        SizedBox(
+                          width: isMobile ? double.infinity : 220,
+                          child: _buildModelDropdown(),
+                        ),
+                        SizedBox(
+                          width: isMobile ? double.infinity : 150,
+                          child: _buildYilDropdown(),
+                        ),
+                        _buildToolbarButton(
+                          icon: Icons.date_range_rounded,
+                          label: selectedZamanAraligi,
+                          onPressed: _tarihAraligiSec,
+                        ),
+                        Tooltip(
+                          message: 'Filtreleri Temizle',
+                          child: IconButton.filledTonal(
+                            onPressed: _filtreleriTemizle,
+                            icon: const Icon(Icons.clear_all_rounded),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                // İkinci satır: Butonlar
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _tarihAraligiSec,
-                        icon: const Icon(Icons.date_range, size: 18),
-                        label:
-                            const Text('Tarih', style: TextStyle(fontSize: 12)),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(Icons.clear_all, size: 20),
-                      onPressed: _filtreleriTemizle,
-                      tooltip: 'Temizle',
-                      style: IconButton.styleFrom(
-                          backgroundColor: Colors.grey[200]),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.picture_as_pdf, size: 20),
-                      onPressed: _pdfOlustur,
-                      tooltip: 'PDF',
-                      style:
-                          IconButton.styleFrom(backgroundColor: Colors.red[50]),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.table_chart, size: 20),
-                      onPressed: _excelOlustur,
-                      tooltip: 'Excel',
-                      style: IconButton.styleFrom(
-                          backgroundColor: Colors.green[50]),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          );
-        }
-
-        // Tablet ve Desktop görünüm
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
-            ],
-          ),
-          child: Row(
-            children: [
-              // MARKA FİLTRESİ
-              Expanded(
-                flex: isNarrow ? 2 : 1,
-                child: DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
-                    labelText: 'Marka',
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    isDense: true,
-                  ),
-                  initialValue: secilenMarka,
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('Tüm Markalar')),
-                    ...markalar.map((m) => DropdownMenuItem(
-                        value: m,
-                        child: Text(m, overflow: TextOverflow.ellipsis))),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      secilenMarka = value;
-                      secilenModel = null;
-                      _filtreUygula();
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              // MODEL FİLTRESİ
-              if (!isNarrow) ...[
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Model',
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      isDense: true,
-                    ),
-                    initialValue: secilenModel,
-                    isExpanded: true,
-                    items: [
-                      const DropdownMenuItem(
-                          value: null, child: Text('Tüm Modeller')),
-                      ...modeller.map((m) => DropdownMenuItem(
-                          value: m,
-                          child: Text(m, overflow: TextOverflow.ellipsis))),
-                    ],
-                    onChanged: secilenMarka == null
-                        ? null
-                        : (value) {
-                            setState(() {
-                              secilenModel = value;
-                              _filtreUygula();
-                            });
-                          },
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-              // YIL FİLTRESİ
-              Expanded(
-                flex: isNarrow ? 2 : 1,
-                child: DropdownButtonFormField<int>(
-                  decoration: InputDecoration(
-                    labelText: 'Yıl',
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    isDense: true,
-                  ),
-                  initialValue: secilenYil,
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('Tüm Yıllar')),
-                    ...yillar.map(
-                        (y) => DropdownMenuItem(value: y, child: Text('$y'))),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      secilenYil = value;
-                      _filtreUygula();
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              // TEMİZLE BUTONU
-              IconButton(
-                icon: const Icon(Icons.clear_all),
-                onPressed: _filtreleriTemizle,
-                tooltip: 'Filtreleri Temizle',
-                style: IconButton.styleFrom(backgroundColor: Colors.grey[200]),
-              ),
-              const SizedBox(width: 8),
-              // TARİH ARALIĞI SEÇİCİ
-              IconButton(
-                icon: const Icon(Icons.date_range),
-                onPressed: _tarihAraligiSec,
-                tooltip: 'Tarih Aralığı',
-                style: IconButton.styleFrom(backgroundColor: Colors.blue[50]),
-              ),
-              const SizedBox(width: 8),
-              // PDF DIŞA AKTAR
-              IconButton(
-                icon: const Icon(Icons.picture_as_pdf),
-                onPressed: _pdfOlustur,
-                tooltip: 'PDF Oluştur',
-                style: IconButton.styleFrom(backgroundColor: Colors.red[50]),
-              ),
-              const SizedBox(width: 8),
-              // EXCEL DIŞA AKTAR
-              IconButton(
-                icon: const Icon(Icons.table_chart),
-                onPressed: _excelOlustur,
-                tooltip: 'Excel Oluştur',
-                style: IconButton.styleFrom(backgroundColor: Colors.green[50]),
-              ),
-            ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMarkaDropdown() {
+    return DropdownButtonFormField<String>(
+      decoration: _dropdownDecoration('Marka'),
+      initialValue: secilenMarka,
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem(value: null, child: Text('Tüm Markalar')),
+        ...markalar.map((m) => DropdownMenuItem(
+            value: m, child: Text(m, overflow: TextOverflow.ellipsis))),
+      ],
+      onChanged: (value) {
+        setState(() {
+          secilenMarka = value;
+          secilenModel = null;
+          _filtreUygula();
+        });
+      },
+    );
+  }
+
+  Widget _buildModelDropdown() {
+    return DropdownButtonFormField<String>(
+      decoration: _dropdownDecoration('Model'),
+      initialValue: secilenModel,
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem(value: null, child: Text('Tüm Modeller')),
+        ...modeller.map((m) => DropdownMenuItem(
+            value: m, child: Text(m, overflow: TextOverflow.ellipsis))),
+      ],
+      onChanged: secilenMarka == null
+          ? null
+          : (value) {
+              setState(() {
+                secilenModel = value;
+                _filtreUygula();
+              });
+            },
+    );
+  }
+
+  Widget _buildYilDropdown() {
+    return DropdownButtonFormField<int>(
+      decoration: _dropdownDecoration('Yıl'),
+      initialValue: secilenYil,
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem(value: null, child: Text('Tüm Yıllar')),
+        ...yillar.map((y) => DropdownMenuItem(value: y, child: Text('$y'))),
+      ],
+      onChanged: (value) {
+        setState(() {
+          secilenYil = value;
+          _filtreUygula();
+        });
+      },
+    );
+  }
+
+  InputDecoration _dropdownDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFFD8E0EA)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF1565C0), width: 1.4),
+      ),
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      isDense: true,
+    );
+  }
+
+  Widget _buildToolbarButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    bool filled = false,
+  }) {
+    final style = filled
+        ? FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF1565C0),
+            foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          )
+        : OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF334155),
+            side: const BorderSide(color: Color(0xFFD8E0EA)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          );
+
+    return filled
+        ? FilledButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 18),
+            label: Text(label, overflow: TextOverflow.ellipsis),
+            style: style,
+          )
+        : OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 18),
+            label: Text(label, overflow: TextOverflow.ellipsis),
+            style: style,
+          );
+  }
+
+  Widget _buildPanel({required Widget child, EdgeInsets? padding}) {
+    return Container(
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, Color color,
+      {String? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 19),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF111827),
+              letterSpacing: 0,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (trailing != null)
+          Text(
+            trailing,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildInfoPill(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
