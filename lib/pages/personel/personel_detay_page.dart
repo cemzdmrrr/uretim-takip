@@ -36,6 +36,15 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
   String? currentUserRole;
   String? seciliDonem;
 
+  final List<_TabItem> _tabs = const [
+    _TabItem('Bilgiler', Icons.person),
+    _TabItem('Avans / Ödeme', Icons.attach_money),
+    _TabItem('İzin', Icons.beach_access),
+    _TabItem('Mesai', Icons.access_time),
+    _TabItem('Puantaj', Icons.assessment),
+    _TabItem('Arşiv', Icons.folder),
+  ];
+
   bool get _yonetebilir =>
       currentUserRole == 'admin' ||
       currentUserRole == 'firma_admin' ||
@@ -44,8 +53,14 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: _tabs.length, vsync: this);
     _hazirla();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _hazirla() async {
@@ -64,12 +79,6 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
     });
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
   Future<void> _aksiyonSec(_PersonelAction action) async {
     final kayit = personel;
     if (kayit == null || islemYapiliyor) return;
@@ -78,9 +87,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       case _PersonelAction.duzenle:
         final guncellenen = await Navigator.push<PersonelModel>(
           context,
-          MaterialPageRoute(
-            builder: (_) => PersonelEklePage(mevcut: kayit),
-          ),
+          MaterialPageRoute(builder: (_) => PersonelEklePage(mevcut: kayit)),
         );
         if (guncellenen != null) {
           setState(() => personel = guncellenen);
@@ -131,7 +138,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                         setLocalState(() => seciliTarih = tarih);
                       }
                     },
-                    icon: const Icon(Icons.event_outlined),
+                    icon: const Icon(Icons.event),
                     label: Text(_formatDate(seciliTarih.toIso8601String())),
                   ),
                   const SizedBox(height: 12),
@@ -153,9 +160,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                 ),
                 FilledButton(
                   onPressed: () {
-                    if (nedenController.text.trim().isEmpty) {
-                      return;
-                    }
+                    if (nedenController.text.trim().isEmpty) return;
                     Navigator.pop(context, true);
                   },
                   child: const Text('İşten Çıkar'),
@@ -237,9 +242,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${kayit.tamAd} kaydı ve uygun ise auth hesabı kalıcı olarak silinecek.',
-            ),
+            Text('${kayit.tamAd} kaydı ve uygun ise auth hesabı kalıcı olarak silinecek.'),
             const SizedBox(height: 12),
             Text(
               'Devam etmek için TCKN yazın: ${kayit.tckn}',
@@ -263,9 +266,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
-              if (kontrolController.text.trim() != kayit.tckn) {
-                return;
-              }
+              if (kontrolController.text.trim() != kayit.tckn) return;
               Navigator.pop(context, true);
             },
             child: const Text('Kalıcı Sil'),
@@ -301,9 +302,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
 
     if (personel == null) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Personel Detay'),
-        ),
+        appBar: AppBar(title: const Text('Personel Detayı')),
         body: const Center(child: Text('Personel bulunamadı.')),
       );
     }
@@ -316,8 +315,8 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
         title: const Text(
-          'Personel Detay',
-          style: TextStyle(color: Colors.white),
+          'Personel Detayı',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         backgroundColor: Colors.blue,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -349,64 +348,70 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
               ],
             ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: 'Bilgiler'),
-            Tab(text: 'Avans/Ödeme'),
-            Tab(text: 'İzin'),
-            Tab(text: 'Mesai'),
-            Tab(text: 'Puantaj'),
-            Tab(text: 'Arşiv'),
-          ],
-        ),
       ),
       body: Stack(
         children: [
           Column(
             children: [
               _buildHeader(kayit, isMobile),
+              _buildTabBarContainer(),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
                     _buildBilgilerTab(kayit, isMobile),
-                    (kayit.userId.trim().isEmpty)
-                        ? const Center(
-                            child: Text(
-                              'Personel ID bulunamadı. Avans ve ödeme işlemleri açılamıyor.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.red),
+                    _buildTabShell(
+                      title: 'Avans ve Ödeme',
+                      subtitle: 'Bu personele ait ödeme ve avans hareketleri',
+                      child: kayit.userId.trim().isEmpty
+                          ? const Center(
+                              child: Text(
+                                'Personel ID bulunamadı. Avans ve ödeme işlemleri açılamıyor.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            )
+                          : OdemePage(
+                              key: ValueKey('odeme_${seciliDonem ?? 'all'}'),
+                              personelId: kayit.userId,
+                              initialDonem: seciliDonem,
                             ),
-                          )
-                        : OdemePage(
-                            key: ValueKey('odeme_${seciliDonem ?? 'all'}'),
-                            personelId: kayit.userId,
-                            initialDonem: seciliDonem,
-                          ),
-                    IzinPage(
-                      key: ValueKey('izin_${seciliDonem ?? 'all'}'),
-                      personelId: kayit.userId,
-                      personelAd: kayit.tamAd,
-                      initialDonem: seciliDonem,
                     ),
-                    MesaiPage(
-                      key: ValueKey('mesai_${seciliDonem ?? 'all'}'),
-                      personelId: kayit.userId,
-                      personelAd: kayit.tamAd,
-                      initialDonem: seciliDonem,
+                    _buildTabShell(
+                      title: 'İzin Yönetimi',
+                      subtitle: 'İzin kayıtları ve onay akışı',
+                      child: IzinPage(
+                        key: ValueKey('izin_${seciliDonem ?? 'all'}'),
+                        personelId: kayit.userId,
+                        personelAd: kayit.tamAd,
+                        initialDonem: seciliDonem,
+                      ),
                     ),
-                    PuantajTabloPage(
-                      personelId: kayit.userId,
-                      personelAd: kayit.tamAd,
+                    _buildTabShell(
+                      title: 'Mesai Kayıtları',
+                      subtitle: 'Onaylı ve bekleyen mesai verileri',
+                      child: MesaiPage(
+                        key: ValueKey('mesai_${seciliDonem ?? 'all'}'),
+                        personelId: kayit.userId,
+                        personelAd: kayit.tamAd,
+                        initialDonem: seciliDonem,
+                      ),
                     ),
-                    PersonelArsivPage(
-                      personelId: kayit.userId,
-                      personelAd: kayit.tamAd,
+                    _buildTabShell(
+                      title: 'Puantaj',
+                      subtitle: 'Günlük çalışma ve devam bilgileri',
+                      child: PuantajTabloPage(
+                        personelId: kayit.userId,
+                        personelAd: kayit.tamAd,
+                      ),
+                    ),
+                    _buildTabShell(
+                      title: 'Arşiv',
+                      subtitle: 'Geçmiş bordro, izin, ödeme ve hareket özeti',
+                      child: PersonelArsivPage(
+                        personelId: kayit.userId,
+                        personelAd: kayit.tamAd,
+                      ),
                     ),
                   ],
                 ),
@@ -429,9 +434,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       padding: EdgeInsets.fromLTRB(isMobile ? 14 : 20, 16, isMobile ? 14 : 20, 16),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5EAF3)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5EAF3))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,14 +492,11 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             spacing: 12,
             runSpacing: 12,
             children: [
-              _metricTile(Icons.badge_outlined, 'TCKN', kayit.tckn),
-              _metricTile(Icons.event_available_outlined, 'İşe Başlangıç',
-                  _formatDate(kayit.iseBaslangic)),
-              _metricTile(Icons.account_balance_wallet_outlined, 'Net Maaş',
-                  _formatMoney(kayit.netMaas)),
+              _metricTile(Icons.badge, 'TCKN', kayit.tckn),
+              _metricTile(Icons.event, 'İşe Başlangıç', _formatDate(kayit.iseBaslangic)),
+              _metricTile(Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
               if (kayit.istenCikarildiMi)
-                _metricTile(Icons.event_busy_outlined, 'Çıkış Tarihi',
-                    _formatDate(kayit.istenCikisTarihi)),
+                _metricTile(Icons.warning, 'Çıkış Tarihi', _formatDate(kayit.istenCikisTarihi)),
             ],
           ),
           if (kayit.istenCikarildiMi && kayit.istenCikisNedeni.isNotEmpty) ...[
@@ -523,6 +523,43 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
     );
   }
 
+  Widget _buildTabBarContainer() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        labelColor: Colors.white,
+        unselectedLabelColor: const Color(0xFF475569),
+        dividerColor: Colors.transparent,
+        indicator: BoxDecoration(
+          color: const Color(0xFF2563EB),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        tabs: _tabs
+            .map(
+              (item) => Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(item.icon, size: 16),
+                    const SizedBox(width: 8),
+                    Text(item.label),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
   Widget _buildBilgilerTab(PersonelModel kayit, bool isMobile) {
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 14 : 20),
@@ -534,55 +571,102 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             title: 'Kimlik ve İletişim',
             width: isMobile ? double.infinity : 460,
             children: [
-              _infoRow(Icons.badge_outlined, 'TCKN', kayit.tckn),
-              _infoRow(Icons.email_outlined, 'E-posta', kayit.email),
-              _infoRow(Icons.phone_outlined, 'Telefon', kayit.telefon),
-              _infoRow(Icons.home_outlined, 'Adres', kayit.adres),
+              _infoRow(Icons.badge, 'TCKN', kayit.tckn),
+              _infoRow(Icons.email, 'E-posta', kayit.email),
+              _infoRow(Icons.phone, 'Telefon', kayit.telefon),
+              _infoRow(Icons.home, 'Adres', kayit.adres),
             ],
           ),
           _buildInfoSection(
             title: 'Pozisyon ve Çalışma',
             width: isMobile ? double.infinity : 460,
             children: [
-              _infoRow(Icons.work_outline, 'Pozisyon', kayit.pozisyon),
-              _infoRow(Icons.apartment_outlined, 'Departman', kayit.departman),
-              _infoRow(Icons.event_outlined, 'İşe Başlangıç', _formatDate(kayit.iseBaslangic)),
-              _infoRow(Icons.schedule_outlined, 'Günlük Çalışma',
-                  _formatHour(kayit.gunlukCalismaSaati)),
-              _infoRow(Icons.calendar_view_week_outlined, 'Haftalık Gün',
-                  _formatDay(kayit.haftalikCalismaGunu)),
+              _infoRow(Icons.work, 'Pozisyon', kayit.pozisyon),
+              _infoRow(Icons.business, 'Departman', kayit.departman),
+              _infoRow(Icons.event, 'İşe Başlangıç', _formatDate(kayit.iseBaslangic)),
+              _infoRow(Icons.access_time, 'Günlük Çalışma', _formatHour(kayit.gunlukCalismaSaati)),
+              _infoRow(Icons.calendar_today, 'Haftalık Gün', _formatDay(kayit.haftalikCalismaGunu)),
             ],
           ),
           _buildInfoSection(
             title: 'Maaş ve Yan Haklar',
             width: isMobile ? double.infinity : 460,
             children: [
-              _infoRow(Icons.payments_outlined, 'Brüt Maaş', _formatMoney(kayit.brutMaas)),
-              _infoRow(Icons.wallet_outlined, 'Net Maaş', _formatMoney(kayit.netMaas)),
-              _infoRow(Icons.directions_bus_outlined, 'Yol Ücreti',
-                  _formatMoney(kayit.yolUcreti)),
-              _infoRow(Icons.restaurant_outlined, 'Yemek Ücreti',
-                  _formatMoney(kayit.yemekUcreti)),
-              _infoRow(Icons.stars_outlined, 'Ekstra Prim', _formatMoney(kayit.ekstraPrim)),
-              _infoRow(Icons.account_balance_outlined, 'Banka Maaşı',
-                  _formatMoney(kayit.bankaMaas)),
-              _infoRow(Icons.currency_lira_outlined, 'Elden Maaş',
-                  _formatMoney(kayit.eldenMaas)),
+              _infoRow(Icons.attach_money, 'Brüt Maaş', _formatMoney(kayit.brutMaas)),
+              _infoRow(Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
+              _infoRow(Icons.directions_bus, 'Yol Ücreti', _formatMoney(kayit.yolUcreti)),
+              _infoRow(Icons.restaurant, 'Yemek Ücreti', _formatMoney(kayit.yemekUcreti)),
+              _infoRow(Icons.star, 'Ekstra Prim', _formatMoney(kayit.ekstraPrim)),
+              _infoRow(Icons.account_balance, 'Banka Maaşı', _formatMoney(kayit.bankaMaas)),
+              _infoRow(Icons.attach_money, 'Elden Maaş', _formatMoney(kayit.eldenMaas)),
             ],
           ),
           _buildInfoSection(
             title: 'Ek Bilgiler',
             width: isMobile ? double.infinity : 460,
             children: [
-              _infoRow(Icons.assignment_ind_outlined, 'SGK Sicil No', kayit.sgkSicilNo),
-              _infoRow(Icons.beach_access_outlined, 'Yıllık İzin', '${kayit.yillikIzinHakki} gün'),
-              _infoRow(Icons.info_outline, 'Durum', _durumText(kayit)),
+              _infoRow(Icons.info, 'SGK Sicil No', kayit.sgkSicilNo),
+              _infoRow(Icons.beach_access, 'Yıllık İzin', '${kayit.yillikIzinHakki} gün'),
+              _infoRow(Icons.list, 'Durum', _durumText(kayit)),
               if (kayit.istenCikarildiMi)
-                _infoRow(Icons.event_busy_outlined, 'Çıkış Tarihi',
-                    _formatDate(kayit.istenCikisTarihi)),
+                _infoRow(Icons.event_busy, 'Çıkış Tarihi', _formatDate(kayit.istenCikisTarihi)),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTabShell({
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: child),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -767,4 +851,11 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       return value;
     }
   }
+}
+
+class _TabItem {
+  final String label;
+  final IconData icon;
+
+  const _TabItem(this.label, this.icon);
 }

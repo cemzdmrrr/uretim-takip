@@ -490,9 +490,13 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F6FB),
       appBar: AppBar(
-        title: const Text('Personel Analiz & Raporlama', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.indigo,
+        title: const Text(
+          'Personel Analiz ve Raporlama',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: Colors.blue,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
@@ -501,7 +505,7 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
             tooltip: 'Yenile',
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.download, color: Colors.white),
+            icon: const Icon(Icons.file_download_outlined, color: Colors.white),
             tooltip: 'Dışa Aktar',
             onSelected: _exportData,
             itemBuilder: (context) => [
@@ -511,20 +515,6 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
             ],
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          isScrollable: true,
-          tabs: const [
-            Tab(icon: Icon(Icons.dashboard), text: 'Genel'),
-            Tab(icon: Icon(Icons.business), text: 'Departman'),
-            Tab(icon: Icon(Icons.monetization_on), text: 'Maaş'),
-            Tab(icon: Icon(Icons.beach_access), text: 'İzin & Mesai'),
-            Tab(icon: Icon(Icons.trending_up), text: 'Performans'),
-          ],
-        ),
       ),
       body: yukleniyor
           ? const LoadingWidget()
@@ -532,101 +522,190 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
               ? _buildHataWidget()
               : Column(
                   children: [
-                    // Dönem filtresi
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.indigo.shade50,
-                        border: Border(bottom: BorderSide(color: Colors.indigo.shade200)),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0F3D91), Color(0xFF2563EB)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x262563EB),
+                            blurRadius: 28,
+                            offset: Offset(0, 12),
+                          ),
+                        ],
                       ),
-                      child: Row(
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.filter_alt, color: Colors.indigo),
-                          const SizedBox(width: 12),
-                          const Text('Rapor Tipi:', style: TextStyle(fontWeight: FontWeight.w600)),
-                          const SizedBox(width: 12),
-                          ChoiceChip(
-                            label: const Text('Tümü'),
-                            selected: raporTipi == 'all',
-                            selectedColor: Colors.indigo.shade200,
-                            onSelected: (v) {
-                              setState(() => raporTipi = 'all');
-                              _loadAnalizData();
-                            },
+                          Text(
+                            'Personel verisini departman, maaş ve performans kırılımlarında inceleyin',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              height: 1.15,
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          ChoiceChip(
-                            label: const Text('Aylık'),
-                            selected: raporTipi == 'monthly',
-                            selectedColor: Colors.indigo.shade200,
-                            onSelected: (v) {
-                              setState(() => raporTipi = 'monthly');
-                              _loadAnalizData();
-                            },
+                          SizedBox(height: 8),
+                          Text(
+                            'Filtreleri değiştirerek dönemsel raporları yeniden hesaplayabilirsiniz.',
+                            style: TextStyle(
+                              color: Color(0xFFDCE7FF),
+                              fontSize: 14,
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          ChoiceChip(
-                            label: const Text('Yıllık'),
-                            selected: raporTipi == 'yearly',
-                            selectedColor: Colors.indigo.shade200,
-                            onSelected: (v) {
-                              setState(() => raporTipi = 'yearly');
-                              _loadAnalizData();
-                            },
-                          ),
-                          const SizedBox(width: 16),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _buildRaporChip('all', 'Tümü'),
+                          _buildRaporChip('monthly', 'Aylık'),
+                          _buildRaporChip('yearly', 'Yıllık'),
                           if (raporTipi == 'monthly' || raporTipi == 'yearly')
-                            DropdownButton<int>(
-                              value: seciliYil,
-                              items: List.generate(5, (i) => DateTime.now().year - i)
-                                  .map((y) => DropdownMenuItem(value: y, child: Text('$y')))
-                                  .toList(),
-                              onChanged: (v) {
-                                setState(() => seciliYil = v!);
-                                _loadAnalizData();
-                              },
-                            ),
-                          if (raporTipi == 'monthly')
-                            const SizedBox(width: 8),
-                          if (raporTipi == 'monthly')
-                            DropdownButton<int>(
-                              value: seciliAy,
-                              items: const [
-                                DropdownMenuItem(value: 1, child: Text('Ocak')),
-                                DropdownMenuItem(value: 2, child: Text('Şubat')),
-                                DropdownMenuItem(value: 3, child: Text('Mart')),
-                                DropdownMenuItem(value: 4, child: Text('Nisan')),
-                                DropdownMenuItem(value: 5, child: Text('Mayıs')),
-                                DropdownMenuItem(value: 6, child: Text('Haziran')),
-                                DropdownMenuItem(value: 7, child: Text('Temmuz')),
-                                DropdownMenuItem(value: 8, child: Text('Ağustos')),
-                                DropdownMenuItem(value: 9, child: Text('Eylül')),
-                                DropdownMenuItem(value: 10, child: Text('Ekim')),
-                                DropdownMenuItem(value: 11, child: Text('Kasım')),
-                                DropdownMenuItem(value: 12, child: Text('Aralık')),
-                              ],
-                              onChanged: (v) {
-                                setState(() => seciliAy = v!);
-                                _loadAnalizData();
-                              },
-                            ),
+                            _buildYilSecici(),
+                          if (raporTipi == 'monthly') _buildAySecici(),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: const Color(0xFF475569),
+                        dividerColor: Colors.transparent,
+                        indicator: BoxDecoration(
+                          color: const Color(0xFF2563EB),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        tabs: const [
+                          Tab(icon: Icon(Icons.dashboard_outlined), text: 'Genel'),
+                          Tab(icon: Icon(Icons.business_outlined), text: 'Departman'),
+                          Tab(icon: Icon(Icons.payments_outlined), text: 'Maaş'),
+                          Tab(icon: Icon(Icons.access_time_outlined), text: 'İzin ve Mesai'),
+                          Tab(icon: Icon(Icons.trending_up_outlined), text: 'Performans'),
                         ],
                       ),
                     ),
                     Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildGenelTab(),
-                          _buildDepartmanTab(),
-                          _buildMaasTab(),
-                          _buildIzinMesaiTab(),
-                          _buildPerformansTab(),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildGenelTab(),
+                            _buildDepartmanTab(),
+                            _buildMaasTab(),
+                            _buildIzinMesaiTab(),
+                            _buildPerformansTab(),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildRaporChip(String value, String label) {
+    final selected = raporTipi == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      showCheckmark: false,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : const Color(0xFF334155),
+        fontWeight: FontWeight.w600,
+      ),
+      selectedColor: const Color(0xFF2563EB),
+      backgroundColor: const Color(0xFFF8FAFC),
+      side: BorderSide(
+        color: selected ? const Color(0xFF2563EB) : const Color(0xFFD8E1EC),
+      ),
+      onSelected: (_) {
+        setState(() => raporTipi = value);
+        _loadAnalizData();
+      },
+    );
+  }
+
+  Widget _buildYilSecici() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD8E1EC)),
+      ),
+      child: DropdownButton<int>(
+        value: seciliYil,
+        underline: const SizedBox.shrink(),
+        items: List.generate(5, (i) => DateTime.now().year - i)
+            .map((y) => DropdownMenuItem(value: y, child: Text('$y')))
+            .toList(),
+        onChanged: (v) {
+          setState(() => seciliYil = v!);
+          _loadAnalizData();
+        },
+      ),
+    );
+  }
+
+  Widget _buildAySecici() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD8E1EC)),
+      ),
+      child: DropdownButton<int>(
+        value: seciliAy,
+        underline: const SizedBox.shrink(),
+        items: const [
+          DropdownMenuItem(value: 1, child: Text('Ocak')),
+          DropdownMenuItem(value: 2, child: Text('Şubat')),
+          DropdownMenuItem(value: 3, child: Text('Mart')),
+          DropdownMenuItem(value: 4, child: Text('Nisan')),
+          DropdownMenuItem(value: 5, child: Text('Mayıs')),
+          DropdownMenuItem(value: 6, child: Text('Haziran')),
+          DropdownMenuItem(value: 7, child: Text('Temmuz')),
+          DropdownMenuItem(value: 8, child: Text('Ağustos')),
+          DropdownMenuItem(value: 9, child: Text('Eylül')),
+          DropdownMenuItem(value: 10, child: Text('Ekim')),
+          DropdownMenuItem(value: 11, child: Text('Kasım')),
+          DropdownMenuItem(value: 12, child: Text('Aralık')),
+        ],
+        onChanged: (v) {
+          setState(() => seciliAy = v!);
+          _loadAnalizData();
+        },
+      ),
     );
   }
   

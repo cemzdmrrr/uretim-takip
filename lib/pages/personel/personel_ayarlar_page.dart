@@ -260,54 +260,162 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xFFF3F6FB),
       appBar: AppBar(
-        title: const Text('Sistem Ayarları'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.blue[600],
-          unselectedLabelColor: Colors.grey[600],
-          indicatorColor: Colors.blue[600],
-          tabs: const [
-            Tab(text: 'Şirket'),
-            Tab(text: 'SGK & Vergi'),
-            Tab(text: 'Bordro'),
-            Tab(text: 'Çalışma'),
-            Tab(text: 'İzin'),
-          ],
+        title: const Text(
+          'Personel Ayarları',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
+        backgroundColor: Colors.blue,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton.icon(
+              onPressed: _isLoading ? null : _saveSettings,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.blue,
+              ),
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Kaydet'),
+            ),
+          ),
+        ],
       ),
       body: _isLoading
           ? const LoadingWidget()
           : Form(
               key: _formKey,
-              child: TabBarView(
-                controller: _tabController,
+              child: Column(
                 children: [
-                  _buildCompanyTab(),
-                  _buildTaxTab(),
-                  _buildPayrollTab(),
-                  _buildWorkingTab(),
-                  _buildLeaveTab(),
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    padding: EdgeInsets.all(isMobile ? 16 : 20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0F3D91), Color(0xFF2563EB)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x262563EB),
+                          blurRadius: 28,
+                          offset: Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: isMobile
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [_buildHeaderText(), const SizedBox(height: 12), _buildHeaderMetrics()],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(flex: 3, child: _buildHeaderText()),
+                              const SizedBox(width: 16),
+                              Expanded(flex: 2, child: _buildHeaderMetrics()),
+                            ],
+                          ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      isScrollable: true,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: const Color(0xFF475569),
+                      dividerColor: Colors.transparent,
+                      indicator: BoxDecoration(
+                        color: const Color(0xFF2563EB),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      tabs: const [
+                        Tab(text: 'Şirket'),
+                        Tab(text: 'SGK ve Vergi'),
+                        Tab(text: 'Bordro'),
+                        Tab(text: 'Çalışma'),
+                        Tab(text: 'İzin'),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildCompanyTab(),
+                        _buildTaxTab(),
+                        _buildPayrollTab(),
+                        _buildWorkingTab(),
+                        _buildLeaveTab(),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isLoading ? null : _saveSettings,
-        icon: const Icon(Icons.save),
-        label: const Text('Kaydet'),
-        backgroundColor: Colors.blue[600],
+    );
+  }
+
+  Widget _buildHeaderText() {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Personel sistem ayarları',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            height: 1.15,
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Şirket bilgileri, SGK oranları, bordro parametreleri ve izin kuralları bu ekranda yönetilir.',
+          style: TextStyle(
+            color: Color(0xFFDCE7FF),
+            fontSize: 14,
+            height: 1.45,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderMetrics() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _MiniMetric(label: 'Sekme', value: '5'),
+          _MiniMetric(label: 'Alan', value: '30+'),
+          _MiniMetric(label: 'Kapsam', value: 'Bordro • SGK • İzin'),
+        ],
       ),
     );
   }
 
   Widget _buildCompanyTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
           _buildCard(
@@ -378,7 +486,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildTaxTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
           _buildCard(
@@ -467,7 +575,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildPayrollTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
           _buildCard(
@@ -541,7 +649,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildWorkingTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
           _buildCard(
@@ -607,7 +715,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildLeaveTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
           _buildCard(
@@ -689,26 +797,28 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
   }
 
   Widget _buildCard(String title, List<Widget> children) {
-    return Card(
-      elevation: 2,
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
             ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
       ),
     );
   }
@@ -731,20 +841,65 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
         maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F0FE),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: const Color(0xFF2563EB)),
+          ),
           suffixText: suffixText,
+          filled: true,
+          fillColor: const Color(0xFFF8FAFC),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFD8E1EC)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFD8E1EC)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.blue[600]!),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.4),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MiniMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MiniMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFFDCE7FF),
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
