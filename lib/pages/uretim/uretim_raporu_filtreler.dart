@@ -19,7 +19,7 @@ extension _FiltrelerExt on _UretimRaporuPageState {
                   children: [
                     _buildSectionHeader(
                       'Filtreler',
-                      Icons.tune_rounded,
+                      Icons.tune,
                       const Color(0xFF1565C0),
                       trailing: '${_modeller.length} kayıt',
                     ),
@@ -152,10 +152,10 @@ extension _FiltrelerExt on _UretimRaporuPageState {
       controller: _aramaController,
       decoration: InputDecoration(
         hintText: 'Model, marka veya renk ara...',
-        prefixIcon: const Icon(Icons.search_rounded),
+        prefixIcon: const Icon(Icons.search),
         suffixIcon: _aramaMetni.isNotEmpty
             ? IconButton(
-                icon: const Icon(Icons.clear_rounded),
+                icon: const Icon(Icons.clear),
                 onPressed: () {
                   _aramaController.clear();
                   setState(() => _aramaMetni = '');
@@ -251,7 +251,7 @@ extension _FiltrelerExt on _UretimRaporuPageState {
           _filtreleriUygula();
         }
       },
-      icon: const Icon(Icons.date_range_rounded, size: 18),
+      icon: const Icon(Icons.date_range, size: 18),
       label: Text(label, overflow: TextOverflow.ellipsis),
       style: OutlinedButton.styleFrom(
         foregroundColor: const Color(0xFF334155),
@@ -274,7 +274,7 @@ extension _FiltrelerExt on _UretimRaporuPageState {
         if (_tarihAraligi != null)
           IconButton(
             tooltip: 'Tarih filtresini temizle',
-            icon: const Icon(Icons.clear_rounded),
+            icon: const Icon(Icons.clear),
             onPressed: () {
               setState(() => _tarihAraligi = null);
               _filtreleriUygula();

@@ -3,41 +3,97 @@ part of 'uretim_raporu_page.dart';
 
 /// Grafik tabı — fl_chart ile görselleştirmeler
 extension _ChartsExt on _UretimRaporuPageState {
-
   Widget _buildGrafiklerTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 600;
-        
+
         return SingleChildScrollView(
           padding: EdgeInsets.all(isMobile ? 12 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Aşama Dağılımı — Pasta Grafik
+              _buildPanel(
+                child: LayoutBuilder(
+                  builder: (context, panelConstraints) {
+                    final compact = panelConstraints.maxWidth < 760;
+                    final kartlar = [
+                      _buildGrafikOzetKart(
+                        'Aktif Model',
+                        '${_ozet['toplam_model'] ?? 0}',
+                        Icons.inventory,
+                        const Color(0xFF1565C0),
+                      ),
+                      _buildGrafikOzetKart(
+                        'Tamamlanma',
+                        '%${((_ozet['tamamlanma_orani'] as double?) ?? 0).toStringAsFixed(1)}',
+                        Icons.check_circle,
+                        const Color(0xFF2E7D32),
+                      ),
+                      _buildGrafikOzetKart(
+                        'Verimlilik',
+                        '%${((_ozet['verimlilik_orani'] as double?) ?? 100).toStringAsFixed(1)}',
+                        Icons.speed,
+                        const Color(0xFF0F766E),
+                      ),
+                      _buildGrafikOzetKart(
+                        'Fire Oranı',
+                        '%${((_ozet['fire_orani'] as double?) ?? 0).toStringAsFixed(1)}',
+                        Icons.whatshot,
+                        const Color(0xFFD32F2F),
+                      ),
+                    ];
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('Analiz Özeti', Icons.insert_chart),
+                        const SizedBox(height: 14),
+                        compact
+                            ? Column(
+                                children: [
+                                  for (var i = 0; i < kartlar.length; i++) ...[
+                                    kartlar[i],
+                                    if (i < kartlar.length - 1)
+                                      const SizedBox(height: 10),
+                                  ],
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  for (var i = 0; i < kartlar.length; i++) ...[
+                                    Expanded(child: kartlar[i]),
+                                    if (i < kartlar.length - 1)
+                                      const SizedBox(width: 10),
+                                  ],
+                                ],
+                              ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 1. Aşama Dağılımı - Pasta Grafik
               _buildSectionTitle('Aşama Dağılımı', Icons.pie_chart),
               const SizedBox(height: 12),
               _buildAsamaPieChart(isMobile),
-              const SizedBox(height: 24),
-              
-              // 2. Fire Oranları — Bar Chart
+              const SizedBox(height: 16),
+              // 2. Fire Oranları - Bar Chart
               _buildSectionTitle('Aşama Bazlı Fire Oranları', Icons.bar_chart),
               const SizedBox(height: 12),
               _buildFireBarChart(isMobile),
-              const SizedBox(height: 24),
-              
-              // 3. Marka Dağılımı — Horizontal Bar
+              const SizedBox(height: 16),
+              // 3. Marka Dağılımı - Horizontal Bar
               _buildSectionTitle('Marka Bazlı Model Sayısı', Icons.analytics),
               const SizedBox(height: 12),
               _buildMarkaBarChart(isMobile),
-              const SizedBox(height: 24),
-              
-              // 4. Tamamlanma Trendi — Line Chart
+              const SizedBox(height: 16),
+              // 4. Tamamlanma Trendi - Line Chart
               _buildSectionTitle('Aylık Üretim Trendi', Icons.show_chart),
               const SizedBox(height: 12),
               _buildUretimTrendChart(isMobile),
-              const SizedBox(height: 24),
-              
+              const SizedBox(height: 16),
               // 5. Verimlilik Gauge
               _buildSectionTitle('Genel Verimlilik', Icons.speed),
               const SizedBox(height: 12),
@@ -50,72 +106,147 @@ extension _ChartsExt on _UretimRaporuPageState {
   }
 
   Widget _buildSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.indigo, size: 22),
-        const SizedBox(width: 8),
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      ],
+    return _buildSectionHeader(title, icon, const Color(0xFF1565C0));
+  }
+
+  Widget _buildGrafikOzetKart(
+    String baslik,
+    String deger,
+    IconData icon,
+    Color renk,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: renk.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: renk, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  deger,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  baslik,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGrafikBosDurum(String mesaj) {
+    return _buildPanel(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(child: Text(mesaj)),
+      ),
     );
   }
 
   /// Pasta grafik — aşama dağılımı
   Widget _buildAsamaPieChart(bool isMobile) {
     final asamaSayilari = _ozet['asama_sayilari'] as Map<String, int>? ?? {};
-    
+
     if (asamaSayilari.values.every((v) => v == 0)) {
-      return const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Veri yok'))));
+      return _buildGrafikBosDurum('Veri yok');
     }
 
     final sections = <PieChartSectionData>[];
     final legends = <Widget>[];
     final toplam = asamaSayilari.values.fold(0, (a, b) => a + b);
-    
+
     for (final entry in asamaSayilari.entries) {
       if (entry.value == 0) continue;
       final info = _getAsamaBilgisi(entry.key);
       final color = info['color'] as Color;
       final label = info['label'] as String;
       final yuzde = toplam > 0 ? (entry.value / toplam * 100) : 0.0;
-      
+
       sections.add(PieChartSectionData(
         color: color,
         value: entry.value.toDouble(),
         title: '${yuzde.toStringAsFixed(0)}%',
-        titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+        titleStyle: const TextStyle(
+            fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
         radius: isMobile ? 50 : 70,
       ));
-      
+
       legends.add(Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+            Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                    color: color, borderRadius: BorderRadius.circular(2))),
             const SizedBox(width: 6),
-            Text('$label (${entry.value})', style: const TextStyle(fontSize: 12)),
+            Text('$label (${entry.value})',
+                style: const TextStyle(fontSize: 12)),
           ],
         ),
       ));
     }
 
-    return Card(
-      elevation: 2,
+    return _buildPanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: isMobile
             ? Column(
                 children: [
-                  SizedBox(height: 200, child: PieChart(PieChartData(sections: sections, sectionsSpace: 2, centerSpaceRadius: 30))),
+                  SizedBox(
+                      height: 200,
+                      child: PieChart(PieChartData(
+                          sections: sections,
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 30))),
                   const SizedBox(height: 12),
                   Wrap(spacing: 12, runSpacing: 4, children: legends),
                 ],
               )
             : Row(
                 children: [
-                  Expanded(child: SizedBox(height: 250, child: PieChart(PieChartData(sections: sections, sectionsSpace: 2, centerSpaceRadius: 40)))),
+                  Expanded(
+                      child: SizedBox(
+                          height: 250,
+                          child: PieChart(PieChartData(
+                              sections: sections,
+                              sectionsSpace: 2,
+                              centerSpaceRadius: 40)))),
                   const SizedBox(width: 24),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: legends),
+                  Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: legends),
                 ],
               ),
       ),
@@ -125,7 +256,7 @@ extension _ChartsExt on _UretimRaporuPageState {
   /// Bar chart — aşama bazlı fire oranları
   Widget _buildFireBarChart(bool isMobile) {
     if (_fireAnaliz.isEmpty) {
-      return const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Fire verisi yok'))));
+      return _buildGrafikBosDurum('Fire verisi yok');
     }
 
     final bars = <BarChartGroupData>[];
@@ -137,13 +268,15 @@ extension _ChartsExt on _UretimRaporuPageState {
       final toplam = entry.value['toplam'] ?? 0;
       final oran = toplam > 0 ? (fire / toplam * 100) : 0.0;
       final info = _getAsamaBilgisi(entry.key);
-      
+
       bars.add(BarChartGroupData(
         x: idx,
         barRods: [
           BarChartRodData(
             toY: oran,
-            color: oran > 5 ? Colors.red : (oran > 2 ? Colors.orange : Colors.green),
+            color: oran > 5
+                ? Colors.red
+                : (oran > 2 ? Colors.orange : Colors.green),
             width: isMobile ? 16 : 22,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
           ),
@@ -153,8 +286,7 @@ extension _ChartsExt on _UretimRaporuPageState {
       idx++;
     }
 
-    return Card(
-      elevation: 2,
+    return _buildPanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: SizedBox(
@@ -162,14 +294,19 @@ extension _ChartsExt on _UretimRaporuPageState {
           child: BarChart(
             BarChartData(
               alignment: BarChartAlignment.spaceAround,
-              maxY: bars.map((b) => b.barRods.first.toY).fold(0.0, (a, b) => a > b ? a : b) + 2,
+              maxY: bars
+                      .map((b) => b.barRods.first.toY)
+                      .fold(0.0, (a, b) => a > b ? a : b) +
+                  2,
               barGroups: bars,
               titlesData: FlTitlesData(
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 32,
-                    getTitlesWidget: (value, meta) => Text('%${value.toStringAsFixed(0)}', style: const TextStyle(fontSize: 10)),
+                    getTitlesWidget: (value, meta) => Text(
+                        '%${value.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 10)),
                   ),
                 ),
                 bottomTitles: AxisTitles(
@@ -180,15 +317,19 @@ extension _ChartsExt on _UretimRaporuPageState {
                       if (i >= 0 && i < labels.length) {
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text(labels[i], style: TextStyle(fontSize: isMobile ? 8 : 10), textAlign: TextAlign.center),
+                          child: Text(labels[i],
+                              style: TextStyle(fontSize: isMobile ? 8 : 10),
+                              textAlign: TextAlign.center),
                         );
                       }
                       return const SizedBox.shrink();
                     },
                   ),
                 ),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: const FlGridData(show: true, drawVerticalLine: false),
               borderData: FlBorderData(show: false),
@@ -206,12 +347,13 @@ extension _ChartsExt on _UretimRaporuPageState {
       final marka = model['marka']?.toString() ?? 'Belirtilmemiş';
       markaBazli[marka] = (markaBazli[marka] ?? 0) + 1;
     }
-    
-    final sirali = markaBazli.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    final sirali = markaBazli.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final gosterilecek = sirali.take(10).toList();
-    
+
     if (gosterilecek.isEmpty) {
-      return const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Marka verisi yok'))));
+      return _buildGrafikBosDurum('Marka verisi yok');
     }
 
     final bars = <BarChartGroupData>[];
@@ -233,8 +375,7 @@ extension _ChartsExt on _UretimRaporuPageState {
       labels.add(gosterilecek[i].key);
     }
 
-    return Card(
-      elevation: 2,
+    return _buildPanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: SizedBox(
@@ -246,8 +387,12 @@ extension _ChartsExt on _UretimRaporuPageState {
               barGroups: bars,
               titlesData: FlTitlesData(
                 leftTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: true, reservedSize: 28,
-                    getTitlesWidget: (value, meta) => Text(value.toInt().toString(), style: const TextStyle(fontSize: 10)),
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    getTitlesWidget: (value, meta) => Text(
+                        value.toInt().toString(),
+                        style: const TextStyle(fontSize: 10)),
                   ),
                 ),
                 bottomTitles: AxisTitles(
@@ -261,7 +406,8 @@ extension _ChartsExt on _UretimRaporuPageState {
                           padding: const EdgeInsets.only(top: 6),
                           child: RotatedBox(
                             quarterTurns: isMobile ? 1 : 0,
-                            child: Text(labels[i], style: TextStyle(fontSize: isMobile ? 8 : 10)),
+                            child: Text(labels[i],
+                                style: TextStyle(fontSize: isMobile ? 8 : 10)),
                           ),
                         );
                       }
@@ -269,8 +415,10 @@ extension _ChartsExt on _UretimRaporuPageState {
                     },
                   ),
                 ),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: const FlGridData(show: true, drawVerticalLine: false),
               borderData: FlBorderData(show: false),
@@ -286,7 +434,7 @@ extension _ChartsExt on _UretimRaporuPageState {
     // Aylık bazda tamamlanan ve oluşturulan model sayılarını hesapla
     final aylikOlusturulan = <String, int>{};
     final aylikTamamlanan = <String, int>{};
-    
+
     for (var model in _tumModeller) {
       if (model['created_at'] != null) {
         final tarih = DateTime.tryParse(model['created_at'].toString());
@@ -303,7 +451,7 @@ extension _ChartsExt on _UretimRaporuPageState {
         }
       }
     }
-    
+
     // Son 6 ayı al
     final simdi = DateTime.now();
     final aylar = <String>[];
@@ -313,7 +461,7 @@ extension _ChartsExt on _UretimRaporuPageState {
     }
 
     if (aylar.isEmpty) {
-      return const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Trend verisi yok'))));
+      return _buildGrafikBosDurum('Trend verisi yok');
     }
 
     final olusturulanSpots = <FlSpot>[];
@@ -329,8 +477,7 @@ extension _ChartsExt on _UretimRaporuPageState {
       if (ta > maxY) maxY = ta;
     }
 
-    return Card(
-      elevation: 2,
+    return _buildPanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -346,7 +493,9 @@ extension _ChartsExt on _UretimRaporuPageState {
                       color: Colors.blue,
                       barWidth: 3,
                       dotData: const FlDotData(show: true),
-                      belowBarData: BarAreaData(show: true, color: Colors.blue.withValues(alpha: 0.1)),
+                      belowBarData: BarAreaData(
+                          show: true,
+                          color: Colors.blue.withValues(alpha: 0.1)),
                     ),
                     LineChartBarData(
                       spots: tamamlananSpots,
@@ -354,13 +503,19 @@ extension _ChartsExt on _UretimRaporuPageState {
                       color: Colors.green,
                       barWidth: 3,
                       dotData: const FlDotData(show: true),
-                      belowBarData: BarAreaData(show: true, color: Colors.green.withValues(alpha: 0.1)),
+                      belowBarData: BarAreaData(
+                          show: true,
+                          color: Colors.green.withValues(alpha: 0.1)),
                     ),
                   ],
                   titlesData: FlTitlesData(
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: true, reservedSize: 28,
-                        getTitlesWidget: (value, meta) => Text(value.toInt().toString(), style: const TextStyle(fontSize: 10)),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        getTitlesWidget: (value, meta) => Text(
+                            value.toInt().toString(),
+                            style: const TextStyle(fontSize: 10)),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -373,7 +528,9 @@ extension _ChartsExt on _UretimRaporuPageState {
                             return Padding(
                               padding: const EdgeInsets.only(top: 6),
                               child: Text(
-                                ay != null ? DateFormat('MMM', 'tr').format(ay) : aylar[i],
+                                ay != null
+                                    ? DateFormat('MMM', 'tr').format(ay)
+                                    : aylar[i],
                                 style: const TextStyle(fontSize: 10),
                               ),
                             );
@@ -382,11 +539,14 @@ extension _ChartsExt on _UretimRaporuPageState {
                         },
                       ),
                     ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                   ),
                   maxY: maxY + 2,
-                  gridData: const FlGridData(show: true, drawVerticalLine: false),
+                  gridData:
+                      const FlGridData(show: true, drawVerticalLine: false),
                   borderData: FlBorderData(show: false),
                 ),
               ),
@@ -424,8 +584,7 @@ extension _ChartsExt on _UretimRaporuPageState {
     final zamaninda = (_ozet['zamaninda_teslim_orani'] as double?) ?? 100.0;
     final fireOrani = (_ozet['fire_orani'] as double?) ?? 0.0;
 
-    return Card(
-      elevation: 2,
+    return _buildPanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: isMobile
@@ -433,42 +592,62 @@ extension _ChartsExt on _UretimRaporuPageState {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _buildGaugeKart('Verimlilik', verimlilik, Colors.blue)),
+                      Expanded(
+                          child: _buildGaugeKart(
+                              'Verimlilik', verimlilik, Colors.blue)),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildGaugeKart('Tamamlanma', tamamlanma, Colors.green)),
+                      Expanded(
+                          child: _buildGaugeKart(
+                              'Tamamlanma', tamamlanma, Colors.green)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Expanded(child: _buildGaugeKart('Zamanında Teslim', zamaninda, Colors.orange)),
+                      Expanded(
+                          child: _buildGaugeKart(
+                              'Zamanında Teslim', zamaninda, Colors.orange)),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildGaugeKart('Fire Oranı', fireOrani, Colors.red, ters: true)),
+                      Expanded(
+                          child: _buildGaugeKart(
+                              'Fire Oranı', fireOrani, Colors.red,
+                              ters: true)),
                     ],
                   ),
                 ],
               )
             : Row(
                 children: [
-                  Expanded(child: _buildGaugeKart('Verimlilik', verimlilik, Colors.blue)),
+                  Expanded(
+                      child: _buildGaugeKart(
+                          'Verimlilik', verimlilik, Colors.blue)),
                   const SizedBox(width: 12),
-                  Expanded(child: _buildGaugeKart('Tamamlanma', tamamlanma, Colors.green)),
+                  Expanded(
+                      child: _buildGaugeKart(
+                          'Tamamlanma', tamamlanma, Colors.green)),
                   const SizedBox(width: 12),
-                  Expanded(child: _buildGaugeKart('Zamanında Teslim', zamaninda, Colors.orange)),
+                  Expanded(
+                      child: _buildGaugeKart(
+                          'Zamanında Teslim', zamaninda, Colors.orange)),
                   const SizedBox(width: 12),
-                  Expanded(child: _buildGaugeKart('Fire Oranı', fireOrani, Colors.red, ters: true)),
+                  Expanded(
+                      child: _buildGaugeKart(
+                          'Fire Oranı', fireOrani, Colors.red,
+                          ters: true)),
                 ],
               ),
       ),
     );
   }
 
-  Widget _buildGaugeKart(String label, double yuzde, Color renk, {bool ters = false}) {
+  Widget _buildGaugeKart(String label, double yuzde, Color renk,
+      {bool ters = false}) {
     final displayYuzde = yuzde.clamp(0.0, 100.0);
     final iyi = ters ? displayYuzde < 3 : displayYuzde > 80;
     final orta = ters ? displayYuzde < 5 : displayYuzde > 50;
-    final gostergeRenk = iyi ? Colors.green : (orta ? Colors.orange : Colors.red);
-    
+    final gostergeRenk =
+        iyi ? Colors.green : (orta ? Colors.orange : Colors.red);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -492,13 +671,18 @@ extension _ChartsExt on _UretimRaporuPageState {
                 ),
                 Text(
                   '%${displayYuzde.toStringAsFixed(1)}',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: gostergeRenk),
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: gostergeRenk),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center),
+          Text(label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center),
         ],
       ),
     );

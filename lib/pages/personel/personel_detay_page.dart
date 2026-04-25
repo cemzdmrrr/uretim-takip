@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/models/personel_model.dart';
 import 'package:uretim_takip/pages/muhasebe/izin_page.dart';
 import 'package:uretim_takip/pages/muhasebe/mesai_page.dart';
@@ -65,7 +67,21 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
 
   Future<void> _hazirla() async {
     currentUserRole = await getCurrentUserRole();
+    seciliDonem = await _aktifDonemiGetir();
     await _getPersonel();
+  }
+
+  Future<String?> _aktifDonemiGetir() async {
+    try {
+      final response = await Supabase.instance.client
+          .from(DbTables.donemler)
+          .select('donem_adi')
+          .eq('durum', 'aktif')
+          .maybeSingle();
+      return response?['donem_adi']?.toString();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _getPersonel() async {
@@ -202,7 +218,8 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Personeli Aktifleştir'),
-        content: Text('${kayit.tamAd} tekrar aktif personel olarak açılsın mı?'),
+        content:
+            Text('${kayit.tamAd} tekrar aktif personel olarak açılsın mı?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -242,7 +259,8 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${kayit.tamAd} kaydı ve uygun ise auth hesabı kalıcı olarak silinecek.'),
+            Text(
+                '${kayit.tamAd} kaydı ve uygun ise auth hesabı kalıcı olarak silinecek.'),
             const SizedBox(height: 12),
             Text(
               'Devam etmek için TCKN yazın: ${kayit.tckn}',
@@ -375,6 +393,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                               key: ValueKey('odeme_${seciliDonem ?? 'all'}'),
                               personelId: kayit.userId,
                               initialDonem: seciliDonem,
+                              embedded: true,
                             ),
                     ),
                     _buildTabShell(
@@ -385,6 +404,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                         personelId: kayit.userId,
                         personelAd: kayit.tamAd,
                         initialDonem: seciliDonem,
+                        embedded: true,
                       ),
                     ),
                     _buildTabShell(
@@ -395,22 +415,29 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                         personelId: kayit.userId,
                         personelAd: kayit.tamAd,
                         initialDonem: seciliDonem,
+                        embedded: true,
                       ),
                     ),
                     _buildTabShell(
                       title: 'Puantaj',
                       subtitle: 'Günlük çalışma ve devam bilgileri',
                       child: PuantajTabloPage(
+                        key: ValueKey('puantaj_${seciliDonem ?? 'all'}'),
                         personelId: kayit.userId,
                         personelAd: kayit.tamAd,
+                        initialDonem: seciliDonem,
+                        embedded: true,
                       ),
                     ),
                     _buildTabShell(
                       title: 'Arşiv',
                       subtitle: 'Geçmiş bordro, izin, ödeme ve hareket özeti',
                       child: PersonelArsivPage(
+                        key: ValueKey('arsiv_${seciliDonem ?? 'all'}'),
                         personelId: kayit.userId,
                         personelAd: kayit.tamAd,
+                        initialDonem: seciliDonem,
+                        embedded: true,
                       ),
                     ),
                   ],
@@ -431,7 +458,8 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
   Widget _buildHeader(PersonelModel kayit, bool isMobile) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(isMobile ? 14 : 20, 16, isMobile ? 14 : 20, 16),
+      padding:
+          EdgeInsets.fromLTRB(isMobile ? 14 : 20, 16, isMobile ? 14 : 20, 16),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFE5EAF3))),
@@ -493,10 +521,13 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             runSpacing: 12,
             children: [
               _metricTile(Icons.badge, 'TCKN', kayit.tckn),
-              _metricTile(Icons.event, 'İşe Başlangıç', _formatDate(kayit.iseBaslangic)),
-              _metricTile(Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
+              _metricTile(Icons.event, 'İşe Başlangıç',
+                  _formatDate(kayit.iseBaslangic)),
+              _metricTile(
+                  Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
               if (kayit.istenCikarildiMi)
-                _metricTile(Icons.warning, 'Çıkış Tarihi', _formatDate(kayit.istenCikisTarihi)),
+                _metricTile(Icons.warning, 'Çıkış Tarihi',
+                    _formatDate(kayit.istenCikisTarihi)),
             ],
           ),
           if (kayit.istenCikarildiMi && kayit.istenCikisNedeni.isNotEmpty) ...[
@@ -535,6 +566,8 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       child: TabBar(
         controller: _tabController,
         isScrollable: true,
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelPadding: EdgeInsets.zero,
         labelColor: Colors.white,
         unselectedLabelColor: const Color(0xFF475569),
         dividerColor: Colors.transparent,
@@ -545,13 +578,30 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
         tabs: _tabs
             .map(
               (item) => Tab(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(item.icon, size: 16),
-                    const SizedBox(width: 8),
-                    Text(item.label),
-                  ],
+                child: SizedBox(
+                  width: 136,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(item.icon, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             )
@@ -583,22 +633,32 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             children: [
               _infoRow(Icons.work, 'Pozisyon', kayit.pozisyon),
               _infoRow(Icons.business, 'Departman', kayit.departman),
-              _infoRow(Icons.event, 'İşe Başlangıç', _formatDate(kayit.iseBaslangic)),
-              _infoRow(Icons.access_time, 'Günlük Çalışma', _formatHour(kayit.gunlukCalismaSaati)),
-              _infoRow(Icons.calendar_today, 'Haftalık Gün', _formatDay(kayit.haftalikCalismaGunu)),
+              _infoRow(Icons.event, 'İşe Başlangıç',
+                  _formatDate(kayit.iseBaslangic)),
+              _infoRow(Icons.access_time, 'Günlük Çalışma',
+                  _formatHour(kayit.gunlukCalismaSaati)),
+              _infoRow(Icons.calendar_today, 'Haftalık Gün',
+                  _formatDay(kayit.haftalikCalismaGunu)),
             ],
           ),
           _buildInfoSection(
             title: 'Maaş ve Yan Haklar',
             width: isMobile ? double.infinity : 460,
             children: [
-              _infoRow(Icons.attach_money, 'Brüt Maaş', _formatMoney(kayit.brutMaas)),
-              _infoRow(Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
-              _infoRow(Icons.directions_bus, 'Yol Ücreti', _formatMoney(kayit.yolUcreti)),
-              _infoRow(Icons.restaurant, 'Yemek Ücreti', _formatMoney(kayit.yemekUcreti)),
-              _infoRow(Icons.star, 'Ekstra Prim', _formatMoney(kayit.ekstraPrim)),
-              _infoRow(Icons.account_balance, 'Banka Maaşı', _formatMoney(kayit.bankaMaas)),
-              _infoRow(Icons.attach_money, 'Elden Maaş', _formatMoney(kayit.eldenMaas)),
+              _infoRow(Icons.attach_money, 'Brüt Maaş',
+                  _formatMoney(kayit.brutMaas)),
+              _infoRow(
+                  Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
+              _infoRow(Icons.directions_bus, 'Yol Ücreti',
+                  _formatMoney(kayit.yolUcreti)),
+              _infoRow(Icons.restaurant, 'Yemek Ücreti',
+                  _formatMoney(kayit.yemekUcreti)),
+              _infoRow(
+                  Icons.star, 'Ekstra Prim', _formatMoney(kayit.ekstraPrim)),
+              _infoRow(Icons.account_balance, 'Banka Maaşı',
+                  _formatMoney(kayit.bankaMaas)),
+              _infoRow(Icons.attach_money, 'Elden Maaş',
+                  _formatMoney(kayit.eldenMaas)),
             ],
           ),
           _buildInfoSection(
@@ -606,10 +666,12 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             width: isMobile ? double.infinity : 460,
             children: [
               _infoRow(Icons.info, 'SGK Sicil No', kayit.sgkSicilNo),
-              _infoRow(Icons.beach_access, 'Yıllık İzin', '${kayit.yillikIzinHakki} gün'),
+              _infoRow(Icons.beach_access, 'Yıllık İzin',
+                  '${kayit.yillikIzinHakki} gün'),
               _infoRow(Icons.list, 'Durum', _durumText(kayit)),
               if (kayit.istenCikarildiMi)
-                _infoRow(Icons.event_busy, 'Çıkış Tarihi', _formatDate(kayit.istenCikisTarihi)),
+                _infoRow(Icons.event_busy, 'Çıkış Tarihi',
+                    _formatDate(kayit.istenCikisTarihi)),
             ],
           ),
         ],

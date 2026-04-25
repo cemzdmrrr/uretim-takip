@@ -123,60 +123,59 @@ extension _TabsRaporExt on _UretimRaporuPageState {
         final visibleModels = _modeller.take(limit).toList();
         final tableMode = constraints.maxWidth >= 920;
 
-        return NotificationListener<ScrollNotification>(
-          onNotification: (notification) {
-            if (notification is ScrollEndNotification &&
-                notification.metrics.extentAfter < 200 &&
-                _gorunenModelSayisi < _modeller.length) {
-              setState(() {
-                _gorunenModelSayisi = (_gorunenModelSayisi +
-                        _UretimRaporuPageState._sayfaBasinaModel)
-                    .clamp(0, _modeller.length);
-              });
-            }
-            return false;
-          },
-          child: tableMode
-              ? _buildModelTablosu(visibleModels)
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
-                  itemCount: visibleModels.length +
-                      (_gorunenModelSayisi < _modeller.length ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index >= visibleModels.length) {
-                      return const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    return _buildModelKart(visibleModels[index]);
-                  },
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            tableMode ? 16 : 10,
+            8,
+            tableMode ? 16 : 10,
+            20,
+          ),
+          child: Column(
+            children: [
+              tableMode
+                  ? _buildModelTablosu(visibleModels)
+                  : Column(
+                      children: [
+                        for (final model in visibleModels)
+                          _buildModelKart(model),
+                      ],
+                    ),
+              if (_gorunenModelSayisi < _modeller.length) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.center,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _gorunenModelSayisi = (_gorunenModelSayisi +
+                                _UretimRaporuPageState._sayfaBasinaModel)
+                            .clamp(0, _modeller.length);
+                      });
+                    },
+                    icon: const Icon(Icons.expand_more),
+                    label: Text(
+                      'Daha fazla göster (${_modeller.length - _gorunenModelSayisi})',
+                    ),
+                  ),
                 ),
+              ],
+            ],
+          ),
         );
       },
     );
   }
 
   Widget _buildModelTablosu(List<Map<String, dynamic>> modeller) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-      children: [
-        _buildPanel(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              _buildModelTableHeader(),
-              const Divider(height: 1, color: Color(0xFFE2E8F0)),
-              ...modeller.map(_buildModelTableRow),
-              if (_gorunenModelSayisi < _modeller.length)
-                const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-            ],
-          ),
-        ),
-      ],
+    return _buildPanel(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          _buildModelTableHeader(),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          ...modeller.map(_buildModelTableRow),
+        ],
+      ),
     );
   }
 
@@ -260,8 +259,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
             ),
             const SizedBox(
               width: 40,
-              child:
-                  Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+              child: Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
             ),
           ],
         ),
@@ -450,7 +448,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       {
         'key': 'konfeksiyon',
         'label': 'Konfeksiyon',
-        'icon': Icons.checkroom,
+        'icon': Icons.style,
         'color': Colors.orange
       },
       {
@@ -462,7 +460,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       {
         'key': 'utu',
         'label': 'Ütü',
-        'icon': Icons.iron,
+        'icon': Icons.check_circle,
         'color': Colors.purple
       },
       {
@@ -480,7 +478,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       {
         'key': 'paketleme',
         'label': 'Paketleme',
-        'icon': Icons.inventory_2,
+        'icon': Icons.inventory,
         'color': Colors.green
       },
     ];
@@ -593,7 +591,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       'nakis': {'label': 'Nakış', 'icon': Icons.brush, 'color': Colors.pink},
       'konfeksiyon': {
         'label': 'Konfeksiyon',
-        'icon': Icons.checkroom,
+        'icon': Icons.style,
         'color': Colors.orange
       },
       'yikama': {
@@ -601,7 +599,11 @@ extension _TabsRaporExt on _UretimRaporuPageState {
         'icon': Icons.local_laundry_service,
         'color': Colors.blue
       },
-      'utu': {'label': 'Ütü', 'icon': Icons.iron, 'color': Colors.purple},
+      'utu': {
+        'label': 'Ütü',
+        'icon': Icons.check_circle,
+        'color': Colors.purple
+      },
       'ilik_dugme': {
         'label': 'İlik Düğme',
         'icon': Icons.radio_button_checked,
@@ -614,7 +616,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       },
       'paketleme': {
         'label': 'Paketleme',
-        'icon': Icons.inventory_2,
+        'icon': Icons.inventory,
         'color': Colors.green
       },
     };
@@ -633,7 +635,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
             children: [
               _buildSectionHeader(
                 'Aşama Bazlı Fire Analizi',
-                Icons.local_fire_department_rounded,
+                Icons.whatshot,
                 const Color(0xFFD32F2F),
               ),
               const SizedBox(height: 16),
@@ -660,8 +662,8 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                         'color': Colors.grey
                       };
 
-                  return Card(
-                    elevation: 3,
+                  return _buildPanel(
+                    padding: EdgeInsets.zero,
                     child: Container(
                       padding: EdgeInsets.all(isMobile ? 12 : 16),
                       decoration: BoxDecoration(
@@ -772,15 +774,15 @@ extension _TabsRaporExt on _UretimRaporuPageState {
     final ilk10 = fireliModeller.take(10).toList();
 
     if (ilk10.isEmpty) {
-      return const Card(
-        child: Padding(
+      return _buildPanel(
+        child: const Padding(
           padding: EdgeInsets.all(16),
           child: Text('Henüz fire kaydı bulunmamaktadır.'),
         ),
       );
     }
 
-    return Card(
+    return _buildPanel(
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -918,7 +920,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
               if (gecikenler.isNotEmpty) ...[
                 _buildSectionHeader(
                   'Geciken Siparişler',
-                  Icons.warning_amber_rounded,
+                  Icons.warning_amber,
                   Colors.red,
                 ),
                 const SizedBox(height: 12),
@@ -930,7 +932,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
               if (yaklasanlar.isNotEmpty) ...[
                 _buildSectionHeader(
                   '7 Gün İçinde Bitmesi Gereken',
-                  Icons.schedule_rounded,
+                  Icons.schedule,
                   Colors.orange,
                 ),
                 const SizedBox(height: 12),
@@ -942,7 +944,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
               if (normal.isNotEmpty) ...[
                 _buildSectionHeader(
                   'Diğer Siparişler',
-                  Icons.check_circle_outline_rounded,
+                  Icons.check_circle_outline,
                   Colors.green,
                 ),
                 const SizedBox(height: 12),
@@ -966,8 +968,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
 
   Widget _buildTerminOzetKart(
       String baslik, int sayi, Color renk, IconData icon) {
-    return Card(
-      elevation: 3,
+    return _buildPanel(
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -993,7 +994,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
   Widget _buildTerminListesi(List<Map<String, dynamic>> modeller, Color renk) {
     final now = DateTime.now();
 
-    return Card(
+    return _buildPanel(
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -1098,7 +1099,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
         children: [
           _buildSectionHeader(
             'Tedarikçi Performans Özeti',
-            Icons.business_rounded,
+            Icons.business,
             const Color(0xFF1565C0),
           ),
           const SizedBox(height: 16),
@@ -1124,195 +1125,201 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                 )
                 .toList();
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              elevation: 3,
-              child: ExpansionTile(
-                leading: CircleAvatar(
-                  backgroundColor:
-                      geciken > 0 ? Colors.red.shade100 : Colors.green.shade100,
-                  child: Icon(
-                    Icons.business,
-                    color: geciken > 0 ? Colors.red : Colors.green,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildPanel(
+                padding: EdgeInsets.zero,
+                child: ExpansionTile(
+                  leading: CircleAvatar(
+                    backgroundColor: geciken > 0
+                        ? Colors.red.shade100
+                        : Colors.green.shade100,
+                    child: Icon(
+                      Icons.business,
+                      color: geciken > 0 ? Colors.red : Colors.green,
+                    ),
                   ),
-                ),
-                title: Text(ad,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
+                  title: Text(ad,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        _buildTedarikciChip('$toplamModel model', Colors.blue),
+                        _buildTedarikciChip('$toplamAdet adet', Colors.purple),
+                        _buildTedarikciChip(
+                            '$tamamlanan tamamlandı', Colors.green),
+                        if (geciken > 0)
+                          _buildTedarikciChip('$geciken geciken', Colors.red),
+                      ],
+                    ),
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildTedarikciChip('$toplamModel model', Colors.blue),
-                      _buildTedarikciChip('$toplamAdet adet', Colors.purple),
-                      _buildTedarikciChip(
-                          '$tamamlanan tamamlandı', Colors.green),
-                      if (geciken > 0)
-                        _buildTedarikciChip('$geciken geciken', Colors.red),
+                      Text(
+                        performansPuani.toStringAsFixed(0),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: performansPuani >= 80
+                              ? Colors.green
+                              : (performansPuani >= 60
+                                  ? Colors.orange
+                                  : Colors.red),
+                        ),
+                      ),
+                      const Text('puan',
+                          style: TextStyle(fontSize: 9, color: Colors.grey)),
                     ],
                   ),
-                ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      performansPuani.toStringAsFixed(0),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: performansPuani >= 80
-                            ? Colors.green
-                            : (performansPuani >= 60
-                                ? Colors.orange
-                                : Colors.red),
-                      ),
-                    ),
-                    const Text('puan',
-                        style: TextStyle(fontSize: 9, color: Colors.grey)),
-                  ],
-                ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Fire oranı göstergesi
-                        // Performans puanı göstergesi
-                        Row(
-                          children: [
-                            const Text('Performans: ',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
-                            Expanded(
-                              child: LinearProgressIndicator(
-                                value: performansPuani / 100,
-                                backgroundColor: Colors.grey.shade200,
-                                valueColor: AlwaysStoppedAnimation(
-                                  performansPuani >= 80
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Fire oranı göstergesi
+                          // Performans puanı göstergesi
+                          Row(
+                            children: [
+                              const Text('Performans: ',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
+                              Expanded(
+                                child: LinearProgressIndicator(
+                                  value: performansPuani / 100,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    performansPuani >= 80
+                                        ? Colors.green
+                                        : (performansPuani >= 60
+                                            ? Colors.orange
+                                            : Colors.red),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${performansPuani.toStringAsFixed(0)}/100',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: performansPuani >= 80
                                       ? Colors.green
                                       : (performansPuani >= 60
                                           ? Colors.orange
                                           : Colors.red),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${performansPuani.toStringAsFixed(0)}/100',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: performansPuani >= 80
-                                    ? Colors.green
-                                    : (performansPuani >= 60
-                                        ? Colors.orange
-                                        : Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        // Tamamlanma oranı
-                        Row(
-                          children: [
-                            const Text('Tamamlanma: ',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
-                            Expanded(
-                              child: LinearProgressIndicator(
-                                value: tamamlanmaOrani / 100,
-                                backgroundColor: Colors.grey.shade200,
-                                valueColor:
-                                    const AlwaysStoppedAnimation(Colors.blue),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '%${tamamlanmaOrani.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        // Fire oranı
-                        Row(
-                          children: [
-                            const Text('Fire Oranı: ',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
-                            Expanded(
-                              child: LinearProgressIndicator(
-                                value: fireOrani / 100,
-                                backgroundColor: Colors.grey.shade200,
-                                valueColor: AlwaysStoppedAnimation(
-                                  fireOrani > 5
-                                      ? Colors.red
-                                      : (fireOrani > 2
-                                          ? Colors.orange
-                                          : Colors.green),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '%${fireOrani.toStringAsFixed(1)}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color:
-                                    fireOrani > 5 ? Colors.red : Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 24),
-                        // Modeller listesi
-                        if (tedarikciModelleri.isNotEmpty) ...[
-                          Text('Modeller (${tedarikciModelleri.length})',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                           const SizedBox(height: 8),
-                          ...tedarikciModelleri.take(5).map((model) {
-                            final mevcutAsama =
-                                _getAsamaBilgisi(model['mevcut_asama'] ?? '');
-                            return ListTile(
-                              dense: true,
-                              title: Text(
-                                  '${model['marka']} - ${model['item_no']}'),
-                              subtitle: Text(
-                                  'Renk: ${model['renk']} • ${model['adet']} adet'),
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: (mevcutAsama['color'] as Color)
-                                      .withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  mevcutAsama['label'] as String,
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      color: mevcutAsama['color'] as Color),
+                          // Tamamlanma oranı
+                          Row(
+                            children: [
+                              const Text('Tamamlanma: ',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
+                              Expanded(
+                                child: LinearProgressIndicator(
+                                  value: tamamlanmaOrani / 100,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation(Colors.blue),
                                 ),
                               ),
-                              onTap: () => _modelDetayaGit(model),
-                            );
-                          }),
-                          if (tedarikciModelleri.length > 5)
-                            Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Text(
-                                '... ve ${tedarikciModelleri.length - 5} model daha',
+                              const SizedBox(width: 8),
+                              Text(
+                                '%${tamamlanmaOrani.toStringAsFixed(0)}',
                                 style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontStyle: FontStyle.italic),
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue),
                               ),
-                            ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Fire oranı
+                          Row(
+                            children: [
+                              const Text('Fire Oranı: ',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
+                              Expanded(
+                                child: LinearProgressIndicator(
+                                  value: fireOrani / 100,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    fireOrani > 5
+                                        ? Colors.red
+                                        : (fireOrani > 2
+                                            ? Colors.orange
+                                            : Colors.green),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '%${fireOrani.toStringAsFixed(1)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color:
+                                      fireOrani > 5 ? Colors.red : Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                          // Modeller listesi
+                          if (tedarikciModelleri.isNotEmpty) ...[
+                            Text('Modeller (${tedarikciModelleri.length})',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            ...tedarikciModelleri.take(5).map((model) {
+                              final mevcutAsama =
+                                  _getAsamaBilgisi(model['mevcut_asama'] ?? '');
+                              return ListTile(
+                                dense: true,
+                                title: Text(
+                                    '${model['marka']} - ${model['item_no']}'),
+                                subtitle: Text(
+                                    'Renk: ${model['renk']} • ${model['adet']} adet'),
+                                trailing: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: (mevcutAsama['color'] as Color)
+                                        .withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    mevcutAsama['label'] as String,
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        color: mevcutAsama['color'] as Color),
+                                  ),
+                                ),
+                                onTap: () => _modelDetayaGit(model),
+                              );
+                            }),
+                            if (tedarikciModelleri.length > 5)
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Text(
+                                  '... ve ${tedarikciModelleri.length - 5} model daha',
+                                  style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontStyle: FontStyle.italic),
+                                ),
+                              ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           }),
@@ -1320,7 +1327,7 @@ extension _TabsRaporExt on _UretimRaporuPageState {
           const SizedBox(height: 24),
           _buildSectionHeader(
             'Marka Bazlı Dağılım',
-            Icons.bar_chart_rounded,
+            Icons.bar_chart,
             const Color(0xFF1565C0),
           ),
           const SizedBox(height: 12),
@@ -1357,15 +1364,15 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     if (sirali.isEmpty) {
-      return const Card(
-        child: Padding(
+      return _buildPanel(
+        child: const Padding(
           padding: EdgeInsets.all(16),
           child: Text('Henüz marka verisi bulunmamaktadır.'),
         ),
       );
     }
 
-    return Card(
+    return _buildPanel(
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),

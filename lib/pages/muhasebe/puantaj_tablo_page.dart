@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/services/personel_service.dart';
 import 'package:uretim_takip/services/izin_service.dart';
@@ -8,7 +8,15 @@ import 'package:uretim_takip/widgets/donem_secici.dart';
 class PuantajTabloPage extends StatefulWidget {
   final String? personelId;
   final String? personelAd;
-  const PuantajTabloPage({super.key, this.personelId, this.personelAd});
+  final String? initialDonem;
+  final bool embedded;
+  const PuantajTabloPage({
+    super.key,
+    this.personelId,
+    this.personelAd,
+    this.initialDonem,
+    this.embedded = false,
+  });
 
   @override
   State<PuantajTabloPage> createState() => _PuantajTabloPageState();
@@ -22,31 +30,51 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
   @override
   void initState() {
     super.initState();
+    seciliDonem = widget.initialDonem;
     debugPrint('PuantajTabloPage.initState: personelId=${widget.personelId}');
     _getPuantaj();
+  }
+
+  DateTime _raporTarihi() {
+    final donem = seciliDonem;
+    if (donem != null) {
+      final match = RegExp(r'^(\d{4})-(\d{2})').firstMatch(donem);
+      if (match != null) {
+        final yil = int.tryParse(match.group(1)!);
+        final ay = int.tryParse(match.group(2)!);
+        if (yil != null && ay != null) {
+          return DateTime(yil, ay, 1);
+        }
+      }
+    }
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, 1);
   }
 
   Future<void> _getPuantaj() async {
     setState(() => yukleniyor = true);
     if (widget.personelId == null) return;
-    
+
     // Personel bilgisi
-    final personel = await PersonelService().getPersonelById(widget.personelId!);
-    final gunlukSaat = double.tryParse(personel?.gunlukCalismaSaati ?? '8') ?? 8;
+    final personel =
+        await PersonelService().getPersonelById(widget.personelId!);
+    final gunlukSaat =
+        double.tryParse(personel?.gunlukCalismaSaati ?? '8') ?? 8;
     final ad = personel?.ad ?? '';
     final netMaas = double.tryParse(personel?.netMaas ?? '0') ?? 0;
-    
-    final now = DateTime.now();
+
+    final now = _raporTarihi();
     final ay = now.month;
     final yil = now.year;
     final daysInMonth = DateTime(yil, ay + 1, 0).day; // Ayın gerçek gün sayısı
-    
+
     // İzinler
-    final izinler = await IzinService().getIzinlerForPersonel(widget.personelId!, donem: seciliDonem);
+    final izinler = await IzinService()
+        .getIzinlerForPersonel(widget.personelId!, donem: seciliDonem);
     int izinliGun = 0;
     int devamsizlikGun = 0;
     int raporluGun = 0;
-    
+
     for (final izin in izinler) {
       if (izin.onayDurumu != 'onaylandi') continue;
       // Sadece bu ay içindeki izinleri hesapla
@@ -55,30 +83,33 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
           izinliGun += izin.gunSayisi;
         } else if (izin.izinTuru == 'Raporlu') {
           raporluGun += izin.gunSayisi;
-        } else if (izin.izinTuru == 'Ücretsiz İzin' || izin.izinTuru == 'Devamsızlık') {
+        } else if (izin.izinTuru == 'Ücretsiz İzin' ||
+            izin.izinTuru == 'Devamsızlık') {
           devamsizlikGun += izin.gunSayisi;
         }
       }
     }
-    
+
     // Mesailer
-    final mesailer = await MesaiService().getMesailerForPersonel(widget.personelId!, donem: seciliDonem);
+    final mesailer = await MesaiService()
+        .getMesailerForPersonel(widget.personelId!, donem: seciliDonem);
     double toplamFazlaMesai = 0;
     double toplamMesaiUcret = 0;
-    
+
     // Mesai ücreti hesaplamak için personel bilgilerine ihtiyaç var
-    final saatlikUcret = netMaas > 0 && gunlukSaat > 0 ? (netMaas / 30 / gunlukSaat) : 0;
-    
+    final saatlikUcret =
+        netMaas > 0 && gunlukSaat > 0 ? (netMaas / 30 / gunlukSaat) : 0;
+
     for (final m in mesailer) {
       if (m.onayDurumu != 'onaylandi') continue;
       // Sadece bu ay içindeki mesaileri hesapla
       if (m.tarih.month == ay && m.tarih.year == yil) {
         if (m.saat != null) {
           toplamFazlaMesai += m.saat!;
-          
+
           // Mesai ücretini hesapla - türe göre farklı hesaplama yöntemleri
           double hesaplananUcret = 0;
-          
+
           if (m.mesaiTuru == 'Pazar') {
             // Pazar mesaisi: Günlük net maaş x 2 (saat bazında değil, günlük sabit ücret)
             final gunlukNetMaas = netMaas / 30;
@@ -91,26 +122,29 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
             // Saatlik mesai: Saatlik ücret x 1.5 x saat
             hesaplananUcret = saatlikUcret * 1.5 * m.saat!;
           }
-          
-          final yemekUcreti = (m.mesaiTuru == 'Pazar' || m.mesaiTuru == 'Bayram') ? (m.yemekUcreti ?? 0) : 0;
+
+          final yemekUcreti =
+              (m.mesaiTuru == 'Pazar' || m.mesaiTuru == 'Bayram')
+                  ? (m.yemekUcreti ?? 0)
+                  : 0;
           toplamMesaiUcret += hesaplananUcret + yemekUcreti;
         }
       }
     }
-    
+
     toplamFazlaMesai = double.parse(toplamFazlaMesai.toStringAsFixed(2));
     toplamMesaiUcret = double.parse(toplamMesaiUcret.toStringAsFixed(2));
-    
+
     // Çalışılan gün hesaplama
     int calisilanGun = daysInMonth - izinliGun - devamsizlikGun - raporluGun;
     if (calisilanGun < 0) calisilanGun = 0;
-    
+
     final int aylikCalismaSaati = (calisilanGun * gunlukSaat).round();
-    
+
     // Günlük ücret hesaplama
     final gunlukUcret = netMaas / 30;
     final toplamUcretsizIzinKesinti = devamsizlikGun * gunlukUcret;
-    
+
     // Tabloya ekle
     puantajList = [
       {
@@ -132,6 +166,151 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
 
   @override
   Widget build(BuildContext context) {
+    final body = yukleniyor
+        ? const LoadingWidget()
+        : Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Colors.blue),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Dönem Seçin:',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DonemSecici(
+                        seciliDonem: seciliDonem,
+                        onDonemChanged: (donem) {
+                          setState(() => seciliDonem = donem);
+                          _getPuantaj();
+                        },
+                        showAll: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: puantajList.isEmpty
+                    ? const Center(child: Text('Puantaj verisi bulunamadı.'))
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                _buildInfoCard(
+                                  'Çalışılan Gün',
+                                  '${puantajList.first['calisilanGun']} gün',
+                                  Colors.blue,
+                                  Icons.work,
+                                ),
+                                _buildInfoCard(
+                                  'İzinli Gün',
+                                  '${puantajList.first['izinliGun']} gün',
+                                  Colors.green,
+                                  Icons.beach_access,
+                                ),
+                                _buildInfoCard(
+                                  'Raporlu Gün',
+                                  '${puantajList.first['raporluGun']} gün',
+                                  Colors.orange,
+                                  Icons.local_hospital,
+                                ),
+                                _buildInfoCard(
+                                  'Devamsızlık',
+                                  '${puantajList.first['devamsizlikGun']} gün',
+                                  Colors.red,
+                                  Icons.warning,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Mesai Bilgileri',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildDetailRow(
+                                      'Aylık Çalışma Saati',
+                                      '${puantajList.first['aylikCalismaSaati']} saat',
+                                    ),
+                                    _buildDetailRow(
+                                      'Fazla Mesai',
+                                      '${puantajList.first['fazlaMesai']} saat',
+                                    ),
+                                    _buildDetailRow(
+                                      'Mesai Ücreti',
+                                      '${puantajList.first['mesaiUcreti'].toStringAsFixed(2)} TL',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Ücret Bilgileri',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildDetailRow(
+                                      'Net Maaş',
+                                      '${puantajList.first['netMaas'].toStringAsFixed(2)} TL',
+                                    ),
+                                    _buildDetailRow(
+                                      'Günlük Ücret',
+                                      '${puantajList.first['gunlukUcret'].toStringAsFixed(2)} TL',
+                                    ),
+                                    _buildDetailRow(
+                                      'Ücretsiz İzin Kesinti',
+                                      '${puantajList.first['ucretsizIzinKesinti'].toStringAsFixed(2)} TL',
+                                      isNegative: puantajList
+                                              .first['ucretsizIzinKesinti'] >
+                                          0,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          );
+
+    if (widget.embedded) return body;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Puantaj Tablosu'),
@@ -144,135 +323,12 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
           ),
         ],
       ),
-      body: yukleniyor
-          ? const LoadingWidget()
-          : Column(
-              children: [
-                // Dönem seçici
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_today, color: Colors.blue),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Dönem Seçin:', 
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: DonemSecici(
-                          seciliDonem: seciliDonem,
-                          onDonemChanged: (donem) {
-                            setState(() {
-                              seciliDonem = donem;
-                            });
-                            _getPuantaj(); // Yeni döneme göre puantajı getir
-                          },
-                          showAll: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Ana içerik
-                Expanded(
-                  child: puantajList.isEmpty
-                      ? const Center(child: Text('Puantaj verisi bulunamadı.'))
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Özet kartları
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 12,
-                                children: [
-                                  _buildInfoCard(
-                                    'Çalışılan Gün',
-                                    '${puantajList.first['calisilanGun']} gün',
-                                    Colors.blue,
-                                    Icons.work,
-                                  ),
-                                  _buildInfoCard(
-                                    'İzinli Gün',
-                                    '${puantajList.first['izinliGun']} gün',
-                                    Colors.green,
-                                    Icons.beach_access,
-                                  ),
-                                  _buildInfoCard(
-                                    'Raporlu Gün',
-                                    '${puantajList.first['raporluGun']} gün',
-                                    Colors.orange,
-                                    Icons.local_hospital,
-                                  ),
-                                  _buildInfoCard(
-                                    'Devamsızlık',
-                                    '${puantajList.first['devamsizlikGun']} gün',
-                                    Colors.red,
-                                    Icons.warning,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-                              
-                              // Mesai bilgileri
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Mesai Bilgileri',
-                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _buildDetailRow('Aylık Çalışma Saati', '${puantajList.first['aylikCalismaSaati']} saat'),
-                                      _buildDetailRow('Fazla Mesai', '${puantajList.first['fazlaMesai']} saat'),
-                                      _buildDetailRow('Mesai Ücreti', '${puantajList.first['mesaiUcreti'].toStringAsFixed(2)} TL'),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                      
-                      // Ücret bilgileri
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Ücret Bilgileri',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildDetailRow('Net Maaş', '${puantajList.first['netMaas'].toStringAsFixed(2)} TL'),
-                              _buildDetailRow('Günlük Ücret', '${puantajList.first['gunlukUcret'].toStringAsFixed(2)} TL'),
-                              _buildDetailRow('Ücretsiz İzin Kesinti', '${puantajList.first['ucretsizIzinKesinti'].toStringAsFixed(2)} TL', 
-                                isNegative: puantajList.first['ucretsizIzinKesinti'] > 0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-      );
-    
+      body: body,
+    );
   }
 
-  Widget _buildInfoCard(String title, String value, Color color, IconData icon) {
+  Widget _buildInfoCard(
+      String title, String value, Color color, IconData icon) {
     return Container(
       width: 150,
       padding: const EdgeInsets.all(16),
@@ -309,7 +365,8 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isNegative = false}) {
+  Widget _buildDetailRow(String label, String value,
+      {bool isNegative = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(

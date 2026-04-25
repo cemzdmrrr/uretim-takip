@@ -215,7 +215,7 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
         return {
           'label': 'Konfeksiyon',
           'color': Colors.orange,
-          'icon': Icons.checkroom
+          'icon': Icons.style
         };
       case 'yikama':
         return {
@@ -224,7 +224,11 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
           'icon': Icons.local_laundry_service
         };
       case 'utu':
-        return {'label': 'Ütü', 'color': Colors.purple, 'icon': Icons.iron};
+        return {
+          'label': 'Ütü',
+          'color': Colors.purple,
+          'icon': Icons.check_circle
+        };
       case 'ilik_dugme':
         return {
           'label': 'İlik Düğme',
@@ -241,7 +245,7 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
         return {
           'label': 'Paketleme',
           'color': Colors.green,
-          'icon': Icons.inventory_2
+          'icon': Icons.inventory
         };
       case 'tamamlandi':
         return {
@@ -385,12 +389,16 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
       controller: _tabController,
       children: [
         _buildKpiDashboard(),
-        Column(
-          children: [
-            _buildFiltreler(),
-            _buildOzetKartlari(),
-            Expanded(child: _buildModelListesi()),
-          ],
+        SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              _buildFiltreler(),
+              _buildOzetKartlari(),
+              _buildModelListesi(),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
         _buildGrafiklerTab(),
         _buildFireAnaliziTab(),
@@ -424,7 +432,7 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
                     message: 'Geri',
                     child: IconButton(
                       onPressed: () => Navigator.maybePop(context),
-                      icon: const Icon(Icons.arrow_back_rounded),
+                      icon: const Icon(Icons.arrow_back),
                       color: const Color(0xFF334155),
                     ),
                   ),
@@ -435,7 +443,7 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
                       color: const Color(0xFF1565C0).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.assessment_rounded,
+                    child: const Icon(Icons.assessment,
                         color: Color(0xFF1565C0), size: 23),
                   ),
                   const SizedBox(width: 12),
@@ -457,12 +465,12 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
                           spacing: 8,
                           runSpacing: 6,
                           children: [
-                            _buildInfoPill(Icons.inventory_2_rounded,
+                            _buildInfoPill(Icons.inventory,
                                 '$toplamModel model', const Color(0xFF1565C0)),
-                            _buildInfoPill(Icons.numbers_rounded,
+                            _buildInfoPill(Icons.confirmation_number,
                                 '$toplamAdet adet', const Color(0xFF0F766E)),
                             _buildInfoPill(
-                              Icons.warning_amber_rounded,
+                              Icons.warning_amber,
                               '$geciken geciken',
                               geciken == 0
                                   ? const Color(0xFF2E7D32)
@@ -482,17 +490,17 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
                 alignment: narrow ? WrapAlignment.start : WrapAlignment.end,
                 children: [
                   _buildToolbarButton(
-                    icon: Icons.compare_arrows_rounded,
+                    icon: Icons.compare_arrows,
                     label: 'Karşılaştır',
                     onPressed: _modelKarsilastirmaDialogu,
                   ),
                   _buildToolbarButton(
-                    icon: Icons.picture_as_pdf_rounded,
+                    icon: Icons.picture_as_pdf,
                     label: 'PDF',
                     onPressed: _exportPdf,
                   ),
                   _buildToolbarButton(
-                    icon: Icons.file_download_rounded,
+                    icon: Icons.file_download,
                     label: 'Excel',
                     onPressed: _exportExcel,
                     filled: true,
@@ -501,7 +509,7 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
                     message: 'Yenile',
                     child: IconButton.filledTonal(
                       onPressed: _verileriYukle,
-                      icon: const Icon(Icons.refresh_rounded),
+                      icon: const Icon(Icons.refresh),
                     ),
                   ),
                 ],
@@ -584,14 +592,12 @@ class _UretimRaporuPageState extends State<UretimRaporuPage>
             unselectedLabelColor: const Color(0xFF64748B),
             labelStyle: const TextStyle(fontWeight: FontWeight.w800),
             tabs: const [
-              Tab(icon: Icon(Icons.dashboard_rounded), text: 'Özet'),
-              Tab(icon: Icon(Icons.list_alt_rounded), text: 'Modeller'),
-              Tab(icon: Icon(Icons.bar_chart_rounded), text: 'Grafikler'),
-              Tab(
-                  icon: Icon(Icons.local_fire_department_rounded),
-                  text: 'Fire'),
-              Tab(icon: Icon(Icons.schedule_rounded), text: 'Termin'),
-              Tab(icon: Icon(Icons.business_rounded), text: 'Tedarikçi'),
+              Tab(icon: Icon(Icons.dashboard), text: 'Özet'),
+              Tab(icon: Icon(Icons.list), text: 'Modeller'),
+              Tab(icon: Icon(Icons.bar_chart), text: 'Grafikler'),
+              Tab(icon: Icon(Icons.whatshot), text: 'Fire'),
+              Tab(icon: Icon(Icons.schedule), text: 'Termin'),
+              Tab(icon: Icon(Icons.business), text: 'Tedarikçi'),
             ],
           ),
         ),

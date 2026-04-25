@@ -295,7 +295,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 child: Icon(icon, color: color, size: 19),
               ),
               const Spacer(),
-              Icon(Icons.trending_flat_rounded,
+              Icon(Icons.trending_flat,
                   color: color.withValues(alpha: 0.45), size: 18),
             ],
           ),
@@ -369,7 +369,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded,
+              Icon(Icons.arrow_forward_ios,
                   color: color.withValues(alpha: 0.75), size: 14),
             ],
           ),
@@ -478,7 +478,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 ),
               ),
               const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded,
+              Icon(Icons.chevron_right,
                   color: color.withValues(alpha: 0.65), size: 20),
             ],
           ),
@@ -530,8 +530,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 color: Colors.white.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.precision_manufacturing_rounded,
-                  color: Colors.white, size: 22),
+              child: const Icon(Icons.build, color: Colors.white, size: 22),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -567,8 +566,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         actions: [
           if (tenant.cokluFirma)
             IconButton(
-              icon: const Icon(Icons.swap_horiz_rounded,
-                  color: Colors.white, size: 22),
+              icon: const Icon(Icons.swap_horiz, color: Colors.white, size: 22),
               tooltip: 'Firma Değiştir',
               onPressed: () {
                 Navigator.push(
@@ -579,8 +577,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
             ),
           const BildirimPopup(),
           IconButton(
-            icon:
-                const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
+            icon: const Icon(Icons.logout, color: Colors.white, size: 22),
             tooltip: 'Çıkış Yap',
             onPressed: cikisYap,
           ),
@@ -674,17 +671,17 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 runSpacing: 8,
                 children: [
                   _buildInfoChip(
-                    Icons.business_rounded,
+                    Icons.business,
                     firmaAdi.isNotEmpty ? firmaAdi : 'Firma seçili değil',
                     const Color(0xFF1565C0),
                   ),
                   _buildInfoChip(
-                    Icons.verified_user_rounded,
+                    Icons.verified_user,
                     kullaniciRolu,
                     const Color(0xFF2E7D32),
                   ),
                   _buildInfoChip(
-                    Icons.apps_rounded,
+                    Icons.apps,
                     '$modulSayisi sayfa',
                     const Color(0xFF5C6BC0),
                   ),
@@ -703,7 +700,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
             child: Row(
               mainAxisSize: narrow ? MainAxisSize.max : MainAxisSize.min,
               children: [
-                const Icon(Icons.account_circle_rounded,
+                const Icon(Icons.account_circle,
                     color: Color(0xFF64748B), size: 22),
                 const SizedBox(width: 8),
                 Flexible(
@@ -788,7 +785,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         children: [
           _buildPanelHeader(
             'Üretim Özeti',
-            Icons.query_stats_rounded,
+            Icons.insert_chart,
             const Color(0xFF1565C0),
           ),
           const SizedBox(height: 14),
@@ -803,14 +800,14 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 _buildStatCard(
                     'Toplam Model',
                     '${_dashboardStats['toplam_model']}',
-                    Icons.layers_rounded,
+                    Icons.layers,
                     const Color(0xFF1565C0)),
                 _buildStatCard('Devam Eden', '${_dashboardStats['devam_eden']}',
-                    Icons.autorenew_rounded, const Color(0xFFF57C00)),
+                    Icons.autorenew, const Color(0xFFF57C00)),
                 _buildStatCard('Tamamlanan', '${_dashboardStats['tamamlanan']}',
-                    Icons.check_circle_rounded, const Color(0xFF2E7D32)),
+                    Icons.check_circle, const Color(0xFF2E7D32)),
                 _buildStatCard('Geciken', '${_dashboardStats['geciken']}',
-                    Icons.warning_amber_rounded, const Color(0xFFD32F2F)),
+                    Icons.warning_amber, const Color(0xFFD32F2F)),
               ];
 
               return GridView.builder(
@@ -845,7 +842,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         children: [
           _buildPanelHeader(
             'Bugün İzlenecekler',
-            Icons.fact_check_rounded,
+            Icons.assignment_turned_in,
             const Color(0xFF0F766E),
           ),
           const SizedBox(height: 14),
@@ -854,7 +851,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
               final narrow = constraints.maxWidth < 760;
               final items = [
                 _buildFocusItem(
-                  Icons.priority_high_rounded,
+                  Icons.priority_high,
                   'Geciken',
                   geciken == 0 ? 'Yok' : '$geciken model',
                   geciken == 0
@@ -862,13 +859,13 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                       : const Color(0xFFD32F2F),
                 ),
                 _buildFocusItem(
-                  Icons.sync_rounded,
+                  Icons.sync,
                   'Devam Eden',
                   '$devamEden model',
                   const Color(0xFFF57C00),
                 ),
                 _buildFocusItem(
-                  Icons.percent_rounded,
+                  Icons.pie_chart,
                   'Tamamlanma',
                   '%$oran',
                   const Color(0xFF1565C0),
@@ -962,7 +959,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     if (_sayfaErisimVar('uretim_raporu')) {
       actions.add(_buildQuickAction(
         'Üretim Raporu',
-        Icons.assessment_rounded,
+        Icons.assessment,
         const Color(0xFF00695C),
         () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const UretimRaporuPage())),
@@ -971,7 +968,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     if (_sayfaErisimVar('yeni_model_ekle')) {
       actions.add(_buildQuickAction(
         'Yeni Model Ekle',
-        Icons.add_box_rounded,
+        Icons.add_box,
         const Color(0xFF2E7D32),
         () => Navigator.push(
             context, MaterialPageRoute(builder: (_) => const ModelEkle())),
@@ -980,7 +977,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     if (_sayfaErisimVar('kayitli_modeller')) {
       actions.add(_buildQuickAction(
         'Kayıtlı Modeller',
-        Icons.inventory_2_rounded,
+        Icons.inventory,
         const Color(0xFF1565C0),
         () => Navigator.push(
             context, MaterialPageRoute(builder: (_) => const ModelListele())),
@@ -994,7 +991,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         children: [
           _buildPanelHeader(
             'Hızlı İşlemler',
-            Icons.flash_on_rounded,
+            Icons.flash_on,
             const Color(0xFF5C6BC0),
           ),
           const SizedBox(height: 14),
@@ -1031,8 +1028,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         padding: EdgeInsets.symmetric(vertical: 28),
         child: Column(
           children: [
-            Icon(Icons.lock_outline_rounded,
-                color: Color(0xFF94A3B8), size: 42),
+            Icon(Icons.lock_outline, color: Color(0xFF94A3B8), size: 42),
             SizedBox(height: 10),
             Text(
               'Görüntülenebilir sayfa bulunamadı',
@@ -1080,47 +1076,32 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   Map<String, dynamic> _categoryMeta(String key) {
     switch (key) {
       case 'Üretim Panelleri':
-        return {
-          'color': const Color(0xFF1976D2),
-          'icon': Icons.dashboard_rounded
-        };
+        return {'color': const Color(0xFF1976D2), 'icon': Icons.dashboard};
       case 'Üretim & Stok':
-        return {
-          'color': const Color(0xFF2E7D32),
-          'icon': Icons.precision_manufacturing_rounded
-        };
+        return {'color': const Color(0xFF2E7D32), 'icon': Icons.build};
       case 'Raporlar & Analiz':
-        return {
-          'color': const Color(0xFF00695C),
-          'icon': Icons.analytics_rounded
-        };
+        return {'color': const Color(0xFF00695C), 'icon': Icons.analytics};
       case 'Finansal Yönetim':
         return {
           'color': const Color(0xFF1565C0),
-          'icon': Icons.account_balance_rounded
+          'icon': Icons.account_balance
         };
       case 'İnsan Kaynakları':
-        return {'color': const Color(0xFF7B1FA2), 'icon': Icons.people_rounded};
+        return {'color': const Color(0xFF7B1FA2), 'icon': Icons.people};
       case 'Kullanıcı & Yetki':
-        return {
-          'color': const Color(0xFF5C6BC0),
-          'icon': Icons.security_rounded
-        };
+        return {'color': const Color(0xFF5C6BC0), 'icon': Icons.security};
       case 'Abonelik & Plan':
         return {
           'color': const Color(0xFF00838F),
-          'icon': Icons.card_membership_rounded
+          'icon': Icons.card_membership
         };
       case 'Platform Yönetimi':
         return {
           'color': const Color(0xFF1A237E),
-          'icon': Icons.admin_panel_settings_rounded
+          'icon': Icons.admin_panel_settings
         };
       default:
-        return {
-          'color': const Color(0xFF455A64),
-          'icon': Icons.dashboard_rounded
-        };
+        return {'color': const Color(0xFF455A64), 'icon': Icons.dashboard};
     }
   }
 
@@ -1151,7 +1132,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('genel_uretim')) {
         paneller.add({
           'text': 'Genel Üretim',
-          'icon': Icons.dashboard_customize_rounded,
+          'icon': Icons.dashboard,
           'color': c,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const GenelUretimDashboard()))
@@ -1160,7 +1141,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('dokuma')) {
         paneller.add({
           'text': 'Dokuma',
-          'icon': Icons.design_services,
+          'icon': Icons.build,
           'color': c,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const DokumaDashboard()))
@@ -1169,7 +1150,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('konfeksiyon')) {
         paneller.add({
           'text': 'Konfeksiyon',
-          'icon': Icons.checkroom,
+          'icon': Icons.style,
           'color': c,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const KonfeksiyonDashboard()))
@@ -1187,7 +1168,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('utu_paket')) {
         paneller.add({
           'text': 'Ütü Paket',
-          'icon': Icons.inventory_2,
+          'icon': Icons.inventory,
           'color': c,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const UtuPaketDashboard()))
@@ -1230,7 +1211,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('yeni_model_ekle')) {
         uretimStok.add({
           'text': 'Yeni Model Ekle',
-          'icon': Icons.add_box_rounded,
+          'icon': Icons.add_box,
           'color': usc,
           'onPressed': () => Navigator.push(
               context, MaterialPageRoute(builder: (_) => const ModelEkle()))
@@ -1239,7 +1220,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('toplu_model_ekle')) {
         uretimStok.add({
           'text': 'Toplu Model Ekle',
-          'icon': Icons.upload_file_rounded,
+          'icon': Icons.file_upload,
           'color': usc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const TopluModelEkle()))
@@ -1250,7 +1231,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('kayitli_modeller')) {
         uretimStok.add({
           'text': 'Kayıtlı Modeller',
-          'icon': Icons.inventory_2_rounded,
+          'icon': Icons.inventory,
           'color': usc,
           'onPressed': () => Navigator.push(
               context, MaterialPageRoute(builder: (_) => const ModelListele()))
@@ -1259,7 +1240,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('tamamlanan_siparisler')) {
         uretimStok.add({
           'text': 'Tamamlanan Siparişler',
-          'icon': Icons.check_circle_rounded,
+          'icon': Icons.check_circle,
           'color': usc,
           'onPressed': () => Navigator.push(
               context,
@@ -1272,7 +1253,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('depo_yonetimi')) {
         uretimStok.add({
           'text': 'Depo Yönetimi',
-          'icon': Icons.warehouse_rounded,
+          'icon': Icons.store,
           'color': usc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const StokYonetimiPage()))
@@ -1288,7 +1269,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (uretimAktif && _sayfaErisimVar('uretim_raporu')) {
         raporlar.add({
           'text': 'Üretim Raporu',
-          'icon': Icons.assessment_rounded,
+          'icon': Icons.assessment,
           'color': rc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const UretimRaporuPage()))
@@ -1297,7 +1278,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('gelismis_raporlar')) {
         raporlar.add({
           'text': 'Gelişmiş Raporlar',
-          'icon': Icons.analytics_rounded,
+          'icon': Icons.analytics,
           'color': rc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const GelismisRaporlarPage()))
@@ -1313,7 +1294,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (tedarikAktif && _sayfaErisimVar('tedarikci_yonetimi')) {
         finansItems.add({
           'text': 'Tedarikçi Yönetimi',
-          'icon': Icons.business_rounded,
+          'icon': Icons.business,
           'color': fc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const TedarikciListesiPage()))
@@ -1323,7 +1304,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         if (_sayfaErisimVar('faturalar')) {
           finansItems.add({
             'text': 'Faturalar',
-            'icon': Icons.receipt_long_rounded,
+            'icon': Icons.receipt_long,
             'color': fc,
             'onPressed': () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const FaturaListesiPage()))
@@ -1332,7 +1313,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         if (_sayfaErisimVar('kasa_banka')) {
           finansItems.add({
             'text': 'Kasa & Banka',
-            'icon': Icons.account_balance_wallet_rounded,
+            'icon': Icons.account_balance_wallet,
             'color': fc,
             'onPressed': () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const KasaBankaListesiPage()))
@@ -1341,7 +1322,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         if (_sayfaErisimVar('kasa_banka_hareketleri')) {
           finansItems.add({
             'text': 'Kasa/Banka Hareketleri',
-            'icon': Icons.swap_horiz_rounded,
+            'icon': Icons.swap_horiz,
             'color': fc,
             'onPressed': () => Navigator.push(
                 context,
@@ -1353,7 +1334,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('dosya_yonetimi')) {
         finansItems.add({
           'text': 'Dosya Yönetimi',
-          'icon': Icons.folder_rounded,
+          'icon': Icons.folder,
           'color': fc,
           'onPressed': () => Navigator.push(
               context, MaterialPageRoute(builder: (_) => const DosyalarPage()))
@@ -1369,7 +1350,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('personel_yonetimi')) {
         ikItems.add({
           'text': 'Personel Yönetimi',
-          'icon': Icons.badge_rounded,
+          'icon': Icons.perm_identity,
           'color': ic,
           'onPressed': () => Navigator.push(
               context,
@@ -1381,7 +1362,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('kullanici_listesi')) {
         ikItems.add({
           'text': 'Kullanıcı Listesi',
-          'icon': Icons.supervisor_account_rounded,
+          'icon': Icons.supervisor_account,
           'color': ic,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const KullaniciListesiPage()))
@@ -1397,7 +1378,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('firma_kullanicilari')) {
         yetkiItems.add({
           'text': 'Firma Kullanıcıları',
-          'icon': Icons.people_alt_rounded,
+          'icon': Icons.people_alt,
           'color': yc,
           'onPressed': () => Navigator.push(
               context,
@@ -1408,7 +1389,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('rol_yetki_yonetimi')) {
         yetkiItems.add({
           'text': 'Rol & Yetki Yönetimi',
-          'icon': Icons.security_rounded,
+          'icon': Icons.security,
           'color': yc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))
@@ -1418,7 +1399,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
           _sayfaErisimVar('rol_sayfa_yetkileri')) {
         yetkiItems.add({
           'text': 'Kullanıcı Yetkileri',
-          'icon': Icons.lock_open_rounded,
+          'icon': Icons.lock_open,
           'color': yc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))
@@ -1434,7 +1415,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('abonelik_yonetimi')) {
         abonelikItems.add({
           'text': 'Abonelik Yönetimi',
-          'icon': Icons.card_membership_rounded,
+          'icon': Icons.card_membership,
           'color': ac,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const AbonelikYonetimiPage()))
@@ -1443,7 +1424,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('plan_degistir')) {
         abonelikItems.add({
           'text': 'Plan Değiştir',
-          'icon': Icons.swap_vert_circle_rounded,
+          'icon': Icons.swap_vert,
           'color': ac,
           'onPressed': () => Navigator.push(
               context, MaterialPageRoute(builder: (_) => const PlanSecimPage()))
@@ -1461,7 +1442,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('platform_paneli')) {
         platformItems.add({
           'text': 'Platform Paneli',
-          'icon': Icons.admin_panel_settings_rounded,
+          'icon': Icons.admin_panel_settings,
           'color': pc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const PlatformDashboard()))
@@ -1470,7 +1451,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       if (_sayfaErisimVar('migrasyon_durumu')) {
         platformItems.add({
           'text': 'Migrasyon Durumu',
-          'icon': Icons.sync_alt_rounded,
+          'icon': Icons.sync,
           'color': pc,
           'onPressed': () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const MigrasyonDurumuPage()))
