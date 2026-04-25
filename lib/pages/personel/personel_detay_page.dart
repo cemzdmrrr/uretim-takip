@@ -27,9 +27,7 @@ class PersonelDetayPage extends StatefulWidget {
   State<PersonelDetayPage> createState() => _PersonelDetayPageState();
 }
 
-class _PersonelDetayPageState extends State<PersonelDetayPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _PersonelDetayPageState extends State<PersonelDetayPage> {
   final PersonelService _service = PersonelService();
 
   PersonelModel? personel;
@@ -37,14 +35,15 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
   bool islemYapiliyor = false;
   String? currentUserRole;
   String? seciliDonem;
+  int _selectedTabIndex = 0;
 
   final List<_TabItem> _tabs = const [
     _TabItem('Bilgiler', Icons.person),
-    _TabItem('Avans / Ödeme', Icons.attach_money),
-    _TabItem('İzin', Icons.beach_access),
+    _TabItem('Avans / \u00D6deme', Icons.attach_money),
+    _TabItem('\u0130zin', Icons.beach_access),
     _TabItem('Mesai', Icons.access_time),
     _TabItem('Puantaj', Icons.assessment),
-    _TabItem('Arşiv', Icons.folder),
+    _TabItem('Ar\u015Fiv', Icons.folder),
   ];
 
   bool get _yonetebilir =>
@@ -55,14 +54,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
     _hazirla();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _hazirla() async {
@@ -132,7 +124,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
         return StatefulBuilder(
           builder: (context, setLocalState) {
             return AlertDialog(
-              title: const Text('Personeli İşten Çıkar'),
+              title: const Text('Personeli \u0130\u015Ften \u00C7\u0131kar'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,8 +154,9 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                     controller: nedenController,
                     maxLines: 3,
                     decoration: const InputDecoration(
-                      labelText: 'Çıkış nedeni',
-                      hintText: 'Örn. sözleşme bitişi, performans, devamsızlık',
+                      labelText: '\u00C7\u0131k\u0131\u015F nedeni',
+                      hintText:
+                          '\u00D6rn. s\u00F6zle\u015Fme biti\u015Fi, performans, devams\u0131zl\u0131k',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -172,14 +165,14 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('İptal'),
+                  child: const Text('\u0130ptal'),
                 ),
                 FilledButton(
                   onPressed: () {
                     if (nedenController.text.trim().isEmpty) return;
                     Navigator.pop(context, true);
                   },
-                  child: const Text('İşten Çıkar'),
+                  child: const Text('\u0130\u015Ften \u00C7\u0131kar'),
                 ),
               ],
             );
@@ -202,11 +195,12 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
         cikisTarihi: seciliTarih.toIso8601String().split('T').first,
       );
       if (!mounted) return;
-      context.showSuccessSnackBar('Personel işten çıkarıldı.');
+      context.showSuccessSnackBar(
+          'Personel i\u015Ften \u00E7\u0131kar\u0131ld\u0131.');
       await _getPersonel();
     } catch (e) {
       if (!mounted) return;
-      context.showErrorSnackBar('İşlem başarısız: $e');
+      context.showErrorSnackBar('\u0130\u015Flem ba\u015Far\u0131s\u0131z: $e');
     } finally {
       nedenController.dispose();
       if (mounted) setState(() => islemYapiliyor = false);
@@ -217,13 +211,13 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
     final onay = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Personeli Aktifleştir'),
-        content:
-            Text('${kayit.tamAd} tekrar aktif personel olarak açılsın mı?'),
+        title: const Text('Personeli Aktifle\u015Ftir'),
+        content: Text(
+            '${kayit.tamAd} tekrar aktif personel olarak a\u00E7\u0131ls\u0131n m\u0131?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('İptal'),
+            child: const Text('\u0130ptal'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -239,11 +233,11 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
     try {
       await _service.personelAktifYap(userId: kayit.userId, tckn: kayit.tckn);
       if (!mounted) return;
-      context.showSuccessSnackBar('Personel tekrar aktif yapıldı.');
+      context.showSuccessSnackBar('Personel tekrar aktif yap\u0131ld\u0131.');
       await _getPersonel();
     } catch (e) {
       if (!mounted) return;
-      context.showErrorSnackBar('İşlem başarısız: $e');
+      context.showErrorSnackBar('\u0130\u015Flem ba\u015Far\u0131s\u0131z: $e');
     } finally {
       if (mounted) setState(() => islemYapiliyor = false);
     }
@@ -254,23 +248,23 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
     final onay = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Personeli Kalıcı Sil'),
+        title: const Text('Personeli Kal\u0131c\u0131 Sil'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-                '${kayit.tamAd} kaydı ve uygun ise auth hesabı kalıcı olarak silinecek.'),
+                '${kayit.tamAd} kayd\u0131 ve uygun ise auth hesab\u0131 kal\u0131c\u0131 olarak silinecek.'),
             const SizedBox(height: 12),
             Text(
-              'Devam etmek için TCKN yazın: ${kayit.tckn}',
+              'Devam etmek i\u00E7in TCKN yaz\u0131n: ${kayit.tckn}',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: kontrolController,
               decoration: const InputDecoration(
-                labelText: 'TCKN doğrulama',
+                labelText: 'TCKN do\u011Frulama',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -279,7 +273,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('İptal'),
+            child: const Text('\u0130ptal'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -287,7 +281,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
               if (kontrolController.text.trim() != kayit.tckn) return;
               Navigator.pop(context, true);
             },
-            child: const Text('Kalıcı Sil'),
+            child: const Text('Kal\u0131c\u0131 Sil'),
           ),
         ],
       ),
@@ -300,11 +294,11 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
     try {
       await _service.personeliKaliciSil(userId: kayit.userId, tckn: kayit.tckn);
       if (!mounted) return;
-      context.showSuccessSnackBar('Personel kalıcı olarak silindi.');
+      context.showSuccessSnackBar('Personel kal\u0131c\u0131 olarak silindi.');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      context.showErrorSnackBar('İşlem başarısız: $e');
+      context.showErrorSnackBar('\u0130\u015Flem ba\u015Far\u0131s\u0131z: $e');
     } finally {
       if (mounted) setState(() => islemYapiliyor = false);
     }
@@ -320,8 +314,8 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
 
     if (personel == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Personel Detayı')),
-        body: const Center(child: Text('Personel bulunamadı.')),
+        appBar: AppBar(title: const Text('Personel Detay\u0131')),
+        body: const Center(child: Text('Personel bulunamad\u0131.')),
       );
     }
 
@@ -333,7 +327,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
         title: const Text(
-          'Personel Detayı',
+          'Personel Detay\u0131',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         backgroundColor: Colors.blue,
@@ -346,12 +340,12 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
               itemBuilder: (context) => [
                 const PopupMenuItem(
                   value: _PersonelAction.duzenle,
-                  child: Text('Düzenle'),
+                  child: Text('D\u00FCzenle'),
                 ),
                 if (kayit.aktifMi)
                   const PopupMenuItem(
                     value: _PersonelAction.istenCikar,
-                    child: Text('İşten Çıkar'),
+                    child: Text('\u0130\u015Ften \u00C7\u0131kar'),
                   ),
                 if (!kayit.aktifMi)
                   const PopupMenuItem(
@@ -361,7 +355,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                 const PopupMenuDivider(),
                 const PopupMenuItem(
                   value: _PersonelAction.kaliciSil,
-                  child: Text('Kalıcı Sil'),
+                  child: Text('Kal\u0131c\u0131 Sil'),
                 ),
               ],
             ),
@@ -369,81 +363,18 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
       ),
       body: Stack(
         children: [
-          Column(
-            children: [
-              _buildHeader(kayit, isMobile),
-              _buildTabBarContainer(),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildBilgilerTab(kayit, isMobile),
-                    _buildTabShell(
-                      title: 'Avans ve Ödeme',
-                      subtitle: 'Bu personele ait ödeme ve avans hareketleri',
-                      child: kayit.userId.trim().isEmpty
-                          ? const Center(
-                              child: Text(
-                                'Personel ID bulunamadı. Avans ve ödeme işlemleri açılamıyor.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            )
-                          : OdemePage(
-                              key: ValueKey('odeme_${seciliDonem ?? 'all'}'),
-                              personelId: kayit.userId,
-                              initialDonem: seciliDonem,
-                              embedded: true,
-                            ),
-                    ),
-                    _buildTabShell(
-                      title: 'İzin Yönetimi',
-                      subtitle: 'İzin kayıtları ve onay akışı',
-                      child: IzinPage(
-                        key: ValueKey('izin_${seciliDonem ?? 'all'}'),
-                        personelId: kayit.userId,
-                        personelAd: kayit.tamAd,
-                        initialDonem: seciliDonem,
-                        embedded: true,
-                      ),
-                    ),
-                    _buildTabShell(
-                      title: 'Mesai Kayıtları',
-                      subtitle: 'Onaylı ve bekleyen mesai verileri',
-                      child: MesaiPage(
-                        key: ValueKey('mesai_${seciliDonem ?? 'all'}'),
-                        personelId: kayit.userId,
-                        personelAd: kayit.tamAd,
-                        initialDonem: seciliDonem,
-                        embedded: true,
-                      ),
-                    ),
-                    _buildTabShell(
-                      title: 'Puantaj',
-                      subtitle: 'Günlük çalışma ve devam bilgileri',
-                      child: PuantajTabloPage(
-                        key: ValueKey('puantaj_${seciliDonem ?? 'all'}'),
-                        personelId: kayit.userId,
-                        personelAd: kayit.tamAd,
-                        initialDonem: seciliDonem,
-                        embedded: true,
-                      ),
-                    ),
-                    _buildTabShell(
-                      title: 'Arşiv',
-                      subtitle: 'Geçmiş bordro, izin, ödeme ve hareket özeti',
-                      child: PersonelArsivPage(
-                        key: ValueKey('arsiv_${seciliDonem ?? 'all'}'),
-                        personelId: kayit.userId,
-                        personelAd: kayit.tamAd,
-                        initialDonem: seciliDonem,
-                        embedded: true,
-                      ),
-                    ),
-                  ],
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              children: [
+                _buildHeader(kayit, isMobile),
+                _buildTabBarContainer(),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: _buildSelectedTabContent(kayit, isMobile),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           if (islemYapiliyor)
             Container(
@@ -502,7 +433,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${kayit.departman.isEmpty ? 'Departman yok' : kayit.departman} • '
+                      '${kayit.departman.isEmpty ? 'Departman yok' : kayit.departman} - '
                       '${kayit.pozisyon.isEmpty ? 'Pozisyon yok' : kayit.pozisyon}',
                       style: const TextStyle(
                         fontSize: 14,
@@ -521,12 +452,12 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             runSpacing: 12,
             children: [
               _metricTile(Icons.badge, 'TCKN', kayit.tckn),
-              _metricTile(Icons.event, 'İşe Başlangıç',
+              _metricTile(Icons.event, '\u0130\u015Fe Ba\u015Flang\u0131\u00E7',
                   _formatDate(kayit.iseBaslangic)),
-              _metricTile(
-                  Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
+              _metricTile(Icons.attach_money, 'Net Maa\u015F',
+                  _formatMoney(kayit.netMaas)),
               if (kayit.istenCikarildiMi)
-                _metricTile(Icons.warning, 'Çıkış Tarihi',
+                _metricTile(Icons.warning, '\u00C7\u0131k\u0131\u015F Tarihi',
                     _formatDate(kayit.istenCikisTarihi)),
             ],
           ),
@@ -541,7 +472,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                 border: Border.all(color: const Color(0xFFFED7AA)),
               ),
               child: Text(
-                'Çıkış nedeni: ${kayit.istenCikisNedeni}',
+                '\u00C7\u0131k\u0131\u015F nedeni: ${kayit.istenCikisNedeni}',
                 style: const TextStyle(
                   color: Color(0xFF9A3412),
                   fontWeight: FontWeight.w600,
@@ -563,62 +494,173 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelPadding: EdgeInsets.zero,
-        labelColor: Colors.white,
-        unselectedLabelColor: const Color(0xFF475569),
-        dividerColor: Colors.transparent,
-        indicator: BoxDecoration(
-          color: const Color(0xFF2563EB),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        tabs: _tabs
-            .map(
-              (item) => Tab(
-                child: SizedBox(
-                  width: 136,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List.generate(_tabs.length, (index) {
+            final item = _tabs[index];
+            final selected = index == _selectedTabIndex;
+            return Padding(
+              padding:
+                  EdgeInsets.only(right: index == _tabs.length - 1 ? 0 : 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => setState(() => _selectedTabIndex = index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 152,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: selected ? const Color(0xFF2563EB) : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFFE2E8F0),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(item.icon, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            item.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
+                    boxShadow: selected
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF2563EB)
+                                  .withValues(alpha: 0.18),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        item.icon,
+                        size: 16,
+                        color:
+                            selected ? Colors.white : const Color(0xFF475569),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: selected
+                                ? Colors.white
+                                : const Color(0xFF475569),
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            )
-            .toList(),
+            );
+          }),
+        ),
       ),
     );
   }
 
+  Widget _buildSelectedTabContent(PersonelModel kayit, bool isMobile) {
+    switch (_selectedTabIndex) {
+      case 0:
+        return _buildBilgilerTab(kayit, isMobile);
+      case 1:
+        return _buildTabShell(
+          key: const ValueKey('odeme'),
+          title: 'Avans ve \u00D6deme',
+          subtitle: 'Bu personele ait \u00F6deme ve avans hareketleri',
+          child: kayit.userId.trim().isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Personel ID bulunamad\u0131. Avans ve \u00F6deme i\u015Flemleri a\u00E7\u0131lam\u0131yor.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                )
+              : OdemePage(
+                  key: ValueKey('odeme_${seciliDonem ?? 'all'}'),
+                  personelId: kayit.userId,
+                  initialDonem: seciliDonem,
+                  embedded: true,
+                ),
+        );
+      case 2:
+        return _buildTabShell(
+          key: const ValueKey('izin'),
+          title: '\u0130zin Y\u00F6netimi',
+          subtitle:
+              '\u0130zin kay\u0131tlar\u0131 ve onay ak\u0131\u015F\u0131',
+          child: IzinPage(
+            key: ValueKey('izin_${seciliDonem ?? 'all'}'),
+            personelId: kayit.userId,
+            personelAd: kayit.tamAd,
+            initialDonem: seciliDonem,
+            embedded: true,
+          ),
+        );
+      case 3:
+        return _buildTabShell(
+          key: const ValueKey('mesai'),
+          title: 'Mesai Kay\u0131tlar\u0131',
+          subtitle: 'Onayl\u0131 ve bekleyen mesai verileri',
+          child: MesaiPage(
+            key: ValueKey('mesai_${seciliDonem ?? 'all'}'),
+            personelId: kayit.userId,
+            personelAd: kayit.tamAd,
+            initialDonem: seciliDonem,
+            embedded: true,
+          ),
+        );
+      case 4:
+        return _buildTabShell(
+          key: const ValueKey('puantaj'),
+          title: 'Puantaj',
+          subtitle:
+              'G\u00FCnl\u00FCk \u00E7al\u0131\u015Fma ve devam bilgileri',
+          child: PuantajTabloPage(
+            key: ValueKey('puantaj_${seciliDonem ?? 'all'}'),
+            personelId: kayit.userId,
+            personelAd: kayit.tamAd,
+            initialDonem: seciliDonem,
+            embedded: true,
+          ),
+        );
+      case 5:
+        return _buildTabShell(
+          key: const ValueKey('arsiv'),
+          title: 'Ar\u015Fiv',
+          subtitle:
+              'Ge\u00E7mi\u015F bordro, izin, \u00F6deme ve hareket \u00F6zeti',
+          child: PersonelArsivPage(
+            key: ValueKey('arsiv_${seciliDonem ?? 'all'}'),
+            personelId: kayit.userId,
+            personelAd: kayit.tamAd,
+            initialDonem: seciliDonem,
+            embedded: true,
+          ),
+        );
+      default:
+        return _buildBilgilerTab(kayit, isMobile);
+    }
+  }
+
   Widget _buildBilgilerTab(PersonelModel kayit, bool isMobile) {
-    return SingleChildScrollView(
+    return Padding(
       padding: EdgeInsets.all(isMobile ? 14 : 20),
       child: Wrap(
         spacing: 16,
         runSpacing: 16,
         children: [
           _buildInfoSection(
-            title: 'Kimlik ve İletişim',
+            title: 'Kimlik ve \u0130leti\u015Fim',
             width: isMobile ? double.infinity : 460,
             children: [
               _infoRow(Icons.badge, 'TCKN', kayit.tckn),
@@ -628,36 +670,38 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             ],
           ),
           _buildInfoSection(
-            title: 'Pozisyon ve Çalışma',
+            title: 'Pozisyon ve \u00C7al\u0131\u015Fma',
             width: isMobile ? double.infinity : 460,
             children: [
               _infoRow(Icons.work, 'Pozisyon', kayit.pozisyon),
               _infoRow(Icons.business, 'Departman', kayit.departman),
-              _infoRow(Icons.event, 'İşe Başlangıç',
+              _infoRow(Icons.event, '\u0130\u015Fe Ba\u015Flang\u0131\u00E7',
                   _formatDate(kayit.iseBaslangic)),
-              _infoRow(Icons.access_time, 'Günlük Çalışma',
+              _infoRow(
+                  Icons.access_time,
+                  'G\u00FCnl\u00FCk \u00C7al\u0131\u015Fma',
                   _formatHour(kayit.gunlukCalismaSaati)),
-              _infoRow(Icons.calendar_today, 'Haftalık Gün',
+              _infoRow(Icons.calendar_today, 'Haftal\u0131k G\u00FCn',
                   _formatDay(kayit.haftalikCalismaGunu)),
             ],
           ),
           _buildInfoSection(
-            title: 'Maaş ve Yan Haklar',
+            title: 'Maa\u015F ve Yan Haklar',
             width: isMobile ? double.infinity : 460,
             children: [
-              _infoRow(Icons.attach_money, 'Brüt Maaş',
+              _infoRow(Icons.attach_money, 'Br\u00FCt Maa\u015F',
                   _formatMoney(kayit.brutMaas)),
-              _infoRow(
-                  Icons.attach_money, 'Net Maaş', _formatMoney(kayit.netMaas)),
-              _infoRow(Icons.directions_bus, 'Yol Ücreti',
+              _infoRow(Icons.attach_money, 'Net Maa\u015F',
+                  _formatMoney(kayit.netMaas)),
+              _infoRow(Icons.directions_bus, 'Yol \u00DCcreti',
                   _formatMoney(kayit.yolUcreti)),
-              _infoRow(Icons.restaurant, 'Yemek Ücreti',
+              _infoRow(Icons.restaurant, 'Yemek \u00DCcreti',
                   _formatMoney(kayit.yemekUcreti)),
               _infoRow(
                   Icons.star, 'Ekstra Prim', _formatMoney(kayit.ekstraPrim)),
-              _infoRow(Icons.account_balance, 'Banka Maaşı',
+              _infoRow(Icons.account_balance, 'Banka Maa\u015F\u0131',
                   _formatMoney(kayit.bankaMaas)),
-              _infoRow(Icons.attach_money, 'Elden Maaş',
+              _infoRow(Icons.attach_money, 'Elden Maa\u015F',
                   _formatMoney(kayit.eldenMaas)),
             ],
           ),
@@ -666,11 +710,11 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
             width: isMobile ? double.infinity : 460,
             children: [
               _infoRow(Icons.info, 'SGK Sicil No', kayit.sgkSicilNo),
-              _infoRow(Icons.beach_access, 'Yıllık İzin',
-                  '${kayit.yillikIzinHakki} gün'),
+              _infoRow(Icons.beach_access, 'Y\u0131ll\u0131k \u0130zin',
+                  '${kayit.yillikIzinHakki} g\u00FCn'),
               _infoRow(Icons.list, 'Durum', _durumText(kayit)),
               if (kayit.istenCikarildiMi)
-                _infoRow(Icons.event_busy, 'Çıkış Tarihi',
+                _infoRow(Icons.event_busy, '\u00C7\u0131k\u0131\u015F Tarihi',
                     _formatDate(kayit.istenCikisTarihi)),
             ],
           ),
@@ -680,11 +724,13 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
   }
 
   Widget _buildTabShell({
+    Key? key,
     required String title,
     required String subtitle,
     required Widget child,
   }) {
     return Padding(
+      key: key,
       padding: const EdgeInsets.all(14),
       child: Container(
         decoration: BoxDecoration(
@@ -725,7 +771,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
                   ],
                 ),
               ),
-              Expanded(child: child),
+              child,
             ],
           ),
         ),
@@ -870,7 +916,9 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
   }
 
   String _durumText(PersonelModel kayit) {
-    if (kayit.istenCikarildiMi) return 'İşten Çıkarıldı';
+    if (kayit.istenCikarildiMi) {
+      return '\u0130\u015Ften \u00C7\u0131kar\u0131ld\u0131';
+    }
     if (kayit.pasifMi) return 'Pasif';
     return 'Aktif';
   }
@@ -889,7 +937,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
         .toStringAsFixed(2)
         .replaceAll('.', ',')
         .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
-    return '₺$text';
+    return '\u20BA$text';
   }
 
   String _formatHour(String value) {
@@ -899,7 +947,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage>
 
   String _formatDay(String value) {
     if (value.trim().isEmpty) return '-';
-    return '$value gün';
+    return '$value g\u00FCn';
   }
 
   String _formatDate(String value) {

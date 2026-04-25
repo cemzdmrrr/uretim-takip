@@ -95,60 +95,64 @@ class _MesaiPageState extends State<MesaiPage> {
   Widget build(BuildContext context) {
     final body = yukleniyor
         ? const LoadingWidget()
-        : Column(
-            children: [
-              // Dönem seçici
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today, color: Colors.blue),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Dönem Seçin:',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: DonemSecici(
-                        seciliDonem: seciliDonem,
-                        onDonemChanged: (donem) {
-                          setState(() {
-                            seciliDonem = donem;
-                          });
-                          _getMesailer(); // Yeni döneme göre mesaileri getir
-                          _getToplamMesai(); // Özet bilgileri güncelle
-                        },
-                        showAll: true,
+        : SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 96),
+            child: Column(
+              children: [
+                // Dönem seçici
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    border:
+                        Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: Colors.blue),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Dönem Seçin:',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DonemSecici(
+                          seciliDonem: seciliDonem,
+                          onDonemChanged: (donem) {
+                            setState(() {
+                              seciliDonem = donem;
+                            });
+                            _getMesailer(); // Yeni döneme göre mesaileri getir
+                            _getToplamMesai(); // Özet bilgileri güncelle
+                          },
+                          showAll: true,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Text(
-                        'Aylık Toplam Mesai: ${aylikFazlaMesai.toStringAsFixed(2)} saat',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text(
-                        'Yıllık Toplam: ${yillikFazlaMesai.toStringAsFixed(2)} saat',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Text(
+                          'Aylık Toplam Mesai: ${aylikFazlaMesai.toStringAsFixed(2)} saat',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                          'Yıllık Toplam: ${yillikFazlaMesai.toStringAsFixed(2)} saat',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: mesaiList.isEmpty
+                mesaiList.isEmpty
                     ? const Center(child: Text('Mesai kaydı yok.'))
                     : ListView.builder(
                         itemCount: mesaiList.length,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
                         itemBuilder: (context, i) {
                           final m = mesaiList[i];
                           return Card(
@@ -710,9 +714,9 @@ class _MesaiPageState extends State<MesaiPage> {
                           );
                         },
                       ),
-              ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 24),
+              ],
+            ),
           );
     final fab = FloatingActionButton(
       onPressed: () async {
@@ -1331,7 +1335,7 @@ class _MesaiPageState extends State<MesaiPage> {
     if (widget.embedded) {
       return Stack(
         children: [
-          Positioned.fill(child: body),
+          body,
           Positioned(
             right: 16,
             bottom: 16,

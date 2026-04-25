@@ -69,19 +69,17 @@ class _IzinPageState extends State<IzinPage> {
   Future<void> _getCurrentUser() async {
     final user = Supabase.instance.client.auth.currentUser;
     currentUserId = user?.id;
-    // Personel adı çek
     if (currentUserId != null) {
       final servis = PersonelService();
       final personeller = await servis.getPersoneller();
       PersonelModel? me;
       try {
         me = personeller.firstWhere((p) => p.userId == currentUserId);
-      } catch (e) {
+      } catch (_) {
         me = null;
       }
       currentUserAd = me?.ad;
     }
-    // Rol çek
     if (currentUserId != null) {
       final response = await Supabase.instance.client
           .from(DbTables.userRoles)
@@ -90,30 +88,42 @@ class _IzinPageState extends State<IzinPage> {
           .maybeSingle();
       currentUserRole = response?['role'] ?? 'user';
     }
+    if (!mounted) {
+      return;
+    }
     setState(() {});
   }
 
   Future<void> _getIzinler() async {
-    if (!mounted) return; // mounted kontrolü ekle
+    if (!mounted) {
+      return;
+    }
     setState(() => yukleniyor = true);
     final servis = IzinService();
     if (currentUserRole == 'admin') {
       if (widget.personelId != null) {
-        // Admin başka bir personel detayından bakıyorsa sadece o personelin izinleri
-        izinler = await servis.getIzinlerForPersonel(widget.personelId!,
-            donem: seciliDonem);
+        izinler = await servis.getIzinlerForPersonel(
+          widget.personelId!,
+          donem: seciliDonem,
+        );
       } else {
-        // Admin genel bakışta ise tüm izinler
         izinler = await servis.getTumIzinler();
       }
     } else if (widget.personelId != null) {
-      izinler = await servis.getIzinlerForPersonel(widget.personelId!,
-          donem: seciliDonem);
+      izinler = await servis.getIzinlerForPersonel(
+        widget.personelId!,
+        donem: seciliDonem,
+      );
     } else if (currentUserId != null) {
-      izinler = await servis.getIzinlerForPersonel(currentUserId!,
-          donem: seciliDonem);
+      izinler = await servis.getIzinlerForPersonel(
+        currentUserId!,
+        donem: seciliDonem,
+      );
     }
-    if (mounted) setState(() => yukleniyor = false); // mounted kontrolü ekle
+    if (!mounted) {
+      return;
+    }
+    setState(() => yukleniyor = false);
   }
 
   Future<void> _izinEkle() async {
@@ -123,35 +133,37 @@ class _IzinPageState extends State<IzinPage> {
         personelId: currentUserId,
         personelAd: currentUserAd,
         isAdmin: currentUserRole == 'admin',
+        initialDonem: seciliDonem,
       ),
     );
     if (yeniIzin != null && mounted) {
-      // mounted kontrolü ekle
       try {
         await IzinService().addIzin(yeniIzin);
-        if (mounted) {
-          context.showSnackBar('İzin kaydı başarıyla oluşturuldu!');
-          await _getIzinler();
+        if (!mounted) {
+          return;
         }
+        context.showSnackBar('Izin kaydi basariyla olusturuldu!');
+        await _getIzinler();
       } catch (e) {
-        debugPrint('İzin ekleme hatası: $e');
-        if (mounted) {
-          context.showSnackBar('İzin kaydı hatası: $e');
+        debugPrint('Izin ekleme hatasi: $e');
+        if (!mounted) {
+          return;
         }
+        context.showSnackBar('Izin kaydi hatasi: $e');
       }
     }
   }
 
   Future<void> _getPersonel() async {
     final String? pid = widget.personelId ?? currentUserId;
-    if (pid == null) return;
+    if (pid == null) {
+      return;
+    }
     final servis = PersonelService();
     final p = await servis.getPersonelById(pid);
     if (p != null) {
       personel = p;
       yillikIzinHakki = int.tryParse(p.yillikIzinHakki) ?? 14;
-
-      // İzin özeti hesapla (devir dahil)
       try {
         final izinOzeti =
             await IzinService().getIzinOzeti(pid, yillikIzinHakki);
@@ -160,331 +172,72 @@ class _IzinPageState extends State<IzinPage> {
         kullanilanYillikIzin = izinOzeti['buYilKullanilan'] ?? 0;
         kalanYillikIzin = izinOzeti['kalan'] ?? 0;
       } catch (e) {
-        debugPrint('İzin özeti hesaplanamadı: $e');
+        debugPrint('Izin ozeti hesaplanamadi: $e');
       }
     }
-    if (mounted) setState(() {}); // mounted kontrolü ekle
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final body = yukleniyor
-        ? const LoadingWidget()
-        : Column(
-            children: [
-              // Dönem seçici
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today, color: Colors.blue),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Dönem Seçin:',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: DonemSecici(
-                        seciliDonem: seciliDonem,
-                        onDonemChanged: (donem) {
-                          setState(() {
-                            seciliDonem = donem;
-                          });
-                          _getIzinler(); // Yeni döneme göre izinleri getir
-                        },
-                        showAll: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (personel != null)
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Card(
-                    color: Colors.blue.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isMobile = constraints.maxWidth < 500;
-
-                          if (isMobile) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Yıllık Hak: $yillikIzinHakki gün',
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold)),
-                                    if (devredenIzin > 0)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.purple.shade100,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Text('+$devredenIzin devir',
-                                            style: TextStyle(
-                                                color: Colors.purple.shade700,
-                                                fontSize: 12)),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Toplam: $toplamIzinHakki gün',
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600)),
-                                    Text(
-                                        'Kullanılan: $kullanilanYillikIzin gün',
-                                        style: const TextStyle(
-                                            color: Colors.orange)),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    'Kalan: $kalanYillikIzin gün',
-                                    style: TextStyle(
-                                      color: kalanYillikIzin > 0
-                                          ? Colors.green
-                                          : Colors.red,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          }
-
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Yıllık Hak: $yillikIzinHakki gün',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold)),
-                              if (devredenIzin > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.purple.shade100,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text('+$devredenIzin gün devir',
-                                      style: TextStyle(
-                                          color: Colors.purple.shade700,
-                                          fontWeight: FontWeight.w500)),
-                                ),
-                              Text('Toplam: $toplamIzinHakki gün',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600)),
-                              Text('Kullanılan: $kullanilanYillikIzin gün',
-                                  style: const TextStyle(color: Colors.orange)),
-                              Text(
-                                'Kalan: $kalanYillikIzin gün',
-                                style: TextStyle(
-                                  color: kalanYillikIzin > 0
-                                      ? Colors.green
-                                      : Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              Expanded(
-                child: izinler.isEmpty
-                    ? const Center(child: Text('Henüz izin kaydı yok.'))
-                    : ListView.builder(
-                        itemCount: izinler.length,
-                        itemBuilder: (context, i) {
-                          final izin = izinler[i];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            child: ListTile(
-                              title: Text(
-                                  '${izin.izinTuru} - ${izin.gunSayisi} gün'),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                      '${izin.baslangic.day}.${izin.baslangic.month}.${izin.baslangic.year} - ${izin.bitis.day}.${izin.bitis.month}.${izin.bitis.year}'),
-                                  if (izin.aciklama.isNotEmpty)
-                                    Text(izin.aciklama),
-                                  RichText(
-                                    text: TextSpan(
-                                      text: 'Durum: ',
-                                      style: DefaultTextStyle.of(context).style,
-                                      children: [
-                                        TextSpan(
-                                          text: izin.onayDurumu,
-                                          style: TextStyle(
-                                            color:
-                                                izin.onayDurumu == 'onaylandi'
-                                                    ? Colors.green
-                                                    : izin.onayDurumu == 'red'
-                                                        ? Colors.red
-                                                        : Colors.orange,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (currentUserRole == 'admin' &&
-                                      izin.onayDurumu == 'beklemede')
-                                    ElevatedButton(
-                                      onPressed: () async {
-                                        final user = Supabase
-                                            .instance.client.auth.currentUser;
-                                        final userId = user?.id;
-                                        if (userId == null) return;
-                                        await IzinService().updateIzinDurum(
-                                          izin.id!,
-                                          'onaylandi',
-                                          onaylayanId: userId,
-                                        );
-                                        if (!context.mounted) return;
-                                        context.showSnackBar('İzin onaylandı.');
-                                        if (mounted)
-                                          _getIzinler(); // mounted kontrolü ekle
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green),
-                                      child: const Text('Onayla'),
-                                    ),
-                                  // Personel rolü onaylanan kayıtları düzenleyemez/silemez
-                                  if (!(currentUserRole == DbTables.personel &&
-                                      izin.onayDurumu == 'onaylandi')) ...[
-                                    IconButton(
-                                      icon: const Icon(Icons.edit,
-                                          color: Colors.orange),
-                                      tooltip: 'Düzenle',
-                                      onPressed: () async {
-                                        final guncellenen =
-                                            await showDialog<IzinModel>(
-                                          context: context,
-                                          builder: (context) => IzinEkleDialog(
-                                            personelId: izin.personelId,
-                                            personelAd: widget.personelAd,
-                                            isAdmin: currentUserRole == 'admin',
-                                            initialDonem: seciliDonem,
-                                          ),
-                                        );
-                                        if (guncellenen != null) {
-                                          // Tüm izin bilgilerini güncelle
-                                          await IzinService().updateIzin(
-                                            izin.id!,
-                                            guncellenen.toMap(),
-                                          );
-                                          if (mounted)
-                                            _getIzinler(); // mounted kontrolü ekle
-                                        }
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.red),
-                                      tooltip: 'Sil',
-                                      onPressed: () async {
-                                        if (izin.id == null ||
-                                            izin.id!.isEmpty) {
-                                          context.showSnackBar(
-                                              'Bu kaydın ID bilgisi yok, silme yapılamaz. Lütfen yeni bir kayıt ekleyin.');
-                                          return;
-                                        }
-                                        final onay = await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: const Text('İzin Sil',
-                                                style: TextStyle(
-                                                    color: Colors.blue)),
-                                            content: const Text(
-                                                'Bu izin kaydını silmek istediğinize emin misiniz?',
-                                                style: TextStyle(
-                                                    color: Colors.blue)),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                    context, false),
-                                                style: TextButton.styleFrom(
-                                                    backgroundColor:
-                                                        Colors.blue),
-                                                child: const Text('İptal',
-                                                    style: TextStyle(
-                                                        color: Colors.white)),
-                                              ),
-                                              ElevatedButton(
-                                                onPressed: () => Navigator.pop(
-                                                    context, true),
-                                                style: ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        Colors.blue),
-                                                child: const Text('Sil',
-                                                    style: TextStyle(
-                                                        color: Colors.white)),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                        if (onay == true) {
-                                          await IzinService()
-                                              .deleteIzin(izin.id!);
-                                          if (mounted)
-                                            _getIzinler(); // mounted kontrolü ekle
-                                        }
-                                      },
-                                    ),
-                                  ], // personel onaylı kayıt kontrolü sonu
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
-
     final fab = FloatingActionButton(
       onPressed: _izinEkle,
-      backgroundColor: Colors.blue,
-      tooltip: 'İzin Kaydı Ekle',
+      backgroundColor: const Color(0xFF2563EB),
+      tooltip: '\u0130zin Kayd\u0131 Ekle',
       child: const Icon(Icons.add),
+    );
+
+    final body = Container(
+      color: const Color(0xFFF4F7FB),
+      child: SafeArea(
+        top: widget.embedded,
+        bottom: false,
+        child: yukleniyor
+            ? const LoadingWidget()
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      width >= 900 ? 24 : 16,
+                      16,
+                      width >= 900 ? 24 : 16,
+                      112,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: widget.embedded ? 1440 : 1320,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildIzinHeroSection(width),
+                            const SizedBox(height: 20),
+                            _buildIzinToolbarSection(width),
+                            if (personel != null) ...[
+                              const SizedBox(height: 20),
+                              _buildIzinSummarySection(width),
+                            ],
+                            const SizedBox(height: 20),
+                            _buildIzinListSection(width),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
     );
 
     if (widget.embedded) {
       return Stack(
         children: [
-          Positioned.fill(child: body),
+          body,
           Positioned(
             right: 16,
             bottom: 16,
@@ -496,13 +249,615 @@ class _IzinPageState extends State<IzinPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('İzin ve Devamsızlık Yönetimi'),
-        backgroundColor: Colors.blue,
+        title: const Text('\u0130zin ve Devams\u0131zl\u0131k Y\u00F6netimi'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0F172A),
+        elevation: 0,
       ),
       body: body,
       floatingActionButton: fab,
     );
   }
+
+  Widget _buildIzinHeroSection(double width) {
+    final activeDonem = seciliDonem ?? 'T\u00FCm D\u00F6nemler';
+    final isNarrow = width < 980;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isNarrow ? 20 : 24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F3FAE), Color(0xFF2563EB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Wrap(
+        spacing: 20,
+        runSpacing: 20,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isNarrow ? width : 520),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(Icons.event_available,
+                      color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          '\u0130zin Planlama Paneli',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        '\u0130zin ak\u0131\u015F\u0131n\u0131 tek ekranda y\u00F6netin',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w700,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Talep, onay, devreden hak ve kalan izin bakiyesini ayn\u0131 operasyon ak\u0131\u015F\u0131nda izleyin.',
+                        style: TextStyle(
+                          color: Color(0xFFDCE7FF),
+                          fontSize: 14,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Aktif G\u00F6r\u00FCn\u00FCm',
+                  style: TextStyle(
+                    color: Color(0xFFDCE7FF),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  activeDonem,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIzinToolbarSection(double width) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.tune, size: 18, color: Color(0xFF475569)),
+                SizedBox(width: 10),
+                Text(
+                  'D\u00F6nem Filtresi',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: width >= 720 ? 280 : double.infinity,
+            child: DonemSecici(
+              seciliDonem: seciliDonem,
+              onDonemChanged: (donem) {
+                setState(() {
+                  seciliDonem = donem;
+                });
+                _getIzinler();
+              },
+              showAll: true,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Text(
+              '\${izinler.length} kay\u0131t',
+              style: const TextStyle(
+                color: Color(0xFF334155),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIzinSummarySection(double width) {
+    final items = [
+      _IzinMetricData('Y\u0131ll\u0131k Hak', '$yillikIzinHakki g\u00FCn',
+          Icons.workspace_premium, const Color(0xFF2563EB)),
+      _IzinMetricData('Devir', '$devredenIzin g\u00FCn', Icons.redo,
+          const Color(0xFF7C3AED)),
+      _IzinMetricData('Toplam Hak', '$toplamIzinHakki g\u00FCn',
+          Icons.inventory_2, const Color(0xFF0F766E)),
+      _IzinMetricData('Kullan\u0131lan', '$kullanilanYillikIzin g\u00FCn',
+          Icons.south_east, const Color(0xFFEA580C)),
+      _IzinMetricData(
+          'Kalan',
+          '$kalanYillikIzin g\u00FCn',
+          Icons.check_circle,
+          kalanYillikIzin > 0
+              ? const Color(0xFF16A34A)
+              : const Color(0xFFDC2626)),
+    ];
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      children: items
+          .map(
+            (item) => SizedBox(
+              width: width >= 1280
+                  ? (width - 64) / 5
+                  : width >= 900
+                      ? (width - 48) / 3
+                      : width >= 620
+                          ? (width - 32) / 2
+                          : double.infinity,
+              child: _buildIzinMetricCard(item),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildIzinMetricCard(_IzinMetricData item) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: item.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(item.icon, color: item.color, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  item.value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: item.color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIzinListSection(double width) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F0FE),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.fact_check,
+                    color: Color(0xFF2563EB), size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      '\u0130zin Kay\u0131tlar\u0131',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '\u0130zin ge\u00E7mi\u015Fi, durum ve onay hareketleri',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (izinler.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.inbox_outlined,
+                      size: 34, color: Color(0xFF94A3B8)),
+                  SizedBox(height: 12),
+                  Text(
+                    'Hen\u00FCz izin kayd\u0131 yok.',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Column(
+              children: izinler
+                  .map((izin) => _buildIzinRecordCard(izin, width))
+                  .toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIzinRecordCard(IzinModel izin, double width) {
+    final allowEdit = !(currentUserRole == DbTables.personel &&
+        izin.onayDurumu == 'onaylandi');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCEAFE),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.beach_access,
+                    color: Color(0xFF2563EB), size: 22),
+              ),
+              SizedBox(
+                width: width >= 720 ? width - 280 : double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '\${izin.izinTuru} - \${izin.gunSayisi} g\u00FCn',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '\${izin.baslangic.day}.\${izin.baslangic.month}.\${izin.baslangic.year} - \${izin.bitis.day}.\${izin.bitis.month}.\${izin.bitis.year}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildIzinStatusChip(izin.onayDurumu),
+            ],
+          ),
+          if (izin.aciklama.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              izin.aciklama,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF475569),
+                height: 1.45,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (currentUserRole == 'admin' && izin.onayDurumu == 'beklemede')
+                _buildIzinActionButton(
+                  icon: Icons.task_alt,
+                  label: 'Onayla',
+                  backgroundColor: const Color(0xFFDCFCE7),
+                  foregroundColor: const Color(0xFF166534),
+                  onPressed: () async {
+                    final user = Supabase.instance.client.auth.currentUser;
+                    final userId = user?.id;
+                    if (userId == null) return;
+                    await IzinService().updateIzinDurum(
+                      izin.id!,
+                      'onaylandi',
+                      onaylayanId: userId,
+                    );
+                    if (!context.mounted) return;
+                    context.showSnackBar('\u0130zin onayland\u0131.');
+                    if (mounted) {
+                      _getIzinler();
+                    }
+                  },
+                ),
+              if (allowEdit)
+                _buildIzinActionButton(
+                  icon: Icons.edit_outlined,
+                  label: 'D\u00FCzenle',
+                  backgroundColor: const Color(0xFFFFEDD5),
+                  foregroundColor: const Color(0xFF9A3412),
+                  onPressed: () async {
+                    final guncellenen = await showDialog<IzinModel>(
+                      context: context,
+                      builder: (context) => IzinEkleDialog(
+                        personelId: izin.personelId,
+                        personelAd: widget.personelAd,
+                        isAdmin: currentUserRole == 'admin',
+                        initialDonem: seciliDonem,
+                      ),
+                    );
+                    if (guncellenen != null) {
+                      await IzinService().updateIzin(
+                        izin.id!,
+                        guncellenen.toMap(),
+                      );
+                      if (mounted) {
+                        _getIzinler();
+                      }
+                    }
+                  },
+                ),
+              if (allowEdit)
+                _buildIzinActionButton(
+                  icon: Icons.delete_outline,
+                  label: 'Sil',
+                  backgroundColor: const Color(0xFFFEE2E2),
+                  foregroundColor: const Color(0xFFB91C1C),
+                  onPressed: () async {
+                    if (izin.id == null || izin.id!.isEmpty) {
+                      context.showSnackBar(
+                        'Bu kayd\u0131n ID bilgisi yok, silme yap\u0131lamaz.',
+                      );
+                      return;
+                    }
+                    final onay = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('\u0130zin Sil'),
+                        content: const Text(
+                          'Bu izin kayd\u0131n\u0131 silmek istedi\u011Finize emin misiniz?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('\u0130ptal'),
+                          ),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFDC2626),
+                            ),
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Sil'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (onay == true) {
+                      await IzinService().deleteIzin(izin.id!);
+                      if (mounted) {
+                        _getIzinler();
+                      }
+                    }
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIzinActionButton({
+    required IconData icon,
+    required String label,
+    required Color backgroundColor,
+    required Color foregroundColor,
+    required Future<void> Function() onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: backgroundColor,
+        foregroundColor: foregroundColor,
+        side: BorderSide(color: foregroundColor.withValues(alpha: 0.16)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+
+  Widget _buildIzinStatusChip(String durum) {
+    late final Color bg;
+    late final Color fg;
+    late final String label;
+
+    switch (durum) {
+      case 'onaylandi':
+        bg = const Color(0xFFDCFCE7);
+        fg = const Color(0xFF166534);
+        label = 'Onayland\u0131';
+        break;
+      case 'red':
+        bg = const Color(0xFFFEE2E2);
+        fg = const Color(0xFFB91C1C);
+        label = 'Reddedildi';
+        break;
+      default:
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFF92400E);
+        label = 'Beklemede';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: fg,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _IzinMetricData {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _IzinMetricData(this.label, this.value, this.icon, this.color);
 }
 
 class IzinEkleDialog extends StatefulWidget {

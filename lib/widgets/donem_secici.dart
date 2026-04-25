@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -31,18 +31,16 @@ class _DonemSeciciState extends State<DonemSecici> {
   Future<void> _loadDonemler() async {
     try {
       final client = Supabase.instance.client;
-      
+
       // Önce tablo yapısını kontrol et
       try {
-        final testResponse = await client
-            .from(DbTables.donemler)
-            .select('*')
-            .limit(1);
+        final testResponse =
+            await client.from(DbTables.donemler).select('*').limit(1);
         debugPrint('Donemler tablo yapısı: $testResponse');
       } catch (e) {
         debugPrint('Donemler tablosu kontrol hatası: $e');
       }
-      
+
       // Yeni yapıyı dene
       try {
         final response = await client
@@ -50,7 +48,7 @@ class _DonemSeciciState extends State<DonemSecici> {
             .select('id, yil, ay, donem_adi, durum')
             .order('yil', ascending: false)
             .order('ay', ascending: false);
-        
+
         setState(() {
           donemler = List<Map<String, dynamic>>.from(response);
           yukleniyor = false;
@@ -59,14 +57,17 @@ class _DonemSeciciState extends State<DonemSecici> {
       } catch (e) {
         debugPrint('Yeni yapı sorgusu hatası: $e');
       }
-      
+
       // Eski yapıyı dene (fallback)
       try {
         final response = await client
             .from(DbTables.donemler)
             .select('*')
             .order('baslangic_tarihi', ascending: false);
-        
+
+        if (!mounted) {
+          return;
+        }
         setState(() {
           donemler = List<Map<String, dynamic>>.from(response);
           yukleniyor = false;
@@ -75,15 +76,20 @@ class _DonemSeciciState extends State<DonemSecici> {
       } catch (e) {
         debugPrint('Eski yapı sorgusu hatası: $e');
       }
-      
+
       // Hiçbiri çalışmazsa boş liste
+      if (!mounted) {
+        return;
+      }
       setState(() {
         donemler = [];
         yukleniyor = false;
       });
-      
     } catch (e) {
       debugPrint('Dönem yükleme genel hatası: $e');
+      if (!mounted) {
+        return;
+      }
       setState(() {
         donemler = [];
         yukleniyor = false;
@@ -99,7 +105,7 @@ class _DonemSeciciState extends State<DonemSecici> {
           .select('donem_adi')
           .eq('durum', 'aktif')
           .maybeSingle();
-      
+
       return response?['donem_adi'];
     } catch (e) {
       return null;
@@ -144,14 +150,14 @@ class _DonemSeciciState extends State<DonemSecici> {
 
     // Geçici çözüm: Basit dropdown
     final List<DropdownMenuItem<String>> menuItems = [];
-    
+
     if (widget.showAll) {
       menuItems.add(const DropdownMenuItem<String>(
         value: null,
         child: Text('Tüm Dönemler'),
       ));
     }
-    
+
     // Eğer dönem verisi yoksa sadece "Tüm Dönemler" göster
     if (donemler.isEmpty) {
       return ConstrainedBox(
@@ -172,14 +178,15 @@ class _DonemSeciciState extends State<DonemSecici> {
     }
 
     // Normal dönemleri ekle
-    final Set<String> eklenenDonemler = {}; // Tekrar eden değerleri önlemek için
-    
+    final Set<String> eklenenDonemler =
+        {}; // Tekrar eden değerleri önlemek için
+
     menuItems.addAll(donemler.map((donem) {
       // Yeni yapı için
       String donemAdi = donem['donem_adi'] ?? '';
       String durum = donem['durum'] ?? '';
       String displayText = '';
-      
+
       if (donem['yil'] != null && donem['ay'] != null) {
         // Yeni yapı
         final yil = donem['yil']?.toString() ?? '';
@@ -192,17 +199,18 @@ class _DonemSeciciState extends State<DonemSecici> {
         displayText = donem['ad'] ?? donemAdi;
         durum = donem['aktif'] == true ? 'aktif' : 'tamamlandi';
       }
-      
+
       // Boş değerler için fallback
       if (donemAdi.isEmpty) donemAdi = 'Dönem-${donem['id'] ?? ''}';
       if (displayText.isEmpty) displayText = donemAdi;
-      
+
       // Tekrar eden değerleri önle
       if (eklenenDonemler.contains(donemAdi)) {
-        donemAdi = '$donemAdi-${donem['id'] ?? DateTime.now().millisecondsSinceEpoch}';
+        donemAdi =
+            '$donemAdi-${donem['id'] ?? DateTime.now().millisecondsSinceEpoch}';
       }
       eklenenDonemler.add(donemAdi);
-      
+
       return DropdownMenuItem<String>(
         value: donemAdi,
         child: Container(
@@ -220,7 +228,8 @@ class _DonemSeciciState extends State<DonemSecici> {
               if (durum == 'aktif') ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _getDurumRengi(durum),
                     borderRadius: BorderRadius.circular(8),
@@ -228,7 +237,7 @@ class _DonemSeciciState extends State<DonemSecici> {
                   child: Text(
                     _getDuramRenk(durum),
                     style: const TextStyle(
-                      color: Colors.white, 
+                      color: Colors.white,
                       fontSize: 8,
                       fontWeight: FontWeight.bold,
                     ),
@@ -243,7 +252,7 @@ class _DonemSeciciState extends State<DonemSecici> {
 
     // Seçili dönemin items listesinde olup olmadığını kontrol et
     String? validSeciliDonem = widget.seciliDonem;
-    if (validSeciliDonem != null && 
+    if (validSeciliDonem != null &&
         !menuItems.any((item) => item.value == validSeciliDonem)) {
       validSeciliDonem = null; // Geçersizse null yap
       // Callback ile parent widget'a geçersiz dönemin temizlendiğini bildir
@@ -282,7 +291,7 @@ class DonemHelper {
           .select('donem_adi')
           .eq('durum', 'aktif')
           .maybeSingle();
-      
+
       return response?['donem_adi'];
     } catch (e) {
       return null;
@@ -297,7 +306,7 @@ class DonemHelper {
           .select('*')
           .order('yil', ascending: false)
           .order('ay', ascending: false);
-      
+
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       return [];
@@ -311,8 +320,19 @@ class DonemHelper {
 
   static String ayAdi(int ay) {
     const aylar = [
-      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+      '',
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık'
     ];
     return ay >= 1 && ay <= 12 ? aylar[ay] : ay.toString();
   }
