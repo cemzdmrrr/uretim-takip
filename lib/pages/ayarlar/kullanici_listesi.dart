@@ -1,14 +1,10 @@
-﻿import 'dart:async';
-import 'package:uretim_takip/widgets/common_widgets.dart';
-import 'package:uretim_takip/config/database_tables.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/supabase_config.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
-
-part 'kullanici_listesi_ui.dart';
-
+import 'package:uretim_takip/services/yetki_service.dart';
 
 class KullaniciListesiPage extends StatefulWidget {
   const KullaniciListesiPage({super.key});
@@ -18,1025 +14,1212 @@ class KullaniciListesiPage extends StatefulWidget {
 }
 
 class _KullaniciListesiPageState extends State<KullaniciListesiPage> {
-  List<Map<String, dynamic>> kullanicilar = [];
-  List<Map<String, dynamic>> filtrelenmisKullanicilar = [];
-  bool yukleniyor = true;
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController aramaController = TextEditingController();
-  String seciliRol = 'orgu_firmasi'; // ✅ Güvenli varsayılan rol
-  String seciliFiltre = 'hepsi'; // Rol filtresi
+  static const _yoneticiRoller = {'admin', 'firma_sahibi', 'firma_admin'};
+  static const _adminRoller = {'firma_sahibi', 'firma_admin'};
 
-  // Roller için tekil liste tanımı - En güvenli roller başta
-  static const List<DropdownMenuItem<String>> rolItems = [
-    DropdownMenuItem(value: 'orgu_firmasi', child: Text('Örgü Firması')),
-    DropdownMenuItem(value: 'admin', child: Text('Admin')),
-    DropdownMenuItem(value: 'kullanici', child: Text('Kullanıcı')),
-    DropdownMenuItem(value: DbTables.personel, child: Text('Personel')),
-    DropdownMenuItem(value: 'ik', child: Text('İnsan Kaynakları')),
-    
-    // Üretim Aşamaları
-    DropdownMenuItem(value: 'dokuma', child: Text('Dokuma')),
-    DropdownMenuItem(value: 'konfeksiyon', child: Text('Konfeksiyon')),
-    DropdownMenuItem(value: 'yikama', child: Text('Yıkama')),
-    DropdownMenuItem(value: 'utu', child: Text('Ütü')),
-    DropdownMenuItem(value: 'ilik_dugme', child: Text('İlik Düğme')),
-    DropdownMenuItem(value: 'kalite_kontrol', child: Text('Kalite Kontrol')),
-    DropdownMenuItem(value: 'paketleme', child: Text('Paketleme')),
-    
-    // Diğer Departmanlar
-    DropdownMenuItem(value: 'sevkiyat', child: Text('Sevkiyat')),
-    DropdownMenuItem(value: 'muhasebe', child: Text('Muhasebe')),
-    DropdownMenuItem(value: 'satis', child: Text('Satış')),
-    DropdownMenuItem(value: 'tasarim', child: Text('Tasarım')),
-    DropdownMenuItem(value: 'planlama', child: Text('Planlama')),
-    DropdownMenuItem(value: 'depo', child: Text('Depo')),
-    
-    // Eski Roller (uyumluluk için)
-    DropdownMenuItem(value: 'kalite_personeli', child: Text('Kalite Personeli (Eski)')),
-    DropdownMenuItem(value: 'sevkiyat_soforu', child: Text('Sevkiyat Şoförü (Eski)')),
-    DropdownMenuItem(value: 'atolye_personeli', child: Text('Atölye Personeli (Eski)')),
-    DropdownMenuItem(value: 'tekstil', child: Text('Tekstil (Eski)')),
-    DropdownMenuItem(value: 'iplik', child: Text('İplik (Eski)')),
-    DropdownMenuItem(value: 'orgu', child: Text('Örgü (Eski)')),
-    DropdownMenuItem(value: 'nakis', child: Text('Nakış (Eski)')),
-    DropdownMenuItem(value: 'utu_paket', child: Text('Ütü Paket (Eski)')),
-    DropdownMenuItem(value: 'aksesuar', child: Text('Aksesuar (Eski)')),
-    DropdownMenuItem(value: 'makine', child: Text('Makine (Eski)')),
-    DropdownMenuItem(value: 'kimyasal', child: Text('Kimyasal (Eski)')),
-    DropdownMenuItem(value: 'ambalaj', child: Text('Ambalaj (Eski)')),
-    DropdownMenuItem(value: 'lojistik', child: Text('Lojistik (Eski)')),
-    DropdownMenuItem(value: 'diger', child: Text('Diğer')),
+  final _searchController = TextEditingController();
+  final _adminClient = SupabaseConfig.adminClient;
+
+  bool _yukleniyor = true;
+  bool _islemSuruyor = false;
+  bool _yonetebilir = false;
+  String? _mevcutRol;
+  String _seciliRolFiltresi = 'hepsi';
+
+  List<Map<String, dynamic>> _tumKullanicilar = [];
+  List<Map<String, dynamic>> _filtrelenmisKullanicilar = [];
+
+  static final List<_RolSecenegi> _rolSecenekleri = [
+    const _RolSecenegi('firma_admin', 'Firma Yöneticisi'),
+    const _RolSecenegi('yonetici', 'Yönetici'),
+    const _RolSecenegi('kullanici', 'Kullanıcı'),
+    const _RolSecenegi('personel', 'Personel'),
+    const _RolSecenegi('ik', 'İnsan Kaynakları'),
+    const _RolSecenegi('dokuma', 'Dokuma'),
+    const _RolSecenegi('konfeksiyon', 'Konfeksiyon'),
+    const _RolSecenegi('yikama', 'Yıkama'),
+    const _RolSecenegi('utu_paket', 'Ütü / Paket'),
+    const _RolSecenegi('ilik_dugme', 'İlik Düğme'),
+    const _RolSecenegi('kalite_kontrol', 'Kalite Kontrol'),
+    const _RolSecenegi('sevkiyat', 'Sevkiyat'),
+    const _RolSecenegi('sofor', 'Şoför'),
+    const _RolSecenegi('muhasebe', 'Muhasebe'),
+    const _RolSecenegi('tasarim', 'Tasarım'),
+    const _RolSecenegi('planlama', 'Planlama'),
+    const _RolSecenegi('satis', 'Satış'),
+    const _RolSecenegi('depo', 'Depo'),
+    const _RolSecenegi('nakis', 'Nakış'),
   ];
-
-  final adminClient = SupabaseConfig.adminClient;
 
   @override
   void initState() {
     super.initState();
-    _kullanicilariGetir();
-    // Debounce için timer ekleyelim
-    aramaController.addListener(_onSearchChanged);
-  }
-
-  Timer? _debounceTimer;
-  
-  void _onSearchChanged() {
-    if (_debounceTimer?.isActive ?? false) _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _aramaFiltrele();
-    });
+    _searchController.addListener(_filtreleriUygula);
+    _verileriYukle();
   }
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
-    aramaController.removeListener(_onSearchChanged);
-    emailController.dispose();
-    passwordController.dispose();
-    aramaController.dispose();
+    _searchController.removeListener(_filtreleriUygula);
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _aramaFiltrele() {
-    if (!mounted) return; // Widget dispose edildiyse çıkış yap
-    
-    final arama = aramaController.text.toLowerCase();
-    final yeniFiltrelenmisListe = kullanicilar.where((kullanici) {
-      final email = (kullanici['email'] ?? '').toString().toLowerCase();
-      final rol = (kullanici['role'] ?? '').toString().toLowerCase();
-      
-      // Arama filtresi
-      final aramaUygun = arama.isEmpty || 
-          email.contains(arama) || 
-          rol.contains(arama);
-      
-      // Rol filtresi
-      final rolUygun = seciliFiltre == 'hepsi' || kullanici['role'] == seciliFiltre;
-      
-      return aramaUygun && rolUygun;
+  Future<void> _verileriYukle() async {
+    if (!mounted) return;
+    setState(() => _yukleniyor = true);
+
+    try {
+      final firmaId = TenantManager.instance.firmaId;
+      if (firmaId == null) {
+        throw Exception('Aktif firma seçili değil');
+      }
+
+      final sonuclar = await Future.wait([
+        YetkiService.kullaniciFirmaRolGetir(),
+        YetkiService.firmaKullanicilariGetir(),
+      ]);
+
+      _mevcutRol = sonuclar[0] as String?;
+      _yonetebilir = _yoneticiRoller.contains(_mevcutRol);
+      _tumKullanicilar = List<Map<String, dynamic>>.from(sonuclar[1] as List);
+      _filtreleriUygula(notify: false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kullanıcılar yüklenemedi: $e')),
+      );
+      _tumKullanicilar = [];
+      _filtrelenmisKullanicilar = [];
+    } finally {
+      if (mounted) {
+        setState(() => _yukleniyor = false);
+      }
+    }
+  }
+
+  void _filtreleriUygula({bool notify = true}) {
+    final query = _searchController.text.trim().toLowerCase();
+    final yeniListe = _tumKullanicilar.where((item) {
+      final email = (item['email'] ?? '').toString().toLowerCase();
+      final rol = (item['rol'] ?? '').toString().toLowerCase();
+      final ad = (item['ad'] ?? '').toString().toLowerCase();
+      final soyad = (item['soyad'] ?? '').toString().toLowerCase();
+      final displayName = (item['display_name'] ?? '').toString().toLowerCase();
+
+      final aramaUydu = query.isEmpty ||
+          email.contains(query) ||
+          rol.contains(query) ||
+          ad.contains(query) ||
+          soyad.contains(query) ||
+          displayName.contains(query);
+
+      final rolUydu =
+          _seciliRolFiltresi == 'hepsi' || item['rol'] == _seciliRolFiltresi;
+
+      return aramaUydu && rolUydu;
     }).toList();
 
-    // Sadece liste gerçekten değiştiyse setState çağır
-    if (mounted && _listeIcerikDegistiMi(yeniFiltrelenmisListe, filtrelenmisKullanicilar)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            filtrelenmisKullanicilar = yeniFiltrelenmisListe;
-          });
-        }
-      });
-    }
-  }
-
-  bool _listeIcerikDegistiMi(List<Map<String, dynamic>> yeniListe, List<Map<String, dynamic>> eskiListe) {
-    if (yeniListe.length != eskiListe.length) return true;
-    
-    for (int i = 0; i < yeniListe.length; i++) {
-      if (yeniListe[i]['user_id'] != eskiListe[i]['user_id']) return true;
-      if (yeniListe[i]['email'] != eskiListe[i]['email']) return true;
-      if (yeniListe[i]['role'] != eskiListe[i]['role']) return true;
-    }
-    return false;
-  }
-
-  Future<void> _kullanicilariGetir() async {
-    setState(() => yukleniyor = true);
-    try {
-      // Auth.users tablosundan kullanıcıları çek
-      final authUsers = await adminClient.auth.admin.listUsers();
-      
-      // User_roles tablosundan rolleri çek
-      final roles = await Supabase.instance.client
-          .from(DbTables.userRoles)
-          .select('user_id, role');
-
-      final combined = authUsers.map((user) {
-        final roleData = (roles as List).firstWhere(
-          (r) => r['user_id'] == user.id,
-          orElse: () => {'role': 'orgu_firmasi'},
-        );
-        
-        return {
-          'user_id': user.id,
-          'email': user.email,
-          'last_sign_in_at': user.lastSignInAt,
-          'role': roleData['role'] ?? 'orgu_firmasi',
-          'aktif': true, // Varsayılan olarak aktif kabul et
-        };
-      }).toList();
-
-      setState(() {
-        kullanicilar = List<Map<String, dynamic>>.from(combined);
-        filtrelenmisKullanicilar = List<Map<String, dynamic>>.from(combined);
-        yukleniyor = false;
-      });
-      _aramaFiltrele(); // Filtrelemeyi uygula
-    } catch (e) {
-      debugPrint('Kullanıcıları getirme hatası: $e');
-      setState(() => yukleniyor = false);
-      if (mounted) {
-        context.showSnackBar('Kullanıcılar yüklenirken hata oluştu: $e');
-      }
-    }
-  }
-
-  Future<void> _rolDegistir(String userId, String yeniRol) async {
-    try {
-      // Geçerli rol değerlerini kontrol et
-      final validRoles = rolItems.map((item) => item.value).toList();
-      if (!validRoles.contains(yeniRol)) {
-        context.showSnackBar('Geçersiz rol: $yeniRol');
-        return;
-      }
-
-      final response = await Supabase.instance.client
-          .from(DbTables.userRoles)
-          .update({'role': yeniRol})
-          .eq('user_id', userId);
-      
-      debugPrint('Rol güncelleme sonucu: $userId -> $yeniRol, response: $response');
-      
-      // Sadece yerel listede güncelle, tam yenileme yapma
-      if (mounted) {
-        setState(() {
-          final userIndex = kullanicilar.indexWhere((u) => u['user_id'] == userId);
-          if (userIndex != -1) {
-            kullanicilar[userIndex]['role'] = yeniRol;
-          }
-          final filteredUserIndex = filtrelenmisKullanicilar.indexWhere((u) => u['user_id'] == userId);
-          if (filteredUserIndex != -1) {
-            filtrelenmisKullanicilar[filteredUserIndex]['role'] = yeniRol;
-          }
-        });
-      }
-      
-      if (!mounted) return;
-      context.showSnackBar('Rol başarıyla ${_getRoleDisplayName(yeniRol)} olarak değiştirildi');
-    } catch (e) {
-      debugPrint('Rol güncelleme hatası: $e');
-      if (!mounted) return;
-      context.showSnackBar('Rol güncellenirken hata oluştu: $e');
-    }
-  }
-
-  Future<void> _aktifPasifDegistir(String userId, bool aktif) async {
-    try {
-      // aktif sütunu olmadığı için şimdilik bu işlemi devre dışı bırakıyoruz
-      // Gelecekte aktif sütunu eklenirse bu kodu aktifleştirip kullanabiliriz
-      debugPrint('Aktif/Pasif değiştirme: $userId -> $aktif (şimdilik devre dışı)');
-      context.showSnackBar('Aktif/Pasif özelliği şu anda kullanılamıyor');
-      // _kullanicilariGetir();
-    } catch (e) {
-      debugPrint('Aktif/Pasif hatası: $e');
-    }
-  }
-
-
-  Future<void> _yeniKullaniciEkle() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
-    
-    if (email.isEmpty || password.isEmpty) {
-      context.showSnackBar('E-posta ve şifre boş olamaz');
-      return;
-    }
-    
-    debugPrint('Seçili rol: $seciliRol'); // Debug için ekledik
-    
-    FocusScope.of(context).unfocus(); // Klavyeyi kapat
-    setState(() => yukleniyor = true);
-    try {
-      // Admin kontrolü
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      // Admin tüm yetkilere sahip - kullanıcı yönetimi yapabilir
-      if (currentUser == null || !await _isAdmin(currentUser.id)) {
-        if (!mounted) return;
-        context.showSnackBar('Bu işlemi yapmak için yetkiniz yok.');
-        setState(() => yukleniyor = false);
-        return;
-      }
-
-      final response = await adminClient.auth.admin.createUser(
-        AdminUserAttributes(
-          email: email,
-          password: password,
-          emailConfirm: true,
-        ),
-      );
-
-      if (response.user != null) {
-        try {
-          debugPrint('Kullanıcı oluşturuldu: ${response.user!.id}, rol ekleniyor: $seciliRol'); // Debug
-          
-          // Önce user_roles tablosundaki mevcut kaydı kontrol et
-          final existingRole = await adminClient
-              .from(DbTables.userRoles)
-              .select('role')
-              .eq('user_id', response.user!.id)
-              .maybeSingle();
-
-          if (existingRole == null) {
-            // Sadece kayıt yoksa ekle
-            debugPrint('Yeni rol kaydı ekleniyor...'); // Debug
-            await adminClient.from(DbTables.userRoles).insert({
-              'user_id': response.user!.id,
-              'role': seciliRol,
-            });
-            debugPrint('Rol başarıyla eklendi'); // Debug
-          } else {
-            // Kayıt varsa güncelle
-            debugPrint('Mevcut rol güncelleniyor...'); // Debug
-            await adminClient
-                .from(DbTables.userRoles)
-                .update({'role': seciliRol})
-                .eq('user_id', response.user!.id);
-            debugPrint('Rol başarıyla güncellendi'); // Debug
-          }
-
-          // Kullanıcıyı aktif firmaya ekle (firma_kullanicilari) - RLS bypass için adminClient
-          final firmaId = TenantManager.instance.firmaId;
-          if (firmaId != null) {
-            try {
-              await adminClient.from(DbTables.firmaKullanicilari).upsert({
-                'firma_id': firmaId,
-                'user_id': response.user!.id,
-                'rol': seciliRol == 'admin' ? 'firma_admin' : 'kullanici',
-                'aktif': true,
-              }, onConflict: 'firma_id,user_id');
-              debugPrint('Kullanıcı firmaya eklendi: $firmaId');
-            } catch (e) {
-              debugPrint('firma_kullanicilari ekleme hatası: $e');
-            }
-          }
-
-          // Formu temizle ve state'i güncelle
-          emailController.clear();
-          passwordController.clear();
-          if (!mounted) return;
-          setState(() {
-            seciliRol = 'orgu_firmasi';
-          });
-
-          // Kullanıcı listesini yenile
-          await _kullanicilariGetir();
-
-          if (mounted) {
-            context.showSnackBar('Kullanıcı başarıyla eklendi');
-          }
-        } catch (e) {
-          debugPrint('user_roles tablosuna ekleme hatası: $e');
-          // Constraint hatası için özel mesaj
-          if (e.toString().contains('user_roles_role_check')) {
-            if (mounted) {
-              context.showSnackBar('Seçilen rol ($seciliRol) database\'de tanımlı değil. Lütfen geçerli bir rol seçin.');
-            }
-          } else {
-            if (mounted) {
-              context.showSnackBar('Rol eklenemedi: $e');
-            }
-          }
-        }
-      } else {
-        if (mounted) {
-          context.showSnackBar('Kullanıcı oluşturulamadı');
-        }
-      }
-    } on AuthException catch (e) {
-      if (e.code == 'email_exists' || e.code == 'user_already_exists') {
-        // Auth sistemindeki mevcut kullanıcıyı bul
-        try {
-          final authUsers = await adminClient.auth.admin.listUsers();
-          final existingUser = authUsers.firstWhere(
-            (user) => user.email == email,
-          );
-
-          try {
-            await adminClient.from(DbTables.userRoles).upsert({
-              'user_id': existingUser.id,
-              'role': seciliRol,
-            }, onConflict: 'user_id');
-
-            // Kullanıcıyı aktif firmaya ekle (firma_kullanicilari) - RLS bypass için adminClient
-            final firmaId = TenantManager.instance.firmaId;
-            if (firmaId != null) {
-              try {
-                await adminClient.from(DbTables.firmaKullanicilari).upsert({
-                  'firma_id': firmaId,
-                  'user_id': existingUser.id,
-                  'rol': seciliRol == 'admin' ? 'firma_admin' : 'kullanici',
-                  'aktif': true,
-                }, onConflict: 'firma_id,user_id');
-                debugPrint('Mevcut kullanıcı firmaya eklendi: $firmaId');
-              } catch (e) {
-                debugPrint('firma_kullanicilari ekleme hatası: $e');
-              }
-            }
-
-            emailController.clear();
-            passwordController.clear();
-            if (!mounted) return;
-            setState(() {
-              seciliRol = 'orgu_firmasi';
-            });
-            await _kullanicilariGetir();
-            if (mounted) {
-              context.showSnackBar('Mevcut kullanıcıya rol eklendi');
-            }
-          } catch (roleError) {
-            debugPrint('user_roles tablosuna ekleme hatası (mevcut kullanıcı): $roleError');
-            if (mounted) {
-              context.showSnackBar('Bu kullanıcının zaten bir rolü var veya rol eklenemedi: $roleError');
-            }
-          }
-        } catch (findError) {
-          debugPrint('Mevcut kullanıcı bulma hatası: $findError');
-          if (mounted) {
-            context.showSnackBar('Bu e-posta adresi zaten kullanımda');
-          }
-        }
-      } else {
-        debugPrint('Yeni kullanıcı ekleme hatası: $e');
-        if (mounted) {
-          context.showSnackBar('Hata: ${e.message}');
-        }
-      }
-    } catch (e) {
-      debugPrint('Yeni kullanıcı ekleme hatası: $e');
-      if (mounted) {
-        context.showSnackBar('Hata: $e');
-      }
-    } finally {
-      if (mounted) setState(() => yukleniyor = false);
-    }
-  }
-
-  Future<void> _kullaniciSil(String userId) async {
-    try {
-      // Önce user_roles tablosundan kayıtları sil (foreign key constraints'lerden dolayı)
-      await Supabase.instance.client
-          .from(DbTables.userRoles)
-          .delete()
-          .eq('user_id', userId);
-
-      // Sonra auth.users kaydını sil (Admin API Key ile)
-      await adminClient.auth.admin.deleteUser(userId);
-
-      // Listeyi yenile
-      await _kullanicilariGetir();
-
-      if (mounted) {
-        setState(() {}); // Ekranı güncelle
-        context.showSnackBar('Kullanıcı başarıyla silindi');
-      }
-    } catch (e) {
-      debugPrint('Kullanıcı silme hatası: $e');
-      if (mounted) {
-        context.showSnackBar('Kullanıcı silinemedi: $e');
-      }
-    }
-  }
-  Future<bool> _isAdmin(String userId) async {
-    try {
-      debugPrint('Admin kontrolü yapılıyor: $userId');
-      final response = await Supabase.instance.client
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', userId)
-          .maybeSingle();
-      if (response == null || response['role'] == null) {
-        debugPrint('Kullanıcı rolü bulunamadı');
-        return false;
-      }
-      debugPrint('Kullanıcı rolü: ${response['role']}');
-      return response['role'] == 'admin';
-    } catch (e) {
-      debugPrint('Admin kontrol hatası: $e');
-      return false;
+    if (!notify || mounted) {
+      setState(() => _filtrelenmisKullanicilar = yeniListe);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = Supabase.instance.client.auth.currentUser;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop = screenWidth > 800; // 800px üzerinde masaüstü kabul et
-    
-    debugPrint('Mevcut kullanıcı: ${currentUser?.id}');
-    
-    return FutureBuilder<bool>(
-      future: currentUser != null ? _isAdmin(currentUser.id) : Future.value(false),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        
-        if (snapshot.hasError) {
-          debugPrint('Admin kontrolünde hata: ${snapshot.error}');
-          return Scaffold(
-            body: Center(child: Text('Bir hata oluştu: ${snapshot.error}')),
-          );
-        }
-          if (!snapshot.hasData || !snapshot.data!) {
-          debugPrint('Kullanıcı admin değil veya aktif değil');
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          return const Scaffold(
-            body: Center(child: Text('Bu sayfayı görüntüleme yetkiniz yok. Ana sayfaya yönlendiriliyorsunuz...')),
-          );
-        }
-        
-        // Admin kontrolü başarılı, normal sayfayı göster
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Kullanıcı Yönetimi'),
-            backgroundColor: Colors.blue.shade700,
-            foregroundColor: Colors.white,
-            elevation: 2,
+    final firmaAdi = TenantManager.instance.firmaAdi.isEmpty
+        ? 'Aktif Firma'
+        : TenantManager.instance.firmaAdi;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FB),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0F172A),
+        title: const Text('Kullanıcı Yönetimi'),
+        actions: [
+          IconButton(
+            tooltip: 'Yenile',
+            icon: const Icon(Icons.refresh),
+            onPressed: _verileriYukle,
           ),
-          body: yukleniyor
-              ? const LoadingWidget()
-              : SingleChildScrollView(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isDesktop ? 1000 : double.infinity,
-                        minHeight: MediaQuery.of(context).size.height - 100,
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(isDesktop ? 24 : 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                          // Yeni kullanıcı ekleme kartı
-                          Card(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 4,
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.person_add, color: Colors.blue.shade700, size: 24),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Yeni Kullanıcı Ekle',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue.shade700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  isDesktop ? Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 2,
-                                        child: TextField(
-                                          controller: emailController,
-                                          decoration: InputDecoration(
-                                            labelText: 'E-posta',
-                                            prefixIcon: const Icon(Icons.email),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        flex: 2,
-                                        child: TextField(
-                                          controller: passwordController,
-                                          decoration: InputDecoration(
-                                            labelText: 'Parola',
-                                            prefixIcon: const Icon(Icons.lock),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          obscureText: true,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        flex: 2,
-                                        child: DropdownButtonFormField<String>(
-                                          initialValue: seciliRol,
-                                          decoration: InputDecoration(
-                                            labelText: 'Rol',
-                                            prefixIcon: const Icon(Icons.admin_panel_settings),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          items: rolItems,
-                                          onChanged: (val) {
-                                            if (val != null) {
-                                              setState(() {
-                                                seciliRol = val;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      ElevatedButton.icon(
-                                        onPressed: _yeniKullaniciEkle,
-                                        icon: const Icon(Icons.add),
-                                        label: const Text('Ekle'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green.shade600,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ) : Column(
-                                    children: [
-                                      TextField(
-                                        controller: emailController,
-                                        decoration: InputDecoration(
-                                          labelText: 'E-posta',
-                                          prefixIcon: const Icon(Icons.email),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      TextField(
-                                        controller: passwordController,
-                                        decoration: InputDecoration(
-                                          labelText: 'Parola',
-                                          prefixIcon: const Icon(Icons.lock),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        obscureText: true,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      DropdownButtonFormField<String>(
-                                        initialValue: seciliRol,
-                                        decoration: InputDecoration(
-                                          labelText: 'Rol',
-                                          prefixIcon: const Icon(Icons.admin_panel_settings),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        items: rolItems,
-                                        onChanged: (val) {
-                                          if (val != null) {
-                                            setState(() {
-                                              seciliRol = val;
-                                            });
-                                          }
-                                        },
-                                      ),
-                                      const SizedBox(height: 16),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          onPressed: _yeniKullaniciEkle,
-                                          icon: const Icon(Icons.add),
-                                          label: const Text('Kullanıcı Ekle'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.green.shade600,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          
-                          // Arama ve filtreleme kartı
-                          Card(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 4,
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.search, color: Colors.blue.shade700, size: 24),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Kullanıcı Ara ve Filtrele',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue.shade700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  isDesktop ? Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 3,
-                                        child: TextField(
-                                          controller: aramaController,
-                                          decoration: InputDecoration(
-                                            hintText: 'E-posta veya rol ara...',
-                                            prefixIcon: const Icon(Icons.search),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        flex: 2,
-                                        child: DropdownButtonFormField<String>(
-                                          initialValue: seciliFiltre,
-                                          decoration: InputDecoration(
-                                            labelText: 'Rol Filtresi',
-                                            prefixIcon: const Icon(Icons.filter_list),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          items: const [
-                                            DropdownMenuItem(value: 'hepsi', child: Text('Tüm Roller')),
-                                            ...rolItems,
-                                          ],
-                                          onChanged: (val) {
-                                            if (val != null) {
-                                              setState(() {
-                                                seciliFiltre = val;
-                                              });
-                                              _aramaFiltrele();
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue.shade50,
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: Colors.blue.shade200),
-                                        ),
-                                        child: Text(
-                                          '${filtrelenmisKullanicilar.length} kullanıcı',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.blue.shade700,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ) : Column(
-                                    children: [
-                                      TextField(
-                                        controller: aramaController,
-                                        decoration: InputDecoration(
-                                          hintText: 'E-posta veya rol ara...',
-                                          prefixIcon: const Icon(Icons.search),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      DropdownButtonFormField<String>(
-                                        initialValue: seciliFiltre,
-                                        decoration: InputDecoration(
-                                          labelText: 'Rol Filtresi',
-                                          prefixIcon: const Icon(Icons.filter_list),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        items: const [
-                                          DropdownMenuItem(value: 'hepsi', child: Text('Tüm Roller')),
-                                          ...rolItems,
-                                        ],
-                                        onChanged: (val) {
-                                          if (val != null) {
-                                            setState(() {
-                                              seciliFiltre = val;
-                                            });
-                                            _aramaFiltrele();
-                                          }
-                                        },
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue.shade50,
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: Colors.blue.shade200),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            '${filtrelenmisKullanicilar.length} kullanıcı bulundu',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.blue.shade700,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // Kullanıcı listesi
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.6, // Ekran yüksekliğinin %60'ı
-                            child: filtrelenmisKullanicilar.isEmpty
-                                ? Center(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          'Kullanıcı bulunamadı',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            color: Colors.grey.shade600,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Arama kriterlerinizi değiştirmeyi deneyin',
-                                          style: TextStyle(
-                                            color: Colors.grey.shade500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : ListView.builder(
-                                    itemCount: filtrelenmisKullanicilar.length,
-                                    itemBuilder: (context, index) {
-                                      final user = filtrelenmisKullanicilar[index];
-                                      final aktif = user['aktif'] == true;
-                                      
-                                      return Card(
-                                        margin: const EdgeInsets.symmetric(vertical: 8),
-                                        elevation: 3,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          side: BorderSide(color: Colors.grey.shade200),
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  CircleAvatar(
-                                                    backgroundColor: Colors.blue.shade100,
-                                                    child: Icon(
-                                                      Icons.person,
-                                                      color: Colors.blue.shade700,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Text(
-                                                          user['email'] ?? '-',
-                                                          style: const TextStyle(
-                                                            fontWeight: FontWeight.bold,
-                                                            fontSize: 16,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 4),
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                          decoration: BoxDecoration(
-                                                            color: _getRoleColor(user['role']),
-                                                            borderRadius: BorderRadius.circular(12),
-                                                          ),
-                                                          child: Text(
-                                                            _getRoleDisplayName(user['role']),
-                                                            style: const TextStyle(
-                                                              color: Colors.white,
-                                                              fontSize: 12,
-                                                              fontWeight: FontWeight.w500,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 8),
-                                                        Row(
-                                                          children: [
-                                                            Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
-                                                            const SizedBox(width: 4),
-                                                            Text(
-                                                              'Son Giriş: ${formatLastSignIn(user['last_sign_in_at'])}',
-                                                              style: TextStyle(
-                                                                color: Colors.grey.shade600,
-                                                                fontSize: 13,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Switch(
-                                                        value: aktif,
-                                                        onChanged: (val) => _aktifPasifDegistir(user['user_id'], val),
-                                                        activeThumbColor: Colors.green,
-                                                      ),
-                                                      PopupMenuButton<String>(
-                                                        icon: const Icon(Icons.more_vert),
-                                                        onSelected: (value) async {
-                                                          switch (value) {
-                                                            case 'edit':
-                                                              await _kullaniciDuzenleDialog(user);
-                                                              break;
-                                                            case 'delete':
-                                                              final onay = await showDialog<bool>(
-                                                                context: context,
-                                                                builder: (ctx) => AlertDialog(
-                                                                  title: const Text('Kullanıcıyı Sil'),
-                                                                  content: Text('${user['email']} kullanıcısını silmek istediğinize emin misiniz?'),
-                                                                  actions: [
-                                                                    TextButton(
-                                                                      onPressed: () => Navigator.pop(ctx, false),
-                                                                      child: const Text('İptal'),
-                                                                    ),
-                                                                    TextButton(
-                                                                      onPressed: () => Navigator.pop(ctx, true),
-                                                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
-                                                                      child: const Text('Sil'),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              );
-                                                              if (onay == true) {
-                                                                await _kullaniciSil(user['user_id']);
-                                                              }
-                                                              break;
-                                                          }
-                                                        },
-                                                        itemBuilder: (context) => [
-                                                          const PopupMenuItem(
-                                                            value: 'edit',
-                                                            child: Row(
-                                                              children: [
-                                                                Icon(Icons.edit, size: 20),
-                                                                SizedBox(width: 8),
-                                                                Text('Düzenle'),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                          const PopupMenuItem(
-                                                            value: 'delete',
-                                                            child: Row(
-                                                              children: [
-                                                                Icon(Icons.delete, size: 20, color: Colors.red),
-                                                                SizedBox(width: 8),
-                                                                Text('Sil', style: TextStyle(color: Colors.red)),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 12),
-                                              isDesktop ? Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: DropdownButtonFormField<String>(
-                                                      initialValue: rolItems.any((item) => item.value == user['role']) 
-                                                          ? user['role'] 
-                                                          : 'orgu_firmasi',
-                                                      decoration: InputDecoration(
-                                                        labelText: 'Rol Değiştir',
-                                                        border: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                        ),
-                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                      ),
-                                                      items: rolItems,
-                                                      onChanged: (val) {
-                                                        if (val != null && val != user['role']) {
-                                                          _rolDegistir(user['user_id'], val);
-                                                        }
-                                                      },
-                                                    ),
-                                                  ),
-                                                ],
-                                              ) : DropdownButtonFormField<String>(
-                                                initialValue: rolItems.any((item) => item.value == user['role']) 
-                                                    ? user['role'] 
-                                                    : 'orgu_firmasi',
-                                                decoration: InputDecoration(
-                                                  labelText: 'Rol Değiştir',
-                                                  border: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(8),
-                                                  ),
-                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                                ),
-                                                items: rolItems,
-                                                onChanged: (val) {
-                                                  if (val != null && val != user['role']) {
-                                                    _rolDegistir(user['user_id'], val);
-                                                  }
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                          ),
-                        ],
-                      ), // Column
-                    ), // Padding
-                  ), // ConstrainedBox
-                ), // Center
-              ), // SingleChildScrollView
-        ); // Scaffold
-      },
+        ],
+      ),
+      floatingActionButton: _yonetebilir
+          ? FloatingActionButton.extended(
+              onPressed: _islemSuruyor ? null : _kullaniciOlusturDialoguAc,
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              label: const Text('Kullanıcı Ekle'),
+            )
+          : null,
+      body: _yukleniyor
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _verileriYukle,
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _buildHero(firmaAdi),
+                  const SizedBox(height: 20),
+                  _buildFilterPanel(),
+                  const SizedBox(height: 20),
+                  if (!_yonetebilir) _buildReadOnlyNotice(),
+                  if (!_yonetebilir) const SizedBox(height: 20),
+                  if (_filtrelenmisKullanicilar.isEmpty)
+                    _buildEmptyState()
+                  else
+                    ..._filtrelenmisKullanicilar.map(_buildKullaniciCard),
+                ],
+              ),
+            ),
     );
   }
+
+  Widget _buildHero(String firmaAdi) {
+    final toplam = _tumKullanicilar.length;
+    final aktif =
+        _tumKullanicilar.where((item) => item['aktif'] == true).length;
+    final yonetici = _tumKullanicilar
+        .where((item) => _adminRoller.contains(item['rol']))
+        .length;
+    final departman = _tumKullanicilar
+        .map((item) => (item['rol'] ?? '').toString())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F3FAE), Color(0xFF2563EB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(26),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              firmaAdi,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Firma içi kullanıcıları, rolleri ve erişim durumlarını tek ekrandan yönetin.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              _heroStat('Toplam kullanıcı', '$toplam', Icons.people_outline),
+              _heroStat('Aktif kayıt', '$aktif', Icons.check_circle_outline),
+              _heroStat(
+                  'Yönetici', '$yonetici', Icons.admin_panel_settings_outlined),
+              _heroStat('Rol grubu', '$departman', Icons.hub_outlined),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroStat(String label, String value, IconData icon) {
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(24),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(28),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterPanel() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dar = constraints.maxWidth < 860;
+          final aramaKutusu = TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              hintText: 'E-posta, ad soyad veya rol ara',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+          );
+
+          final rolSecici = DropdownButtonFormField<String>(
+            initialValue: _seciliRolFiltresi,
+            decoration: const InputDecoration(
+              labelText: 'Rol filtresi',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem(
+                value: 'hepsi',
+                child: Text('Tüm roller'),
+              ),
+              ..._filtreRolleri(),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _seciliRolFiltresi = value);
+              _filtreleriUygula();
+            },
+          );
+
+          final sayac = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Text(
+              '${_filtrelenmisKullanicilar.length} kayıt',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          );
+
+          if (dar) {
+            return Column(
+              children: [
+                aramaKutusu,
+                const SizedBox(height: 12),
+                rolSecici,
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerLeft, child: sayac),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(flex: 3, child: aramaKutusu),
+              const SizedBox(width: 12),
+              Expanded(flex: 2, child: rolSecici),
+              const SizedBox(width: 12),
+              sayac,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyNotice() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline, color: Color(0xFFD97706)),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Bu ekranda görüntüleme yetkiniz var. Kullanıcı ekleme ve rol değiştirme işlemleri yalnızca firma yöneticileri için açıktır.',
+              style: TextStyle(
+                color: Color(0xFF92400E),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: _panelDecoration(),
+      child: const Column(
+        children: [
+          Icon(Icons.people_outline, size: 44, color: Color(0xFF94A3B8)),
+          SizedBox(height: 12),
+          Text(
+            'Bu filtrede kullanıcı bulunamadı',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Arama terimini veya rol filtresini değiştirin.',
+            style: TextStyle(color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKullaniciCard(Map<String, dynamic> kullanici) {
+    final rol = (kullanici['rol'] ?? 'kullanici').toString();
+    final aktif = kullanici['aktif'] == true;
+    final rolRenk = _rolRenk(rol);
+    final email = (kullanici['email'] ?? '-').toString();
+    final gorunenIsim = _gorunenIsim(kullanici);
+    final katilim = _tarihFormat(kullanici['katilim_tarihi']?.toString());
+    final sonGiris = _zamanFormat(kullanici['created_at']?.toString());
+    final korumali = rol == 'firma_sahibi';
+    final rolEtiket = _rolEtiketi(rol);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final dar = constraints.maxWidth < 860;
+
+              final bilgiAlani = Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      gorunenIsim,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      email,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              final aksiyonlar = _yonetebilir
+                  ? Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (!korumali)
+                          OutlinedButton.icon(
+                            onPressed: _islemSuruyor
+                                ? null
+                                : () => _rolDialoguAc(kullanici),
+                            icon: const Icon(Icons.swap_horiz, size: 18),
+                            label: const Text('Rol Değiştir'),
+                          ),
+                        if (!korumali)
+                          OutlinedButton.icon(
+                            onPressed: _islemSuruyor
+                                ? null
+                                : () => _aktifPasifOnayi(kullanici),
+                            icon: Icon(
+                              aktif
+                                  ? Icons.pause_circle_outline
+                                  : Icons.check_circle_outline,
+                              size: 18,
+                            ),
+                            label: Text(aktif ? 'Pasifleştir' : 'Aktifleştir'),
+                          ),
+                        if (!korumali)
+                          OutlinedButton.icon(
+                            onPressed: _islemSuruyor
+                                ? null
+                                : () => _firmadanCikarOnayi(kullanici),
+                            icon: const Icon(Icons.person_remove_outlined,
+                                size: 18),
+                            label: const Text('Firmadan Çıkar'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFB91C1C),
+                              side: const BorderSide(color: Color(0xFFFCA5A5)),
+                            ),
+                          ),
+                      ],
+                    )
+                  : const SizedBox.shrink();
+
+              if (dar) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _avatar(gorunenIsim, rolRenk),
+                        const SizedBox(width: 14),
+                        bilgiAlani,
+                      ],
+                    ),
+                    if (_yonetebilir) ...[
+                      const SizedBox(height: 16),
+                      aksiyonlar,
+                    ],
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _avatar(gorunenIsim, rolRenk),
+                  const SizedBox(width: 14),
+                  bilgiAlani,
+                  const SizedBox(width: 16),
+                  Flexible(child: aksiyonlar),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _infoChip(Icons.badge_outlined, 'Rol', rolEtiket, rolRenk),
+              _infoChip(
+                aktif ? Icons.check_circle_outline : Icons.block_outlined,
+                'Durum',
+                aktif ? 'Aktif' : 'Pasif',
+                aktif ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+              ),
+              _infoChip(
+                Icons.calendar_today_outlined,
+                'Katılım',
+                katilim,
+                const Color(0xFF2563EB),
+              ),
+              _infoChip(
+                Icons.history_outlined,
+                'Kayıt',
+                sonGiris,
+                const Color(0xFF64748B),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatar(String label, Color color) {
+    final harf = label.isEmpty ? '?' : label.substring(0, 1).toUpperCase();
+    return CircleAvatar(
+      radius: 26,
+      backgroundColor: color.withAlpha(32),
+      child: Text(
+        harf,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _kullaniciOlusturDialoguAc() async {
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    String seciliRol = 'kullanici';
+
+    final sonuc = await showDialog<_KullaniciFormSonucu>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Yeni Kullanıcı Oluştur'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'E-posta',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Parola',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: seciliRol,
+                    decoration: const InputDecoration(
+                      labelText: 'Rol',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _rolMenuItems(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => seciliRol = value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Vazgeç'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final email = emailController.text.trim();
+                final password = passwordController.text.trim();
+                if (email.isEmpty || password.isEmpty || password.length < 6) {
+                  return;
+                }
+                Navigator.of(ctx).pop(
+                  _KullaniciFormSonucu(
+                    email: email,
+                    password: password,
+                    rol: seciliRol,
+                  ),
+                );
+              },
+              child: const Text('Oluştur'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    emailController.dispose();
+    passwordController.dispose();
+
+    if (sonuc == null) return;
+
+    try {
+      setState(() => _islemSuruyor = true);
+
+      final firmaId = TenantManager.instance.requireFirmaId;
+      final response = await _adminClient.auth.admin.createUser(
+        AdminUserAttributes(
+          email: sonuc.email,
+          password: sonuc.password,
+          emailConfirm: true,
+        ),
+      );
+
+      final user = response.user;
+      if (user == null) {
+        throw Exception('Kullanıcı oluşturulamadı');
+      }
+
+      await _adminClient.from(DbTables.userRoles).upsert({
+        'user_id': user.id,
+        'role': _globalRoleForFirmaRole(sonuc.rol),
+      }, onConflict: 'user_id');
+
+      await _adminClient.from(DbTables.firmaKullanicilari).upsert({
+        'firma_id': firmaId,
+        'user_id': user.id,
+        'rol': sonuc.rol,
+        'aktif': true,
+      }, onConflict: 'firma_id,user_id');
+
+      if (!mounted) return;
+      await _verileriYukle();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kullanıcı oluşturuldu')),
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      final mesaj = e.code == 'email_exists' || e.code == 'user_already_exists'
+          ? 'Bu e-posta adresi zaten kullanımda'
+          : 'Kullanıcı oluşturulamadı: ${e.message}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(mesaj)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hata: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _islemSuruyor = false);
+      }
+    }
+  }
+
+  Future<void> _rolDialoguAc(Map<String, dynamic> kullanici) async {
+    final mevcutRol = (kullanici['rol'] ?? 'kullanici').toString();
+    String seciliRol = mevcutRol;
+
+    final secim = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Rol Değiştir'),
+          content: SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (kullanici['email'] ?? '-').toString(),
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: seciliRol,
+                  decoration: const InputDecoration(
+                    labelText: 'Yeni rol',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _rolMenuItems(currentRole: mevcutRol),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => seciliRol = value);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Vazgeç'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(seciliRol),
+              child: const Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (secim == null || secim == mevcutRol) return;
+
+    try {
+      setState(() => _islemSuruyor = true);
+
+      await _adminClient
+          .from(DbTables.firmaKullanicilari)
+          .update({'rol': secim})
+          .eq('id', kullanici['id'])
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
+
+      await _senkronizeGlobalRol(
+        userId: kullanici['user_id'].toString(),
+        firmaRol: secim,
+      );
+
+      if (!mounted) return;
+      await _verileriYukle();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rol güncellendi: ${_rolEtiketi(secim)}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rol güncellenemedi: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _islemSuruyor = false);
+      }
+    }
+  }
+
+  Future<void> _aktifPasifOnayi(Map<String, dynamic> kullanici) async {
+    final aktif = kullanici['aktif'] == true;
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title:
+            Text(aktif ? 'Kullanıcıyı Pasifleştir' : 'Kullanıcıyı Aktifleştir'),
+        content: Text(
+          '${kullanici['email']} için ${aktif ? 'pasif' : 'aktif'} duruma geçilsin mi?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(aktif ? 'Pasifleştir' : 'Aktifleştir'),
+          ),
+        ],
+      ),
+    );
+
+    if (onay != true) return;
+
+    try {
+      setState(() => _islemSuruyor = true);
+      await _adminClient
+          .from(DbTables.firmaKullanicilari)
+          .update({'aktif': !aktif})
+          .eq('id', kullanici['id'])
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
+
+      await _senkronizeGlobalRol(
+        userId: kullanici['user_id'].toString(),
+        firmaRol: (kullanici['rol'] ?? 'kullanici').toString(),
+      );
+
+      if (!mounted) return;
+      await _verileriYukle();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(aktif
+              ? 'Kullanıcı pasifleştirildi'
+              : 'Kullanıcı aktifleştirildi'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Durum güncellenemedi: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _islemSuruyor = false);
+      }
+    }
+  }
+
+  Future<void> _firmadanCikarOnayi(Map<String, dynamic> kullanici) async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Firmadan Çıkar'),
+        content: Text(
+          '${kullanici['email']} kullanıcısı bu firmadan çıkarılacak. Devam edilsin mi?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB91C1C),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Çıkar'),
+          ),
+        ],
+      ),
+    );
+
+    if (onay != true) return;
+
+    try {
+      setState(() => _islemSuruyor = true);
+      await _adminClient
+          .from(DbTables.firmaKullanicilari)
+          .delete()
+          .eq('id', kullanici['id'])
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
+
+      await _senkronizeGlobalRol(
+        userId: kullanici['user_id'].toString(),
+        firmaRol: 'kullanici',
+      );
+
+      if (!mounted) return;
+      await _verileriYukle();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kullanıcı firmadan çıkarıldı')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kullanıcı çıkarılamadı: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _islemSuruyor = false);
+      }
+    }
+  }
+
+  Future<void> _senkronizeGlobalRol({
+    required String userId,
+    required String firmaRol,
+  }) async {
+    final aktifUyelikler = await _adminClient
+        .from(DbTables.firmaKullanicilari)
+        .select('rol, aktif')
+        .eq('user_id', userId)
+        .eq('aktif', true);
+
+    final aktifRoller = List<Map<String, dynamic>>.from(aktifUyelikler)
+        .map((item) => (item['rol'] ?? '').toString())
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    String hedefRol;
+    if (aktifRoller.any(_adminRoller.contains)) {
+      hedefRol = 'admin';
+    } else if (aktifRoller.isNotEmpty) {
+      hedefRol = _globalRoleForFirmaRole(aktifRoller.first);
+    } else {
+      hedefRol = _globalRoleForFirmaRole(firmaRol);
+    }
+
+    await _adminClient.from(DbTables.userRoles).upsert({
+      'user_id': userId,
+      'role': hedefRol,
+    }, onConflict: 'user_id');
+  }
+
+  List<DropdownMenuItem<String>> _rolMenuItems({String? currentRole}) {
+    final secenekler = <_RolSecenegi>[
+      ..._rolSecenekleri,
+      if (currentRole == 'firma_sahibi')
+        const _RolSecenegi('firma_sahibi', 'Firma Sahibi'),
+    ];
+
+    return secenekler
+        .map(
+          (item) => DropdownMenuItem<String>(
+            value: item.value,
+            child: Text(item.label),
+          ),
+        )
+        .toList();
+  }
+
+  List<DropdownMenuItem<String>> _filtreRolleri() {
+    final roller = _tumKullanicilar
+        .map((item) => (item['rol'] ?? '').toString())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    return roller
+        .map(
+          (rol) => DropdownMenuItem<String>(
+            value: rol,
+            child: Text(_rolEtiketi(rol)),
+          ),
+        )
+        .toList();
+  }
+
+  String _gorunenIsim(Map<String, dynamic> kullanici) {
+    final ad = (kullanici['ad'] ?? '').toString().trim();
+    final soyad = (kullanici['soyad'] ?? '').toString().trim();
+    final displayName = (kullanici['display_name'] ?? '').toString().trim();
+    final email = (kullanici['email'] ?? '').toString().trim();
+
+    final tamAd = [ad, soyad].where((item) => item.isNotEmpty).join(' ').trim();
+    if (tamAd.isNotEmpty) return tamAd;
+    if (displayName.isNotEmpty && displayName != email) return displayName;
+    if (email.isNotEmpty) return email;
+    return (kullanici['user_id'] ?? '-').toString();
+  }
+
+  String _rolEtiketi(String rol) {
+    switch (rol) {
+      case 'firma_sahibi':
+        return 'Firma Sahibi';
+      case 'firma_admin':
+        return 'Firma Yöneticisi';
+      case 'yonetici':
+        return 'Yönetici';
+      case 'kullanici':
+        return 'Kullanıcı';
+      case 'personel':
+        return 'Personel';
+      case 'ik':
+        return 'İnsan Kaynakları';
+      case 'dokuma':
+        return 'Dokuma';
+      case 'konfeksiyon':
+        return 'Konfeksiyon';
+      case 'yikama':
+        return 'Yıkama';
+      case 'utu':
+      case 'utu_paket':
+      case 'paketleme':
+        return 'Ütü / Paket';
+      case 'ilik_dugme':
+        return 'İlik Düğme';
+      case 'kalite_kontrol':
+        return 'Kalite Kontrol';
+      case 'sevkiyat':
+        return 'Sevkiyat';
+      case 'sofor':
+        return 'Şoför';
+      case 'muhasebe':
+      case 'muhasebeci':
+        return 'Muhasebe';
+      case 'tasarim':
+        return 'Tasarım';
+      case 'planlama':
+        return 'Planlama';
+      case 'satis':
+        return 'Satış';
+      case 'depo':
+      case 'depocu':
+        return 'Depo';
+      case 'nakis':
+        return 'Nakış';
+      default:
+        return rol;
+    }
+  }
+
+  Color _rolRenk(String rol) {
+    switch (rol) {
+      case 'firma_sahibi':
+        return const Color(0xFFD97706);
+      case 'firma_admin':
+        return const Color(0xFF7C3AED);
+      case 'yonetici':
+        return const Color(0xFF2563EB);
+      case 'kullanici':
+        return const Color(0xFF0F766E);
+      case 'personel':
+        return const Color(0xFF64748B);
+      case 'ik':
+        return const Color(0xFF4F46E5);
+      case 'dokuma':
+      case 'konfeksiyon':
+      case 'yikama':
+      case 'utu_paket':
+      case 'ilik_dugme':
+      case 'kalite_kontrol':
+      case 'sevkiyat':
+      case 'sofor':
+      case 'nakis':
+        return const Color(0xFF0F766E);
+      case 'muhasebe':
+      case 'muhasebeci':
+        return const Color(0xFFB45309);
+      case 'satis':
+      case 'tasarim':
+      case 'planlama':
+      case 'depo':
+      case 'depocu':
+        return const Color(0xFF1D4ED8);
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  String _globalRoleForFirmaRole(String firmaRole) {
+    switch (firmaRole) {
+      case 'firma_sahibi':
+      case 'firma_admin':
+        return 'admin';
+      case 'yonetici':
+      case 'kullanici':
+      case 'ik':
+      case 'muhasebe':
+      case 'muhasebeci':
+      case 'satis':
+      case 'tasarim':
+      case 'planlama':
+        return 'kullanici';
+      case 'dokumaci':
+      case 'dokuma':
+        return 'dokuma';
+      case 'konfeksiyon':
+      case 'konfeksiyoncu':
+        return 'konfeksiyon';
+      case 'yikama':
+        return 'yikama';
+      case 'utu':
+      case 'utu_paket':
+      case 'paketleme':
+        return 'utu_paket';
+      case 'ilik_dugme':
+        return 'ilik_dugme';
+      case 'kalite_kontrol':
+        return 'kalite_kontrol';
+      case 'sevkiyat':
+        return 'sevkiyat';
+      case 'sofor':
+        return 'sofor';
+      case 'depo':
+      case 'depocu':
+        return 'depo';
+      case 'personel':
+        return 'personel';
+      case 'nakis':
+        return 'nakis';
+      default:
+        return 'kullanici';
+    }
+  }
+
+  String _tarihFormat(String? raw) {
+    if (raw == null || raw.isEmpty) return '-';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return '-';
+    return DateFormat('dd.MM.yyyy').format(parsed);
+  }
+
+  String _zamanFormat(String? raw) {
+    if (raw == null || raw.isEmpty) return '-';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return '-';
+    return DateFormat('dd.MM.yyyy HH:mm').format(parsed);
+  }
+
+  BoxDecoration _panelDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0F0F172A),
+          blurRadius: 24,
+          offset: Offset(0, 10),
+        ),
+      ],
+    );
+  }
+}
+
+class _RolSecenegi {
+  final String value;
+  final String label;
+
+  const _RolSecenegi(this.value, this.label);
+}
+
+class _KullaniciFormSonucu {
+  final String email;
+  final String password;
+  final String rol;
+
+  const _KullaniciFormSonucu({
+    required this.email,
+    required this.password,
+    required this.rol,
+  });
 }

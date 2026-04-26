@@ -81,6 +81,30 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+async function writePlatformLog(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  payload: Record<string, unknown>,
+) {
+  const { error } = await supabaseAdmin.from("platform_loglari").insert(payload);
+
+  if (!error) {
+    return;
+  }
+
+  const hataMesaji = `${error.code ?? ""} ${error.message ?? ""}`.toLowerCase();
+  const tabloYok =
+    error.code === "PGRST205" ||
+    error.code === "42P01" ||
+    hataMesaji.includes("platform_loglari") ||
+    hataMesaji.includes("schema cache");
+
+  if (tabloYok) {
+    return;
+  }
+
+  throw new Error(`platform_loglari: ${error.message}`);
+}
+
 async function bestEffortDeleteByFirma(
   supabaseAdmin: ReturnType<typeof createClient>,
   table: string,
@@ -96,6 +120,12 @@ async function bestEffortDeleteByFirma(
   }
 
   const hataMesaji = `${error.code ?? ""} ${error.message ?? ""}`.toLowerCase();
+  if (table === "uretim_kayitlari" &&
+      (hataMesaji.includes("invalid input syntax for type integer") ||
+        hataMesaji.includes("firma_id"))) {
+    return await deleteUretimKayitlariByModels(supabaseAdmin, firmaId);
+  }
+
   const yoksayilabilir =
     error.code === "42P01" ||
     error.code === "PGRST204" ||
@@ -108,6 +138,45 @@ async function bestEffortDeleteByFirma(
   }
 
   throw new Error(`${table}: ${error.message}`);
+}
+
+async function deleteUretimKayitlariByModels(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  firmaId: string,
+) {
+  const { data: modeller, error: modelError } = await supabaseAdmin
+    .from("modeller")
+    .select("id")
+    .eq("firma_id", firmaId);
+
+  if (modelError) {
+    throw new Error(`uretim_kayitlari fallback model okunamadi: ${modelError.message}`);
+  }
+
+  const modelIds = (modeller ?? [])
+    .map((kayit) => kayit.id?.toString())
+    .filter((deger): deger is string => !!deger);
+
+  if (modelIds.length === 0) {
+    return 0;
+  }
+
+  let silinenToplam = 0;
+  for (let i = 0; i < modelIds.length; i += 200) {
+    const parca = modelIds.slice(i, i + 200);
+    const { error, count } = await supabaseAdmin
+      .from("uretim_kayitlari")
+      .delete({ count: "exact" })
+      .in("model_id", parca);
+
+    if (error) {
+      throw new Error(`uretim_kayitlari fallback silme hatasi: ${error.message}`);
+    }
+
+    silinenToplam += count ?? 0;
+  }
+
+  return silinenToplam;
 }
 
 Deno.serve(async (req: Request) => {
@@ -260,7 +329,7 @@ Deno.serve(async (req: Request) => {
       silinenKullaniciSayisi++;
     }
 
-    await supabaseAdmin.from("platform_loglari").insert({
+    await writePlatformLog(supabaseAdmin, {
       islem_tipi: "firma_sil",
       hedef_tablo: "firmalar",
       hedef_id: firmaId,
