@@ -131,7 +131,7 @@ class _LoginPageState extends State<LoginPage>
           // Hiç firma yoksa: tedarikci/personel/rol kontrolü yap
           if (tenantProvider.kullaniciFirmalari.isEmpty) {
             bool hasExistingAccess = false;
-            
+
             if (SupabaseConfig.isAdminAvailable) {
               try {
                 final adminClient = SupabaseConfig.adminClient;
@@ -142,10 +142,12 @@ class _LoginPageState extends State<LoginPage>
                     .select('firma_id, rol')
                     .eq('user_id', response.user!.id)
                     .eq('aktif', true);
-                
+
                 if (firmaKullaniciCheck.isNotEmpty) {
-                  debugPrint('✅ firma_kullanicilari kaydı bulundu (adminClient)');
-                  await tenantProvider.kullaniciFirmalariniYukle(response.user!.id);
+                  debugPrint(
+                      '✅ firma_kullanicilari kaydı bulundu (adminClient)');
+                  await tenantProvider
+                      .kullaniciFirmalariniYukle(response.user!.id);
                   hasExistingAccess = true;
                 }
 
@@ -170,13 +172,16 @@ class _LoginPageState extends State<LoginPage>
                       firmaId = varsayilanFirma?['id']?.toString();
                     }
                     if (firmaId != null) {
-                      await adminClient.from(DbTables.firmaKullanicilari).upsert({
+                      await adminClient
+                          .from(DbTables.firmaKullanicilari)
+                          .upsert({
                         'firma_id': firmaId,
                         'user_id': response.user!.id,
                         'rol': 'kullanici',
                         'aktif': true,
                       }, onConflict: 'firma_id,user_id');
-                      await tenantProvider.kullaniciFirmalariniYukle(response.user!.id);
+                      await tenantProvider
+                          .kullaniciFirmalariniYukle(response.user!.id);
                     }
                   }
                 }
@@ -197,7 +202,7 @@ class _LoginPageState extends State<LoginPage>
                         .eq('email', email)
                         .maybeSingle();
                     firmaId = personelCheck?['firma_id']?.toString();
-                    
+
                     // firma_id bulunamadıysa varsayılan firmayı kullan
                     if (firmaId == null) {
                       final varsayilanFirma = await adminClient
@@ -210,13 +215,16 @@ class _LoginPageState extends State<LoginPage>
                     }
 
                     if (firmaId != null) {
-                      await adminClient.from(DbTables.firmaKullanicilari).upsert({
+                      await adminClient
+                          .from(DbTables.firmaKullanicilari)
+                          .upsert({
                         'firma_id': firmaId,
                         'user_id': response.user!.id,
                         'rol': 'kullanici',
                         'aktif': true,
                       }, onConflict: 'firma_id,user_id');
-                      await tenantProvider.kullaniciFirmalariniYukle(response.user!.id);
+                      await tenantProvider
+                          .kullaniciFirmalariniYukle(response.user!.id);
                     }
                   }
                 }
@@ -322,39 +330,44 @@ class _LoginPageState extends State<LoginPage>
 
         if (mounted) {
           Widget targetWidget;
-          switch (targetRoute) {
-            case AppRoutes.tedarikci:
-              targetWidget = const TedarikciPanel();
-              break;
-            case AppRoutes.kalite:
-              targetWidget = const KaliteKontrolPanel();
-              break;
-            case '/sofor':
-              targetWidget = const SoforPanel();
-              break;
-            case '/sevkiyat':
-              targetWidget = const SevkiyatPanel();
-              break;
-            case AppRoutes.dokuma:
-              targetWidget = const DokumaDashboard();
-              break;
-            case '/konfeksiyon':
-              targetWidget = const KonfeksiyonDashboard();
-              break;
-            case AppRoutes.yikama:
-              targetWidget = const YikamaDashboard();
-              break;
-            case AppRoutes.nakis:
-              targetWidget = const NakisDashboard();
-              break;
-            case '/utu':
-              targetWidget = const UtuPaketDashboard();
-              break;
-            case '/ilik_dugme':
-              targetWidget = const IlikDugmeDashboard();
-              break;
-            default:
-              targetWidget = const AnaSayfa();
+          final auth = context.read<AuthProvider>();
+          if (auth.firmaRol != null && auth.firmaRol!.isNotEmpty) {
+            targetWidget = const AnaSayfa();
+          } else {
+            switch (targetRoute) {
+              case AppRoutes.tedarikci:
+                targetWidget = const TedarikciPanel();
+                break;
+              case AppRoutes.kalite:
+                targetWidget = const KaliteKontrolPanel();
+                break;
+              case '/sofor':
+                targetWidget = const SoforPanel();
+                break;
+              case '/sevkiyat':
+                targetWidget = const SevkiyatPanel();
+                break;
+              case AppRoutes.dokuma:
+                targetWidget = const DokumaDashboard();
+                break;
+              case '/konfeksiyon':
+                targetWidget = const KonfeksiyonDashboard();
+                break;
+              case AppRoutes.yikama:
+                targetWidget = const YikamaDashboard();
+                break;
+              case AppRoutes.nakis:
+                targetWidget = const NakisDashboard();
+                break;
+              case '/utu':
+                targetWidget = const UtuPaketDashboard();
+                break;
+              case '/ilik_dugme':
+                targetWidget = const IlikDugmeDashboard();
+                break;
+              default:
+                targetWidget = const AnaSayfa();
+            }
           }
           Navigator.pushReplacement(
             context,

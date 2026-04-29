@@ -8,6 +8,7 @@ import 'package:excel/excel.dart' as excel_package;
 import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:uretim_takip/pages/stok/iplik_siparis_takip_page.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 
 part 'iplik_stoklari_crud.dart';
 part 'iplik_stoklari_detay.dart';
@@ -23,6 +24,7 @@ class IplikStoklariPage extends StatefulWidget {
 class _IplikStoklariPageState extends State<IplikStoklariPage> {
   final supabase = Supabase.instance.client;
   String? kullaniciRolu;
+  Set<String> _kullaniciRolleri = {};
 
   // Stok ve hareket verileri
   List<Map<String, dynamic>> iplikStoklari = [];
@@ -49,7 +51,11 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   static const Color _dangerColor = Color(0xFFDC2626);
   static const Color _surfaceColor = Color(0xFFF8FAFC);
 
-  bool get _adminMi => kullaniciRolu == 'admin';
+  bool get _adminMi =>
+      _kullaniciRolleri.contains('admin') ||
+      _kullaniciRolleri.contains('firma_admin') ||
+      _kullaniciRolleri.contains('firma_sahibi') ||
+      _kullaniciRolleri.contains('depocu');
 
   @override
   void initState() {
@@ -67,13 +73,12 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   Future<void> _yetkiGetir() async {
     final userId = supabase.auth.currentUser?.id;
     if (userId != null) {
-      final response = await supabase
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', userId)
-          .maybeSingle();
+      final roller = await UserRoleService.kullaniciTumRolleriniGetir(
+        userId: userId,
+      );
       setState(() {
-        kullaniciRolu = response?['role'] ?? 'kullanici';
+        _kullaniciRolleri = roller;
+        kullaniciRolu = UserRoleService.birincilRolSec(roller);
       });
     }
   }

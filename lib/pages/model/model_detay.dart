@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/dal_form_config.dart';
@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uretim_takip/services/model_maliyet_hesaplama_servisi.dart';
+import 'package:uretim_takip/services/sevkiyat_atama_guard.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'model_detay_utils.dart' as utils;
 
@@ -32,7 +33,8 @@ class ModelDetay extends StatefulWidget {
   State<ModelDetay> createState() => _ModelDetayState();
 }
 
-class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateMixin {
+class _ModelDetayState extends State<ModelDetay>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? currentModelData;
   final supabase = Supabase.instance.client;
   TabController? _tabController;
@@ -40,7 +42,7 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
   /// Modelin üretim dalını modelData'dan okur, yoksa firmanın birincil dalını kullanır
   String get _modelUretimDali =>
       currentModelData?['uretim_dali'] as String? ?? DalFormConfig.birincilDal;
-  
+
   // Üretim kayıtları
   List<dynamic> orguUretimKayitlari = [];
   List<dynamic> konfeksiyonUretimKayitlari = [];
@@ -63,14 +65,14 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
   List<dynamic> modelAksesuarlari = [];
   List<dynamic> teknikDosyalar = [];
   List<dynamic> yuklemeKayitlari = [];
-  
+
   // Düzenleme modları
   bool _isEditing = false;
   bool _isSaving = false;
-  
+
   // Form controller'ları (Model Bilgileri için)
   final _formKey = GlobalKey<FormState>();
-  
+
   String? kullaniciRolu;
   String? kullaniciEmail;
   bool _isLoading = true;
@@ -107,22 +109,25 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
           .from(DbTables.modelAksesuar)
           .select('*')
           .eq('model_id', widget.modelId);
-      
-      debugPrint('📦 model_aksesuar sorgusu: ${modelAksesuarResponse.length} kayıt');
+
+      debugPrint(
+          '📦 model_aksesuar sorgusu: ${modelAksesuarResponse.length} kayıt');
       debugPrint('📦 model_aksesuar verisi: $modelAksesuarResponse');
-      
+
       if (modelAksesuarResponse.isEmpty) {
-        setState(() { modelAksesuarlari = []; });
+        setState(() {
+          modelAksesuarlari = [];
+        });
         return;
       }
-      
+
       // Her aksesuar için detay bilgilerini al
       final List<Map<String, dynamic>> aksesuarlarWithDetails = [];
       for (var ma in modelAksesuarResponse) {
         try {
           final aksesuarId = ma['aksesuar_id'];
           debugPrint('🔍 Aksesuar ID: $aksesuarId');
-          
+
           if (aksesuarId != null) {
             // Aksesuar detayını al
             final aksesuarDetay = await supabase
@@ -130,17 +135,17 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
                 .select('*')
                 .eq('id', aksesuarId)
                 .maybeSingle();
-            
+
             // Aksesuar bedenlerinden toplam stok hesapla
             int toplamStok = 0;
-            List<Map<String, dynamic>> aksesuarBedenler = [];
+            final List<Map<String, dynamic>> aksesuarBedenler = [];
             try {
               final bedenler = await supabase
                   .from(DbTables.aksesuarBedenler)
                   .select('beden, stok_miktari')
                   .eq('aksesuar_id', aksesuarId)
                   .eq('durum', 'aktif');
-              
+
               if (bedenler.isNotEmpty) {
                 for (var beden in bedenler) {
                   toplamStok += (beden['stok_miktari'] as int? ?? 0);
@@ -150,23 +155,31 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
             } catch (e) {
               debugPrint('⚠️ Beden stok hesaplama hatası: $e');
             }
-            
+
             // Eğer beden stoku 0 ise, aksesuarlar tablosundaki miktar alanını kullan
             if (toplamStok == 0 && aksesuarDetay != null) {
               toplamStok = (aksesuarDetay['miktar'] as num?)?.toInt() ?? 0;
             }
-            
+
             debugPrint('✅ Aksesuar detay: $aksesuarDetay');
             debugPrint('   - ad: ${aksesuarDetay?['ad']}');
             debugPrint('   - miktar (tablodan): ${aksesuarDetay?['miktar']}');
             debugPrint('   - toplam_stok (hesaplanan): $toplamStok');
             debugPrint('   - birim_fiyat: ${aksesuarDetay?['birim_fiyat']}');
-            
+
             // Aksesuar detayına hesaplanan stoğu ve bedenleri ekle
-            final Map<String, dynamic> enrichedAksesuarDetay = aksesuarDetay != null 
-                ? {...Map<String, dynamic>.from(aksesuarDetay), 'toplam_stok': toplamStok, 'aksesuar_bedenler': aksesuarBedenler}
-                : {'toplam_stok': toplamStok, 'aksesuar_bedenler': aksesuarBedenler};
-            
+            final Map<String, dynamic> enrichedAksesuarDetay =
+                aksesuarDetay != null
+                    ? {
+                        ...Map<String, dynamic>.from(aksesuarDetay),
+                        'toplam_stok': toplamStok,
+                        'aksesuar_bedenler': aksesuarBedenler
+                      }
+                    : {
+                        'toplam_stok': toplamStok,
+                        'aksesuar_bedenler': aksesuarBedenler
+                      };
+
             aksesuarlarWithDetails.add({
               ...Map<String, dynamic>.from(ma),
               DbTables.aksesuarlar: enrichedAksesuarDetay,
@@ -176,7 +189,7 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
           debugPrint('❌ Aksesuar detay hatası: $e');
         }
       }
-      
+
       if (mounted) {
         setState(() {
           modelAksesuarlari = aksesuarlarWithDetails;
@@ -201,7 +214,7 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
           .select('*')
           .eq('model_id', widget.modelId)
           .order('created_at', ascending: false);
-      
+
       setState(() {
         teknikDosyalar = response;
       });
@@ -218,7 +231,7 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
           .select('*')
           .eq('model_id', widget.modelId)
           .order('tarih', ascending: false);
-      
+
       setState(() {
         yuklemeKayitlari = response;
       });
@@ -237,7 +250,7 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
       }
 
       kullaniciEmail = user.email;
-      
+
       // Admin tüm modellere erişebilir
       if (kullaniciRolu == 'admin') {
         _hasAccess = true;
@@ -246,18 +259,42 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
 
       // Üretim zinciri kullanıcıları sadece kendilerine atanan modellere erişebilir
       final Set<String> atanmisModelIdleri = {};
-      
+
       // Tüm atama tablolarından bu kullanıcıya atanan model ID'lerini çek
       final fId = TenantManager.instance.requireFirmaId;
       final futures = [
-        supabase.from(DbTables.dokumaAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-        supabase.from(DbTables.konfeksiyonAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-        supabase.from(DbTables.nakisAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-        supabase.from(DbTables.yikamaAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-        supabase.from(DbTables.ilikDugmeAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
-        supabase.from(DbTables.utuAtamalari).select('model_id').eq('atanan_kullanici_id', user.id).eq('firma_id', fId),
+        supabase
+            .from(DbTables.dokumaAtamalari)
+            .select('model_id')
+            .eq('atanan_kullanici_id', user.id)
+            .eq('firma_id', fId),
+        supabase
+            .from(DbTables.konfeksiyonAtamalari)
+            .select('model_id')
+            .eq('atanan_kullanici_id', user.id)
+            .eq('firma_id', fId),
+        supabase
+            .from(DbTables.nakisAtamalari)
+            .select('model_id')
+            .eq('atanan_kullanici_id', user.id)
+            .eq('firma_id', fId),
+        supabase
+            .from(DbTables.yikamaAtamalari)
+            .select('model_id')
+            .eq('atanan_kullanici_id', user.id)
+            .eq('firma_id', fId),
+        supabase
+            .from(DbTables.ilikDugmeAtamalari)
+            .select('model_id')
+            .eq('atanan_kullanici_id', user.id)
+            .eq('firma_id', fId),
+        supabase
+            .from(DbTables.utuAtamalari)
+            .select('model_id')
+            .eq('atanan_kullanici_id', user.id)
+            .eq('firma_id', fId),
       ];
-      
+
       final atamaResults = await Future.wait(futures.map((future) async {
         try {
           return await future;
@@ -265,17 +302,16 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
           return [];
         }
       }));
-      
+
       // Tüm atanmış model ID'lerini topla
       for (var atamaList in atamaResults) {
         for (var atama in atamaList) {
           atanmisModelIdleri.add(atama['model_id']);
         }
       }
-      
+
       // Bu model bu kullanıcıya atanmış mı?
       _hasAccess = atanmisModelIdleri.contains(widget.modelId);
-      
     } catch (e) {
       _hasAccess = false;
     }
@@ -289,17 +325,16 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
           .select('*')
           .eq('id', widget.modelId)
           .single();
-      
+
       setState(() {
         currentModelData = modelResponse;
       });
-      
+
       // Üretim kayıtlarını getir
       await _uretimKayitlariniGetir();
-      
+
       // Atama kayıtlarını getir - sadece bu kullanıcıya ait olanları
       await _atamaKayitlariniGetir();
-      
     } catch (e) {
       // Veri getirme hatası
     }
@@ -314,12 +349,19 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
           .order('created_at', ascending: false);
 
       setState(() {
-        orguUretimKayitlari = response.where((r) => r['asama'] == 'orgu' || r['asama'] == 'dokuma').toList();
-        konfeksiyonUretimKayitlari = response.where((r) => r['asama'] == 'konfeksiyon').toList();
-        nakisUretimKayitlari = response.where((r) => r['asama'] == 'nakis').toList();
-        yikamaUretimKayitlari = response.where((r) => r['asama'] == 'yikama').toList();
-        ilikDugmeUretimKayitlari = response.where((r) => r['asama'] == 'ilik_dugme').toList();
-        utuUretimKayitlari = response.where((r) => r['asama'] == 'utu').toList();
+        orguUretimKayitlari = response
+            .where((r) => r['asama'] == 'orgu' || r['asama'] == 'dokuma')
+            .toList();
+        konfeksiyonUretimKayitlari =
+            response.where((r) => r['asama'] == 'konfeksiyon').toList();
+        nakisUretimKayitlari =
+            response.where((r) => r['asama'] == 'nakis').toList();
+        yikamaUretimKayitlari =
+            response.where((r) => r['asama'] == 'yikama').toList();
+        ilikDugmeUretimKayitlari =
+            response.where((r) => r['asama'] == 'ilik_dugme').toList();
+        utuUretimKayitlari =
+            response.where((r) => r['asama'] == 'utu').toList();
       });
     } catch (e) {
       // Üretim kayıtları getirme hatası
@@ -330,10 +372,10 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
     try {
       final user = supabase.auth.currentUser;
       if (user == null) return;
-      
+
       // Admin tüm atamaları görebilir, diğerleri sadece kendilerininkileri
       final String userFilter = kullaniciRolu == 'admin' ? '' : user.id;
-      
+
       final futures = [
         _getAtamalarForStage(DbTables.dokumaAtamalari, userFilter),
         _getAtamalarForStage(DbTables.konfeksiyonAtamalari, userFilter),
@@ -346,7 +388,7 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
       ];
 
       final results = await Future.wait(futures);
-      
+
       setState(() {
         dokumaAtamalari = results[0];
         konfeksiyonAtamalari = results[1];
@@ -357,23 +399,22 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
         kaliteKontrolAtamalari = results[6];
         paketlemeAtamalari = results[7];
       });
-      
     } catch (e) {
       // Atama kayıtları getirme hatası
     }
   }
 
-  Future<List<dynamic>> _getAtamalarForStage(String tableName, String userFilter) async {
+  Future<List<dynamic>> _getAtamalarForStage(
+      String tableName, String userFilter) async {
     try {
-      var query = supabase.from(tableName)
-          .select('*')
-          .eq('model_id', widget.modelId);
-          
+      var query =
+          supabase.from(tableName).select('*').eq('model_id', widget.modelId);
+
       // Admin değilse sadece kendi atamalarını getir
       if (userFilter.isNotEmpty && kullaniciRolu != 'admin') {
         query = query.eq('atanan_kullanici_id', userFilter);
       }
-      
+
       return await query.order('created_at', ascending: false);
     } catch (e) {
       return [];
@@ -384,7 +425,7 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
     try {
       final user = supabase.auth.currentUser;
       if (user == null) return;
-      
+
       final response = await supabase
           .from(DbTables.userRoles)
           .select('role, atolye_id')
@@ -401,29 +442,26 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
     }
   }
 
-
-
   void _initializeTabController() {
     _tabController?.dispose();
-    
+
     // 6 sekme: Model Bilgileri, Model Durumu, Üretim Durumu, Fiyatlandırma (admin), Aksesuarlar, Yükleme
-    int tabCount = 4; // Varsayılan: Model Bilgileri, Model Durumu, Üretim Durumu, Aksesuarlar
+    int tabCount =
+        4; // Varsayılan: Model Bilgileri, Model Durumu, Üretim Durumu, Aksesuarlar
     if (kullaniciRolu == 'admin') {
       tabCount = 6; // Admin için tüm sekmeler
     }
-    
+
     if (mounted) {
       _tabController = TabController(length: tabCount, vsync: this);
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final marka = currentModelData?['marka'] ?? 'Bilinmeyen Marka';
     final itemNo = currentModelData?['item_no'] ?? 'Bilinmeyen Item No';
-    
+
     // Veriler yüklenirken loading göster
     if (_isLoading) {
       return Scaffold(
@@ -498,39 +536,42 @@ class _ModelDetayState extends State<ModelDetay> with SingleTickerProviderStateM
               tooltip: 'Düzenle',
             ),
         ],
-        bottom: _tabController == null ? null : TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          tabs: [
-            const Tab(icon: Icon(Icons.info), text: 'Model Bilgileri'),
-            const Tab(icon: Icon(Icons.flag), text: 'Model Durumu'),
-            const Tab(icon: Icon(Icons.production_quantity_limits), text: 'Üretim Durumu'),
-            if (kullaniciRolu == 'admin')
-              const Tab(icon: Icon(Icons.attach_money), text: 'Fiyatlandırma'),
-            const Tab(icon: Icon(Icons.category), text: 'Aksesuarlar'),
-            if (kullaniciRolu == 'admin')
-              const Tab(icon: Icon(Icons.upload_file), text: 'Yükleme'),
-          ],
-        ),
+        bottom: _tabController == null
+            ? null
+            : TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                indicatorColor: Colors.white,
+                tabs: [
+                  const Tab(icon: Icon(Icons.info), text: 'Model Bilgileri'),
+                  const Tab(icon: Icon(Icons.flag), text: 'Model Durumu'),
+                  const Tab(
+                      icon: Icon(Icons.production_quantity_limits),
+                      text: 'Üretim Durumu'),
+                  if (kullaniciRolu == 'admin')
+                    const Tab(
+                        icon: Icon(Icons.attach_money), text: 'Fiyatlandırma'),
+                  const Tab(icon: Icon(Icons.category), text: 'Aksesuarlar'),
+                  if (kullaniciRolu == 'admin')
+                    const Tab(icon: Icon(Icons.upload_file), text: 'Yükleme'),
+                ],
+              ),
       ),
-      body: _tabController == null 
-        ? const LoadingWidget()
-        : TabBarView(
-            controller: _tabController,
-            children: [
-              _buildModelBilgileriTab(),
-              _buildModelDurumuTab(),
-              _buildUretimDurumuTab(),
-              if (kullaniciRolu == 'admin')
-                _buildFiyatlandirmaTab(),
-              _buildAksesuarlarTab(),
-              if (kullaniciRolu == 'admin')
-                _buildYuklemeTab(),
-            ],
-          ),
+      body: _tabController == null
+          ? const LoadingWidget()
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildModelBilgileriTab(),
+                _buildModelDurumuTab(),
+                _buildUretimDurumuTab(),
+                if (kullaniciRolu == 'admin') _buildFiyatlandirmaTab(),
+                _buildAksesuarlarTab(),
+                if (kullaniciRolu == 'admin') _buildYuklemeTab(),
+              ],
+            ),
     );
   }
 

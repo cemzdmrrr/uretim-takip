@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +11,7 @@ import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/beden_service.dart';
 import 'package:uretim_takip/models/beden_models.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 
 part 'dokuma_dashboard_dialog.dart';
 part 'dokuma_dashboard_rapor.dart';
@@ -25,12 +26,17 @@ class DokumaDashboard extends StatefulWidget {
   State<DokumaDashboard> createState() => _DokumaDashboardState();
 }
 
-class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProviderStateMixin {
+class _DokumaDashboardState extends State<DokumaDashboard>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<Map<String, dynamic>> bekleyenModeller = [];      // Atandı - tedarikci onayı bekliyor
-  List<Map<String, dynamic>> onaylanmisModeller = [];    // Onaylandı - üretim başlayabilir
-  List<Map<String, dynamic>> uretimdeOlanModeller = [];  // Üretimde/Kısmi tamamlandı
-  List<Map<String, dynamic>> tamamlananModeller = [];    // Tamamen tamamlandı - kalıcı kayıt
+  List<Map<String, dynamic>> bekleyenModeller =
+      []; // Atandı - tedarikci onayı bekliyor
+  List<Map<String, dynamic>> onaylanmisModeller =
+      []; // Onaylandı - üretim başlayabilir
+  List<Map<String, dynamic>> uretimdeOlanModeller =
+      []; // Üretimde/Kısmi tamamlandı
+  List<Map<String, dynamic>> tamamlananModeller =
+      []; // Tamamen tamamlandı - kalıcı kayıt
   bool yukleniyor = true;
   String? currentUserRole;
   String? currentUserId;
@@ -41,11 +47,12 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
   DateTime? bitisTarihi;
   String? seciliMarka;
   List<String> markalar = [];
-  
+
   // Filtrelenmiş listeler
   List<Map<String, dynamic>> filtrelenmisListe = [];
 
   final supabase = Supabase.instance.client;
+  String get _firmaId => TenantManager.instance.requireFirmaId;
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
   final TextEditingController _aramaController = TextEditingController();
 
@@ -74,14 +81,20 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
 
     try {
       // Önce user_roles tablosundan rol kontrol et
-      final response = await supabase
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', currentUser.id)
-          .maybeSingle();
-      
-      String? userRole = response?['role'];
-      
+      final roller = await UserRoleService.kullaniciTumRolleriniGetir(
+        userId: currentUser.id,
+        firmaId: TenantManager.instance.firmaId,
+      );
+
+      String? userRole;
+      if (roller.contains('admin') ||
+          roller.contains('firma_admin') ||
+          roller.contains('firma_sahibi')) {
+        userRole = 'admin';
+      } else if (roller.contains('dokumaci')) {
+        userRole = 'dokuma';
+      }
+
       // Admin veya dokuma rolü değilse, tedarikçi olabilir - email ile kontrol et
       if (userRole != 'admin' && userRole != 'dokuma') {
         final tedarikciCheck = await supabase
@@ -89,20 +102,22 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
             .select('id, faaliyet')
             .eq('email', currentUser.email ?? '')
             .maybeSingle();
-        
+
         if (tedarikciCheck != null) {
           // Tedarikçi - dokuma rolü olarak işaretle
           userRole = 'tedarikci_dokuma';
         }
       }
-      
+
       setState(() {
         currentUserRole = userRole;
         currentUserId = currentUser.id;
       });
 
       // Dokuma, admin veya tedarikçi ise modelleri getir
-      if (currentUserRole == 'dokuma' || currentUserRole == 'admin' || currentUserRole == 'tedarikci_dokuma') {
+      if (currentUserRole == 'dokuma' ||
+          currentUserRole == 'admin' ||
+          currentUserRole == 'tedarikci_dokuma') {
         await _modelleriGetir();
       } else {
         // Yetkisiz kullanıcı - anasayfaya yönlendir
@@ -151,40 +166,43 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
                 created_at
               )
             ''')
-            .eq('firma_id', TenantManager.instance.requireFirmaId)
+            .eq('firma_id', _firmaId)
             .order('atama_tarihi', ascending: false);
-        
+
         final tumModeller = response;
-        
+
         setState(() {
           // Durumlara göre ayır - mantıksal sıralama
           // 1. Bekleyen: Atandı, henüz tedarikci onayı bekleniyor
           bekleyenModeller = tumModeller
               .where((m) => m['durum'] == 'atandi' || m['durum'] == 'beklemede')
               .toList();
-          
+
           // 2. Onaylanan: Tedarikci onayladı, üretim başlayabilir
-          onaylanmisModeller = tumModeller
-              .where((m) => m['durum'] == 'onaylandi')
-              .toList();
-          
+          onaylanmisModeller =
+              tumModeller.where((m) => m['durum'] == 'onaylandi').toList();
+
           // 3. Üretimde: Üretim başladı veya kısmi tamamlandı
           uretimdeOlanModeller = tumModeller
-              .where((m) => m['durum'] == 'uretimde' || m['durum'] == 'baslatildi' || m['durum'] == 'kismi_tamamlandi')
+              .where((m) =>
+                  m['durum'] == 'uretimde' ||
+                  m['durum'] == 'baslatildi' ||
+                  m['durum'] == 'kismi_tamamlandi')
               .toList();
-          
+
           // 4. Tamamlanan: Tamamen bitti
-          tamamlananModeller = tumModeller
-              .where((m) => m['durum'] == 'tamamlandi')
-              .toList();
-          
+          tamamlananModeller =
+              tumModeller.where((m) => m['durum'] == 'tamamlandi').toList();
+
           yukleniyor = false;
         });
+
+        _markalariTopla();
       } else {
         // Dokuma kullanıcısı için - önce kendi atamaları, sonra tedarikci_id bazlı
         // Önce kullanıcının tedarikci_id'sini bul (user_roles veya tedarikciler tablosundan)
         int? kullaniciTedarikciId;
-        
+
         try {
           // Kullanıcının email'ini al
           final userEmail = supabase.auth.currentUser?.email;
@@ -195,7 +213,7 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
                 .select('id')
                 .eq('email', userEmail)
                 .limit(1);
-            
+
             if (tedarikciResponse.isNotEmpty) {
               kullaniciTedarikciId = tedarikciResponse[0]['id'];
             }
@@ -203,10 +221,10 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
         } catch (e) {
           // Tedarikci ID bulunamadı
         }
-        
+
         // Sorgu oluştur - atanan_kullanici_id VEYA tedarikci_id ile eşleşen kayıtlar
         List<dynamic> response;
-        
+
         if (kullaniciTedarikciId != null) {
           // Tedarikci olarak atananları getir
           response = await supabase
@@ -238,6 +256,7 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
                   created_at
                 )
               ''')
+              .eq('firma_id', _firmaId)
               .or('atanan_kullanici_id.eq.$currentUserId,tedarikci_id.eq.$kullaniciTedarikciId')
               .order('atama_tarihi', ascending: false);
         } else {
@@ -271,37 +290,39 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
                   created_at
                 )
               ''')
+              .eq('firma_id', _firmaId)
               .eq('atanan_kullanici_id', currentUserId!)
               .order('atama_tarihi', ascending: false);
         }
-        
+
         final tumModeller = response as List<Map<String, dynamic>>;
-        
+
         setState(() {
           // Durumlara göre ayır - mantıksal sıralama
           // 1. Bekleyen: Atandı, henüz tedarikci onayı bekleniyor
           bekleyenModeller = tumModeller
               .where((m) => m['durum'] == 'atandi' || m['durum'] == 'beklemede')
               .toList();
-          
+
           // 2. Onaylanan: Tedarikci onayladı, üretim başlayabilir
-          onaylanmisModeller = tumModeller
-              .where((m) => m['durum'] == 'onaylandi')
-              .toList();
-          
+          onaylanmisModeller =
+              tumModeller.where((m) => m['durum'] == 'onaylandi').toList();
+
           // 3. Üretimde: Üretim başladı veya kısmi tamamlandı
           uretimdeOlanModeller = tumModeller
-              .where((m) => m['durum'] == 'uretimde' || m['durum'] == 'baslatildi' || m['durum'] == 'kismi_tamamlandi')
+              .where((m) =>
+                  m['durum'] == 'uretimde' ||
+                  m['durum'] == 'baslatildi' ||
+                  m['durum'] == 'kismi_tamamlandi')
               .toList();
-          
+
           // 4. Tamamlanan: Tamamen bitti
-          tamamlananModeller = tumModeller
-              .where((m) => m['durum'] == 'tamamlandi')
-              .toList();
-          
+          tamamlananModeller =
+              tumModeller.where((m) => m['durum'] == 'tamamlandi').toList();
+
           yukleniyor = false;
         });
-        
+
         // Markaları topla
         _markalariTopla();
       }
@@ -314,7 +335,12 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
 
   // Markaları topla
   void _markalariTopla() {
-    final tumModeller = [...bekleyenModeller, ...onaylanmisModeller, ...uretimdeOlanModeller, ...tamamlananModeller];
+    final tumModeller = [
+      ...bekleyenModeller,
+      ...onaylanmisModeller,
+      ...uretimdeOlanModeller,
+      ...tamamlananModeller
+    ];
     final markaSet = <String>{};
     for (var atama in tumModeller) {
       final model = atama[DbTables.trikoTakip];
@@ -332,35 +358,44 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
     return liste.where((atama) {
       final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
       if (model == null) return false;
-      
+
       // Arama metni filtresi
       if (aramaMetni.isNotEmpty) {
         final marka = (model['marka'] ?? '').toString().toLowerCase();
         final itemNo = (model['item_no'] ?? '').toString().toLowerCase();
         final renk = (model['renk'] ?? '').toString().toLowerCase();
         final arama = aramaMetni.toLowerCase();
-        if (!marka.contains(arama) && !itemNo.contains(arama) && !renk.contains(arama)) {
+        if (!marka.contains(arama) &&
+            !itemNo.contains(arama) &&
+            !renk.contains(arama)) {
           return false;
         }
       }
-      
+
       // Marka filtresi
       if (seciliMarka != null && seciliMarka!.isNotEmpty) {
         if (model['marka'] != seciliMarka) return false;
       }
-      
+
       // Tarih filtresi
       if (baslangicTarihi != null || bitisTarihi != null) {
         final atamaTarihiStr = atama['atama_tarihi'] ?? atama['created_at'];
         if (atamaTarihiStr != null) {
           final atamaTarihi = DateTime.tryParse(atamaTarihiStr.toString());
           if (atamaTarihi != null) {
-            if (baslangicTarihi != null && atamaTarihi.isBefore(baslangicTarihi!)) return false;
-            if (bitisTarihi != null && atamaTarihi.isAfter(bitisTarihi!.add(const Duration(days: 1)))) return false;
+            if (baslangicTarihi != null &&
+                atamaTarihi.isBefore(baslangicTarihi!)) {
+              return false;
+            }
+            if (bitisTarihi != null &&
+                atamaTarihi
+                    .isAfter(bitisTarihi!.add(const Duration(days: 1)))) {
+              return false;
+            }
           }
         }
       }
-      
+
       return true;
     }).toList();
   }
@@ -394,8 +429,8 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
     }
 
     // Tedarikçi, dokuma veya admin değilse erişimi reddet
-    if (currentUserRole != 'dokuma' && 
-        currentUserRole != 'admin' && 
+    if (currentUserRole != 'dokuma' &&
+        currentUserRole != 'admin' &&
         currentUserRole != 'tedarikci_dokuma') {
       return Scaffold(
         appBar: AppBar(
@@ -417,9 +452,12 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
     final filtreliOnaylanan = _filtreleListe(onaylanmisModeller);
     final filtreliUretimde = _filtreleListe(uretimdeOlanModeller);
     final filtreliTamamlanan = _filtreleListe(tamamlananModeller);
-    
+
     // Aktif filtre var mı?
-    final aktifFiltre = aramaMetni.isNotEmpty || seciliMarka != null || baslangicTarihi != null || bitisTarihi != null;
+    final aktifFiltre = aramaMetni.isNotEmpty ||
+        seciliMarka != null ||
+        baslangicTarihi != null ||
+        bitisTarihi != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -435,7 +473,12 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
               showSearch(
                 context: context,
                 delegate: _DokumaSearchDelegate(
-                  tumModeller: [...bekleyenModeller, ...onaylanmisModeller, ...uretimdeOlanModeller, ...tamamlananModeller],
+                  tumModeller: [
+                    ...bekleyenModeller,
+                    ...onaylanmisModeller,
+                    ...uretimdeOlanModeller,
+                    ...tamamlananModeller
+                  ],
                   onSelected: (model) {
                     // Model seçildiğinde detay göster
                     _showAtamaDetay(model, model[DbTables.trikoTakip]);
@@ -465,17 +508,6 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
             icon: const Icon(Icons.refresh),
             onPressed: _modelleriGetir,
             tooltip: 'Yenile',
-          ),
-          // Çıkış
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await supabase.auth.signOut();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
-              }
-            },
-            tooltip: 'Çıkış Yap',
           ),
         ],
         bottom: TabBar(
@@ -520,10 +552,13 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
                       'Filtreler: ${[
                         if (aramaMetni.isNotEmpty) '"$aramaMetni"',
                         if (seciliMarka != null) 'Marka: $seciliMarka',
-                        if (baslangicTarihi != null) 'Başlangıç: ${DateFormat('dd.MM.yyyy').format(baslangicTarihi!)}',
-                        if (bitisTarihi != null) 'Bitiş: ${DateFormat('dd.MM.yyyy').format(bitisTarihi!)}',
+                        if (baslangicTarihi != null)
+                          'Başlangıç: ${DateFormat('dd.MM.yyyy').format(baslangicTarihi!)}',
+                        if (bitisTarihi != null)
+                          'Bitiş: ${DateFormat('dd.MM.yyyy').format(bitisTarihi!)}',
                       ].join(', ')}',
-                      style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
+                      style:
+                          TextStyle(color: Colors.blue.shade700, fontSize: 12),
                     ),
                   ),
                   TextButton(
@@ -570,12 +605,13 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
         // Sadece dokuma aşaması için güncelleme yap
         if (data['stage'] == 'dokuma') {
           _modelleriGetir();
-          
+
           // Başarı mesajı göster
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${data['assigned_count']} model dokuma aşamasına atandı'),
+                content: Text(
+                    '${data['assigned_count']} model dokuma aşamasına atandı'),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
               ),
@@ -628,5 +664,4 @@ class _DokumaDashboardState extends State<DokumaDashboard> with SingleTickerProv
         return 'Beklemede';
     }
   }
-
 }

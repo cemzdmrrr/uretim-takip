@@ -1,4 +1,4 @@
-﻿part of 'uretim_asama_dashboard.dart';
+part of 'uretim_asama_dashboard.dart';
 
 // Arama Delegate sınıfı
 class _AsamaModelAramaDelegate extends SearchDelegate<String> {
@@ -39,15 +39,18 @@ class _AsamaModelAramaDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    final suggestions = tumModeller.where((atama) {
-      final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
-      if (model == null) return false;
-      final marka = (model['marka'] ?? '').toString().toLowerCase();
-      final itemNo = (model['item_no'] ?? '').toString().toLowerCase();
-      final renk = (model['renk'] ?? '').toString().toLowerCase();
-      final q = query.toLowerCase();
-      return marka.contains(q) || itemNo.contains(q) || renk.contains(q);
-    }).take(10).toList();
+    final suggestions = tumModeller
+        .where((atama) {
+          final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
+          if (model == null) return false;
+          final marka = (model['marka'] ?? '').toString().toLowerCase();
+          final itemNo = (model['item_no'] ?? '').toString().toLowerCase();
+          final renk = (model['renk'] ?? '').toString().toLowerCase();
+          final q = query.toLowerCase();
+          return marka.contains(q) || itemNo.contains(q) || renk.contains(q);
+        })
+        .take(10)
+        .toList();
 
     return ListView.builder(
       itemCount: suggestions.length,
@@ -74,7 +77,7 @@ class _AsamaModelAramaDelegate extends SearchDelegate<String> {
 class _BedenUretimTamamlaDialogGeneric extends StatefulWidget {
   final String modelId;
   final String modelAdi;
-  final int atamaId;
+  final Object atamaId;
   final Map<String, dynamic> atama;
   final Map<String, dynamic> model;
   final SupabaseClient supabase;
@@ -83,8 +86,10 @@ class _BedenUretimTamamlaDialogGeneric extends StatefulWidget {
   final String atamaTablosu;
   final Color asamaRengi;
   final VoidCallback onComplete;
-  final Future<void> Function(Map<String, dynamic>, {required int tamamlananAdet}) onKaliteKontrolOlustur;
-  final Future<void> Function(Map<String, dynamic>, {required int tamamlananAdet}) onSevkiyatOlustur;
+  final Future<void> Function(Map<String, dynamic>,
+      {required int tamamlananAdet}) onKaliteKontrolOlustur;
+  final Future<void> Function(Map<String, dynamic>,
+      {required int tamamlananAdet}) onSevkiyatOlustur;
 
   const _BedenUretimTamamlaDialogGeneric({
     required this.modelId,
@@ -103,10 +108,12 @@ class _BedenUretimTamamlaDialogGeneric extends StatefulWidget {
   });
 
   @override
-  State<_BedenUretimTamamlaDialogGeneric> createState() => _BedenUretimTamamlaDialogGenericState();
+  State<_BedenUretimTamamlaDialogGeneric> createState() =>
+      _BedenUretimTamamlaDialogGenericState();
 }
 
-class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDialogGeneric> {
+class _BedenUretimTamamlaDialogGenericState
+    extends State<_BedenUretimTamamlaDialogGeneric> {
   final BedenService _bedenService = BedenService();
   List<ModelBedenDagilimi> hedefler = [];
   Map<String, TextEditingController> uretilenControllers = {};
@@ -115,7 +122,14 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
   bool yukleniyor = true;
   bool kaydediliyor = false;
   bool bedenTablosuVar = true;
-  bool firedenDus = false; // Fire miktarını adetten düşmek için checkbox işaretlenmeli
+  bool firedenDus =
+      false; // Fire miktarını adetten düşmek için checkbox işaretlenmeli
+
+  bool get _eskiAtamaSemasi => {
+        DbTables.nakisAtamalari,
+        DbTables.yikamaAtamalari,
+        DbTables.ilikDugmeAtamalari,
+      }.contains(widget.atamaTablosu);
 
   @override
   void initState() {
@@ -125,28 +139,42 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
 
   Future<void> _loadData() async {
     setState(() => yukleniyor = true);
-    
+
     try {
       // ⭐ ÖNEMLİ: Dokuma hariç tüm aşamalar için önceki aşamadan fire düşülmüş adetleri al
       if (widget.asamaAdi != 'dokuma') {
-        debugPrint('🔄 ${widget.asamaAdi} için önceki aşamadan adetler alınıyor...');
-        final oncekiAdetler = await _bedenService.getOncekiAsamaGerceklesenAdetler(
+        debugPrint(
+            '🔄 ${widget.asamaAdi} için önceki aşamadan adetler alınıyor...');
+        final oncekiAdetler =
+            await _bedenService.getOncekiAsamaGerceklesenAdetler(
           widget.modelId,
           widget.asamaAdi,
         );
-        
+
         if (oncekiAdetler.isNotEmpty) {
-          debugPrint('✅ Önceki aşamadan ${oncekiAdetler.length} beden alındı: $oncekiAdetler');
-          hedefler = oncekiAdetler.entries.map((e) => ModelBedenDagilimi(
-            id: 0,
-            modelId: widget.modelId,
-            bedenKodu: e.key,
-            siparisAdedi: e.value, // Fire düşülmüş adet
-          )).toList();
-          
+          debugPrint(
+              '✅ Önceki aşamadan ${oncekiAdetler.length} beden alındı: $oncekiAdetler');
+          hedefler = oncekiAdetler.entries
+              .map((e) => ModelBedenDagilimi(
+                    id: 0,
+                    modelId: widget.modelId,
+                    bedenKodu: e.key,
+                    siparisAdedi: e.value, // Fire düşülmüş adet
+                  ))
+              .toList();
+
           // Beden sırasına göre sırala
           hedefler.sort((a, b) {
-            const bedenSirasi = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+            const bedenSirasi = [
+              'XS',
+              'S',
+              'M',
+              'L',
+              'XL',
+              'XXL',
+              '3XL',
+              '4XL'
+            ];
             final aIndex = bedenSirasi.indexOf(a.bedenKodu);
             final bIndex = bedenSirasi.indexOf(b.bedenKodu);
             if (aIndex >= 0 && bIndex >= 0) return aIndex.compareTo(bIndex);
@@ -156,27 +184,31 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
           });
           bedenTablosuVar = true;
         } else {
-          debugPrint('⚠️ Önceki aşamadan adet bulunamadı, model_beden_dagilimi kullanılacak');
+          debugPrint(
+              '⚠️ Önceki aşamadan adet bulunamadı, model_beden_dagilimi kullanılacak');
         }
       }
-      
+
       // Dokuma için veya önceki aşamadan adet alınamazsa:
       // 1. Önce model_beden_dagilimi tablosundan dene
       if (hedefler.isEmpty) {
         hedefler = await _bedenService.getModelBedenDagilimi(widget.modelId);
-        debugPrint('model_beden_dagilimi tablosundan: ${hedefler.length} beden bulundu');
+        debugPrint(
+            'model_beden_dagilimi tablosundan: ${hedefler.length} beden bulundu');
       }
-      
+
       // 2. Tablo boşsa, widget.model içinden bedenler JSON'u oku
       if (hedefler.isEmpty && widget.model['bedenler'] != null) {
         try {
           final bedenlerData = widget.model['bedenler'];
-          debugPrint('Model bedenler verisi: $bedenlerData (${bedenlerData.runtimeType})');
-          
+          debugPrint(
+              'Model bedenler verisi: $bedenlerData (${bedenlerData.runtimeType})');
+
           if (bedenlerData is Map) {
             final bedenlerJson = bedenlerData as Map<String, dynamic>;
             bedenlerJson.forEach((bedenKodu, adet) {
-              final adetInt = adet is int ? adet : int.tryParse(adet.toString()) ?? 0;
+              final adetInt =
+                  adet is int ? adet : int.tryParse(adet.toString()) ?? 0;
               if (adetInt > 0) {
                 hedefler.add(ModelBedenDagilimi(
                   id: 0,
@@ -192,7 +224,7 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
           debugPrint('Model bedenler okuma hatası: $e');
         }
       }
-      
+
       // Beden sırasına göre sırala
       if (hedefler.isNotEmpty) {
         hedefler.sort((a, b) {
@@ -206,13 +238,14 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
         });
         bedenTablosuVar = true;
       }
-      
+
       // 3. Hala boşsa, toplam adet ile tek satır oluştur
       if (hedefler.isEmpty) {
         bedenTablosuVar = false;
-        final toplamAdet = widget.atama['kabul_edilen_adet'] ?? 
-                          widget.atama['talep_edilen_adet'] ?? 
-                          widget.atama['adet'] ?? 0;
+        final toplamAdet = widget.atama['kabul_edilen_adet'] ??
+            widget.atama['talep_edilen_adet'] ??
+            widget.atama['adet'] ??
+            0;
         hedefler = [
           ModelBedenDagilimi(
             id: 0,
@@ -222,25 +255,31 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
           )
         ];
       }
-      
+
       // Beden takip tablosu adı
       final bedenTakipTablosu = '${widget.asamaAdi}_beden_takip';
-      
+
       // Mevcut üretim verilerini getir (tablo varsa)
       List<BedenUretimTakip> mevcutUretim = [];
-      try {
-        mevcutUretim = await _bedenService.getAsamaBedenTakip(widget.asamaAdi, widget.atamaId);
-      } catch (e) {
-        debugPrint('Beden takip tablosu okunamadı ($bedenTakipTablosu): $e');
+      if (widget.atamaId is int) {
+        try {
+          mevcutUretim = await _bedenService.getAsamaBedenTakip(
+              widget.asamaAdi, widget.atamaId as int);
+        } catch (e) {
+          debugPrint('Beden takip tablosu okunamadı ($bedenTakipTablosu): $e');
+        }
       }
-      
+
       // Controller'ları oluştur
       for (final hedef in hedefler) {
         final mevcut = mevcutUretim.firstWhere(
           (u) => u.bedenKodu == hedef.bedenKodu,
           orElse: () => BedenUretimTakip(
-            id: 0, atamaId: widget.atamaId, modelId: widget.modelId,
-            bedenKodu: hedef.bedenKodu, hedefAdet: hedef.siparisAdedi,
+            id: 0,
+            atamaId: widget.atamaId is int ? widget.atamaId as int : 0,
+            modelId: widget.modelId,
+            bedenKodu: hedef.bedenKodu,
+            hedefAdet: hedef.siparisAdedi,
           ),
         );
         uretilenControllers[hedef.bedenKodu] = TextEditingController(
@@ -253,7 +292,7 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
     } catch (e) {
       debugPrint('Beden verileri yüklenemedi: $e');
     }
-    
+
     setState(() => yukleniyor = false);
   }
 
@@ -287,22 +326,23 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
 
   void _hepsiniTamamla() {
     for (final hedef in hedefler) {
-      uretilenControllers[hedef.bedenKodu]?.text = hedef.siparisAdedi.toString();
+      uretilenControllers[hedef.bedenKodu]?.text =
+          hedef.siparisAdedi.toString();
     }
     setState(() {});
   }
 
   Future<void> _kaydet({bool kismiKayit = false}) async {
     setState(() => kaydediliyor = true);
-    
+
     try {
       final toplamUretilen = _toplamUretilen();
       final toplamFire = _toplamFire();
-      
+
       if (toplamUretilen <= 0) {
         throw Exception('En az bir beden için üretilen adet giriniz');
       }
-      
+
       // Fire varsa ve firedenDus seçeneği aktifse, onay sor
       if (toplamFire > 0 && firedenDus && !kismiKayit) {
         final onay = await showDialog<bool>(
@@ -321,10 +361,12 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
               children: [
                 Text('Toplam fire: $toplamFire adet'),
                 const SizedBox(height: 12),
-                const Text('Fire miktarı sonraki aşamaya geçecek adetten düşülecektir.'),
+                const Text(
+                    'Fire miktarı sonraki aşamaya geçecek adetten düşülecektir.'),
                 const SizedBox(height: 8),
-                Text('Sonraki aşamaya geçecek net adet: ${toplamUretilen - toplamFire}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                    'Sonraki aşamaya geçecek net adet: ${toplamUretilen - toplamFire}',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
             actions: [
@@ -340,31 +382,34 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
             ],
           ),
         );
-        
+
         if (onay == null) {
           setState(() => kaydediliyor = false);
           return;
         }
-        
+
         // Kullanıcının seçimine göre firedenDus güncelle
         firedenDus = onay;
       }
-      
+
       // Beden bazlı verileri kaydet (eğer gerçek beden tablosu varsa)
-      if (bedenTablosuVar) {
+      if (bedenTablosuVar && widget.atamaId is int) {
         final Map<String, Map<String, int>> bedenVerileri = {};
         for (final hedef in hedefler) {
           bedenVerileri[hedef.bedenKodu] = {
             'hedef_adet': hedef.siparisAdedi,
-            'uretilen_adet': int.tryParse(uretilenControllers[hedef.bedenKodu]?.text ?? '') ?? 0,
-            'fire_adet': int.tryParse(fireControllers[hedef.bedenKodu]?.text ?? '') ?? 0,
+            'uretilen_adet': int.tryParse(
+                    uretilenControllers[hedef.bedenKodu]?.text ?? '') ??
+                0,
+            'fire_adet':
+                int.tryParse(fireControllers[hedef.bedenKodu]?.text ?? '') ?? 0,
           };
         }
-        
+
         try {
           await _bedenService.updateUretimBedenlerToplu(
             asama: widget.asamaAdi,
-            atamaId: widget.atamaId,
+            atamaId: widget.atamaId as int,
             modelId: widget.modelId,
             bedenVerileri: bedenVerileri,
           );
@@ -372,7 +417,7 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
           debugPrint('Beden takip kaydedilemedi: $e');
         }
       }
-      
+
       // Durum belirleme
       final String yeniDurum;
       if (kismiKayit) {
@@ -380,27 +425,40 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
       } else {
         yeniDurum = 'tamamlandi';
       }
-      
+
       // Sonraki aşamaya geçecek net adet (fire düşülürse)
-      final int netAdet = firedenDus ? (toplamUretilen - toplamFire) : toplamUretilen;
-      
+      final int netAdet =
+          firedenDus ? (toplamUretilen - toplamFire) : toplamUretilen;
+
+      final now = DateTime.now().toIso8601String();
+      final mevcutNot =
+          _eskiAtamaSemasi ? widget.atama['aciklama'] : widget.atama['notlar'];
+      final yeniNot = notlarController.text.isNotEmpty
+          ? '$mevcutNot\n[BEDEN BAZLI] ${notlarController.text}${toplamFire > 0 ? ' (Fire: $toplamFire${firedenDus ? " - Adetten düşüldü" : ""})' : ''}'
+          : mevcutNot;
+
       // Atama tablosunu güncelle
-      final Map<String, dynamic> updateData = {
-        'tamamlanan_adet': toplamUretilen,
-        'durum': yeniDurum,
-        'tamamlama_tarihi': yeniDurum == 'tamamlandi' ? DateTime.now().toIso8601String() : null,
-        'updated_at': DateTime.now().toIso8601String(),
-        'notlar': notlarController.text.isNotEmpty 
-          ? '${widget.atama['notlar'] ?? ''}\n[BEDEN BAZLI] ${notlarController.text}${toplamFire > 0 ? ' (Fire: $toplamFire${firedenDus ? " - Adetten düşüldü" : ""})' : ''}'
-          : widget.atama['notlar'],
-      };
-      
+      final Map<String, dynamic> updateData = _eskiAtamaSemasi
+          ? {
+              'tamamlanan_adet': toplamUretilen,
+              'durum': yeniDurum,
+              'teslim_tarihi': yeniDurum == 'tamamlandi' ? now : null,
+              'updated_at': now,
+              'son_guncelleme_tarihi': now,
+              'aciklama': yeniNot,
+            }
+          : {
+              'tamamlanan_adet': toplamUretilen,
+              'durum': yeniDurum,
+              'tamamlama_tarihi': yeniDurum == 'tamamlandi' ? now : null,
+              'updated_at': now,
+              'notlar': yeniNot,
+            };
+
       // fire_adet sütununu eklemeyi dene
       try {
-        await widget.supabase
-            .from(widget.atamaTablosu)
-            .update({...updateData, 'fire_adet': toplamFire})
-            .eq('id', widget.atamaId);
+        await widget.supabase.from(widget.atamaTablosu).update(
+            {...updateData, 'fire_adet': toplamFire}).eq('id', widget.atamaId);
       } catch (e) {
         debugPrint('fire_adet sütunu yok, onsuz güncelleniyor: $e');
         await widget.supabase
@@ -408,36 +466,44 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
             .update(updateData)
             .eq('id', widget.atamaId);
       }
-      
+
       // Sonraki aşamaya gönder (kısmi veya tam tamamlandığında)
       if (netAdet > 0) {
         // Güncellenmiş atama verisi - net adet kullan
-        final updatedAtama = {...widget.atama, 'tamamlanan_adet': netAdet, 'fire_adet': toplamFire, 'kismi': kismiKayit};
-        
+        final updatedAtama = {
+          ...widget.atama,
+          'tamamlanan_adet': netAdet,
+          'fire_adet': toplamFire,
+          'kismi': kismiKayit
+        };
+
         // Konfeksiyon tamamlandığında kalite kontrole gönder (sevkiyata değil!)
         if (widget.asamaAdi == 'konfeksiyon') {
-          await widget.onKaliteKontrolOlustur(updatedAtama, tamamlananAdet: netAdet);
-        } else if (widget.asamaAdi == 'yikama' || widget.asamaAdi == 'kalite_kontrol') {
+          await widget.onKaliteKontrolOlustur(updatedAtama,
+              tamamlananAdet: netAdet);
+        } else if (widget.asamaAdi == 'yikama' ||
+            widget.asamaAdi == 'kalite_kontrol') {
           // Yıkama ve kalite kontrolden sevkiyata gönder
           await widget.onSevkiyatOlustur(updatedAtama, tamamlananAdet: netAdet);
         } else {
           // Diğer aşamalardan kalite kontrole gönder
-          await widget.onKaliteKontrolOlustur(updatedAtama, tamamlananAdet: netAdet);
+          await widget.onKaliteKontrolOlustur(updatedAtama,
+              tamamlananAdet: netAdet);
         }
       }
-      
+
       if (mounted) {
         Navigator.pop(context);
         widget.onComplete();
-        
-        String mesaj = yeniDurum == 'tamamlandi' 
-          ? '✅ ${widget.asamaDisplayName} tamamlandı!'
-          : '✅ Kısmi kayıt yapıldı: $toplamUretilen adet, sonraki aşamaya $netAdet adet gönderildi';
-        
+
+        String mesaj = yeniDurum == 'tamamlandi'
+            ? '✅ ${widget.asamaDisplayName} tamamlandı!'
+            : '✅ Kısmi kayıt yapıldı: $toplamUretilen adet, sonraki aşamaya $netAdet adet gönderildi';
+
         if (toplamFire > 0) {
           mesaj += ' (Fire: $toplamFire${firedenDus ? ", Net: $netAdet" : ""})';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(mesaj),
@@ -450,7 +516,7 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
         context.showErrorSnackBar('Hata: $e');
       }
     }
-    
+
     setState(() => kaydediliyor = false);
   }
 
@@ -466,7 +532,8 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: 700,
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -475,7 +542,8 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: widget.asamaRengi,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Row(
                 children: [
@@ -486,9 +554,14 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('${widget.asamaDisplayName} Üretim Girişi',
-                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold)),
                         Text(widget.modelAdi,
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14)),
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 14)),
                       ],
                     ),
                   ),
@@ -499,253 +572,328 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
                 ],
               ),
             ),
-            
+
             // İçerik
             Flexible(
               child: yukleniyor
-                ? const LoadingWidget()
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        // Özet kart
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                  children: [
-                                    _buildOzetItem('Hedef', toplamHedef, Colors.blue),
-                                    _buildOzetItem('Üretilen', toplamUretilen, Colors.green),
-                                    _buildOzetItem('Fire', toplamFire, Colors.red),
-                                    _buildOzetItem('Kalan', toplamKalan, Colors.orange),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: LinearProgressIndicator(
-                                          value: (oran / 100).clamp(0, 1),
-                                          backgroundColor: Colors.grey.shade200,
-                                          minHeight: 10,
+                  ? const LoadingWidget()
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          // Özet kart
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceAround,
+                                    children: [
+                                      _buildOzetItem(
+                                          'Hedef', toplamHedef, Colors.blue),
+                                      _buildOzetItem('Üretilen', toplamUretilen,
+                                          Colors.green),
+                                      _buildOzetItem(
+                                          'Fire', toplamFire, Colors.red),
+                                      _buildOzetItem(
+                                          'Kalan', toplamKalan, Colors.orange),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: LinearProgressIndicator(
+                                            value: (oran / 100).clamp(0, 1),
+                                            backgroundColor:
+                                                Colors.grey.shade200,
+                                            minHeight: 10,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text('%${oran.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                                // Fire düşme seçeneği
-                                if (toplamFire > 0) ...[
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.orange.shade200),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Checkbox(
-                                          value: firedenDus,
-                                          onChanged: (v) => setState(() => firedenDus = v ?? true),
-                                          activeColor: Colors.orange,
-                                        ),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              const Text('Fire miktarını adetten düş',
-                                                style: TextStyle(fontWeight: FontWeight.bold)),
-                                              Text(
-                                                firedenDus 
-                                                  ? 'Sonraki aşamaya ${toplamUretilen - toplamFire} adet geçecek'
-                                                  : 'Sonraki aşamaya $toplamUretilen adet geçecek (fire dahil)',
-                                                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                      const SizedBox(width: 8),
+                                      Text('%${oran.toStringAsFixed(1)}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold)),
+                                    ],
                                   ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        
-                        // Hızlı işlem
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.done_all, size: 18),
-                              label: const Text('Hepsini Tamamla'),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                              onPressed: _hepsiniTamamla,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        
-                        // Beden verisi yoksa uyarı göster
-                        if (!bedenTablosuVar)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              border: Border.all(color: Colors.orange.shade300),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.warning_amber, color: Colors.orange.shade700),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Bu model için beden dağılımı tanımlanmamış. Toplam adet üzerinden işlem yapılacak.',
-                                    style: TextStyle(color: Colors.orange.shade800, fontSize: 13),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        
-                        // Beden tablosu
-                        Card(
-                          child: Column(
-                            children: [
-                              // Başlık
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: widget.asamaRengi,
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.straighten, color: Colors.white, size: 20),
-                                    SizedBox(width: 8),
-                                    Text('Beden Bazlı Üretim', 
-                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                  ],
-                                ),
-                              ),
-                              
-                              // ÜST SATIR: Sipariş Adetleri (Read-Only)
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.shopping_cart, size: 16, color: Colors.grey.shade600),
-                                        const SizedBox(width: 4),
-                                        Text('SİPARİŞ ADETLERİ', 
-                                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
-                                        const Spacer(),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade300,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text('Salt Okunur', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: hedefler.map((h) => Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          border: Border.all(color: Colors.grey.shade300),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            Text(h.bedenKodu, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                                            const SizedBox(height: 2),
-                                            Text(h.siparisAdedi.toString(), 
-                                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                      )).toList(),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              
-                              // ALT SATIR: Üretilen Adet Girişi
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                color: Colors.white,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.edit, size: 16, color: widget.asamaRengi),
-                                        const SizedBox(width: 4),
-                                        Text('ÜRETİLEN ADETLER', 
-                                          style: TextStyle(fontSize: 12, color: widget.asamaRengi, fontWeight: FontWeight.bold)),
-                                        const Spacer(),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: widget.asamaRengi.withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text('Giriş Yapılabilir', style: TextStyle(fontSize: 10, color: widget.asamaRengi)),
-                                        ),
-                                      ],
-                                    ),
+                                  // Fire düşme seçeneği
+                                  if (toplamFire > 0) ...[
                                     const SizedBox(height: 12),
-                                    ...hedefler.map((h) => _buildBedenGirisRow(h)),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: Colors.orange.shade200),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Checkbox(
+                                            value: firedenDus,
+                                            onChanged: (v) => setState(
+                                                () => firedenDus = v ?? true),
+                                            activeColor: Colors.orange,
+                                          ),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                    'Fire miktarını adetten düş',
+                                                    style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold)),
+                                                Text(
+                                                  firedenDus
+                                                      ? 'Sonraki aşamaya ${toplamUretilen - toplamFire} adet geçecek'
+                                                      : 'Sonraki aşamaya $toplamUretilen adet geçecek (fire dahil)',
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      color:
+                                                          Colors.grey.shade700),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ],
-                                ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Hızlı işlem
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.done_all, size: 18),
+                                label: const Text('Hepsini Tamamla'),
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green),
+                                onPressed: _hepsiniTamamla,
                               ),
                             ],
                           ),
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: notlarController,
-                          decoration: const InputDecoration(
-                            labelText: 'Notlar (İsteğe Bağlı)',
-                            border: OutlineInputBorder(),
+                          const SizedBox(height: 12),
+
+                          // Beden verisi yoksa uyarı göster
+                          if (!bedenTablosuVar)
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                border:
+                                    Border.all(color: Colors.orange.shade300),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warning_amber,
+                                      color: Colors.orange.shade700),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Bu model için beden dağılımı tanımlanmamış. Toplam adet üzerinden işlem yapılacak.',
+                                      style: TextStyle(
+                                          color: Colors.orange.shade800,
+                                          fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          // Beden tablosu
+                          Card(
+                            child: Column(
+                              children: [
+                                // Başlık
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: widget.asamaRengi,
+                                    borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(8)),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.straighten,
+                                          color: Colors.white, size: 20),
+                                      SizedBox(width: 8),
+                                      Text('Beden Bazlı Üretim',
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16)),
+                                    ],
+                                  ),
+                                ),
+
+                                // ÜST SATIR: Sipariş Adetleri (Read-Only)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    border: Border(
+                                        bottom: BorderSide(
+                                            color: Colors.grey.shade300)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.shopping_cart,
+                                              size: 16,
+                                              color: Colors.grey.shade600),
+                                          const SizedBox(width: 4),
+                                          Text('SİPARİŞ ADETLERİ',
+                                              style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade600,
+                                                  fontWeight: FontWeight.bold)),
+                                          const Spacer(),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade300,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text('Salt Okunur',
+                                                style: TextStyle(
+                                                    fontSize: 10,
+                                                    color:
+                                                        Colors.grey.shade700)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: hedefler
+                                            .map((h) => Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 8),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    border: Border.all(
+                                                        color: Colors
+                                                            .grey.shade300),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                  ),
+                                                  child: Column(
+                                                    children: [
+                                                      Text(h.bedenKodu,
+                                                          style: TextStyle(
+                                                              fontSize: 12,
+                                                              color: Colors.grey
+                                                                  .shade600)),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                          h.siparisAdedi
+                                                              .toString(),
+                                                          style: const TextStyle(
+                                                              fontSize: 16,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold)),
+                                                    ],
+                                                  ),
+                                                ))
+                                            .toList(),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // ALT SATIR: Üretilen Adet Girişi
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  color: Colors.white,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.edit,
+                                              size: 16,
+                                              color: widget.asamaRengi),
+                                          const SizedBox(width: 4),
+                                          Text('ÜRETİLEN ADETLER',
+                                              style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: widget.asamaRengi,
+                                                  fontWeight: FontWeight.bold)),
+                                          const Spacer(),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: widget.asamaRengi
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text('Giriş Yapılabilir',
+                                                style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: widget.asamaRengi)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ...hedefler
+                                          .map((h) => _buildBedenGirisRow(h)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          maxLines: 2,
-                        ),
-                      ],
+
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: notlarController,
+                            decoration: const InputDecoration(
+                              labelText: 'Notlar (İsteğe Bağlı)',
+                              border: OutlineInputBorder(),
+                            ),
+                            maxLines: 2,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
             ),
-            
+
             // Alt butonlar
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -754,23 +902,35 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
                   TextButton.icon(
                     icon: const Icon(Icons.save_outlined),
                     label: const Text('Kısmi Kaydet'),
-                    onPressed: kaydediliyor ? null : () => _kaydet(kismiKayit: true),
+                    onPressed:
+                        kaydediliyor ? null : () => _kaydet(kismiKayit: true),
                   ),
                   Row(
                     children: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
+                      TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('İptal')),
                       const SizedBox(width: 12),
                       ElevatedButton.icon(
                         icon: kaydediliyor
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.check_circle),
-                        label: Text(kaydediliyor ? 'Tamamlanıyor...' : 'Üretimi Tamamla'),
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.check_circle),
+                        label: Text(kaydediliyor
+                            ? 'Tamamlanıyor...'
+                            : 'Üretimi Tamamla'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: widget.asamaRengi,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 14),
                         ),
-                        onPressed: kaydediliyor ? null : () => _kaydet(kismiKayit: false),
+                        onPressed: kaydediliyor
+                            ? null
+                            : () => _kaydet(kismiKayit: false),
                       ),
                     ],
                   ),
@@ -786,15 +946,20 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
   Widget _buildOzetItem(String label, int value, Color color) {
     return Column(
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        Text(value.toString(), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+        Text(label,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text(value.toString(),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
 
   Widget _buildBedenGirisRow(ModelBedenDagilimi hedef) {
-    final uretilen = int.tryParse(uretilenControllers[hedef.bedenKodu]?.text ?? '') ?? 0;
-    final fire = int.tryParse(fireControllers[hedef.bedenKodu]?.text ?? '') ?? 0;
+    final uretilen =
+        int.tryParse(uretilenControllers[hedef.bedenKodu]?.text ?? '') ?? 0;
+    final fire =
+        int.tryParse(fireControllers[hedef.bedenKodu]?.text ?? '') ?? 0;
     final kalan = hedef.siparisAdedi - uretilen - fire;
     final tamamlandi = kalan <= 0;
 
@@ -803,7 +968,8 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: tamamlandi ? Colors.green.shade50 : Colors.grey.shade50,
-        border: Border.all(color: tamamlandi ? Colors.green.shade300 : Colors.grey.shade300),
+        border: Border.all(
+            color: tamamlandi ? Colors.green.shade300 : Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -816,28 +982,35 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
               color: tamamlandi ? Colors.green : widget.asamaRengi,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(hedef.bedenKodu, textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            child: Text(hedef.bedenKodu,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14)),
           ),
           const SizedBox(width: 12),
-          
+
           // Hedef (read-only gösterim)
           Container(
             width: 60,
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
               children: [
-                Text('Hedef', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                Text(hedef.siparisAdedi.toString(), 
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('Hedef',
+                    style:
+                        TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text(hedef.siparisAdedi.toString(),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14)),
               ],
             ),
           ),
-          
+
           const SizedBox(width: 8),
           const Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
           const SizedBox(width: 8),
-          
+
           // Üretilen (giriş alanı)
           Expanded(
             flex: 2,
@@ -849,18 +1022,23 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
               decoration: InputDecoration(
                 labelText: 'Üretilen',
                 hintText: '0',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
                 fillColor: Colors.white,
               ),
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.asamaRengi),
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: widget.asamaRengi),
               onChanged: (_) => setState(() {}),
             ),
           ),
-          
+
           const SizedBox(width: 8),
-          
+
           // Fire (giriş alanı)
           SizedBox(
             width: 70,
@@ -872,35 +1050,43 @@ class _BedenUretimTamamlaDialogGenericState extends State<_BedenUretimTamamlaDia
               decoration: InputDecoration(
                 labelText: 'Fire',
                 hintText: '0',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                 filled: true,
                 fillColor: fire > 0 ? Colors.red.shade50 : Colors.white,
               ),
-              style: TextStyle(fontSize: 14, color: fire > 0 ? Colors.red : Colors.grey.shade700),
+              style: TextStyle(
+                  fontSize: 14,
+                  color: fire > 0 ? Colors.red : Colors.grey.shade700),
               onChanged: (_) => setState(() {}),
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // Kalan gösterimi
           Container(
             width: 60,
             padding: const EdgeInsets.symmetric(vertical: 4),
             decoration: BoxDecoration(
-              color: tamamlandi ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
+              color: tamamlandi
+                  ? Colors.green.withValues(alpha: 0.2)
+                  : Colors.orange.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Column(
               children: [
-                Text('Kalan', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                Text(kalan.toString(), 
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold, 
-                    fontSize: 14,
-                    color: tamamlandi ? Colors.green : Colors.orange.shade800,
-                  )),
+                Text('Kalan',
+                    style:
+                        TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text(kalan.toString(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: tamamlandi ? Colors.green : Colors.orange.shade800,
+                    )),
               ],
             ),
           ),

@@ -241,37 +241,66 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   @override
   Widget build(BuildContext context) {
     final filtreliSiparisler = _filtreliSiparisler;
+    return LayoutBuilder(builder: (context, constraints) {
+      final isMobile = constraints.maxWidth < 900;
+      final content = [
+        _buildHeader(),
+        const SizedBox(height: 12),
+        _buildOzetler(),
+        const SizedBox(height: 12),
+        _buildFiltreler(),
+        const SizedBox(height: 12),
+      ];
 
-    return Scaffold(
-      backgroundColor: _surfaceColor,
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 12),
-            _buildOzetler(),
-            const SizedBox(height: 12),
-            _buildFiltreler(),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _yukleniyor
-                  ? const LoadingWidget()
-                  : filtreliSiparisler.isEmpty
-                      ? _buildBosDurum()
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            if (constraints.maxWidth < 900) {
-                              return _buildKartListe(filtreliSiparisler);
-                            }
-                            return _buildTablo(filtreliSiparisler);
-                          },
-                        ),
+      if (isMobile) {
+        return Scaffold(
+          backgroundColor: _surfaceColor,
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                ...content,
+                if (_yukleniyor)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: LoadingWidget(),
+                  )
+                else if (filtreliSiparisler.isEmpty)
+                  SizedBox(
+                    height: 320,
+                    child: _buildBosDurum(),
+                  )
+                else
+                  _buildKartListe(
+                    filtreliSiparisler,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                  ),
+              ],
             ),
-          ],
+          ),
+        );
+      }
+
+      return Scaffold(
+        backgroundColor: _surfaceColor,
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              ...content,
+              Expanded(
+                child: _yukleniyor
+                    ? const LoadingWidget()
+                    : filtreliSiparisler.isEmpty
+                        ? _buildBosDurum()
+                        : _buildTablo(filtreliSiparisler),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildHeader() {
@@ -653,8 +682,14 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     );
   }
 
-  Widget _buildKartListe(List<Map<String, dynamic>> data) {
+  Widget _buildKartListe(
+    List<Map<String, dynamic>> data, {
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
+  }) {
     return ListView.separated(
+      shrinkWrap: shrinkWrap,
+      physics: physics,
       itemCount: data.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) => _buildSiparisKart(data[index]),
@@ -679,7 +714,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
               Expanded(
                 child: Text(
                   '${siparis['siparis_no'] ?? '-'} - ${siparis['iplik_adi'] ?? '-'}',
-                  maxLines: 1,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       fontWeight: FontWeight.w800, fontSize: 15),

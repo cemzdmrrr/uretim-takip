@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,18 +16,19 @@ class DosyalarPage extends StatefulWidget {
 
 class _DosyalarPageState extends State<DosyalarPage> {
   final supabase = Supabase.instance.client;
-  
+
   List<Map<String, dynamic>> dosyalar = [];
   String? aktifKlasorId;
   String aktifKlasorYolu = 'Ana Dizin';
   List<Map<String, dynamic>> breadcrumb = [];
   bool yukleniyor = true;
   bool dosyaYukleniyor = false;
-  
+
   String aramaMetni = '';
   String siralamaKriteri = 'ad'; // 'ad', 'tarih', 'boyut', 'tur'
   bool azalanSiralama = false;
-  String filtreTuru = 'hepsi'; // 'hepsi', 'pdf', 'folder', 'doc', 'xls', 'image'
+  String filtreTuru =
+      'hepsi'; // 'hepsi', 'pdf', 'folder', 'doc', 'xls', 'image'
 
   @override
   void initState() {
@@ -37,7 +38,7 @@ class _DosyalarPageState extends State<DosyalarPage> {
 
   Future<void> dosyalariGetir({String? klasorId}) async {
     setState(() => yukleniyor = true);
-    
+
     try {
       var query = supabase
           .from(DbTables.dosyalar)
@@ -66,17 +67,18 @@ class _DosyalarPageState extends State<DosyalarPage> {
         query = query.isFilter('ust_klasor_id', null);
       }
 
-      final response = await query.order('dosya_turu').order(siralamaKriteri, ascending: !azalanSiralama);
-      
+      final response = await query
+          .order('dosya_turu')
+          .order(siralamaKriteri, ascending: !azalanSiralama);
+
       setState(() {
         dosyalar = List<Map<String, dynamic>>.from(response);
         aktifKlasorId = klasorId;
         yukleniyor = false;
       });
-      
+
       // Breadcrumb güncelle
       await breadcrumbGuncelle(klasorId);
-      
     } catch (e) {
       if (!mounted) return;
       setState(() => yukleniyor = false);
@@ -89,26 +91,26 @@ class _DosyalarPageState extends State<DosyalarPage> {
   Future<void> breadcrumbGuncelle(String? klasorId) async {
     breadcrumb.clear();
     breadcrumb.add({'ad': 'Ana Dizin', 'id': null});
-    
+
     if (klasorId != null) {
       // Üst klasörleri bul
       String? ustKlasorId = klasorId;
       final List<Map<String, dynamic>> ustKlasorler = [];
-      
+
       while (ustKlasorId != null) {
         final klasor = await supabase
             .from(DbTables.dosyalar)
             .select('id, ad, ust_klasor_id')
             .eq('id', ustKlasorId)
             .single();
-            
+
         ustKlasorler.insert(0, klasor);
         ustKlasorId = klasor['ust_klasor_id'];
       }
-      
+
       breadcrumb.addAll(ustKlasorler);
     }
-    
+
     aktifKlasorYolu = breadcrumb.map((e) => e['ad']).join(' > ');
     setState(() {});
   }
@@ -116,24 +118,34 @@ class _DosyalarPageState extends State<DosyalarPage> {
   Future<void> dosyaYukle() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'],
+      allowedExtensions: [
+        'pdf',
+        'doc',
+        'docx',
+        'xls',
+        'xlsx',
+        'jpg',
+        'jpeg',
+        'png'
+      ],
       withData: true,
     );
 
     if (result != null && result.files.isNotEmpty) {
       setState(() => dosyaYukleniyor = true);
-      
+
       try {
         final file = result.files.first;
         final fileBytes = file.bytes!;
         final fileName = file.name;
         final extension = fileName.split('.').last.toLowerCase();
-        
+        final safeFileName = _storageSafeFileName(fileName);
+
         // Dosya yolunu oluştur
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final storagePath = aktifKlasorId != null 
-            ? 'folders/$aktifKlasorId/${timestamp}_$fileName'
-            : 'files/${timestamp}_$fileName';
+        final storagePath = aktifKlasorId != null
+            ? 'folders/$aktifKlasorId/${timestamp}_$safeFileName'
+            : 'files/${timestamp}_$safeFileName';
 
         // Supabase Storage'a yükle
         await supabase.storage
@@ -154,9 +166,8 @@ class _DosyalarPageState extends State<DosyalarPage> {
 
         if (!mounted) return;
         context.showSnackBar('Dosya başarıyla yüklendi');
-        
+
         dosyalariGetir(klasorId: aktifKlasorId);
-        
       } catch (e) {
         if (!mounted) return;
         context.showSnackBar('Dosya yüklenirken hata: $e');
@@ -168,35 +179,80 @@ class _DosyalarPageState extends State<DosyalarPage> {
 
   String _getDosyaTuru(String extension) {
     switch (extension.toLowerCase()) {
-      case 'pdf': return 'pdf';
+      case 'pdf':
+        return 'pdf';
       case 'doc':
-      case 'docx': return 'doc';
+      case 'docx':
+        return 'doc';
       case 'xls':
-      case 'xlsx': return 'xls';
+      case 'xlsx':
+        return 'xls';
       case 'jpg':
       case 'jpeg':
-      case 'png': return 'image';
-      default: return 'pdf';
+      case 'png':
+        return 'image';
+      default:
+        return 'pdf';
     }
   }
 
   String _getMimeType(String extension) {
     switch (extension.toLowerCase()) {
-      case 'pdf': return 'application/pdf';
-      case 'doc': return 'application/msword';
-      case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'xls': return 'application/vnd.ms-excel';
-      case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       case 'jpg':
-      case 'jpeg': return 'image/jpeg';
-      case 'png': return 'image/png';
-      default: return 'application/octet-stream';
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      default:
+        return 'application/octet-stream';
     }
+  }
+
+  String _storageSafeFileName(String fileName) {
+    final dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex <= 0 || dotIndex == fileName.length - 1) {
+      return _storageSafeSegment(fileName);
+    }
+
+    final baseName = fileName.substring(0, dotIndex);
+    final extension = fileName.substring(dotIndex + 1);
+    final safeBaseName = _storageSafeSegment(baseName);
+    final safeExtension = _storageSafeSegment(extension);
+    return '$safeBaseName.$safeExtension';
+  }
+
+  String _storageSafeSegment(String value) {
+    var normalized = value
+        .trim()
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('i̇', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c');
+
+    normalized = normalized.replaceAll(RegExp(r'[^a-z0-9._-]+'), '_');
+    normalized = normalized.replaceAll(RegExp(r'_+'), '_');
+    normalized = normalized.replaceAll(RegExp(r'^[_\.]+|[_\.]+$'), '');
+
+    return normalized.isEmpty ? 'dosya' : normalized;
   }
 
   Future<void> yeniKlasorOlustur() async {
     final TextEditingController controller = TextEditingController();
-    
+
     final sonuc = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -224,11 +280,13 @@ class _DosyalarPageState extends State<DosyalarPage> {
 
     if (sonuc != null && sonuc.isNotEmpty) {
       try {
+        final safeFolderName = _storageSafeSegment(sonuc);
         await supabase.from(DbTables.dosyalar).insert({
           'ad': sonuc,
           'dosya_turu': 'folder',
           'boyut': 0,
-          'yol': 'folders/${DateTime.now().millisecondsSinceEpoch}_$sonuc/',
+          'yol':
+              'folders/${DateTime.now().millisecondsSinceEpoch}_$safeFolderName/',
           'ust_klasor_id': aktifKlasorId,
           'olusturan_kullanici_id': supabase.auth.currentUser?.id,
           'firma_id': TenantManager.instance.requireFirmaId,
@@ -236,9 +294,8 @@ class _DosyalarPageState extends State<DosyalarPage> {
 
         if (!mounted) return;
         context.showSnackBar('Klasör başarıyla oluşturuldu');
-        
+
         dosyalariGetir(klasorId: aktifKlasorId);
-        
       } catch (e) {
         if (!mounted) return;
         context.showSnackBar('Klasör oluşturulurken hata: $e');
@@ -254,18 +311,14 @@ class _DosyalarPageState extends State<DosyalarPage> {
       // Dosyayı aç
       try {
         // Erişim sayısını artır
-        await supabase
-            .from(DbTables.dosyalar)
-            .update({
-              'erisim_sayisi': (dosya['erisim_sayisi'] ?? 0) + 1,
-              'son_erisim_tarihi': DateTime.now().toIso8601String(),
-            })
-            .eq('id', dosya['id']);
+        await supabase.from(DbTables.dosyalar).update({
+          'erisim_sayisi': (dosya['erisim_sayisi'] ?? 0) + 1,
+          'son_erisim_tarihi': DateTime.now().toIso8601String(),
+        }).eq('id', dosya['id']);
 
         // Dosya URL'ini al (public bucket için)
-        final url = supabase.storage
-            .from(DbTables.dosyalar)
-            .getPublicUrl(dosya['yol']);
+        final url =
+            supabase.storage.from(DbTables.dosyalar).getPublicUrl(dosya['yol']);
 
         // Dosyayı aç
         if (await canLaunchUrl(Uri.parse(url))) {
@@ -282,8 +335,9 @@ class _DosyalarPageState extends State<DosyalarPage> {
   }
 
   Future<void> dosyaYenidenAdlandir(Map<String, dynamic> dosya) async {
-    final TextEditingController controller = TextEditingController(text: dosya['ad']);
-    
+    final TextEditingController controller =
+        TextEditingController(text: dosya['ad']);
+
     final sonuc = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -313,14 +367,12 @@ class _DosyalarPageState extends State<DosyalarPage> {
       try {
         await supabase
             .from(DbTables.dosyalar)
-            .update({'ad': sonuc})
-            .eq('id', dosya['id']);
+            .update({'ad': sonuc}).eq('id', dosya['id']);
 
         if (!mounted) return;
         context.showSnackBar('Dosya yeniden adlandırıldı');
-        
+
         dosyalariGetir(klasorId: aktifKlasorId);
-        
       } catch (e) {
         if (!mounted) return;
         context.showSnackBar('Yeniden adlandırma hatası: $e');
@@ -333,7 +385,8 @@ class _DosyalarPageState extends State<DosyalarPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Dosya Sil'),
-        content: Text('${dosya['ad']} dosyasını silmek istediğinizden emin misiniz?'),
+        content: Text(
+            '${dosya['ad']} dosyasını silmek istediğinizden emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -351,26 +404,20 @@ class _DosyalarPageState extends State<DosyalarPage> {
     if (onay == true) {
       try {
         // Soft delete
-        await supabase
-            .from(DbTables.dosyalar)
-            .update({
-              'aktif': false,
-              'guncelleme_tarihi': DateTime.now().toIso8601String(),
-            })
-            .eq('id', dosya['id']);
+        await supabase.from(DbTables.dosyalar).update({
+          'aktif': false,
+          'guncelleme_tarihi': DateTime.now().toIso8601String(),
+        }).eq('id', dosya['id']);
 
         // Storage'dan da sil
         if (dosya['dosya_turu'] != 'folder') {
-          await supabase.storage
-              .from(DbTables.dosyalar)
-              .remove([dosya['yol']]);
+          await supabase.storage.from(DbTables.dosyalar).remove([dosya['yol']]);
         }
 
         if (!mounted) return;
         context.showSnackBar('Dosya silindi');
-        
+
         dosyalariGetir(klasorId: aktifKlasorId);
-        
       } catch (e) {
         if (!mounted) return;
         context.showSnackBar('Silme hatası: $e');
@@ -380,53 +427,75 @@ class _DosyalarPageState extends State<DosyalarPage> {
 
   List<Map<String, dynamic>> get filtreliDosyalar {
     var sonuc = List<Map<String, dynamic>>.from(dosyalar);
-    
+
     // Arama filtresi
     if (aramaMetni.isNotEmpty) {
-      sonuc = sonuc.where((dosya) =>
-          dosya['ad'].toString().toLowerCase().contains(aramaMetni.toLowerCase())).toList();
+      sonuc = sonuc
+          .where((dosya) => dosya['ad']
+              .toString()
+              .toLowerCase()
+              .contains(aramaMetni.toLowerCase()))
+          .toList();
     }
-    
+
     // Tür filtresi
     if (filtreTuru != 'hepsi') {
       if (filtreTuru == 'image') {
-        sonuc = sonuc.where((dosya) => ['jpg', 'jpeg', 'png'].contains(dosya['dosya_turu'])).toList();
+        sonuc = sonuc
+            .where(
+                (dosya) => ['jpg', 'jpeg', 'png'].contains(dosya['dosya_turu']))
+            .toList();
       } else {
-        sonuc = sonuc.where((dosya) => dosya['dosya_turu'] == filtreTuru).toList();
+        sonuc =
+            sonuc.where((dosya) => dosya['dosya_turu'] == filtreTuru).toList();
       }
     }
-    
+
     return sonuc;
   }
 
   IconData _getDosyaIkonu(String dosyaTuru) {
     switch (dosyaTuru) {
-      case 'folder': return Icons.folder;
-      case 'pdf': return Icons.picture_as_pdf;
-      case 'doc': return Icons.description;
-      case 'xls': return Icons.table_chart;
-      case 'image': return Icons.image;
-      default: return Icons.insert_drive_file;
+      case 'folder':
+        return Icons.folder;
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+        return Icons.description;
+      case 'xls':
+        return Icons.table_chart;
+      case 'image':
+        return Icons.image;
+      default:
+        return Icons.insert_drive_file;
     }
   }
 
   Color _getDosyaRengi(String dosyaTuru) {
     switch (dosyaTuru) {
-      case 'folder': return Colors.blue;
-      case 'pdf': return Colors.red;
-      case 'doc': return Colors.blue;
-      case 'xls': return Colors.green;
-      case 'image': return Colors.purple;
-      default: return Colors.grey;
+      case 'folder':
+        return Colors.blue;
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+        return Colors.blue;
+      case 'xls':
+        return Colors.green;
+      case 'image':
+        return Colors.purple;
+      default:
+        return Colors.grey;
     }
   }
 
   String _formatBoyut(int? boyut) {
     if (boyut == null || boyut == 0) return '';
-    
+
     if (boyut < 1024) return '$boyut B';
     if (boyut < 1024 * 1024) return '${(boyut / 1024).toStringAsFixed(1)} KB';
-    if (boyut < 1024 * 1024 * 1024) return '${(boyut / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (boyut < 1024 * 1024 * 1024) {
+      return '${(boyut / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(boyut / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -471,7 +540,7 @@ class _DosyalarPageState extends State<DosyalarPage> {
                     icon: const Icon(Icons.arrow_back),
                     tooltip: 'Geri',
                     onPressed: () {
-                      final ustKlasor = breadcrumb.length > 1 
+                      final ustKlasor = breadcrumb.length > 1
                           ? breadcrumb[breadcrumb.length - 2]
                           : null;
                       dosyalariGetir(klasorId: ustKlasor?['id']);
@@ -480,7 +549,7 @@ class _DosyalarPageState extends State<DosyalarPage> {
               ],
             ),
           ),
-          
+
           // Arama ve filtreler
           Container(
             padding: const EdgeInsets.all(16),
@@ -507,7 +576,8 @@ class _DosyalarPageState extends State<DosyalarPage> {
                     initialValue: filtreTuru,
                     items: const [
                       DropdownMenuItem(value: 'hepsi', child: Text('Hepsi')),
-                      DropdownMenuItem(value: 'folder', child: Text('Klasörler')),
+                      DropdownMenuItem(
+                          value: 'folder', child: Text('Klasörler')),
                       DropdownMenuItem(value: 'pdf', child: Text('PDF')),
                       DropdownMenuItem(value: 'doc', child: Text('Word')),
                       DropdownMenuItem(value: 'xls', child: Text('Excel')),
@@ -526,7 +596,8 @@ class _DosyalarPageState extends State<DosyalarPage> {
                     initialValue: siralamaKriteri,
                     items: const [
                       DropdownMenuItem(value: 'ad', child: Text('İsim')),
-                      DropdownMenuItem(value: 'olusturma_tarihi', child: Text('Tarih')),
+                      DropdownMenuItem(
+                          value: 'olusturma_tarihi', child: Text('Tarih')),
                       DropdownMenuItem(value: 'boyut', child: Text('Boyut')),
                       DropdownMenuItem(value: 'dosya_turu', child: Text('Tür')),
                     ],
@@ -537,7 +608,9 @@ class _DosyalarPageState extends State<DosyalarPage> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(azalanSiralama ? Icons.arrow_downward : Icons.arrow_upward),
+                  icon: Icon(azalanSiralama
+                      ? Icons.arrow_downward
+                      : Icons.arrow_upward),
                   onPressed: () {
                     setState(() => azalanSiralama = !azalanSiralama);
                     dosyalariGetir(klasorId: aktifKlasorId);
@@ -546,7 +619,7 @@ class _DosyalarPageState extends State<DosyalarPage> {
               ],
             ),
           ),
-          
+
           // Dosya listesi
           Expanded(
             child: yukleniyor
@@ -569,7 +642,8 @@ class _DosyalarPageState extends State<DosyalarPage> {
                             itemBuilder: (context, index) {
                               final dosya = filtreliDosyalar[index];
                               return Card(
-                                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                margin: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
                                 child: ListTile(
                                   leading: Icon(
                                     _getDosyaIkonu(dosya['dosya_turu']),
@@ -578,10 +652,12 @@ class _DosyalarPageState extends State<DosyalarPage> {
                                   ),
                                   title: Text(
                                     dosya['ad'],
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w500),
                                   ),
                                   subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       if (dosya['aciklama'] != null)
                                         Text(dosya['aciklama']),
@@ -589,13 +665,15 @@ class _DosyalarPageState extends State<DosyalarPage> {
                                         children: [
                                           Text(
                                             DateFormat('dd.MM.yyyy HH:mm')
-                                                .format(DateTime.parse(dosya['olusturma_tarihi'])),
+                                                .format(DateTime.parse(
+                                                    dosya['olusturma_tarihi'])),
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: Colors.grey[600],
                                             ),
                                           ),
-                                          if (dosya['boyut'] != null && dosya['boyut'] > 0) ...[
+                                          if (dosya['boyut'] != null &&
+                                              dosya['boyut'] > 0) ...[
                                             const Text(' • '),
                                             Text(
                                               _formatBoyut(dosya['boyut']),
@@ -605,7 +683,8 @@ class _DosyalarPageState extends State<DosyalarPage> {
                                               ),
                                             ),
                                           ],
-                                          if (dosya['erisim_sayisi'] != null && dosya['erisim_sayisi'] > 0) ...[
+                                          if (dosya['erisim_sayisi'] != null &&
+                                              dosya['erisim_sayisi'] > 0) ...[
                                             const Text(' • '),
                                             Text(
                                               '${dosya['erisim_sayisi']} görüntüleme',
@@ -645,9 +724,12 @@ class _DosyalarPageState extends State<DosyalarPage> {
                                         value: 'sil',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.delete, color: Colors.red),
+                                            Icon(Icons.delete,
+                                                color: Colors.red),
                                             SizedBox(width: 8),
-                                            Text('Sil', style: TextStyle(color: Colors.red)),
+                                            Text('Sil',
+                                                style: TextStyle(
+                                                    color: Colors.red)),
                                           ],
                                         ),
                                       ),

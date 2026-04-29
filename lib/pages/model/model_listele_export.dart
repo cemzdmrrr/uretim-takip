@@ -217,7 +217,7 @@ extension _ExportListeleExt on _ModelListeleState {
           .from(DbTables.trikoTakip)
           .select('*')
           .eq('firma_id', _firmaId)
-          .filter('id', 'in', '(${modelIdleri.join(',')})');
+          .inFilter('id', modelIdleri);
 
       return {
         for (final model in List<Map<String, dynamic>>.from(response))

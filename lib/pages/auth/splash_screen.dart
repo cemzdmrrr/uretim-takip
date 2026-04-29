@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,6 +18,7 @@ import 'package:uretim_takip/pages/uretim/dokuma_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/konfeksiyon_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/utu_paket_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/ilik_dugme_dashboard.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 
 class SplashScreen extends StatefulWidget {
   final bool isLoggedIn;
@@ -43,7 +44,8 @@ class _SplashScreenState extends State<SplashScreen> {
             }
           }
           // Çoklu firma varsa seçim ekranına yönlendir
-          if (tenantProvider.kullaniciFirmalari.length > 1 && !tenantProvider.firmaSecildi) {
+          if (tenantProvider.kullaniciFirmalari.length > 1 &&
+              !tenantProvider.firmaSecildi) {
             if (mounted) {
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (_) => const FirmaSecimPage()),
@@ -95,16 +97,21 @@ class _SplashScreenState extends State<SplashScreen> {
           ? SupabaseConfig.adminClient
           : Supabase.instance.client;
 
-      // Önce admin kontrolü
-      final adminCheck = await dbClient
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', currentUser.id)
-          .eq('role', 'admin')
-          .maybeSingle();
+      final firmaRolu = await UserRoleService.kullaniciFirmaRolunuGetir(
+        userId: currentUser.id,
+        client: dbClient,
+      );
+      final operasyonRolleri =
+          await UserRoleService.kullaniciOperasyonRolleriniGetir(
+        userId: currentUser.id,
+        client: dbClient,
+      );
+      if (!mounted) return;
+      final tenantProvider = context.read<TenantProvider>();
 
-      if (adminCheck != null) {
-        debugPrint('👤 Admin yönlendirme: ${currentUser.email}');
+      if (UserRoleService.isFirmaAdminRolu(firmaRolu) ||
+          (firmaRolu != null && firmaRolu.isNotEmpty) ||
+          tenantProvider.kullaniciFirmalari.isNotEmpty) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const AnaSayfa()),
@@ -121,24 +128,31 @@ class _SplashScreenState extends State<SplashScreen> {
           .maybeSingle();
 
       if (tedarikciCheck != null) {
-        final faaliyet = (tedarikciCheck['faaliyet'] ?? '').toString().toLowerCase();
-        debugPrint('🏢 Tedarikci yönlendirme: ${tedarikciCheck['sirket']} - Faaliyet: $faaliyet');
-        
+        final faaliyet =
+            (tedarikciCheck['faaliyet'] ?? '').toString().toLowerCase();
+        debugPrint(
+            '🏢 Tedarikci yönlendirme: ${tedarikciCheck['sirket']} - Faaliyet: $faaliyet');
+
         Widget targetWidget;
         if (faaliyet.contains('yıkama') || faaliyet.contains('yikama')) {
           targetWidget = const YikamaDashboard();
-        } else if (faaliyet.contains('dokuma') || faaliyet.contains('örme') || faaliyet.contains('orgu')) {
+        } else if (faaliyet.contains('dokuma') ||
+            faaliyet.contains('örme') ||
+            faaliyet.contains('orgu')) {
           targetWidget = const DokumaDashboard();
-        } else if (faaliyet.contains('konfeksiyon') || faaliyet.contains('dikim')) {
+        } else if (faaliyet.contains('konfeksiyon') ||
+            faaliyet.contains('dikim')) {
           targetWidget = const KonfeksiyonDashboard();
         } else if (faaliyet.contains('ütü') || faaliyet.contains('utu')) {
           targetWidget = const UtuPaketDashboard();
-        } else if (faaliyet.contains('ilik') || faaliyet.contains('düğme') || faaliyet.contains('dugme')) {
+        } else if (faaliyet.contains('ilik') ||
+            faaliyet.contains('düğme') ||
+            faaliyet.contains('dugme')) {
           targetWidget = const IlikDugmeDashboard();
         } else {
           targetWidget = const TedarikciPanel();
         }
-        
+
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => targetWidget),
@@ -148,18 +162,9 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       // Kullanıcı rollerini kontrol et (birden fazla rol olabilir)
-      final userRoles = await dbClient
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', currentUser.id);
+      if (operasyonRolleri.isNotEmpty) {
+        final roles = operasyonRolleri.toList();
 
-      debugPrint('📋 Kullanıcı rolleri: $userRoles');
-
-      if (userRoles.isNotEmpty) {
-        // Rolleri listele
-        final roles = (userRoles as List).map((r) => r['role'].toString().toLowerCase().trim()).toList();
-        debugPrint('📋 Bulunan roller: $roles');
-        
         // Sevkiyat kontrolü (öncelikli)
         if (roles.contains('sevkiyat')) {
           debugPrint('📦 Sevkiyat personeli yönlendirme: ${currentUser.email}');
@@ -170,7 +175,7 @@ class _SplashScreenState extends State<SplashScreen> {
           }
           return;
         }
-        
+
         // Kalite kontrol
         if (roles.contains('kalite_kontrol')) {
           debugPrint('🔍 Kalite personeli yönlendirme: ${currentUser.email}');
@@ -181,7 +186,7 @@ class _SplashScreenState extends State<SplashScreen> {
           }
           return;
         }
-        
+
         // Şoför
         if (roles.contains('sofor')) {
           debugPrint('🚗 Şoför yönlendirme: ${currentUser.email}');
@@ -201,7 +206,6 @@ class _SplashScreenState extends State<SplashScreen> {
           MaterialPageRoute(builder: (_) => const AnaSayfa()),
         );
       }
-
     } catch (e) {
       debugPrint('❌ Kullanıcı tipi kontrol hatası: $e');
       // Hata durumunda login'e yönlendir
@@ -231,10 +235,12 @@ class _SplashScreenState extends State<SplashScreen> {
           .select('firma_id, rol')
           .eq('user_id', currentUser.id)
           .eq('aktif', true);
-      
+
       if (firmaKullaniciCheck.isNotEmpty) {
-        debugPrint('✅ firma_kullanicilari kaydı bulundu (adminClient), yeniden yükleniyor');
+        debugPrint(
+            '✅ firma_kullanicilari kaydı bulundu (adminClient), yeniden yükleniyor');
         // Kayıt var ama kullaniciFirmalariniYukle hata vermiş olabilir, tekrar dene
+        if (!mounted) return false;
         final tenantProvider = context.read<TenantProvider>();
         await tenantProvider.kullaniciFirmalariniYukle(currentUser.id);
         if (tenantProvider.kullaniciFirmalari.isNotEmpty) {
@@ -314,6 +320,7 @@ class _SplashScreenState extends State<SplashScreen> {
           debugPrint('✅ Eksik firma_kullanicilari kaydı oluşturuldu');
 
           // Tekrar yükle
+          if (!mounted) return true;
           final tenantProvider = context.read<TenantProvider>();
           await tenantProvider.kullaniciFirmalariniYukle(currentUser.id);
         } catch (e) {
@@ -333,14 +340,15 @@ class _SplashScreenState extends State<SplashScreen> {
     // Ekran boyutlarını al
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    
+
     // Logo boyutunu ekran boyutuna göre hesapla
     // Genişlik veya yüksekliğin küçük olanının %40'ı
-    final logoSize = (screenWidth < screenHeight ? screenWidth : screenHeight) * 0.5;
-    
+    final logoSize =
+        (screenWidth < screenHeight ? screenWidth : screenHeight) * 0.5;
+
     // Minimum ve maksimum sınırlar
     final constrainedLogoSize = logoSize.clamp(120.0, 700.0);
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(

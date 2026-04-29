@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'model_detay.dart';
 
 /// Admin operations (restart, update, delete stages) for _ModelDetayState.
@@ -7,10 +7,12 @@ extension _AdminIslemlerExt on _ModelDetayState {
 
   /// Aşamayı yeniden başlat (tamamlanmış aşamayı bekleyen durumuna çevir)
   Future<void> _yenidenBaslatDialog(Map<String, dynamic> asama) async {
-    final asamaAdi = asama['ad'] ?? asama['asama_adi'] ?? asama['asamaAdi'] ?? 'Bilinmeyen';
-    final asamaKodu = asama['kod'] ?? asama['asama_kodu'] ?? asama['asamaKodu'] ?? '';
+    final asamaAdi =
+        asama['ad'] ?? asama['asama_adi'] ?? asama['asamaAdi'] ?? 'Bilinmeyen';
+    final asamaKodu =
+        asama['kod'] ?? asama['asama_kodu'] ?? asama['asamaKodu'] ?? '';
     final tabloAdi = utils.getTabloAdi(asamaKodu);
-    
+
     if (tabloAdi == null) {
       context.showErrorSnackBar('Bu aşama için tablo bulunamadı');
       return;
@@ -92,10 +94,12 @@ extension _AdminIslemlerExt on _ModelDetayState {
 
   /// Aşamadaki tüm atamaları sil
   Future<void> _tumAtamalariSilDialog(Map<String, dynamic> asama) async {
-    final asamaAdi = asama['ad'] ?? asama['asama_adi'] ?? asama['asamaAdi'] ?? 'Bilinmeyen';
-    final asamaKodu = asama['kod'] ?? asama['asama_kodu'] ?? asama['asamaKodu'] ?? '';
+    final asamaAdi =
+        asama['ad'] ?? asama['asama_adi'] ?? asama['asamaAdi'] ?? 'Bilinmeyen';
+    final asamaKodu =
+        asama['kod'] ?? asama['asama_kodu'] ?? asama['asamaKodu'] ?? '';
     final tabloAdi = utils.getTabloAdi(asamaKodu);
-    
+
     if (tabloAdi == null) {
       context.showErrorSnackBar('Bu aşama için tablo bulunamadı');
       return;
@@ -115,7 +119,8 @@ extension _AdminIslemlerExt on _ModelDetayState {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$asamaAdi aşamasındaki TÜM atamaları silmek istiyor musunuz?'),
+            Text(
+                '$asamaAdi aşamasındaki TÜM atamaları silmek istiyor musunuz?'),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -131,7 +136,8 @@ extension _AdminIslemlerExt on _ModelDetayState {
                   Expanded(
                     child: Text(
                       'DİKKAT: Bu işlem geri alınamaz! Tüm atama kayıtları silinecek.',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -159,7 +165,8 @@ extension _AdminIslemlerExt on _ModelDetayState {
         await supabase.from(tabloAdi).delete().eq('model_id', widget.modelId);
 
         if (mounted) {
-          context.showSuccessSnackBar('✅ $asamaAdi aşamasındaki tüm atamalar silindi');
+          context.showSuccessSnackBar(
+              '✅ $asamaAdi aşamasındaki tüm atamalar silindi');
           Navigator.pop(context); // Dialog'u kapat
           await verileriGetir();
         }
@@ -172,12 +179,13 @@ extension _AdminIslemlerExt on _ModelDetayState {
   }
 
   /// Tek atama durumunu değiştir
-  Future<void> _tekAtamaDurumDegistirDialog(Map<String, dynamic> atama, String asamaKodu) async {
+  Future<void> _tekAtamaDurumDegistirDialog(
+      Map<String, dynamic> atama, String asamaKodu) async {
     final tabloAdi = utils.getTabloAdi(asamaKodu);
     if (tabloAdi == null) return;
 
     String secilenDurum = atama['durum'] ?? 'bekleyen';
-    
+
     final durumlar = [
       {'kod': 'bekleyen', 'ad': 'Bekleyen', 'renk': Colors.grey},
       {'kod': 'atandi', 'ad': 'Atandı', 'renk': Colors.orange},
@@ -206,11 +214,13 @@ extension _AdminIslemlerExt on _ModelDetayState {
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: durumlar.map((d) => RadioListTile<String>(
-                title: Text(d['ad'] as String),
-                value: d['kod'] as String,
-                activeColor: d['renk'] as Color,
-              )).toList(),
+              children: durumlar
+                  .map((d) => RadioListTile<String>(
+                        title: Text(d['ad'] as String),
+                        value: d['kod'] as String,
+                        activeColor: d['renk'] as Color,
+                      ))
+                  .toList(),
             ),
           ),
           actions: [
@@ -233,7 +243,7 @@ extension _AdminIslemlerExt on _ModelDetayState {
           'durum': yeniDurum,
           'updated_at': DateTime.now().toIso8601String(),
         };
-        
+
         if (yeniDurum == 'tamamlandi') {
           updateData['tamamlama_tarihi'] = DateTime.now().toIso8601String();
         }
@@ -254,7 +264,8 @@ extension _AdminIslemlerExt on _ModelDetayState {
   }
 
   /// Tek atamayı sil
-  Future<void> _tekAtamaSilDialog(Map<String, dynamic> atama, String asamaKodu) async {
+  Future<void> _tekAtamaSilDialog(
+      Map<String, dynamic> atama, String asamaKodu) async {
     final tabloAdi = utils.getTabloAdi(asamaKodu);
     if (tabloAdi == null) return;
 
@@ -268,7 +279,8 @@ extension _AdminIslemlerExt on _ModelDetayState {
             Text('Atamayı Sil'),
           ],
         ),
-        content: const Text('Bu atama kaydını silmek istiyor musunuz?\n\nBu işlem geri alınamaz.'),
+        content: const Text(
+            'Bu atama kaydını silmek istiyor musunuz?\n\nBu işlem geri alınamaz.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -322,16 +334,13 @@ extension _AdminIslemlerExt on _ModelDetayState {
     return toplam;
   }
 
-
-
-
   void _showAtamaDialog(String asamaKey) {
     final adetController = TextEditingController();
     String? secilenKullaniciId;
     Map<String, dynamic>? secilenKullanici; // Seçilen kullanıcının tam bilgisi
     List<Map<String, dynamic>> kullanicilar = [];
     bool loading = true;
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -345,7 +354,7 @@ extension _AdminIslemlerExt on _ModelDetayState {
               });
             });
           }
-          
+
           return AlertDialog(
             title: Text('${utils.getAsamaDisplayName(asamaKey)} - Yeni Atama'),
             content: SizedBox(
@@ -355,13 +364,17 @@ extension _AdminIslemlerExt on _ModelDetayState {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Model: ${currentModelData?['marka']} - ${currentModelData?['item_no']}'),
+                    Text(
+                        'Model: ${currentModelData?['marka']} - ${currentModelData?['item_no']}'),
                     const SizedBox(height: 8),
                     Text(
                       'Aşama: ${utils.getAsamaDisplayName(asamaKey)} (${_getRequiredRolesForStage(asamaKey).join(', ')})',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic),
                     ),
-                    
+
                     // Beden Dağılımı Bilgisi
                     if (currentModelData?['bedenler'] != null) ...[
                       const SizedBox(height: 16),
@@ -377,7 +390,8 @@ extension _AdminIslemlerExt on _ModelDetayState {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.straighten, size: 18, color: Colors.blue.shade700),
+                                Icon(Icons.straighten,
+                                    size: 18, color: Colors.blue.shade700),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Beden Dağılımı',
@@ -394,71 +408,72 @@ extension _AdminIslemlerExt on _ModelDetayState {
                         ),
                       ),
                     ],
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Kullanıcı seçimi
                     const Text(
                       'Atanacak Kullanıcı:',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  const SizedBox(height: 8),
-                  loading
-                      ? const LoadingWidget()
-                      : SizedBox(
-                          width: double.infinity,
-                          child: DropdownButtonFormField<String>(
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              hintText: 'Kullanıcı seçin',
-                            ),
-                            initialValue: secilenKullaniciId,
-                            items: kullanicilar.map((user) {
-                              return DropdownMenuItem<String>(
-                                value: user['id'],
-                                child: SizedBox(
-                                  width: 400, // Dropdown item genişliği
-                                  child: Text(
-                                    '${user['email']} [${user['role']}]',
-                                    style: const TextStyle(fontSize: 14),
-                                    overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 8),
+                    loading
+                        ? const LoadingWidget()
+                        : SizedBox(
+                            width: double.infinity,
+                            child: DropdownButtonFormField<String>(
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                hintText: 'Kullanıcı seçin',
+                              ),
+                              initialValue: secilenKullaniciId,
+                              items: kullanicilar.map((user) {
+                                return DropdownMenuItem<String>(
+                                  value: user['id'],
+                                  child: SizedBox(
+                                    width: 400, // Dropdown item genişliği
+                                    child: Text(
+                                      '${user['email']} [${user['role']}]',
+                                      style: const TextStyle(fontSize: 14),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                secilenKullaniciId = value;
-                                // Seçilen kullanıcının tam bilgisini bul
-                                secilenKullanici = kullanicilar.firstWhere(
-                                  (user) => user['id'] == value,
-                                  orElse: () => {},
                                 );
-                              });
-                            },
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  secilenKullaniciId = value;
+                                  // Seçilen kullanıcının tam bilgisini bul
+                                  secilenKullanici = kullanicilar.firstWhere(
+                                    (user) => user['id'] == value,
+                                    orElse: () => {},
+                                  );
+                                });
+                              },
+                            ),
                           ),
-                        ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Adet girişi
-                  const Text(
-                    'Atanacak Adet:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: adetController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      hintText: 'Adet girin',
-                      helperText: 'Kalan: ${(currentModelData?['toplam_adet'] ?? 0) - _getTotalAtananAdet()}',
+
+                    const SizedBox(height: 16),
+
+                    // Adet girişi
+                    const Text(
+                      'Atanacak Adet:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    onChanged: (value) {
-                      setState(() {}); // Buton durumunu güncellemek için
-                    },
-                  ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: adetController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: 'Adet girin',
+                        helperText:
+                            'Kalan: ${(currentModelData?['toplam_adet'] ?? 0) - _getTotalAtananAdet()}',
+                      ),
+                      onChanged: (value) {
+                        setState(() {}); // Buton durumunu güncellemek için
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -469,9 +484,12 @@ extension _AdminIslemlerExt on _ModelDetayState {
                 child: const Text('İptal'),
               ),
               ElevatedButton(
-                onPressed: secilenKullaniciId != null && adetController.text.isNotEmpty
-                    ? () => _atamaYap(asamaKey, secilenKullaniciId!, int.tryParse(adetController.text) ?? 0, userInfo: secilenKullanici)
-                    : null,
+                onPressed:
+                    secilenKullaniciId != null && adetController.text.isNotEmpty
+                        ? () => _atamaYap(asamaKey, secilenKullaniciId!,
+                            int.tryParse(adetController.text) ?? 0,
+                            userInfo: secilenKullanici)
+                        : null,
                 child: const Text('Atama Yap'),
               ),
             ],
@@ -485,34 +503,34 @@ extension _AdminIslemlerExt on _ModelDetayState {
     try {
       // Aşamaya göre gerekli rolleri belirle
       final List<String> gerekliRoller = _getRequiredRolesForStage(asamaKey);
-      
-      debugPrint('🔍 _loadUsers başladı - asamaKey: $asamaKey, gerekli roller: $gerekliRoller');
-      
-      
+
+      debugPrint(
+          '🔍 _loadUsers başladı - asamaKey: $asamaKey, gerekli roller: $gerekliRoller');
+
       // Tüm tedarikcileri al ve faaliyet alanına göre filtrele
       final allTedarikciler = await supabase
           .from(DbTables.tedarikciler)
           .select('id, ad, soyad, sirket, email, faaliyet, telefon')
           .eq('durum', 'aktif'); // Sadece aktif tedarikciler
-      
+
       List<Map<String, dynamic>> users = [];
-      
-      debugPrint('🔍 _loadUsers: Tüm tedarikciler sayısı: ${allTedarikciler.length}, gerekli roller: $gerekliRoller');
-      
+
+      debugPrint(
+          '🔍 _loadUsers: Tüm tedarikciler sayısı: ${allTedarikciler.length}, gerekli roller: $gerekliRoller');
+
       // Tedarikcileri users listesine ekle (faaliyet alanına göre filtrele)
       for (var tedarikci in allTedarikciler) {
         final faaliyet = tedarikci['faaliyet']?.toString().trim() ?? '';
-        
+
         // Faaliyet alanı gerekli roller listesinde var mı kontrol et
-        final bool isRoleRequired = gerekliRoller.any((rol) => 
-          rol.toLowerCase() == faaliyet.toLowerCase()
-        );
-        
+        final bool isRoleRequired = gerekliRoller
+            .any((rol) => rol.toLowerCase() == faaliyet.toLowerCase());
+
         if (!isRoleRequired) {
           continue; // Bu tedarikciyi atla
         }
         String displayName = '';
-        
+
         // Şirket adı varsa onu kullan, yoksa ad-soyad birleştir
         if (tedarikci['sirket'] != null && tedarikci['sirket'].isNotEmpty) {
           displayName = tedarikci['sirket'];
@@ -522,25 +540,28 @@ extension _AdminIslemlerExt on _ModelDetayState {
             displayName += ' ${tedarikci['soyad']}';
           }
         }
-        
+
         if (displayName.isNotEmpty) {
           // İletişim bilgisi ekle
           if (tedarikci['email'] != null && tedarikci['email'].isNotEmpty) {
             displayName += ' (${tedarikci['email']})';
-          } else if (tedarikci['telefon'] != null && tedarikci['telefon'].isNotEmpty) {
+          } else if (tedarikci['telefon'] != null &&
+              tedarikci['telefon'].isNotEmpty) {
             displayName += ' (${tedarikci['telefon']})';
           }
-          
+
           // Faaliyet alanını da göster
           displayName += ' [${tedarikci['faaliyet'] ?? 'Belirtilmemiş'}]';
-          
+
           // Tedarikci ID'sini UUID formatına dönüştür
           // UUID formatı: 8-4-4-4-12 karakterde hex değer
-          final String tedarikciIdStr = tedarikci['id'].toString().padLeft(8, '0');
-          final String tedarikciUuid = '00000000-0000-0000-0000-${tedarikciIdStr.padLeft(12, '0')}';
-          
+          final String tedarikciIdStr =
+              tedarikci['id'].toString().padLeft(8, '0');
+          final String tedarikciUuid =
+              '00000000-0000-0000-0000-${tedarikciIdStr.padLeft(12, '0')}';
+
           users.add({
-            'id': tedarikciUuid, 
+            'id': tedarikciUuid,
             'email': displayName,
             'role': tedarikci['faaliyet'] ?? 'firma',
             'is_tedarikci': true,
@@ -548,41 +569,39 @@ extension _AdminIslemlerExt on _ModelDetayState {
           });
         }
       }
-      
+
       // Eğer tedarikcilerden kullanıcı bulunamazsa, user_roles tablosundan yedek olarak al
       if (users.isEmpty) {
-        final allUserRoles = await supabase
-            .from(DbTables.userRoles)
-            .select('user_id, role');
-        
+        final allUserRoles =
+            await supabase.from(DbTables.userRoles).select('user_id, role');
+
         // user_roles'daki kullanıcıları da ekle (rol gerekliyse)
         for (var userRole in allUserRoles) {
           final userId = userRole['user_id'];
           final role = userRole['role']?.toString() ?? '';
-          
+
           // Rol gerekli mi kontrol et
-          final bool isRoleRequired = gerekliRoller.any((requiredRole) => 
-            requiredRole.toLowerCase() == role.toLowerCase()
-          );
-          
+          final bool isRoleRequired = gerekliRoller.any((requiredRole) =>
+              requiredRole.toLowerCase() == role.toLowerCase());
+
           if (!isRoleRequired) {
             continue; // Bu rolü atla
           }
-          
+
           // Bu kullanıcı zaten users listesinde var mı kontrol et
           final bool alreadyExists = users.any((user) => user['id'] == userId);
-          
+
           if (!alreadyExists) {
             // Mevcut oturumdaki kullanıcının email'ini al
             final currentUser = supabase.auth.currentUser;
             String email = 'Kullanıcı ($role)';
-            
+
             if (currentUser?.id == userId && currentUser?.email != null) {
               email = currentUser!.email!;
             } else {
               email = 'Kullanıcı ${userId.substring(0, 8)}... ($role)';
             }
-            
+
             users.add({
               'id': userId,
               'email': email,
@@ -591,19 +610,20 @@ extension _AdminIslemlerExt on _ModelDetayState {
           }
         }
       }
-      
+
       // Debug: Bulduğumuz kullanıcıları göster
       debugPrint('✅ _loadUsers: Bulduğumuz kullanıcı sayısı: ${users.length}');
       for (var user in users) {
         debugPrint('   - ${user['email']} (${user['role']})');
       }
-      
+
       // Test kullanıcıları sadece gerçekten veri yoksa ekle
       if (users.isEmpty) {
-        debugPrint('⚠️ _loadUsers: Gerçek veri bulunamadı, test verisi kullanılıyor');
+        debugPrint(
+            '⚠️ _loadUsers: Gerçek veri bulunamadı, test verisi kullanılıyor');
         users = _createTestUsersForStage(asamaKey);
       }
-      
+
       return users;
     } catch (e, stackTrace) {
       // Hata durumunda debug log göster
@@ -726,15 +746,31 @@ extension _AdminIslemlerExt on _ModelDetayState {
     }
   }
 
-  Future<void> _atamaYap(String asamaKey, String kullaniciId, int adet, {Map<String, dynamic>? userInfo}) async {
+  Future<void> _atamaYap(String asamaKey, String kullaniciId, int adet,
+      {Map<String, dynamic>? userInfo}) async {
     if (adet <= 0) {
       context.showErrorSnackBar('Geçerli bir adet giriniz');
       return;
     }
-    
+
     try {
+      if (SevkiyatAtamaGuard.sevkGerektirir(asamaKey)) {
+        final sevkVar = await SevkiyatAtamaGuard().hedefAsamayaSevkVarMi(
+          modelId: widget.modelId,
+          hedefAsama: asamaKey,
+          firmaId: TenantManager.instance.requireFirmaId,
+        );
+
+        if (!sevkVar) {
+          context.showErrorSnackBar(
+            'Bu model Ütü/Paket aşamasına sevk edilmeden atama yapılamaz. Önce Sevkiyat panelinden sevk işlemi yapın.',
+          );
+          return;
+        }
+      }
+
       final String tableName = utils.getTableNameForStage(asamaKey);
-      
+
       // Mevcut atama kontrolü - aynı model için herhangi bir atama var mı?
       final mevcutAtama = await supabase
           .from(tableName)
@@ -748,23 +784,30 @@ extension _AdminIslemlerExt on _ModelDetayState {
         final int mevcutTamamlanan = mevcutAtama['tamamlanan_adet'] ?? 0;
         final int mevcutTalep = mevcutAtama['talep_edilen_adet'] ?? 0;
         final int yeniToplam = isTamamlandi ? (mevcutTalep + adet) : adet;
-        
+
         if (!mounted) return;
         final devamEt = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: isTamamlandi ? Colors.blue.shade50 : Colors.orange.shade50,
+                    color: isTamamlandi
+                        ? Colors.blue.shade50
+                        : Colors.orange.shade50,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    isTamamlandi ? Icons.add_circle_outline : Icons.warning_amber_rounded, 
-                    color: isTamamlandi ? Colors.blue.shade600 : Colors.orange.shade600,
+                    isTamamlandi
+                        ? Icons.add_circle_outline
+                        : Icons.warning_amber_rounded,
+                    color: isTamamlandi
+                        ? Colors.blue.shade600
+                        : Colors.orange.shade600,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -775,9 +818,9 @@ extension _AdminIslemlerExt on _ModelDetayState {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(isTamamlandi 
-                  ? 'Bu model için önceki atama tamamlanmış. Ek atama yapmak ister misiniz?'
-                  : 'Bu model için zaten aktif bir atama bulunuyor.'),
+                Text(isTamamlandi
+                    ? 'Bu model için önceki atama tamamlanmış. Ek atama yapmak ister misiniz?'
+                    : 'Bu model için zaten aktif bir atama bulunuyor.'),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -793,16 +836,19 @@ extension _AdminIslemlerExt on _ModelDetayState {
                       Text('Tamamlanan: $mevcutTamamlanan adet'),
                       if (isTamamlandi) ...[
                         const Divider(),
-                        Text('Eklenen: $adet adet', style: const TextStyle(color: Colors.blue)),
-                        Text('Yeni Toplam: $yeniToplam adet', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Eklenen: $adet adet',
+                            style: const TextStyle(color: Colors.blue)),
+                        Text('Yeni Toplam: $yeniToplam adet',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(isTamamlandi 
-                  ? 'Mevcut adete $adet adet eklenecek ve üretim devam edecek.'
-                  : 'Mevcut atamayı güncellemek ister misiniz?'),
+                Text(isTamamlandi
+                    ? 'Mevcut adete $adet adet eklenecek ve üretim devam edecek.'
+                    : 'Mevcut atamayı güncellemek ister misiniz?'),
               ],
             ),
             actions: [
@@ -827,7 +873,7 @@ extension _AdminIslemlerExt on _ModelDetayState {
             'durum': 'atandi',
             'updated_at': DateTime.now().toIso8601String(),
           };
-          
+
           // Tamamlanmış atamaya ek yapılıyorsa mevcut adete ekle, tamamlanan_adet korunsun
           if (isTamamlandi) {
             updateData['adet'] = yeniToplam;
@@ -837,23 +883,31 @@ extension _AdminIslemlerExt on _ModelDetayState {
             updateData['adet'] = adet;
             updateData['talep_edilen_adet'] = adet;
           }
-          
+
           // Tedarikci bilgisi varsa ekle (try-catch ile güvenli)
-          if (userInfo != null && userInfo['is_tedarikci'] == true && userInfo['tedarikci_id'] != null) {
+          if (userInfo != null &&
+              userInfo['is_tedarikci'] == true &&
+              userInfo['tedarikci_id'] != null) {
             try {
               updateData['tedarikci_id'] = userInfo['tedarikci_id'];
             } catch (e) {
               // tedarikci_id eklenemedi
             }
           }
-          
+
           try {
-            await supabase.from(tableName).update(updateData).eq('id', mevcutAtama['id']);
+            await supabase
+                .from(tableName)
+                .update(updateData)
+                .eq('id', mevcutAtama['id']);
           } catch (e) {
             // tedarikci_id hatası varsa onu çıkarıp tekrar dene
             if (e.toString().contains('tedarikci_id')) {
               updateData.remove('tedarikci_id');
-              await supabase.from(tableName).update(updateData).eq('id', mevcutAtama['id']);
+              await supabase
+                  .from(tableName)
+                  .update(updateData)
+                  .eq('id', mevcutAtama['id']);
             } else {
               rethrow;
             }
@@ -863,9 +917,9 @@ extension _AdminIslemlerExt on _ModelDetayState {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(isTamamlandi 
-                ? '✅ ${utils.getAsamaDisplayName(asamaKey)} - $adet adet eklendi (Toplam: $yeniToplam adet)'
-                : '✅ ${utils.getAsamaDisplayName(asamaKey)} ataması güncellendi ($adet adet)'),
+              content: Text(isTamamlandi
+                  ? '✅ ${utils.getAsamaDisplayName(asamaKey)} - $adet adet eklendi (Toplam: $yeniToplam adet)'
+                  : '✅ ${utils.getAsamaDisplayName(asamaKey)} ataması güncellendi ($adet adet)'),
               backgroundColor: Colors.green,
             ),
           );
@@ -875,7 +929,7 @@ extension _AdminIslemlerExt on _ModelDetayState {
           return; // İptal edildi
         }
       }
-      
+
       final Map<String, dynamic> insertData = {
         'model_id': widget.modelId,
         'adet': adet,
@@ -885,10 +939,12 @@ extension _AdminIslemlerExt on _ModelDetayState {
         'created_at': DateTime.now().toIso8601String(),
         'firma_id': TenantManager.instance.requireFirmaId,
       };
-      
+
       // UUID formatı kontrolü - test kullanıcıları için geçersiz UUID'ler var
-      final bool isValidUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(kullaniciId);
-      
+      final bool isValidUuid = RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+          .hasMatch(kullaniciId);
+
       // Eğer tedarikci seçildiyse, tedarikci_id alanına yaz
       if (userInfo != null && userInfo['is_tedarikci'] == true) {
         insertData['tedarikci_id'] = userInfo['tedarikci_id'];
@@ -898,12 +954,13 @@ extension _AdminIslemlerExt on _ModelDetayState {
         insertData['atanan_kullanici_id'] = kullaniciId;
       }
       // Geçersiz UUID (test kullanıcısı) - hiçbir ID alanı ekleme
-      
+
       try {
         await supabase.from(tableName).insert(insertData);
       } catch (e) {
         // tedarikci_id veya atanan_kullanici_id sütunu yoksa bunları çıkarıp tekrar dene
-        if (e.toString().contains('tedarikci_id') || e.toString().contains('atanan_kullanici_id')) {
+        if (e.toString().contains('tedarikci_id') ||
+            e.toString().contains('atanan_kullanici_id')) {
           insertData.remove('tedarikci_id');
           insertData.remove('atanan_kullanici_id');
           await supabase.from(tableName).insert(insertData);
@@ -911,14 +968,14 @@ extension _AdminIslemlerExt on _ModelDetayState {
           rethrow;
         }
       }
-      
+
       if (!mounted) return;
       Navigator.pop(context);
-      
-      context.showSuccessSnackBar('✅ ${utils.getAsamaDisplayName(asamaKey)} ataması başarıyla yapıldı ($adet adet)');
-      
+
+      context.showSuccessSnackBar(
+          '✅ ${utils.getAsamaDisplayName(asamaKey)} ataması başarıyla yapıldı ($adet adet)');
+
       await _atamaKayitlariniGetir();
-      
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
@@ -926,37 +983,35 @@ extension _AdminIslemlerExt on _ModelDetayState {
     }
   }
 
-  Future<void> _atamaKabulEt(Map<String, dynamic> atama, String asamaKey) async {
+  Future<void> _atamaKabulEt(
+      Map<String, dynamic> atama, String asamaKey) async {
     try {
       final atamaId = atama['id'];
       final String tableName = utils.getTableNameForStage(asamaKey);
-      
+
       // Admin kabul ederse doğrudan üretime al
       // Tedarikçi kabul ederse 'onaylandi' olsun, sonra üretime başlasın
       final yeniDurum = kullaniciRolu == 'admin' ? 'uretimde' : 'onaylandi';
-      
-      await supabase
-          .from(tableName)
-          .update({
-            'durum': yeniDurum,
-            'onay_tarihi': DateTime.now().toIso8601String(),
-            'uretim_baslangic_tarihi': yeniDurum == 'uretimde' ? DateTime.now().toIso8601String() : null,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', atamaId);
-      
+
+      await supabase.from(tableName).update({
+        'durum': yeniDurum,
+        'onay_tarihi': DateTime.now().toIso8601String(),
+        'uretim_baslangic_tarihi':
+            yeniDurum == 'uretimde' ? DateTime.now().toIso8601String() : null,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', atamaId);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(yeniDurum == 'uretimde' 
-            ? '✅ Atama başarıyla kabul edildi - Üretime alındı'
-            : '✅ Atama kabul edildi - Onay bekliyor'),
+          content: Text(yeniDurum == 'uretimde'
+              ? '✅ Atama başarıyla kabul edildi - Üretime alındı'
+              : '✅ Atama kabul edildi - Onay bekliyor'),
           backgroundColor: Colors.green,
         ),
       );
-      
+
       await _atamaKayitlariniGetir();
-      
     } catch (e) {
       if (!mounted) return;
       context.showErrorSnackBar('Hata: $e');
@@ -968,7 +1023,7 @@ extension _AdminIslemlerExt on _ModelDetayState {
     final talepEdilenAdet = atama['adet'] ?? atama['talep_edilen_adet'] ?? 0;
     final mevcutTamamlanan = atama['tamamlanan_adet'] ?? 0;
     final kalanAdet = talepEdilenAdet - mevcutTamamlanan;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -999,8 +1054,8 @@ extension _AdminIslemlerExt on _ModelDetayState {
           ),
           ElevatedButton(
             onPressed: () => _tamamlamayiKaydet(
-              atama, 
-              asamaKey, 
+              atama,
+              asamaKey,
               int.tryParse(tamamlananController.text) ?? 0,
             ),
             child: const Text('Kaydet'),
@@ -1010,73 +1065,76 @@ extension _AdminIslemlerExt on _ModelDetayState {
     );
   }
 
-  Future<void> _tamamlamayiKaydet(Map<String, dynamic> atama, String asamaKey, int yeniTamamlananAdet) async {
+  Future<void> _tamamlamayiKaydet(Map<String, dynamic> atama, String asamaKey,
+      int yeniTamamlananAdet) async {
     if (yeniTamamlananAdet <= 0) {
       Navigator.pop(context);
       context.showErrorSnackBar('Geçerli bir adet giriniz');
       return;
     }
-    
+
     try {
       final atamaId = atama['id'];
       final String tableName = utils.getTableNameForStage(asamaKey);
-      
+
       final mevcutTamamlanan = atama['tamamlanan_adet'] ?? 0;
       final yeniToplamTamamlanan = mevcutTamamlanan + yeniTamamlananAdet;
       final talepEdilenAdet = atama['adet'] ?? atama['talep_edilen_adet'] ?? 0;
-      
+
       if (yeniToplamTamamlanan > talepEdilenAdet) {
         Navigator.pop(context);
-        context.showErrorSnackBar('Tamamlanan adet talep edilenden fazla olamaz');
+        context
+            .showErrorSnackBar('Tamamlanan adet talep edilenden fazla olamaz');
         return;
       }
-      
+
       String yeniDurum = 'uretimde';
       bool modelTamamlandi = false;
-      
+
       if (yeniToplamTamamlanan >= talepEdilenAdet) {
         yeniDurum = 'tamamlandi';
         modelTamamlandi = true;
       }
-      
-      await supabase
-          .from(tableName)
-          .update({
-            'tamamlanan_adet': yeniToplamTamamlanan,
-            'durum': yeniDurum,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', atamaId);
-      
+
+      await supabase.from(tableName).update({
+        'tamamlanan_adet': yeniToplamTamamlanan,
+        'durum': yeniDurum,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', atamaId);
+
       // ✅ MODEL TAMAMLANDIĞINDA MALİYET HESAPLA VE RAPORLA ENTEGRE ET
       if (modelTamamlandi) {
         final maliyetServisi = ModelMaliyetHesaplamaServisi();
-        final maliyetBilgisi = await maliyetServisi.modelTamamlandiMaliyetiHesapla(
+        final maliyetBilgisi =
+            await maliyetServisi.modelTamamlandiMaliyetiHesapla(
           modelId: widget.modelId,
           tamamlananAdet: yeniToplamTamamlanan,
         );
 
         if (maliyetBilgisi != null) {
           debugPrint('💰 Model Maliyet Raporu:');
-          debugPrint('   - Toplam Maliyet: ₺${maliyetBilgisi['toplam_maliyet']?.toStringAsFixed(2) ?? '0.00'}');
-          debugPrint('   - Satış Geliri: ₺${maliyetBilgisi['toplam_satis_geliri']?.toStringAsFixed(2) ?? '0.00'}');
-          debugPrint('   - Kar/Zarar: ₺${maliyetBilgisi['toplam_kar_zarar']?.toStringAsFixed(2) ?? '0.00'}');
+          debugPrint(
+              '   - Toplam Maliyet: ₺${maliyetBilgisi['toplam_maliyet']?.toStringAsFixed(2) ?? '0.00'}');
+          debugPrint(
+              '   - Satış Geliri: ₺${maliyetBilgisi['toplam_satis_geliri']?.toStringAsFixed(2) ?? '0.00'}');
+          debugPrint(
+              '   - Kar/Zarar: ₺${maliyetBilgisi['toplam_kar_zarar']?.toStringAsFixed(2) ?? '0.00'}');
         }
       }
-      
+
       if (!mounted) return;
       Navigator.pop(context);
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ +$yeniTamamlananAdet adet tamamlandı (Toplam: $yeniToplamTamamlanan)${modelTamamlandi ? '\n💰 Maliyet raporu oluşturuldu!' : ''}'),
+          content: Text(
+              '✅ +$yeniTamamlananAdet adet tamamlandı (Toplam: $yeniToplamTamamlanan)${modelTamamlandi ? '\n💰 Maliyet raporu oluşturuldu!' : ''}'),
           backgroundColor: modelTamamlandi ? Colors.green : Colors.blue,
           duration: const Duration(seconds: 3),
         ),
       );
-      
+
       await _atamaKayitlariniGetir();
-      
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);

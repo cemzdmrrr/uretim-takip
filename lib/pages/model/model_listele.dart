@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -35,8 +36,9 @@ class _ModelListeleState extends State<ModelListele> {
   String? seciliMarka;
   String? seciliModelAdi;
   String? seciliDurum;
-  String? seciliUrunKategorisi;
+  String? seciliRenk;
   String? seciliCinsiyet;
+  String seciliSiralama = 'Termin (En Yakin)';
 
   // Realtime subscription
   RealtimeChannel? _realtimeChannel;
@@ -52,6 +54,17 @@ class _ModelListeleState extends State<ModelListele> {
     'Üretim',
     'Tamamlandı',
     'İptal'
+  ];
+
+  final List<String> siralamaOptions = [
+    'Termin (En Yakin)',
+    'Termin (En Uzak)',
+    'En Yeni Kayit',
+    'En Eski Kayit',
+    'Marka (A-Z)',
+    'Marka (Z-A)',
+    'Adet (Yuksek-Dusuk)',
+    'Adet (Dusuk-Yuksek)',
   ];
 
   @override
@@ -93,6 +106,40 @@ class _ModelListeleState extends State<ModelListele> {
           '✅ ModelListele: Rol set edildi - currentUserRole: $currentUserRole, isAdmin: $isAdmin');
     } catch (e) {
       debugPrint('❌ ModelListele: Kullanıcı rolü alınamadı: $e');
+    }
+  }
+
+  bool _eskiAtamaSemasi(String tabloAdi) => {
+        DbTables.nakisAtamalari,
+        DbTables.yikamaAtamalari,
+        DbTables.ilikDugmeAtamalari,
+      }.contains(tabloAdi);
+
+  Future<List<dynamic>> _atananModelIdSatirlariGetir(
+    String tabloAdi,
+    String userId,
+    String firmaId,
+  ) async {
+    try {
+      final query = supabase
+          .from(tabloAdi)
+          .select('model_id')
+          .eq('atanan_kullanici_id', userId);
+      final response = _eskiAtamaSemasi(tabloAdi)
+          ? await query
+          : await query.eq('firma_id', firmaId);
+      return List<dynamic>.from(response);
+    } catch (e) {
+      try {
+        final response = await supabase
+            .from(tabloAdi)
+            .select('model_id')
+            .eq('atanan_kullanici_id', userId);
+        return List<dynamic>.from(response);
+      } catch (fallbackError) {
+        debugPrint('$tabloAdi atama sorgusu hatası: $fallbackError');
+        return const [];
+      }
     }
   }
 
@@ -154,38 +201,15 @@ class _ModelListeleState extends State<ModelListele> {
 
           // Tüm atama tablolarından bu kullanıcıya atanan model ID'lerini çek
           final fId = TenantManager.instance.requireFirmaId;
+          final userId = user!.id;
           final futures = [
-            supabase
-                .from(DbTables.dokumaAtamalari)
-                .select('model_id')
-                .eq('atanan_kullanici_id', user!.id)
-                .eq('firma_id', fId),
-            supabase
-                .from(DbTables.konfeksiyonAtamalari)
-                .select('model_id')
-                .eq('atanan_kullanici_id', user.id)
-                .eq('firma_id', fId),
-            supabase
-                .from(DbTables.nakisAtamalari)
-                .select('model_id')
-                .eq('atanan_kullanici_id', user.id)
-                .eq('firma_id', fId),
-            supabase
-                .from(DbTables.yikamaAtamalari)
-                .select('model_id')
-                .eq('atanan_kullanici_id', user.id)
-                .eq('firma_id', fId),
-            supabase
-                .from(DbTables.ilikDugmeAtamalari)
-                .select('model_id')
-                .eq('atanan_kullanici_id', user.id)
-                .eq('firma_id', fId),
-            supabase
-                .from(DbTables.utuAtamalari)
-                .select('model_id')
-                .eq('atanan_kullanici_id', user.id)
-                .eq('firma_id', fId),
-          ];
+            DbTables.dokumaAtamalari,
+            DbTables.konfeksiyonAtamalari,
+            DbTables.nakisAtamalari,
+            DbTables.yikamaAtamalari,
+            DbTables.ilikDugmeAtamalari,
+            DbTables.utuAtamalari,
+          ].map((tablo) => _atananModelIdSatirlariGetir(tablo, userId, fId));
 
           final atamaResults = await Future.wait(futures.map((future) async {
             try {
@@ -238,7 +262,7 @@ class _ModelListeleState extends State<ModelListele> {
                   utu_pres_firmasi
                 ''')
                 .eq('firma_id', _firmaId)
-                .filter('id', 'in', '(${atanmisModelIdleri.join(',')})')
+                .inFilter('id', atanmisModelIdleri.toList())
                 .order('created_at', ascending: false);
             response = List<Map<String, dynamic>>.from(modelResponse);
           }
@@ -296,11 +320,13 @@ class _ModelListeleState extends State<ModelListele> {
         final itemNo = model['item_no']?.toString().toLowerCase() ?? '';
         final marka = model['marka']?.toString().toLowerCase() ?? '';
         final modelAdi = model['model_adi']?.toString().toLowerCase() ?? '';
+        final renk = _renkMetni(model).toLowerCase();
         final aramaKelime = arama.toLowerCase();
 
         return itemNo.contains(aramaKelime) ||
             marka.contains(aramaKelime) ||
-            modelAdi.contains(aramaKelime);
+            modelAdi.contains(aramaKelime) ||
+            renk.contains(aramaKelime);
       }).toList();
     }
 
@@ -320,10 +346,9 @@ class _ModelListeleState extends State<ModelListele> {
           filtered.where((model) => model['durum'] == seciliDurum).toList();
     }
 
-    if (seciliUrunKategorisi != null && seciliUrunKategorisi != 'Tümü') {
-      filtered = filtered
-          .where((model) => model['urun_kategorisi'] == seciliUrunKategorisi)
-          .toList();
+    if (seciliRenk != null && seciliRenk != 'Tümü') {
+      filtered =
+          filtered.where((model) => _renkMetni(model) == seciliRenk).toList();
     }
 
     if (seciliCinsiyet != null && seciliCinsiyet != 'Tümü') {
@@ -333,6 +358,7 @@ class _ModelListeleState extends State<ModelListele> {
     }
 
     debugPrint('🎯 Final filtrelenmiş model sayısı: ${filtered.length}');
+    _sirala(filtered);
     return filtered;
   }
 
@@ -352,10 +378,10 @@ class _ModelListeleState extends State<ModelListele> {
         .toSet();
   }
 
-  Set<String> get urunKategorileri {
+  Set<String> get renkler {
     return modeller
-        .map((m) => m['urun_kategorisi']?.toString())
-        .where((m) => m != null)
+        .map(_renkMetni)
+        .where((m) => m.isNotEmpty && m != '-')
         .cast<String>()
         .toSet();
   }
@@ -396,6 +422,86 @@ class _ModelListeleState extends State<ModelListele> {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _renkMetni(Map<String, dynamic> model) {
+    final renk =
+        model['ana_renkler'] ?? model['renk'] ?? model['renk_kombinasyonu'];
+    if (renk == null) return '-';
+    if (renk is String) {
+      final temiz = renk.trim();
+      if (temiz.startsWith('[') || temiz.startsWith('{')) {
+        try {
+          final parsed = jsonDecode(temiz);
+          return _renkMetni({'ana_renkler': parsed});
+        } catch (_) {}
+      }
+      return temiz.isEmpty ? '-' : temiz;
+    }
+    if (renk is List) {
+      final values = renk
+          .map((e) => e?.toString().trim() ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+      return values.isEmpty ? '-' : values.join(', ');
+    }
+    if (renk is Map) {
+      final values = renk.values
+          .map((e) => e?.toString().trim() ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+      return values.isEmpty ? '-' : values.join(', ');
+    }
+    final text = renk.toString().trim();
+    return text.isEmpty ? '-' : text;
+  }
+
+  DateTime? _tarihDegeri(dynamic value) {
+    return DateTime.tryParse(value?.toString() ?? '');
+  }
+
+  void _sirala(List<Map<String, dynamic>> liste) {
+    int compareText(dynamic a, dynamic b, {bool asc = true}) {
+      final left = (a?.toString() ?? '').toLowerCase();
+      final right = (b?.toString() ?? '').toLowerCase();
+      return asc ? left.compareTo(right) : right.compareTo(left);
+    }
+
+    liste.sort((a, b) {
+      switch (seciliSiralama) {
+        case 'Termin (En Uzak)':
+          final left = _tarihDegeri(a['termin_tarihi']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final right = _tarihDegeri(b['termin_tarihi']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return right.compareTo(left);
+        case 'En Yeni Kayit':
+          final left = _tarihDegeri(a['created_at']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final right = _tarihDegeri(b['created_at']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return right.compareTo(left);
+        case 'En Eski Kayit':
+          final left = _tarihDegeri(a['created_at']) ?? DateTime(9999);
+          final right = _tarihDegeri(b['created_at']) ?? DateTime(9999);
+          return left.compareTo(right);
+        case 'Marka (A-Z)':
+          return compareText(a['marka'], b['marka']);
+        case 'Marka (Z-A)':
+          return compareText(a['marka'], b['marka'], asc: false);
+        case 'Adet (Yuksek-Dusuk)':
+          return _intDeger(b['toplam_adet'] ?? b['adet'])
+              .compareTo(_intDeger(a['toplam_adet'] ?? a['adet']));
+        case 'Adet (Dusuk-Yuksek)':
+          return _intDeger(a['toplam_adet'] ?? a['adet'])
+              .compareTo(_intDeger(b['toplam_adet'] ?? b['adet']));
+        case 'Termin (En Yakin)':
+        default:
+          final left = _tarihDegeri(a['termin_tarihi']) ?? DateTime(9999);
+          final right = _tarihDegeri(b['termin_tarihi']) ?? DateTime(9999);
+          return left.compareTo(right);
+      }
+    });
   }
 
   Map<String, dynamic> _kopyaModelPayloadiHazirla(
@@ -681,6 +787,48 @@ class _ModelListeleState extends State<ModelListele> {
     return AppTheme.getDurumRengi(durum);
   }
 
+  bool _tamamlandiMi(Map<String, dynamic> model) {
+    final tamamlandi = model['tamamlandi'];
+    if (tamamlandi is bool) return tamamlandi;
+    if (tamamlandi is int) return tamamlandi == 1;
+    if (tamamlandi is String) {
+      return tamamlandi.toLowerCase() == 'true' || tamamlandi == '1';
+    }
+    return false;
+  }
+
+  bool _geciktiMi(Map<String, dynamic> model) {
+    if (_tamamlandiMi(model)) return false;
+    final termin = DateTime.tryParse(model['termin_tarihi']?.toString() ?? '');
+    if (termin == null) return false;
+    final bugun = DateTime.now();
+    final bugunBaslangic = DateTime(bugun.year, bugun.month, bugun.day);
+    return termin.isBefore(bugunBaslangic);
+  }
+
+  bool get _aktifFiltreVar =>
+      arama.isNotEmpty ||
+      seciliMarka != null ||
+      seciliModelAdi != null ||
+      seciliDurum != null ||
+      seciliRenk != null ||
+      seciliCinsiyet != null ||
+      seciliSiralama != 'Termin (En Yakin)';
+
+  void _filtreleriTemizle() {
+    setState(() {
+      arama = '';
+      seciliMarka = null;
+      seciliModelAdi = null;
+      seciliDurum = null;
+      seciliRenk = null;
+      seciliCinsiyet = null;
+      seciliSiralama = 'Termin (En Yakin)';
+      tumunuSec = false;
+      seciliIdler.clear();
+    });
+  }
+
   void tumunuSecToggle(bool? value) {
     setState(() {
       tumunuSec = value ?? false;
@@ -693,11 +841,639 @@ class _ModelListeleState extends State<ModelListele> {
     });
   }
 
-  // Toplu işlem fonksiyonu
+  void _modelSeciminiDegistir(Map<String, dynamic> model) {
+    final id = model['id'].toString();
+    setState(() {
+      if (seciliIdler.contains(id)) {
+        seciliIdler.remove(id);
+      } else {
+        seciliIdler.add(id);
+      }
+      tumunuSec = filtreliModeller.isNotEmpty &&
+          seciliIdler.length == filtreliModeller.length;
+    });
+  }
+
+  Future<void> _modelDetayAc(Map<String, dynamic> model) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ModelDetay(
+          modelId: model['id'].toString(),
+          modelData: model,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    await modelleriGetir();
+    if (result == true && mounted) setState(() {});
+  }
+
+  Widget _buildTopluIslemMenu(int seciliModelSayisi) {
+    return PopupMenuButton<String>(
+      tooltip: 'Toplu işlemler',
+      icon: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.playlist_play, color: Colors.white),
+          const SizedBox(width: 4),
+          Text('Toplu İşlemler ($seciliModelSayisi)',
+              style: const TextStyle(color: Colors.white)),
+        ],
+      ),
+      onSelected: (value) => _topluIslemYap(value),
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+            enabled: false,
+            child: Text('DURUM',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.grey))),
+        const PopupMenuItem(
+            value: 'durum_guncelle',
+            child: Row(children: [
+              Icon(Icons.update, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Durum Güncelle')
+            ])),
+        const PopupMenuItem(
+            value: 'termin_guncelle',
+            child: Row(children: [
+              Icon(Icons.date_range, color: Colors.purple),
+              SizedBox(width: 8),
+              Text('Termin Tarihi Güncelle')
+            ])),
+        const PopupMenuItem(
+            value: 'tamamlandi_true',
+            child: Row(children: [
+              Icon(Icons.done_all, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Tamamlandı Olarak İşaretle')
+            ])),
+        const PopupMenuItem(
+            value: 'tamamlandi_false',
+            child: Row(children: [
+              Icon(Icons.replay, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Devam Ediyor Olarak İşaretle')
+            ])),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+            enabled: false,
+            child: Text('EXCEL',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.grey))),
+        const PopupMenuItem(
+            value: 'excel_urun_bilgileri',
+            child: Row(children: [
+              Icon(Icons.inventory, color: Colors.teal),
+              SizedBox(width: 8),
+              Text('Ürün Bilgileri Excel')
+            ])),
+        const PopupMenuItem(
+            value: 'excel_uretim_durumu',
+            child: Row(children: [
+              Icon(Icons.precision_manufacturing, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Üretim Durumu Excel')
+            ])),
+        if (isAdmin || currentUserRole == 'admin') ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+              enabled: false,
+              child: Text('TEDARİKÇİ',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.grey))),
+          const PopupMenuItem(
+              value: 'dokuma_tedarikci_ata',
+              child: Row(children: [
+                Icon(Icons.factory, color: Colors.indigo),
+                SizedBox(width: 8),
+                Text('Üretim Tedarikçisi Ata')
+              ])),
+          const PopupMenuItem(
+              value: 'konfeksiyon_tedarikci_ata',
+              child: Row(children: [
+                Icon(Icons.content_cut, color: Colors.deepOrange),
+                SizedBox(width: 8),
+                Text('Konfeksiyon Tedarikçisi Ata')
+              ])),
+          const PopupMenuItem(
+              value: 'yikama_tedarikci_ata',
+              child: Row(children: [
+                Icon(Icons.local_laundry_service, color: Colors.cyan),
+                SizedBox(width: 8),
+                Text('Yıkama Tedarikçisi Ata')
+              ])),
+          const PopupMenuItem(
+              value: 'nakis_tedarikci_ata',
+              child: Row(children: [
+                Icon(Icons.brush, color: Colors.pink),
+                SizedBox(width: 8),
+                Text('Nakış Tedarikçisi Ata')
+              ])),
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+              value: 'sil',
+              child: Row(children: [
+                Icon(Icons.delete, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Seçili Modelleri Sil')
+              ])),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMetricTile(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFDDE5EE)),
+          borderRadius: BorderRadius.circular(6)),
+      child: Row(children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+            child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF607D8B),
+                      fontWeight: FontWeight.w600)),
+              Text(value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 18, color: color, fontWeight: FontWeight.w800)),
+            ])),
+      ]),
+    );
+  }
+
+  Widget _buildErpSummary(List<Map<String, dynamic>> liste) {
+    final toplamAdet = liste.fold<int>(0,
+        (sum, model) => sum + _intDeger(model['toplam_adet'] ?? model['adet']));
+    final geciken = liste.where(_geciktiMi).length;
+    final markaSayisi = liste
+        .map((m) => m['marka']?.toString())
+        .where((m) => m != null && m.isNotEmpty)
+        .toSet()
+        .length;
+    final kartlar = [
+      _buildMetricTile('Listelenen', '${liste.length}', Icons.view_list,
+          const Color(0xFF1565C0)),
+      _buildMetricTile(
+          'Toplam Adet',
+          NumberFormat.decimalPattern('tr_TR').format(toplamAdet),
+          Icons.inventory_2,
+          const Color(0xFF2E7D32)),
+      _buildMetricTile('Geciken', '$geciken', Icons.priority_high,
+          geciken > 0 ? const Color(0xFFC62828) : const Color(0xFF607D8B)),
+      _buildMetricTile(
+          'Marka', '$markaSayisi', Icons.business, const Color(0xFF6A1B9A)),
+      _buildMetricTile('Seçili', '${seciliIdler.length}', Icons.checklist,
+          const Color(0xFF455A64)),
+    ];
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final isMobile = constraints.maxWidth < 900;
+      return Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+        decoration: const BoxDecoration(
+            color: Color(0xFFF7F9FC),
+            border: Border(bottom: BorderSide(color: Color(0xFFE0E6EF)))),
+        child: isMobile
+            ? Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: kartlar
+                    .map((kart) => SizedBox(
+                        width: constraints.maxWidth < 520
+                            ? (constraints.maxWidth - 10) / 2
+                            : 180,
+                        child: kart))
+                    .toList(),
+              )
+            : Row(
+                children: [
+                  for (var i = 0; i < kartlar.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    Expanded(child: kartlar[i]),
+                  ]
+                ],
+              ),
+      );
+    });
+  }
+
+  Widget _buildFilterDropdown(
+      {required String label,
+      required String? value,
+      required List<String> values,
+      required ValueChanged<String?> onChanged}) {
+    return SizedBox(
+      height: 42,
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+            isDense: true),
+        initialValue: value,
+        isExpanded: true,
+        items: [
+          const DropdownMenuItem(value: null, child: Text('Tümü')),
+          ...values.map((item) => DropdownMenuItem(
+              value: item, child: Text(item, overflow: TextOverflow.ellipsis)))
+        ],
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildErpFilters() {
+    return LayoutBuilder(builder: (context, constraints) {
+      final isMobile = constraints.maxWidth < 900;
+      final fieldWidth = isMobile ? constraints.maxWidth - 40 : 240.0;
+      return Container(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+        decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Color(0xFFE0E6EF)))),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          alignment: WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+                width: isMobile ? fieldWidth : 360,
+                child: SizedBox(
+                    height: 42,
+                    child: TextField(
+                        decoration: const InputDecoration(
+                            labelText: 'Model Ara',
+                            hintText: 'Marka, item no, model adı',
+                            prefixIcon: Icon(Icons.search, size: 20),
+                            border: OutlineInputBorder(),
+                            isDense: true),
+                        onChanged: (value) => setState(() => arama = value)))),
+            SizedBox(
+                width: fieldWidth,
+                child: _buildFilterDropdown(
+                    label: 'Marka',
+                    value: seciliMarka,
+                    values: markalar.toList()..sort(),
+                    onChanged: (value) => setState(() => seciliMarka = value))),
+            SizedBox(
+                width: fieldWidth,
+                child: _buildFilterDropdown(
+                    label: 'Model',
+                    value: seciliModelAdi,
+                    values: modelAdlari.toList()..sort(),
+                    onChanged: (value) =>
+                        setState(() => seciliModelAdi = value))),
+            SizedBox(
+                width: fieldWidth,
+                child: _buildFilterDropdown(
+                    label: 'Durum',
+                    value: seciliDurum,
+                    values: durumOptions.where((d) => d != 'Tümü').toList(),
+                    onChanged: (value) => setState(() => seciliDurum = value))),
+            SizedBox(
+                width: fieldWidth,
+                child: _buildFilterDropdown(
+                    label: 'Renk',
+                    value: seciliRenk,
+                    values: renkler.toList()..sort(),
+                    onChanged: (value) => setState(() => seciliRenk = value))),
+            SizedBox(
+                width: fieldWidth,
+                child: _buildFilterDropdown(
+                    label: 'Cinsiyet',
+                    value: seciliCinsiyet,
+                    values: cinsiyetler.toList()..sort(),
+                    onChanged: (value) =>
+                        setState(() => seciliCinsiyet = value))),
+            SizedBox(
+                width: fieldWidth,
+                child: SizedBox(
+                    height: 42,
+                    child: DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                            labelText: 'Siralama',
+                            border: OutlineInputBorder(),
+                            isDense: true),
+                        initialValue: seciliSiralama,
+                        isExpanded: true,
+                        items: siralamaOptions
+                            .map((item) => DropdownMenuItem(
+                                value: item,
+                                child: Text(item,
+                                    overflow: TextOverflow.ellipsis)))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => seciliSiralama = value);
+                        }))),
+            OutlinedButton.icon(
+                onPressed: _aktifFiltreVar ? _filtreleriTemizle : null,
+                icon: const Icon(Icons.filter_alt_off, size: 18),
+                label: const Text('Filtreleri Temizle'),
+                style: OutlinedButton.styleFrom(
+                    fixedSize: const Size(170, 42),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6)))),
+            SizedBox(
+                width: isMobile ? fieldWidth : 160,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Checkbox(value: tumunuSec, onChanged: tumunuSecToggle),
+                  const Expanded(
+                      child: Text('Tümünü seç',
+                          style: TextStyle(fontWeight: FontWeight.w600)))
+                ])),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _headerCell(String text) => Text(text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+          fontSize: 12, color: Color(0xFF455A64), fontWeight: FontWeight.w800));
+
+  Widget _textCell(dynamic value, {bool strong = false}) =>
+      Text(value?.toString() ?? '-',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: 13,
+              color: const Color(0xFF263238),
+              fontWeight: strong ? FontWeight.w800 : FontWeight.w500));
+
+  Widget _modelCell(Map<String, dynamic> model, {int nameLines = 1}) => Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(model['item_no']?.toString() ?? '-',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF102A43))),
+            if ((model['model_adi']?.toString() ?? '').isNotEmpty)
+              Text(model['model_adi'].toString(),
+                  maxLines: nameLines,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFF607D8B))),
+          ]);
+
+  Widget _terminCell(Map<String, dynamic> model) {
+    final gecikti = _geciktiMi(model);
+    final text = formatTarih(model['termin_tarihi']);
+    return Row(children: [
+      Icon(gecikti ? Icons.priority_high : Icons.event,
+          size: 16,
+          color: gecikti ? const Color(0xFFC62828) : const Color(0xFF607D8B)),
+      const SizedBox(width: 4),
+      Expanded(
+          child: Text(text.isEmpty ? '-' : text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: gecikti
+                      ? const Color(0xFFC62828)
+                      : const Color(0xFF263238),
+                  fontWeight: gecikti ? FontWeight.w800 : FontWeight.w500))),
+    ]);
+  }
+
+  Widget _durumBadge(Map<String, dynamic> model) {
+    final color = _getDurumRengi(model['durum']);
+    return Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+                color: color, borderRadius: BorderRadius.circular(4)),
+            child: Text(model['durum']?.toString() ?? 'Beklemede',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800))));
+  }
+
+  Widget _rowActions(Map<String, dynamic> model) {
+    return Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+      Tooltip(
+          message: 'Kritikler',
+          child: IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.warning_amber_rounded,
+                  color: Colors.orange, size: 20),
+              onPressed: () => showDialog(
+                  context: context,
+                  builder: (context) => ModelKritikleriDialog(
+                      modelId: model['id'],
+                      modelMarka: model['marka'] ?? 'Bilinmeyen',
+                      modelItemNo: model['item_no'] ?? 'Bilinmeyen')))),
+      if (isAdmin || currentUserRole == 'admin') ...[
+        Tooltip(
+            message: 'Kopyala',
+            child: IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.copy, color: Colors.green, size: 20),
+                onPressed: () => modelKopyala(
+                    model['id'], model['marka'], model['item_no']))),
+        Tooltip(
+            message: 'Düzenle',
+            child: IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ModelDuzenlePage(
+                            modelId: model['id'].toString(),
+                            modelData: model))))),
+        Tooltip(
+            message: 'Sil',
+            child: IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                onPressed: () =>
+                    modelSil(model['id'], model['marka'], model['item_no']))),
+      ],
+    ]);
+  }
+
+  Widget _buildMobileModelCard(Map<String, dynamic> model) {
+    final secili = seciliIdler.contains(model['id'].toString());
+    final renk = _renkMetni(model);
+    final adet = NumberFormat.decimalPattern('tr_TR')
+        .format(_intDeger(model['toplam_adet'] ?? model['adet']));
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: secili ? const Color(0xFFE8F1FE) : Colors.white,
+          border: Border.all(color: const Color(0xFFE0E6EF)),
+          borderRadius: BorderRadius.circular(8)),
+      child: InkWell(
+        onTap: () => _modelDetayAc(model),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            SizedBox(
+                width: 32,
+                child: Checkbox(
+                    value: secili,
+                    onChanged: (_) => _modelSeciminiDegistir(model))),
+            const SizedBox(width: 8),
+            Expanded(child: _modelCell(model, nameLines: 3)),
+            const SizedBox(width: 8),
+            _durumBadge(model),
+          ]),
+          const SizedBox(height: 10),
+          Wrap(spacing: 16, runSpacing: 8, children: [
+            _miniErpBilgi('Marka', model['marka']?.toString() ?? '-'),
+            _miniErpBilgi('Renk', renk),
+            _miniErpBilgi('Adet', adet),
+            _miniErpBilgi('Termin', formatTarih(model['termin_tarihi'])),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [Expanded(child: _rowActions(model))]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _miniErpBilgi(String label, String value) {
+    return ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 92, maxWidth: 220),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF607D8B))),
+              const SizedBox(height: 2),
+              Text(value.isEmpty ? '-' : value,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF102A43))),
+            ]));
+  }
+
+  Widget _buildErpTable(List<Map<String, dynamic>> liste) {
+    if (yukleniyor) return const LoadingWidget();
+    if (liste.isEmpty) {
+      return const Center(
+          child: Text('Henüz model bulunmuyor.',
+              style: TextStyle(fontSize: 16, color: Colors.grey)));
+    }
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth < 900) {
+        return ListView.separated(
+            padding: const EdgeInsets.all(12),
+            itemCount: liste.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) =>
+                _buildMobileModelCard(liste[index]));
+      }
+      return Column(children: [
+        Container(
+            height: 42,
+            color: const Color(0xFFEEF3F8),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              const SizedBox(width: 42),
+              Expanded(flex: 20, child: _headerCell('Model')),
+              Expanded(flex: 14, child: _headerCell('Marka')),
+              Expanded(flex: 12, child: _headerCell('Renk')),
+              Expanded(flex: 10, child: _headerCell('Adet')),
+              Expanded(flex: 12, child: _headerCell('Termin')),
+              Expanded(flex: 12, child: _headerCell('Durum')),
+              SizedBox(width: 146, child: _headerCell('İşlem')),
+            ])),
+        Expanded(
+            child: ListView.separated(
+                itemCount: liste.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, color: Color(0xFFE7ECF2)),
+                itemBuilder: (context, index) {
+                  final model = liste[index];
+                  final secili = seciliIdler.contains(model['id'].toString());
+                  final gecikti = _geciktiMi(model);
+                  final rowColor = secili
+                      ? const Color(0xFFE8F1FE)
+                      : gecikti
+                          ? const Color(0xFFFFF4F4)
+                          : index.isEven
+                              ? Colors.white
+                              : const Color(0xFFFAFBFD);
+                  return Material(
+                      color: rowColor,
+                      child: InkWell(
+                          onTap: () => _modelDetayAc(model),
+                          child: Container(
+                              constraints: const BoxConstraints(minHeight: 56),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              child: Row(children: [
+                                SizedBox(
+                                    width: 42,
+                                    child: Checkbox(
+                                        value: secili,
+                                        onChanged: (_) =>
+                                            _modelSeciminiDegistir(model))),
+                                Expanded(flex: 20, child: _modelCell(model)),
+                                Expanded(
+                                    flex: 14,
+                                    child: _textCell(model['marka'] ?? '-')),
+                                Expanded(
+                                    flex: 12,
+                                    child: _textCell(_renkMetni(model))),
+                                Expanded(
+                                    flex: 10,
+                                    child: _textCell(
+                                        NumberFormat.decimalPattern('tr_TR')
+                                            .format(_intDeger(
+                                                model['toplam_adet'] ??
+                                                    model['adet'])),
+                                        strong: true)),
+                                Expanded(flex: 12, child: _terminCell(model)),
+                                Expanded(flex: 12, child: _durumBadge(model)),
+                                SizedBox(width: 146, child: _rowActions(model)),
+                              ]))));
+                })),
+      ]);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final seciliModelSayisi = seciliIdler.length;
-
+    final liste = filtreliModeller;
     return Scaffold(
       appBar: AppBar(
         title: const Text('TexPilot'),
@@ -705,670 +1481,18 @@ class _ModelListeleState extends State<ModelListele> {
         foregroundColor: Colors.white,
         actions: [
           if (seciliModelSayisi > 0) ...[
-            // Toplu İşlemler Menüsü
-            PopupMenuButton<String>(
-              icon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.playlist_play, color: Colors.white),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Toplu İşlemler ($seciliModelSayisi)',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-              onSelected: (value) => _topluIslemYap(value),
-              itemBuilder: (context) => [
-                // ========== DURUM GÜNCELLEMELERİ ==========
-                const PopupMenuItem(
-                  enabled: false,
-                  child: Text('DURUM GÜNCELLEMELERİ',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.grey)),
-                ),
-                const PopupMenuItem(
-                  value: 'durum_guncelle',
-                  child: Row(
-                    children: [
-                      Icon(Icons.update, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text('Durum Güncelle'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'termin_guncelle',
-                  child: Row(
-                    children: [
-                      Icon(Icons.date_range, color: Colors.purple),
-                      SizedBox(width: 8),
-                      Text('Termin Tarihi Güncelle'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'tamamlandi_true',
-                  child: Row(
-                    children: [
-                      Icon(Icons.done_all, color: Colors.green),
-                      SizedBox(width: 8),
-                      Text('Tamamlandı Olarak İşaretle'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'tamamlandi_false',
-                  child: Row(
-                    children: [
-                      Icon(Icons.replay, color: Colors.orange),
-                      SizedBox(width: 8),
-                      Text('Devam Ediyor Olarak İşaretle'),
-                    ],
-                  ),
-                ),
-                const PopupMenuDivider(),
-
-                // ========== EXCEL DIŞA AKTARMA ==========
-                const PopupMenuItem(
-                  enabled: false,
-                  child: Text('EXCEL DIŞA AKTARMA',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.grey)),
-                ),
-                const PopupMenuItem(
-                  value: 'excel_urun_bilgileri',
-                  child: Row(
-                    children: [
-                      Icon(Icons.inventory, color: Colors.teal),
-                      SizedBox(width: 8),
-                      Text('Ürün Bilgileri Excel\'e Aktar'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'excel_uretim_durumu',
-                  child: Row(
-                    children: [
-                      Icon(Icons.precision_manufacturing, color: Colors.orange),
-                      SizedBox(width: 8),
-                      Text('Üretim Durumu Excel\'e Aktar'),
-                    ],
-                  ),
-                ),
-
-                // Admin tüm işlem butonlarına erişebilir
-                if (isAdmin || currentUserRole == 'admin') ...[
-                  const PopupMenuDivider(),
-                  // ========== TEDARİKÇİ ATAMA ==========
-                  const PopupMenuItem(
-                    enabled: false,
-                    child: Text('TEDARİKÇİ ATAMA',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.grey)),
-                  ),
-                  const PopupMenuItem(
-                    value: 'dokuma_tedarikci_ata',
-                    child: Row(
-                      children: [
-                        Icon(Icons.factory, color: Colors.indigo),
-                        SizedBox(width: 8),
-                        Text('Üretim Tedarikçisi Ata'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'konfeksiyon_tedarikci_ata',
-                    child: Row(
-                      children: [
-                        Icon(Icons.content_cut, color: Colors.deepOrange),
-                        SizedBox(width: 8),
-                        Text('Konfeksiyon Tedarikçisi Ata'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'yikama_tedarikci_ata',
-                    child: Row(
-                      children: [
-                        Icon(Icons.local_laundry_service, color: Colors.cyan),
-                        SizedBox(width: 8),
-                        Text('Yıkama Tedarikçisi Ata'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'nakis_tedarikci_ata',
-                    child: Row(
-                      children: [
-                        Icon(Icons.brush, color: Colors.pink),
-                        SizedBox(width: 8),
-                        Text('Nakış Tedarikçisi Ata'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  // ========== SİLME ==========
-                  const PopupMenuItem(
-                    value: 'sil',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Seçili Modelleri Sil'),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(width: 8),
+            _buildTopluIslemMenu(seciliModelSayisi),
+            const SizedBox(width: 8)
           ],
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              modelleriGetir();
-            },
-          ),
+              icon: const Icon(Icons.refresh), onPressed: modelleriGetir),
         ],
       ),
-      body: Column(
-        children: [
-          // Arama ve filtreler
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Arama çubuğu
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Model Ara',
-                    hintText: 'Marka, item no, model adı...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      arama = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Toplu seçim ve filtre satırı
-                Row(
-                  children: [
-                    // Tümünü seç checkbox'ı
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: tumunuSec,
-                          onChanged: tumunuSecToggle,
-                        ),
-                        const Text('Tümünü Seç'),
-                      ],
-                    ),
-                    const SizedBox(width: 16),
-                    Text('${filtreliModeller.length} model listeleniyor'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Filtre satırı
-                Row(
-                  children: [
-                    // Marka filtresi
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Marka',
-                          border: OutlineInputBorder(),
-                        ),
-                        initialValue: seciliMarka,
-                        items: [
-                          const DropdownMenuItem(
-                              value: null, child: Text('Tümü')),
-                          ...markalar.map((marka) => DropdownMenuItem(
-                                value: marka,
-                                child: Text(marka),
-                              )),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            seciliMarka = value;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Model Adı filtresi
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Model Adı',
-                          border: OutlineInputBorder(),
-                        ),
-                        initialValue: seciliModelAdi,
-                        items: [
-                          const DropdownMenuItem(
-                              value: null, child: Text('Tümü')),
-                          ...modelAdlari.map((ad) => DropdownMenuItem(
-                                value: ad,
-                                child: Text(ad),
-                              )),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            seciliModelAdi = value;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Durum filtresi
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Durum',
-                          border: OutlineInputBorder(),
-                        ),
-                        initialValue: seciliDurum,
-                        items: durumOptions
-                            .map((durum) => DropdownMenuItem(
-                                  value: durum == 'Tümü' ? null : durum,
-                                  child: Text(durum),
-                                ))
-                            .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            seciliDurum = value;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Ürün kategorisi filtresi
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Kategori',
-                          border: OutlineInputBorder(),
-                        ),
-                        initialValue: seciliUrunKategorisi,
-                        items: [
-                          const DropdownMenuItem(
-                              value: null, child: Text('Tümü')),
-                          ...urunKategorileri
-                              .map((kategori) => DropdownMenuItem(
-                                    value: kategori,
-                                    child: Text(kategori),
-                                  )),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            seciliUrunKategorisi = value;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Cinsiyet filtresi
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Cinsiyet',
-                          border: OutlineInputBorder(),
-                        ),
-                        initialValue: seciliCinsiyet,
-                        items: [
-                          const DropdownMenuItem(
-                              value: null, child: Text('Tümü')),
-                          ...cinsiyetler.map((cinsiyet) => DropdownMenuItem(
-                                value: cinsiyet,
-                                child: Text(cinsiyet),
-                              )),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            seciliCinsiyet = value;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Liste
-          Expanded(
-            child: yukleniyor
-                ? const LoadingWidget()
-                : filtreliModeller.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Henüz model bulunmuyor.',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: filtreliModeller.length,
-                        itemBuilder: (context, index) {
-                          final model = filtreliModeller[index];
-                          final secili =
-                              seciliIdler.contains(model['id'].toString());
-
-                          return Card(
-                            elevation: 2,
-                            margin: const EdgeInsets.only(bottom: 8),
-                            color: getTerminRengi(model['termin_tarihi']),
-                            child: InkWell(
-                              onTap: () async {
-                                debugPrint(
-                                    'Model detay sayfasına gidiliyor - ID: ${model['id']}');
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ModelDetay(
-                                      modelId: model['id'].toString(),
-                                      modelData: model,
-                                    ),
-                                  ),
-                                );
-
-                                debugPrint(
-                                    '🔄 Model detay sayfasından dönüldü - result: $result');
-
-                                // Model tamamlandıysa listeyi yenile
-                                if (result == true) {
-                                  debugPrint(
-                                      '✅ Model tamamlandı bildirimi alındı!');
-                                  debugPrint(
-                                      '🔄 Sunucudan fresh veri çekiliyor...');
-                                  await modelleriGetir();
-                                  debugPrint('✅ Liste yenilendi.');
-                                } else {
-                                  debugPrint(
-                                      'ℹ️ Normal dönüş - model tamamlanmadı');
-                                  // Normal durumda da listeyi yenile
-                                  await modelleriGetir();
-                                }
-
-                                debugPrint('🎨 UI zorla güncelleniyor...');
-                                if (!mounted) return;
-                                setState(() {}); // UI'yi zorla güncelle
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Row(
-                                  children: [
-                                    // Checkbox - tıklamayı durdur
-                                    GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          if (secili) {
-                                            seciliIdler
-                                                .remove(model['id'].toString());
-                                          } else {
-                                            seciliIdler
-                                                .add(model['id'].toString());
-                                          }
-                                          tumunuSec = seciliIdler.length ==
-                                              filtreliModeller.length;
-                                        });
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        child: Icon(
-                                          secili
-                                              ? Icons.check_box
-                                              : Icons.check_box_outline_blank,
-                                          color: secili
-                                              ? Theme.of(context).primaryColor
-                                              : Colors.grey,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-
-                                    // Ana içerik
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          // Başlık
-                                          Text(
-                                            '${model['marka']} - ${model['item_no']}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-
-                                          // Özet bilgiler: Model Adı, Renk, Adet, Termin
-                                          if (model['model_adi'] != null)
-                                            Text(
-                                              model['model_adi'],
-                                              style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500),
-                                            ),
-                                          const SizedBox(height: 4),
-                                          Wrap(
-                                            spacing: 12,
-                                            runSpacing: 4,
-                                            children: [
-                                              if (model['renk'] != null &&
-                                                  model['renk']
-                                                      .toString()
-                                                      .isNotEmpty)
-                                                Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(Icons.palette,
-                                                        size: 14,
-                                                        color:
-                                                            Colors.grey[600]),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      model['renk'],
-                                                      style: TextStyle(
-                                                          fontSize: 13,
-                                                          color:
-                                                              Colors.grey[800]),
-                                                    ),
-                                                  ],
-                                                ),
-                                              if (model['toplam_adet'] != null)
-                                                Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(Icons.inventory_2,
-                                                        size: 14,
-                                                        color:
-                                                            Colors.grey[600]),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      '${model['toplam_adet']} adet',
-                                                      style: const TextStyle(
-                                                          fontSize: 13,
-                                                          fontWeight:
-                                                              FontWeight.bold),
-                                                    ),
-                                                  ],
-                                                ),
-                                              if (model['termin_tarihi'] !=
-                                                  null)
-                                                Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(Icons.event,
-                                                        size: 14,
-                                                        color:
-                                                            Colors.grey[600]),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      formatTarih(model[
-                                                          'termin_tarihi']),
-                                                      style: const TextStyle(
-                                                          fontSize: 13),
-                                                    ),
-                                                  ],
-                                                ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // Sağ taraf butonları
-                                    Column(
-                                      children: [
-                                        // Durum göstergesi
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color:
-                                                _getDurumRengi(model['durum']),
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            model['durum'] ?? 'Beklemede',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-
-                                        // Kritikler ikonu - tüm kullanıcılar görebilir
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          children: [
-                                            GestureDetector(
-                                              onTap: () {
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (context) =>
-                                                      ModelKritikleriDialog(
-                                                    modelId: model['id'],
-                                                    modelMarka:
-                                                        model['marka'] ??
-                                                            'Bilinmeyen',
-                                                    modelItemNo:
-                                                        model['item_no'] ??
-                                                            'Bilinmeyen',
-                                                  ),
-                                                );
-                                              },
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.all(6),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.orange[100],
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: const Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  color: Colors.orange,
-                                                  size: 18,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-
-                                        // Admin butonları - admin tüm işlemleri yapabilir
-                                        if (isAdmin ||
-                                            currentUserRole == 'admin') ...[
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              GestureDetector(
-                                                onTap: () {
-                                                  modelKopyala(
-                                                      model['id'],
-                                                      model['marka'],
-                                                      model['item_no']);
-                                                },
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.all(8),
-                                                  child: const Icon(Icons.copy,
-                                                      color: Colors.green,
-                                                      size: 20),
-                                                ),
-                                              ),
-                                              GestureDetector(
-                                                onTap: () {
-                                                  // Model düzenleme sayfasına git
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          ModelDuzenlePage(
-                                                        modelId: model['id']
-                                                            .toString(),
-                                                        modelData: model,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.all(8),
-                                                  child: const Icon(Icons.edit,
-                                                      color: Colors.blue,
-                                                      size: 20),
-                                                ),
-                                              ),
-                                              GestureDetector(
-                                                onTap: () {
-                                                  modelSil(
-                                                      model['id'],
-                                                      model['marka'],
-                                                      model['item_no']);
-                                                },
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.all(8),
-                                                  child: const Icon(
-                                                      Icons.delete,
-                                                      color: Colors.red,
-                                                      size: 20),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
+      body: Column(children: [
+        _buildErpSummary(liste),
+        _buildErpFilters(),
+        Expanded(child: _buildErpTable(liste))
+      ]),
     );
   }
 

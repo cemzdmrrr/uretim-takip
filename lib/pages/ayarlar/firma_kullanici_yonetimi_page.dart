@@ -3,9 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/supabase_config.dart';
 import 'package:uretim_takip/services/yetki_service.dart';
-import 'package:uretim_takip/services/firma_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/platform_admin_service.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 
 /// Firma bazlı kullanıcı yönetimi — roller, davet, aktif/pasif.
 class FirmaKullaniciYonetimiPage extends StatefulWidget {
@@ -19,6 +19,7 @@ class FirmaKullaniciYonetimiPage extends StatefulWidget {
 class _FirmaKullaniciYonetimiPageState
     extends State<FirmaKullaniciYonetimiPage> {
   List<Map<String, dynamic>> _kullanicilar = [];
+  Map<String, Set<String>> _operasyonRolleriByUserId = {};
   List<Map<String, dynamic>> _firmalar = [];
   bool _yukleniyor = true;
   String? _seciliFirmaId;
@@ -33,7 +34,8 @@ class _FirmaKullaniciYonetimiPageState
   Future<void> _firmalariYukle() async {
     setState(() => _yukleniyor = true);
     try {
-      final firmalar = await PlatformAdminService.firmalariGetir(sadecAktif: true);
+      final firmalar =
+          await PlatformAdminService.firmalariGetir(sadecAktif: true);
       if (!mounted) return;
       setState(() {
         _firmalar = firmalar;
@@ -66,13 +68,17 @@ class _FirmaKullaniciYonetimiPageState
     if (_seciliFirmaId == null) return;
     setState(() => _yukleniyor = true);
     try {
-      final response = await Supabase.instance.client
-          .rpc('firma_kullanicilari_detay', params: {'p_firma_id': _seciliFirmaId});
+      final response = await Supabase.instance.client.rpc(
+          'firma_kullanicilari_detay',
+          params: {'p_firma_id': _seciliFirmaId});
       final kullanicilar = List<Map<String, dynamic>>.from(response);
+      final operasyonRolleri =
+          await _operasyonRolleriniYukle(kullanicilar, _seciliFirmaId!);
 
       if (!mounted) return;
       setState(() {
         _kullanicilar = kullanicilar;
+        _operasyonRolleriByUserId = operasyonRolleri;
         _yukleniyor = false;
       });
     } catch (e) {
@@ -84,6 +90,62 @@ class _FirmaKullaniciYonetimiPageState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Kullanıcılar yüklenirken hata: $e')),
       );
+    }
+  }
+
+  Future<Map<String, Set<String>>> _operasyonRolleriniYukle(
+    List<Map<String, dynamic>> kullanicilar,
+    String firmaId,
+  ) async {
+    final userIds = kullanicilar
+        .map((k) => k['user_id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (userIds.isEmpty) return {};
+
+    try {
+      final response = await Supabase.instance.client
+          .from(DbTables.userRoles)
+          .select('user_id, role, aktif, firma_id')
+          .inFilter('user_id', userIds)
+          .or('firma_id.eq.$firmaId,firma_id.is.null');
+
+      final map = <String, Set<String>>{};
+      for (final row in List<Map<String, dynamic>>.from(response)) {
+        if (row['aktif'] == false) continue;
+        final userId = row['user_id']?.toString();
+        final rol = row['role']?.toString();
+        if (userId == null ||
+            rol == null ||
+            !YetkiService.ozelRoller.contains(rol)) {
+          continue;
+        }
+        map.putIfAbsent(userId, () => <String>{}).add(rol);
+      }
+      return map;
+    } catch (_) {
+      try {
+        final response = await Supabase.instance.client
+            .from(DbTables.userRoles)
+            .select('user_id, role')
+            .inFilter('user_id', userIds);
+
+        final map = <String, Set<String>>{};
+        for (final row in List<Map<String, dynamic>>.from(response)) {
+          final userId = row['user_id']?.toString();
+          final rol = row['role']?.toString();
+          if (userId == null ||
+              rol == null ||
+              !YetkiService.ozelRoller.contains(rol)) {
+            continue;
+          }
+          map.putIfAbsent(userId, () => <String>{}).add(rol);
+        }
+        return map;
+      } catch (_) {
+        return {};
+      }
     }
   }
 
@@ -108,11 +170,10 @@ class _FirmaKullaniciYonetimiPageState
                   labelText: 'Yeni Rol',
                   border: OutlineInputBorder(),
                 ),
-                items: YetkiService.tumRoller
+                items: YetkiService.firmaRolleri
                     .map((r) => DropdownMenuItem(
                           value: r,
-                          child: Text(
-                              YetkiService.rolEtiketleri[r] ?? r),
+                          child: Text(YetkiService.rolEtiketleri[r] ?? r),
                         ))
                     .toList(),
                 onChanged: (v) => setDState(() => secilenRol = v),
@@ -157,6 +218,85 @@ class _FirmaKullaniciYonetimiPageState
     }
   }
 
+  Future<void> _ekRolleriDuzenle(Map<String, dynamic> kullanici) async {
+    final userId = kullanici['user_id']?.toString();
+    final firmaId = _seciliFirmaId;
+    if (userId == null || firmaId == null) return;
+
+    final seciliRoller = Set<String>.from(
+      _operasyonRolleriByUserId[userId] ?? const <String>{},
+    )..remove('admin');
+
+    final sonuc = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          title: const Text('Ek Görev Rolleri'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: YetkiService.ozelRoller.map((rol) {
+                  final secili = seciliRoller.contains(rol);
+                  return FilterChip(
+                    selected: secili,
+                    label: Text(YetkiService.rolEtiketleri[rol] ?? rol),
+                    onSelected: (value) {
+                      setDState(() {
+                        if (value) {
+                          seciliRoller.add(rol);
+                        } else {
+                          seciliRoller.remove(rol);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('İptal'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(ctx, Set<String>.from(seciliRoller)),
+              child: const Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (sonuc == null) return;
+
+    try {
+      await UserRoleService.kullaniciOperasyonRolleriniKaydet(
+        userId: userId,
+        firmaId: firmaId,
+        roller: sonuc,
+        firmaRolu: kullanici['rol']?.toString() ?? 'kullanici',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ek görev rolleri güncellendi'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _kullanicilariYukle();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ek roller kaydedilemedi: $e')),
+      );
+    }
+  }
+
   Future<void> _aktifPasifToggle(Map<String, dynamic> kullanici) async {
     final aktif = kullanici['aktif'] as bool? ?? true;
     try {
@@ -167,8 +307,9 @@ class _FirmaKullaniciYonetimiPageState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text(!aktif ? 'Kullanıcı aktifleştirildi' : 'Kullanıcı pasifleştirildi'),
+          content: Text(!aktif
+              ? 'Kullanıcı aktifleştirildi'
+              : 'Kullanıcı pasifleştirildi'),
           backgroundColor: !aktif ? Colors.green : Colors.orange,
         ),
       );
@@ -272,12 +413,11 @@ class _FirmaKullaniciYonetimiPageState
                   labelText: 'Rol',
                   border: OutlineInputBorder(),
                 ),
-                items: YetkiService.tumRoller
+                items: YetkiService.firmaRolleri
                     .where((r) => r != 'firma_sahibi')
                     .map((r) => DropdownMenuItem(
                           value: r,
-                          child: Text(
-                              YetkiService.rolEtiketleri[r] ?? r),
+                          child: Text(YetkiService.rolEtiketleri[r] ?? r),
                         ))
                     .toList(),
                 onChanged: (v) => setDState(() => secilenRol = v!),
@@ -295,7 +435,8 @@ class _FirmaKullaniciYonetimiPageState
                 final password = passwordController.text.trim();
                 if (email.isEmpty || password.isEmpty) return;
                 if (password.length < 6) return;
-                Navigator.pop(ctx, {'email': email, 'password': password, 'rol': secilenRol});
+                Navigator.pop(ctx,
+                    {'email': email, 'password': password, 'rol': secilenRol});
               },
               child: const Text('Kullanıcı Oluştur'),
             ),
@@ -380,7 +521,7 @@ class _FirmaKullaniciYonetimiPageState
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               color: Colors.grey.shade50,
               child: DropdownButtonFormField<String>(
-                value: _seciliFirmaId,
+                initialValue: _seciliFirmaId,
                 decoration: InputDecoration(
                   labelText: 'Firma Seçin',
                   prefixIcon: const Icon(Icons.business),
@@ -408,8 +549,7 @@ class _FirmaKullaniciYonetimiPageState
                       orElse: () => {});
                   setState(() {
                     _seciliFirmaId = v;
-                    _seciliFirmaAdi =
-                        firma['firma_adi']?.toString() ?? '';
+                    _seciliFirmaAdi = firma['firma_adi']?.toString() ?? '';
                   });
                   _kullanicilariYukle();
                 },
@@ -463,11 +603,17 @@ class _FirmaKullaniciYonetimiPageState
     final aktif = kullanici['aktif'] as bool? ?? true;
     final katilim = kullanici['katilim_tarihi'];
     final rolEtiket = YetkiService.rolEtiketleri[rol] ?? rol;
+    final ekRoller =
+        (_operasyonRolleriByUserId[kullanici['user_id']?.toString()] ??
+                const <String>{})
+            .where((ekRol) => ekRol != 'admin')
+            .toList()
+          ..sort();
     final email = kullanici['email']?.toString() ?? '';
     final ad = kullanici['ad']?.toString() ?? '';
     final soyad = kullanici['soyad']?.toString() ?? '';
     final displayName = kullanici['display_name']?.toString() ?? '';
-    
+
     // Görüntülenecek ismi belirle
     String gorunenIsim;
     if (ad.isNotEmpty || soyad.isNotEmpty) {
@@ -477,7 +623,10 @@ class _FirmaKullaniciYonetimiPageState
     } else if (email.isNotEmpty) {
       gorunenIsim = email;
     } else {
-      gorunenIsim = kullanici['user_id']?.toString()?.substring(0, 8) ?? '-';
+      final userIdText = kullanici['user_id']?.toString() ?? '';
+      gorunenIsim = userIdText.isEmpty
+          ? '-'
+          : (userIdText.length > 8 ? userIdText.substring(0, 8) : userIdText);
     }
 
     Color rolRenk;
@@ -560,8 +709,8 @@ class _FirmaKullaniciYonetimiPageState
                 if (!aktif) ...[
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.red.shade50,
                       borderRadius: BorderRadius.circular(6),
@@ -585,6 +734,32 @@ class _FirmaKullaniciYonetimiPageState
                 ],
               ],
             ),
+            if (ekRoller.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: ekRoller.map((ekRol) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blueGrey.shade100),
+                    ),
+                    child: Text(
+                      YetkiService.rolEtiketleri[ekRol] ?? ekRol,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.blueGrey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
           ],
         ),
         trailing: PopupMenuButton<String>(
@@ -592,10 +767,16 @@ class _FirmaKullaniciYonetimiPageState
             switch (action) {
               case 'rol':
                 _rolDegistir(kullanici);
+                break;
+              case 'ek_roller':
+                _ekRolleriDuzenle(kullanici);
+                break;
               case 'toggle':
                 _aktifPasifToggle(kullanici);
+                break;
               case 'cikar':
                 _kullaniciCikar(kullanici);
+                break;
             }
           },
           itemBuilder: (_) => [
@@ -604,6 +785,14 @@ class _FirmaKullaniciYonetimiPageState
               child: ListTile(
                 leading: Icon(Icons.swap_horiz),
                 title: Text('Rol Değiştir'),
+                dense: true,
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'ek_roller',
+              child: ListTile(
+                leading: Icon(Icons.badge_outlined),
+                title: Text('Ek Roller'),
                 dense: true,
               ),
             ),
@@ -619,8 +808,7 @@ class _FirmaKullaniciYonetimiPageState
               const PopupMenuItem(
                 value: 'cikar',
                 child: ListTile(
-                  leading:
-                      Icon(Icons.person_remove, color: Colors.red),
+                  leading: Icon(Icons.person_remove, color: Colors.red),
                   title: Text('Firmadan Çıkar',
                       style: TextStyle(color: Colors.red)),
                   dense: true,

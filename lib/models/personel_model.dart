@@ -3,7 +3,7 @@
 /// Supabase `personeller` tablosuyla eşleşir. [userId] (uuid) ana anahtardır.
 /// SGK, maaş ve izin bilgileri dahil tüm HR verilerini barındırır.
 class PersonelModel {
-  final String userId; // uuid, art�k ana anahtar
+  final String userId; // uuid, artık ana anahtar
   final String ad;
   final String soyad;
   final String tckn;
@@ -64,7 +64,8 @@ class PersonelModel {
   bool get istenCikarildiMi => durum == 'isten_cikarildi';
   bool get pasifMi => durum == 'pasif';
 
-  factory PersonelModel.fromJson(Map<String, dynamic> json) => PersonelModel.fromMap(json);
+  factory PersonelModel.fromJson(Map<String, dynamic> json) =>
+      PersonelModel.fromMap(json);
 
   factory PersonelModel.fromMap(Map<String, dynamic> e) {
     return PersonelModel(

@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'uretim_asama_dashboard.dart';
 
 /// Uretim asama model karti, aksiyonlar ve dialog'lar
@@ -7,12 +7,16 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final durum = atama['durum'] as String?;
     final tamamlananAdet = atama['tamamlanan_adet'] ?? 0;
-    final kabulEdilenAdet = atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet'] ?? 0;
-    
+    final kabulEdilenAdet = atama['kabul_edilen_adet'] ??
+        atama['talep_edilen_adet'] ??
+        atama['adet'] ??
+        model['adet'] ??
+        0;
+
     // Model verisi yoksa atama tablosundaki adet'i kullan
     final displayAdet = model['adet']?.toString() ?? atama['adet']?.toString();
     final displayRenk = model['renk'] ?? '-';
-    
+
     return Card(
       elevation: 3,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -37,21 +41,28 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               ],
             ),
             const SizedBox(height: 12),
-            
+
             // Model bilgileri
             _buildModelBilgisi('Adet', displayAdet),
             _buildModelBilgisi('Renk', displayRenk),
-            
+
             // Atama bilgileri
             if (atama['talep_edilen_adet'] != null)
-              _buildModelBilgisi('Talep Edilen', atama['talep_edilen_adet']?.toString()),
+              _buildModelBilgisi(
+                  'Talep Edilen', atama['talep_edilen_adet']?.toString()),
             if (atama['kabul_edilen_adet'] != null)
-              _buildModelBilgisi('Kabul Edilen', atama['kabul_edilen_adet']?.toString()),
+              _buildModelBilgisi(
+                  'Kabul Edilen', atama['kabul_edilen_adet']?.toString()),
             if (tamamlananAdet > 0)
-              _buildModelBilgisi('Tamamlanan', '$tamamlananAdet', textColor: Colors.green),
-            
+              _buildModelBilgisi('Tamamlanan', '$tamamlananAdet',
+                  textColor: Colors.green),
+
             // İlerleme çubuğu (sadece aktif işler için)
-            if (kabulEdilenAdet > 0 && (durum == 'onaylandi' || durum == 'uretimde' || durum == 'baslatildi' || durum == 'kismi_tamamlandi')) ...[
+            if (kabulEdilenAdet > 0 &&
+                (durum == 'onaylandi' ||
+                    durum == 'uretimde' ||
+                    durum == 'baslatildi' ||
+                    durum == 'kismi_tamamlandi')) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -60,63 +71,75 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                       value: (tamamlananAdet as num) / (kabulEdilenAdet as num),
                       backgroundColor: Colors.grey[300],
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        tamamlananAdet >= kabulEdilenAdet ? Colors.green : widget.asamaRengi,
+                        tamamlananAdet >= kabulEdilenAdet
+                            ? Colors.green
+                            : widget.asamaRengi,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '%${(((tamamlananAdet) / (kabulEdilenAdet)) * 100).toInt()}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ],
               ),
             ],
-            
+
             if (model['termin_tarihi'] != null)
               _buildModelBilgisi(
                 'Termin',
-                DateFormat('dd.MM.yyyy').format(DateTime.parse(model['termin_tarihi'])),
+                DateFormat('dd.MM.yyyy')
+                    .format(DateTime.parse(model['termin_tarihi'])),
                 textColor: Colors.red,
               ),
-            
+
             if (atama['atama_tarihi'] != null)
               _buildModelBilgisi(
                 'Atama Tarihi',
-                DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(atama['atama_tarihi'])),
+                DateFormat('dd.MM.yyyy HH:mm')
+                    .format(DateTime.parse(atama['atama_tarihi'])),
               ),
 
             if (atama['onay_tarihi'] != null)
               _buildModelBilgisi(
                 'Onay Tarihi',
-                DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(atama['onay_tarihi'])),
+                DateFormat('dd.MM.yyyy HH:mm')
+                    .format(DateTime.parse(atama['onay_tarihi'])),
                 textColor: Colors.green,
               ),
 
             if (atama['uretim_baslangic_tarihi'] != null)
               _buildModelBilgisi(
                 'Başlangıç',
-                DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(atama['uretim_baslangic_tarihi'])),
+                DateFormat('dd.MM.yyyy HH:mm')
+                    .format(DateTime.parse(atama['uretim_baslangic_tarihi'])),
                 textColor: Colors.blue,
               ),
 
             if (atama['planlanan_bitis_tarihi'] != null)
               _buildModelBilgisi(
                 'Planlanan Bitiş',
-                DateFormat('dd.MM.yyyy').format(DateTime.parse(atama['planlanan_bitis_tarihi'])),
+                DateFormat('dd.MM.yyyy')
+                    .format(DateTime.parse(atama['planlanan_bitis_tarihi'])),
                 textColor: Colors.orange,
               ),
 
-            if (atama['tamamlama_tarihi'] != null)
+            if ((atama['tamamlama_tarihi'] ?? atama['teslim_tarihi']) != null)
               _buildModelBilgisi(
                 'Tamamlama',
-                DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(atama['tamamlama_tarihi'])),
+                DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(
+                    (atama['tamamlama_tarihi'] ?? atama['teslim_tarihi'])
+                        .toString())),
                 textColor: Colors.purple,
               ),
-            
-            if (atama['notlar'] != null && atama['notlar'].toString().isNotEmpty)
-              _buildModelBilgisi('Notlar', atama['notlar']),
-            
+
+            if ((atama['notlar'] ?? atama['aciklama']) != null &&
+                (atama['notlar'] ?? atama['aciklama']).toString().isNotEmpty)
+              _buildModelBilgisi(
+                  'Notlar', (atama['notlar'] ?? atama['aciklama']).toString()),
+
             // Aksiyon butonları
             const SizedBox(height: 12),
             const Divider(),
@@ -127,8 +150,9 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       ),
     );
   }
-  
-  Widget _buildAksiyonButonlari(Map<String, dynamic> atama, Map<String, dynamic> model, String? durum) {
+
+  Widget _buildAksiyonButonlari(
+      Map<String, dynamic> atama, Map<String, dynamic> model, String? durum) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -142,7 +166,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
             foregroundColor: Colors.blue,
           ),
         ),
-        
+
         // Geri Al butonu - tamamlanmış veya reddedilmiş işler için
         if (durum == 'tamamlandi' || durum == 'reddedildi')
           OutlinedButton.icon(
@@ -153,9 +177,12 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               foregroundColor: Colors.grey,
             ),
           ),
-        
+
         // Kabul Et butonu - sadece bekleyen işler için
-        if (durum == 'bekleyen' || durum == 'beklemede' || durum == 'atandi' || durum == 'kontrol_bekliyor')
+        if (durum == 'bekleyen' ||
+            durum == 'beklemede' ||
+            durum == 'atandi' ||
+            durum == 'kontrol_bekliyor')
           ElevatedButton.icon(
             onPressed: () => _showKabulDialog(atama),
             icon: const Icon(Icons.thumb_up, size: 18),
@@ -165,9 +192,12 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               foregroundColor: Colors.white,
             ),
           ),
-        
+
         // Reddet butonu - sadece bekleyen işler için
-        if (durum == 'bekleyen' || durum == 'beklemede' || durum == 'atandi' || durum == 'kontrol_bekliyor')
+        if (durum == 'bekleyen' ||
+            durum == 'beklemede' ||
+            durum == 'atandi' ||
+            durum == 'kontrol_bekliyor')
           ElevatedButton.icon(
             onPressed: () => _showReddetDialog(atama),
             icon: const Icon(Icons.thumb_down, size: 18),
@@ -177,7 +207,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               foregroundColor: Colors.white,
             ),
           ),
-        
+
         // Üretime Al butonu - onaylanmış işler için
         if (durum == 'onaylandi')
           ElevatedButton.icon(
@@ -189,9 +219,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               foregroundColor: Colors.white,
             ),
           ),
-        
+
         // Üretimi Tamamla butonu - üretimde olan işler için
-        if (durum == 'uretimde' || durum == 'baslatildi' || durum == 'kismi_tamamlandi')
+        if (durum == 'uretimde' ||
+            durum == 'baslatildi' ||
+            durum == 'kismi_tamamlandi')
           ElevatedButton.icon(
             onPressed: () => _showTamamlaDialog(atama),
             icon: const Icon(Icons.check_circle, size: 18),
@@ -204,21 +236,21 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       ],
     );
   }
-  
+
   // Düzenle Dialog'u
-  
+
   // Sil Dialog'u
-  
+
   // Geri Al Dialog'u
   void _showGeriAlDialog(Map<String, dynamic> atama) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final mevcutDurum = atama['durum'] as String?;
-    
+
     String hedefDurum = 'onaylandi'; // Varsayılan olarak onaylandı durumuna al
     if (mevcutDurum == 'reddedildi') {
       hedefDurum = 'atandi'; // Reddedilmiş ise bekleyen durumuna al
     }
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -231,8 +263,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
             const SizedBox(height: 16),
             Text(
               mevcutDurum == 'tamamlandi'
-                ? 'Tamamlanmış atamayı "Onaylandı" durumuna geri almak istiyor musunuz?'
-                : 'Reddedilmiş atamayı "Beklemede" durumuna geri almak istiyor musunuz?',
+                  ? 'Tamamlanmış atamayı "Onaylandı" durumuna geri almak istiyor musunuz?'
+                  : 'Reddedilmiş atamayı "Beklemede" durumuna geri almak istiyor musunuz?',
             ),
             const SizedBox(height: 8),
             Text(
@@ -249,23 +281,33 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           ElevatedButton(
             onPressed: () async {
               try {
+                final updateData = _eskiAtamaSemasi
+                    ? {
+                        'durum': hedefDurum,
+                        'teslim_tarihi': null,
+                        'updated_at': DateTime.now().toIso8601String(),
+                        'son_guncelleme_tarihi':
+                            DateTime.now().toIso8601String(),
+                      }
+                    : {
+                        'durum': hedefDurum,
+                        'tamamlama_tarihi': null,
+                        'updated_at': DateTime.now().toIso8601String(),
+                      };
                 await supabase
                     .from(widget.atamaTablosu)
-                    .update({
-                      'durum': hedefDurum,
-                      'tamamlama_tarihi': null,
-                      'updated_at': DateTime.now().toIso8601String(),
-                    })
+                    .update(updateData)
                     .eq('id', atama['id']);
-                
+
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 _modelleriGetir();
-                
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('↩️ Atama "$hedefDurum" durumuna geri alındı'),
+                      content:
+                          Text('↩️ Atama "$hedefDurum" durumuna geri alındı'),
                       backgroundColor: Colors.blue,
                     ),
                   );
@@ -285,14 +327,15 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       ),
     );
   }
-  
+
   // Kabul Et Dialog'u
   void _showKabulDialog(Map<String, dynamic> atama) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final adetController = TextEditingController(
-      text: (atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet'] ?? 0).toString()
-    );
-    
+        text:
+            (atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet'] ?? 0)
+                .toString());
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -303,7 +346,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Model: ${model['marka']} - ${model['item_no']}'),
-              Text('Talep Edilen: ${atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet']} adet'),
+              Text(
+                  'Talep Edilen: ${atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet']} adet'),
               const SizedBox(height: 16),
               TextField(
                 controller: adetController,
@@ -329,20 +373,17 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                 if (kabulAdet <= 0) {
                   throw Exception('Geçerli bir adet giriniz');
                 }
-                
-                await supabase
-                    .from(widget.atamaTablosu)
-                    .update({
-                      'kabul_edilen_adet': kabulAdet,
-                      'durum': 'onaylandi',
-                      'onay_tarihi': DateTime.now().toIso8601String(),
-                    })
-                    .eq('id', atama['id']);
-                
+
+                await supabase.from(widget.atamaTablosu).update({
+                  'kabul_edilen_adet': kabulAdet,
+                  'durum': 'onaylandi',
+                  'onay_tarihi': DateTime.now().toIso8601String(),
+                }).eq('id', atama['id']);
+
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 _modelleriGetir();
-                
+
                 if (mounted) {
                   context.showSuccessSnackBar('✅ $kabulAdet adet kabul edildi');
                 }
@@ -361,11 +402,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       ),
     );
   }
-  
+
   // Reddet Dialog'u
   void _showReddetDialog(Map<String, dynamic> atama) {
     final sebebController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -397,19 +438,16 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                 if (sebebController.text.isEmpty) {
                   throw Exception('Lütfen red sebebini belirtin');
                 }
-                
-                await supabase
-                    .from(widget.atamaTablosu)
-                    .update({
-                      'durum': 'reddedildi',
-                      'notlar': '[RED SEBEBİ] ${sebebController.text}',
-                    })
-                    .eq('id', atama['id']);
-                
+
+                await supabase.from(widget.atamaTablosu).update({
+                  'durum': 'reddedildi',
+                  'notlar': '[RED SEBEBİ] ${sebebController.text}',
+                }).eq('id', atama['id']);
+
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 _modelleriGetir();
-                
+
                 if (mounted) {
                   context.showErrorSnackBar('❌ Atama reddedildi');
                 }
@@ -429,11 +467,10 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     );
   }
 
-
   Future<void> _genericDetayDialog(Map<String, dynamic> atama) async {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final durum = atama['durum'] as String?;
-    
+
     // Model verisi yoksa atama tablosundaki adet'i kullan
     final displayAdet = model['adet']?.toString() ?? atama['adet']?.toString();
 
@@ -456,7 +493,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           ),
         ),
         actions: [
-          if (durum == 'bekleyen' || durum == 'beklemede' || durum == 'atandi' || durum == 'kontrol_bekliyor' || durum == null) ...[
+          if (durum == 'bekleyen' ||
+              durum == 'beklemede' ||
+              durum == 'atandi' ||
+              durum == 'kontrol_bekliyor' ||
+              durum == null) ...[
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -515,13 +556,24 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       };
 
       if (yeniDurum == 'onaylandi') {
-        updateData['onay_tarihi'] = DateTime.now().toIso8601String();
+        updateData[_eskiAtamaSemasi ? 'kabul_tarihi' : 'onay_tarihi'] =
+            DateTime.now().toIso8601String();
       } else if (yeniDurum == 'uretimde') {
-        updateData['uretim_baslangic_tarihi'] = DateTime.now().toIso8601String();
+        if (_eskiAtamaSemasi) {
+          updateData['son_guncelleme_tarihi'] =
+              DateTime.now().toIso8601String();
+        } else {
+          updateData['uretim_baslangic_tarihi'] =
+              DateTime.now().toIso8601String();
+        }
       } else if (yeniDurum == 'tamamlandi') {
-        updateData['tamamlama_tarihi'] = DateTime.now().toIso8601String();
+        updateData[_eskiAtamaSemasi ? 'teslim_tarihi' : 'tamamlama_tarihi'] =
+            DateTime.now().toIso8601String();
         // Tamamlanan adeti kabul edilen adete eşitle
-        final tamamlananAdet = atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? 0;
+        final tamamlananAdet = atama['kabul_edilen_adet'] ??
+            atama['talep_edilen_adet'] ??
+            atama['adet'] ??
+            0;
         updateData['tamamlanan_adet'] = tamamlananAdet;
       }
 
@@ -532,18 +584,21 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
       // Modeller tablosundaki durumu da güncelle (triko_takip)
       try {
-        await supabase
-            .from(DbTables.trikoTakip)
-            .update({widget.modelDurumKolonu: yeniDurum})
-            .eq('id', atama['model_id']);
+        await supabase.from(DbTables.trikoTakip).update(
+            {widget.modelDurumKolonu: yeniDurum}).eq('id', atama['model_id']);
       } catch (e) {
         debugPrint('⚠️ Model durumu güncellenemedi (triko_takip): $e');
       }
 
       // Yıkama ve Kalite Kontrol aşamaları için direkt sevkiyat, diğerleri için kalite kontrol
       if (yeniDurum == 'tamamlandi') {
-        final tamamlananAdet = atama['tamamlanan_adet'] ?? atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? 0;
-        if (widget.asamaAdi == 'yikama' || widget.asamaAdi == 'kalite_kontrol') {
+        final tamamlananAdet = atama['tamamlanan_adet'] ??
+            atama['kabul_edilen_adet'] ??
+            atama['talep_edilen_adet'] ??
+            atama['adet'] ??
+            0;
+        if (widget.asamaAdi == 'yikama' ||
+            widget.asamaAdi == 'kalite_kontrol') {
           await _sevkiyatAtamasiOlustur(atama, tamamlananAdet: tamamlananAdet);
         } else {
           await _kaliteKontrolAtamasiOlustur(atama);
@@ -551,9 +606,10 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       }
 
       await _modelleriGetir();
-      
+
       if (!mounted) return;
-      context.showSuccessSnackBar('${widget.asamaDisplayName} durumu güncellendi.');
+      context.showSuccessSnackBar(
+          '${widget.asamaDisplayName} durumu güncellendi.');
     } catch (e) {
       if (!mounted) return;
       context.showSnackBar('Hata: $e');
@@ -561,7 +617,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
   }
 
   /// Kalite kontrol ataması oluştur
-  Future<void> _kaliteKontrolAtamasiOlustur(Map<String, dynamic> atama, {int? tamamlananAdet}) async {
+  Future<void> _kaliteKontrolAtamasiOlustur(Map<String, dynamic> atama,
+      {int? tamamlananAdet}) async {
     try {
       // Model bilgilerini al
       final modelResponse = await supabase
@@ -576,7 +633,12 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       }
 
       // Parametreden gelen adet varsa onu kullan, yoksa atamadan al
-      final adet = tamamlananAdet ?? atama['tamamlanan_adet'] ?? atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? 0;
+      final adet = tamamlananAdet ??
+          atama['tamamlanan_adet'] ??
+          atama['kabul_edilen_adet'] ??
+          atama['talep_edilen_adet'] ??
+          atama['adet'] ??
+          0;
       final uniqueId = DateTime.now().millisecondsSinceEpoch.toString();
 
       // Her zaman yeni kayıt oluştur (duplicate kontrolü kaldırıldı)
@@ -586,18 +648,21 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         'onceki_asama': widget.asamaDisplayName,
         'kontrol_edilecek_adet': adet,
         'atama_tarihi': DateTime.now().toIso8601String(),
-        'notlar': '${widget.asamaDisplayName} tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet [$uniqueId]',
+        'notlar':
+            '${widget.asamaDisplayName} tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet [$uniqueId]',
         'firma_id': TenantManager.instance.requireFirmaId,
       });
-      
-      debugPrint('✅ Kalite kontrol ataması oluşturuldu: ${widget.asamaDisplayName} -> Kalite Kontrol');
-      
+
+      debugPrint(
+          '✅ Kalite kontrol ataması oluşturuldu: ${widget.asamaDisplayName} -> Kalite Kontrol');
+
       // Kalite kontrol rolüne sahip kullanıcılara bildirim gönder
       try {
         await BildirimService().roleGoreBildirimGonder(
           rol: 'kalite_kontrol',
           baslik: '🔍 Yeni Kalite Kontrol Talebi',
-          mesaj: '${modelResponse['marka']} ${modelResponse['item_no']} - ${widget.asamaDisplayName} aşaması tamamlandı. $adet adet kalite kontrolü bekliyor.',
+          mesaj:
+              '${modelResponse['marka']} ${modelResponse['item_no']} - ${widget.asamaDisplayName} aşaması tamamlandı. $adet adet kalite kontrolü bekliyor.',
           tip: 'kalite_kontrol_bekliyor',
           modelId: atama['model_id']?.toString(),
           asama: widget.asamaDisplayName,
@@ -612,7 +677,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
   }
 
   /// Yıkama veya Kalite Kontrol tamamlandığında direkt sevkiyat ataması oluştur
-  Future<void> _sevkiyatAtamasiOlustur(Map<String, dynamic> atama, {int? tamamlananAdet}) async {
+  Future<void> _sevkiyatAtamasiOlustur(Map<String, dynamic> atama,
+      {int? tamamlananAdet}) async {
     try {
       // Model bilgilerini al
       final modelResponse = await supabase
@@ -627,11 +693,18 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       }
 
       // Parametre olarak gelen adet varsa onu kullan, yoksa atamadan al
-      final adet = tamamlananAdet ?? atama['tamamlanan_adet'] ?? atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? modelResponse['adet'] ?? 0;
+      final adet = tamamlananAdet ??
+          atama['tamamlanan_adet'] ??
+          atama['kabul_edilen_adet'] ??
+          atama['talep_edilen_adet'] ??
+          atama['adet'] ??
+          modelResponse['adet'] ??
+          0;
       final uniqueId = DateTime.now().millisecondsSinceEpoch.toString();
       final oncekiAsama = atama['onceki_asama'] ?? widget.asamaDisplayName;
-      
-      debugPrint('📦 Sevkiyat ataması oluşturuluyor - Adet: $adet - Önceki Aşama: $oncekiAsama');
+
+      debugPrint(
+          '📦 Sevkiyat ataması oluşturuluyor - Adet: $adet - Önceki Aşama: $oncekiAsama');
 
       // 1. Paketleme ataması oluştur
       try {
@@ -642,7 +715,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           'talep_edilen_adet': adet,
           'tamamlanan_adet': 0,
           'atama_tarihi': DateTime.now().toIso8601String(),
-          'notlar': '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet [$uniqueId]',
+          'notlar':
+              '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet [$uniqueId]',
           'firma_id': TenantManager.instance.requireFirmaId,
         });
         debugPrint('✅ Paketleme ataması oluşturuldu - $adet adet');
@@ -659,20 +733,22 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           'kalan_adet': adet,
           'durum': 'beklemede',
           'alis_tarihi': DateTime.now().toIso8601String(),
-          'notlar': '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} [$uniqueId]',
+          'notlar':
+              '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} [$uniqueId]',
           'firma_id': TenantManager.instance.requireFirmaId,
         });
         debugPrint('✅ Sevkiyat kaydı oluşturuldu - $adet adet');
       } catch (e) {
         debugPrint('⚠️ Sevkiyat kaydı oluşturulamadı: $e');
       }
-      
+
       // 3. Sevkiyat rolüne sahip kullanıcılara bildirim gönder
       try {
         await BildirimService().roleGoreBildirimGonder(
           rol: 'sevkiyat',
           baslik: '📦 Yeni Sevkiyat Talebi',
-          mesaj: '${modelResponse['marka']} ${modelResponse['item_no']} - $oncekiAsama tamamlandı. $adet adet sevkiyat bekliyor.',
+          mesaj:
+              '${modelResponse['marka']} ${modelResponse['item_no']} - $oncekiAsama tamamlandı. $adet adet sevkiyat bekliyor.',
           tip: 'sevkiyat_hazir',
           modelId: atama['model_id']?.toString(),
           asama: oncekiAsama,
@@ -681,7 +757,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       } catch (e) {
         debugPrint('⚠️ Bildirim gönderilemedi: $e');
       }
-      
+
       debugPrint('✅ $oncekiAsama -> Sevkiyat ataması tamamlandı - $adet adet');
     } catch (e) {
       debugPrint('❌ Sevkiyat ataması oluşturulamadı: $e');
@@ -720,8 +796,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       // Red sebebini de güncelle
       await supabase
           .from(widget.atamaTablosu)
-          .update({'red_sebebi': result})
-          .eq('id', atama['id']);
+          .update({'red_sebebi': result}).eq('id', atama['id']);
     }
   }
 
@@ -729,13 +804,14 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
   void _showUretimeAlDialog(Map<String, dynamic> atama) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     DateTime planlananBitisTarihi = DateTime.now().add(const Duration(days: 7));
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
                 Container(
@@ -764,19 +840,21 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(
+                            '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text('Renk: ${model['renk'] ?? '-'}'),
-                        Text('Adet: ${atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? '-'}'),
+                        Text(
+                            'Adet: ${atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? '-'}'),
                       ],
                     ),
                   ),
-                  
                   const SizedBox(height: 20),
-                  const Text('Planlanan Bitiş Tarihi', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('Planlanan Bitiş Tarihi',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  
                   InkWell(
                     onTap: () async {
                       final picked = await showDatePicker(
@@ -793,7 +871,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        border: Border.all(color: widget.asamaRengi.withValues(alpha: 0.5)),
+                        border: Border.all(
+                            color: widget.asamaRengi.withValues(alpha: 0.5)),
                         borderRadius: BorderRadius.circular(8),
                         color: widget.asamaRengi.withValues(alpha: 0.1),
                       ),
@@ -802,7 +881,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                           Icon(Icons.calendar_today, color: widget.asamaRengi),
                           const SizedBox(width: 12),
                           Text(
-                            DateFormat('dd MMMM yyyy', 'tr').format(planlananBitisTarihi),
+                            DateFormat('dd MMMM yyyy', 'tr')
+                                .format(planlananBitisTarihi),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -810,25 +890,32 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                             ),
                           ),
                           const Spacer(),
-                          Icon(Icons.edit, color: widget.asamaRengi.withValues(alpha: 0.6), size: 20),
+                          Icon(Icons.edit,
+                              color: widget.asamaRengi.withValues(alpha: 0.6),
+                              size: 20),
                         ],
                       ),
                     ),
                   ),
-                  
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _buildQuickDateChip('1 Hafta', 7, planlananBitisTarihi, (days) {
-                        setDialogState(() => planlananBitisTarihi = DateTime.now().add(Duration(days: days)));
+                      _buildQuickDateChip('1 Hafta', 7, planlananBitisTarihi,
+                          (days) {
+                        setDialogState(() => planlananBitisTarihi =
+                            DateTime.now().add(Duration(days: days)));
                       }),
-                      _buildQuickDateChip('2 Hafta', 14, planlananBitisTarihi, (days) {
-                        setDialogState(() => planlananBitisTarihi = DateTime.now().add(Duration(days: days)));
+                      _buildQuickDateChip('2 Hafta', 14, planlananBitisTarihi,
+                          (days) {
+                        setDialogState(() => planlananBitisTarihi =
+                            DateTime.now().add(Duration(days: days)));
                       }),
-                      _buildQuickDateChip('1 Ay', 30, planlananBitisTarihi, (days) {
-                        setDialogState(() => planlananBitisTarihi = DateTime.now().add(Duration(days: days)));
+                      _buildQuickDateChip('1 Ay', 30, planlananBitisTarihi,
+                          (days) {
+                        setDialogState(() => planlananBitisTarihi =
+                            DateTime.now().add(Duration(days: days)));
                       }),
                     ],
                   ),
@@ -843,24 +930,24 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               ElevatedButton.icon(
                 onPressed: () async {
                   try {
-                    await supabase
-                        .from(widget.atamaTablosu)
-                        .update({
-                          'durum': 'uretimde',
-                          'uretim_baslangic_tarihi': DateTime.now().toIso8601String(),
-                          'planlanan_bitis_tarihi': planlananBitisTarihi.toIso8601String(),
-                          'updated_at': DateTime.now().toIso8601String(),
-                        })
-                        .eq('id', atama['id']);
-                    
+                    await supabase.from(widget.atamaTablosu).update({
+                      'durum': 'uretimde',
+                      'uretim_baslangic_tarihi':
+                          DateTime.now().toIso8601String(),
+                      'planlanan_bitis_tarihi':
+                          planlananBitisTarihi.toIso8601String(),
+                      'updated_at': DateTime.now().toIso8601String(),
+                    }).eq('id', atama['id']);
+
                     if (!context.mounted) return;
                     Navigator.pop(context);
                     _modelleriGetir();
-                    
+
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('✅ ${model['marka']} - ${model['item_no']} ${widget.asamaDisplayName} üretimine alındı'),
+                        content: Text(
+                            '✅ ${model['marka']} - ${model['item_no']} ${widget.asamaDisplayName} üretimine alındı'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -883,14 +970,18 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     );
   }
 
-  Widget _buildQuickDateChip(String label, int days, DateTime currentDate, Function(int) onSelect) {
+  Widget _buildQuickDateChip(
+      String label, int days, DateTime currentDate, Function(int) onSelect) {
     final targetDate = DateTime.now().add(Duration(days: days));
     final isSelected = currentDate.difference(targetDate).inDays.abs() < 1;
-    
+
     return ActionChip(
       label: Text(label),
-      backgroundColor: isSelected ? widget.asamaRengi.withValues(alpha: 0.2) : Colors.grey.shade200,
-      side: BorderSide(color: isSelected ? widget.asamaRengi : Colors.grey.shade400),
+      backgroundColor: isSelected
+          ? widget.asamaRengi.withValues(alpha: 0.2)
+          : Colors.grey.shade200,
+      side: BorderSide(
+          color: isSelected ? widget.asamaRengi : Colors.grey.shade400),
       onPressed: () => onSelect(days),
     );
   }
@@ -898,9 +989,10 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
   // Tamamla Dialog'u - BEDEN BAZLI
   void _showTamamlaDialog(Map<String, dynamic> atama) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
-    final modelId = model['id']?.toString() ?? atama['model_id']?.toString() ?? '';
-    final atamaId = atama['id'] as int;
-    
+    final modelId =
+        model['id']?.toString() ?? atama['model_id']?.toString() ?? '';
+    final atamaId = atama['id'] as Object;
+
     // Beden bazlı dialog'u aç
     showDialog(
       context: context,
@@ -919,8 +1011,10 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         onComplete: () {
           _modelleriGetir();
         },
-        onKaliteKontrolOlustur: (a, {required int tamamlananAdet}) => _kaliteKontrolAtamasiOlustur(a, tamamlananAdet: tamamlananAdet),
-        onSevkiyatOlustur: (a, {required int tamamlananAdet}) => _sevkiyatAtamasiOlustur(a, tamamlananAdet: tamamlananAdet),
+        onKaliteKontrolOlustur: (a, {required int tamamlananAdet}) =>
+            _kaliteKontrolAtamasiOlustur(a, tamamlananAdet: tamamlananAdet),
+        onSevkiyatOlustur: (a, {required int tamamlananAdet}) =>
+            _sevkiyatAtamasiOlustur(a, tamamlananAdet: tamamlananAdet),
       ),
     );
   }
@@ -960,7 +1054,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
   Widget _buildDurumBadge(String? durum) {
     Color color;
     String text;
-    
+
     switch (durum) {
       case 'atandi':
         color = Colors.orange;
@@ -1005,7 +1099,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     );
   }
 
-  Widget _buildModelListesi(List<Map<String, dynamic>> modeller, String bosListeMetni) {
+  Widget _buildModelListesi(
+      List<Map<String, dynamic>> modeller, String bosListeMetni) {
     if (yukleniyor) {
       return const LoadingWidget();
     }
@@ -1045,5 +1140,4 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       ),
     );
   }
-
 }

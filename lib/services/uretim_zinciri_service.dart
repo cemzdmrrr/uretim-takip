@@ -1,16 +1,17 @@
-﻿// ÜRETİM ZİNCİRİ GÜVENLİK SERVİSİ
+// ÜRETİM ZİNCİRİ GÜVENLİK SERVİSİ
 // Email bazlı atama ve firma izolasyonu
 
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/asama_registry.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uretim_takip/services/sevkiyat_atama_guard.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 class UretimZinciriService {
   final _supabase = Supabase.instance.client;
   String get _firmaId => TenantManager.instance.requireFirmaId;
-  
+
   // Public getter for Supabase client
   SupabaseClient get supabase => _supabase;
 
@@ -28,7 +29,7 @@ class UretimZinciriService {
       if (currentUser == null) {
         return {'success': false, 'error': 'Kullanıcı giriş yapmamış'};
       }
-      
+
       // Kullanıcının admin rolüne sahip olup olmadığını kontrol et
       final userRoleResponse = await _supabase
           .from(DbTables.userRoles)
@@ -36,11 +37,14 @@ class UretimZinciriService {
           .eq('user_id', currentUser.id)
           .eq('aktif', true)
           .maybeSingle();
-      
+
       if (userRoleResponse == null || userRoleResponse['role'] != 'admin') {
-        return {'success': false, 'error': 'Bu işlem için admin yetkisi gerekli'};
+        return {
+          'success': false,
+          'error': 'Bu işlem için admin yetkisi gerekli'
+        };
       }
-      
+
       // Admin kontrolü geçtikten sonra atamayı gerçekleştir
       final String userId = currentUser.id;
 
@@ -53,7 +57,8 @@ class UretimZinciriService {
           // Model'in varlığını ve detaylarını kontrol et
           final modelCheck = await _supabase
               .from(DbTables.trikoTakip)
-              .select('id, model_adi, toplam_adet')  // musteri_adi kaldırıldı - bu kolon yok
+              .select(
+                  'id, model_adi, toplam_adet') // musteri_adi kaldırıldı - bu kolon yok
               .eq('firma_id', _firmaId)
               .eq('id', modelId)
               .maybeSingle();
@@ -64,11 +69,29 @@ class UretimZinciriService {
           }
 
           // Model detaylarından adet bilgisini al
-          final int modelAdet = modelCheck['toplam_adet'] ?? 1;  // toplam_adet kolonu kullan
-          final int atamaAdet = requestedQuantity ?? modelAdet; // İstenen adet yoksa tüm siparişi ata
+          final int modelAdet =
+              modelCheck['toplam_adet'] ?? 1; // toplam_adet kolonu kullan
+          final int atamaAdet = requestedQuantity ??
+              modelAdet; // İstenen adet yoksa tüm siparişi ata
 
           // Atama tablosu adını belirle
           final String tableName = _getAssignmentTableName(stageName);
+
+          if (SevkiyatAtamaGuard.sevkGerektirir(stageName)) {
+            final sevkVar = await SevkiyatAtamaGuard(client: _supabase)
+                .hedefAsamayaSevkVarMi(
+              modelId: modelId,
+              hedefAsama: stageName,
+              firmaId: _firmaId,
+            );
+
+            if (!sevkVar) {
+              errors.add(
+                'Model ${modelCheck['model_adi'] ?? modelId} Ütü/Paket aşamasına sevk edilmeden atanamaz.',
+              );
+              continue;
+            }
+          }
 
           // 1. Atama tablosuna kayıt ekle (adet bilgisi ile)
           final atamaData = <String, dynamic>{
@@ -84,7 +107,7 @@ class UretimZinciriService {
           atamaData['talep_edilen_adet'] = atamaAdet;
           atamaData['tamamlanan_adet'] = 0; // Başlangıçta 0
           atamaData['firma_id'] = _firmaId;
-          
+
           // Model bilgilerini de ekle (varsa) - musteri_adi modelden değil currentModelData'dan alınır
           // if (modelCheck['musteri_adi'] != null) {
           //   atamaData['musteri_adi'] = modelCheck['musteri_adi'];
@@ -97,11 +120,12 @@ class UretimZinciriService {
           final insertData = <String, dynamic>{
             'firma_id': _firmaId,
             'model_id': modelId,
-            'asama': _getStageNameForUretimKayitlari(stageName), // Doğru aşama adını kullan
+            'asama': _getStageNameForUretimKayitlari(
+                stageName), // Doğru aşama adını kullan
             'durum': 'atandi',
-            'tamamlanan_adet': 0,      // Bu kesinlikle var (NOT NULL hata verdi)
+            'tamamlanan_adet': 0, // Bu kesinlikle var (NOT NULL hata verdi)
           };
-          
+
           debugPrint('📊 Minimal insert verisi: $insertData');
 
           // Tedarikci bilgisini ekle (eski firma_id değil, tedarikci referansı)
@@ -111,7 +135,7 @@ class UretimZinciriService {
                 .select('id')
                 .eq('email', assigneeEmail)
                 .maybeSingle();
-            
+
             if (firmaResponse != null) {
               insertData['tedarikci_id'] = firmaResponse['id'];
             }
@@ -125,7 +149,7 @@ class UretimZinciriService {
             debugPrint('✅ uretim_kayitlari tablosuna başarıyla eklendi');
           } catch (e) {
             debugPrint('❌ uretim_kayitlari insert hatası: $e');
-            
+
             // Daha minimal versiyon dene
             try {
               final minimalData = <String, dynamic>{
@@ -135,7 +159,9 @@ class UretimZinciriService {
                 'durum': 'atandi',
                 'tamamlanan_adet': 0, // NOT NULL olduğu için ekle
               };
-              await _supabase.from(DbTables.uretimKayitlari).insert(minimalData);
+              await _supabase
+                  .from(DbTables.uretimKayitlari)
+                  .insert(minimalData);
               debugPrint('✅ Minimal versiyon başarılı');
             } catch (e2) {
               debugPrint('❌ Minimal versiyon da başarısız: $e2');
@@ -221,27 +247,29 @@ class UretimZinciriService {
     try {
       // Aşama adını atölye türüne çevir
       final String atolyeTuru = _getAtolyeTuru(stageName);
-      
+
       final response = await _supabase
           .from(DbTables.atolyeler)
-          .select('id, atolye_adi, atolye_turu, email, telefon, adres, kapasitesi, aktif')
+          .select(
+              'id, atolye_adi, atolye_turu, email, telefon, adres, kapasitesi, aktif')
           .eq('atolye_turu', atolyeTuru)
           .eq('aktif', true)
           .order('atolye_adi'); // Alphabetic sıralama ekle
 
       // Duplicate'ları temizle - email bazlı benzersiz atölyeler
       final Map<String, Map<String, dynamic>> benzersizAtolyeler = {};
-      
+
       for (final atolye in response) {
         String email = atolye['email'] ?? '';
         final String atolyeAdi = atolye['atolye_adi'] ?? '';
-        
+
         // Email yoksa atölye adından oluştur
         if (email.isEmpty && atolyeAdi.isNotEmpty) {
-          email = '${atolyeAdi.toLowerCase().replaceAll(' ', '').replaceAll(RegExp(r'[^a-z0-9]'), '')}@atolye.com';
+          email =
+              '${atolyeAdi.toLowerCase().replaceAll(' ', '').replaceAll(RegExp(r'[^a-z0-9]'), '')}@atolye.com';
           atolye['email'] = email;
         }
-        
+
         // Benzersiz email kontrolü
         if (email.isNotEmpty && !benzersizAtolyeler.containsKey(email)) {
           benzersizAtolyeler[email] = atolye;
@@ -279,9 +307,8 @@ class UretimZinciriService {
   // Atama istatistikleri
   Future<List<Map<String, dynamic>>> getAssignmentStatistics() async {
     try {
-      final response = await _supabase
-          .from(DbTables.atamaIstatistikleri)
-          .select('*');
+      final response =
+          await _supabase.from(DbTables.atamaIstatistikleri).select('*');
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
@@ -304,13 +331,15 @@ class UretimZinciriService {
       }
 
       final tableName = '${stageName}_atamalari';
-      
+
       await _supabase
           .from(tableName)
           .update({
             'durum': newStatus,
-            if (newStatus == 'baslatildi') 'baslama_tarihi': DateTime.now().toIso8601String(),
-            if (newStatus == 'tamamlandi') 'tamamlama_tarihi': DateTime.now().toIso8601String(),
+            if (newStatus == 'baslatildi')
+              'baslama_tarihi': DateTime.now().toIso8601String(),
+            if (newStatus == 'tamamlandi')
+              'tamamlama_tarihi': DateTime.now().toIso8601String(),
           })
           .eq('model_id', modelId)
           .eq('atanan_kullanici_id', currentUser.id);
@@ -378,16 +407,19 @@ class UretimZinciriService {
   }) async {
     try {
       final currentUserRole = await getCurrentUserRole();
-      
+
       if (currentUserRole == 'admin') {
         // Admin tüm modelleri görebilir
-        var query = _supabase.from(DbTables.modeller).select('*').eq('firma_id', _firmaId);
-        
+        var query = _supabase
+            .from(DbTables.modeller)
+            .select('*')
+            .eq('firma_id', _firmaId);
+
         if (status != null) {
           final statusColumn = '${stageName}_durumu';
           query = query.eq(statusColumn, status);
         }
-        
+
         final response = await query;
         return List<Map<String, dynamic>>.from(response);
       } else if (stageName != null && currentUserRole == stageName) {
@@ -419,7 +451,7 @@ class UretimZinciriService {
           stageName: stageName,
           newStatus: newStatus,
         );
-        
+
         if (success) {
           successCount++;
         } else {
@@ -471,8 +503,7 @@ enum ModelDurum {
 // Widget için yardımcı sınıf
 class UretimAtamaWidget {
   static List<DropdownMenuItem<String>> buildPersonelDropdown(
-    List<Map<String, dynamic>> personeller
-  ) {
+      List<Map<String, dynamic>> personeller) {
     return personeller.map((personel) {
       return DropdownMenuItem<String>(
         value: personel['email'],

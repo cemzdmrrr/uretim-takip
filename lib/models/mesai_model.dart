@@ -34,24 +34,41 @@ class MesaiModel {
     this.firmaId,
   });
 
-  factory MesaiModel.fromJson(Map<String, dynamic> json) => MesaiModel.fromMap(json);
+  factory MesaiModel.fromJson(Map<String, dynamic> json) =>
+      MesaiModel.fromMap(json);
 
   factory MesaiModel.fromMap(Map<String, dynamic> map) {
-    // Veritaban�nda sadece user_id var
+    // Veritabanında sadece user_id var
     final effectiveUserId = map['user_id']?.toString() ?? '';
     return MesaiModel(
       id: map['id']?.toString(),
-      personelId: effectiveUserId, // Geriye d�n�k uyumluluk i�in
+      personelId: effectiveUserId, // Geriye dönük uyumluluk için
       tarih: DateTime.parse(map['tarih']),
       baslangicSaati: map['baslangic_saati'] ?? '',
       bitisSaati: map['bitis_saati'] ?? '',
       mesaiTuru: map['mesai_turu'] ?? '',
       onayDurumu: map['onay_durumu'] ?? '',
-      saat: map['saat'] != null ? (map['saat'] is num ? map['saat'].toDouble() : double.tryParse(map['saat'].toString())) : null,
+      saat: map['saat'] != null
+          ? (map['saat'] is num
+              ? map['saat'].toDouble()
+              : double.tryParse(map['saat'].toString()))
+          : null,
       onaylayanId: map['onaylayan_user_id']?.toString(),
-      mesaiUcret: map['mesai_ucret'] != null ? (map['mesai_ucret'] is num ? map['mesai_ucret'].toDouble() : double.tryParse(map['mesai_ucret'].toString())) : null,
-      yemekUcreti: map['yemek_ucreti'] != null ? (map['yemek_ucreti'] is num ? map['yemek_ucreti'].toDouble() : double.tryParse(map['yemek_ucreti'].toString())) : null,
-      carpan: map['carpan'] != null ? (map['carpan'] is num ? map['carpan'].toDouble() : double.tryParse(map['carpan'].toString())) : null,
+      mesaiUcret: map['mesai_ucret'] != null
+          ? (map['mesai_ucret'] is num
+              ? map['mesai_ucret'].toDouble()
+              : double.tryParse(map['mesai_ucret'].toString()))
+          : null,
+      yemekUcreti: map['yemek_ucreti'] != null
+          ? (map['yemek_ucreti'] is num
+              ? map['yemek_ucreti'].toDouble()
+              : double.tryParse(map['yemek_ucreti'].toString()))
+          : null,
+      carpan: map['carpan'] != null
+          ? (map['carpan'] is num
+              ? map['carpan'].toDouble()
+              : double.tryParse(map['carpan'].toString()))
+          : null,
       userId: effectiveUserId,
       firmaId: map['firma_id'],
     );
@@ -60,8 +77,9 @@ class MesaiModel {
   Map<String, dynamic> toJson() => toMap();
 
   Map<String, dynamic> toMap() {
-    // Veritaban�nda sadece user_id var, personelId'yi user_id olarak g�nder
-    final effectiveUserId = (userId ?? '').trim().isNotEmpty ? userId : personelId;
+    // Veritabanında sadece user_id var, personelId'yi user_id olarak gönder
+    final effectiveUserId =
+        (userId ?? '').trim().isNotEmpty ? userId : personelId;
     final map = <String, dynamic>{
       'user_id': effectiveUserId,
       'tarih': tarih.toIso8601String(),

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/supabase_config.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 
 /// Tüm sayfaların kayıt defteri — sayfa kodu → etiket + ikon + kategori
 class SayfaTanimi {
@@ -47,6 +48,11 @@ class SayfaRegistry {
         kod: 'konfeksiyon',
         etiket: 'Konfeksiyon',
         ikon: Icons.checkroom,
+        kategori: katUretimPanelleri),
+    SayfaTanimi(
+        kod: 'nakis',
+        etiket: 'Nakış',
+        ikon: Icons.brush,
         kategori: katUretimPanelleri),
     SayfaTanimi(
         kod: 'yikama',
@@ -323,7 +329,7 @@ class SayfaYetkiService {
     }
   }
 
-  /// Firma belirli sayfaya erişebilir mi?
+  /// Firma belirli sayfaya erişebilir mi
   static Future<bool> firmaSayfaErisimKontrol(String sayfaKodu) async {
     final yetkiler = await mevcutFirmaYetkileriniGetir();
     if (yetkiler.isEmpty) {
@@ -393,7 +399,7 @@ class SayfaYetkiService {
         silme: silme,
       );
     } catch (e) {
-      debugPrint('KullanÄ±cÄ± sayfa yetki paketi yÃ¼klenemedi: $e');
+      debugPrint('Kullanıcı sayfa yetki paketi yüklenemedi: $e');
       try {
         final client = SupabaseConfig.isAdminAvailable
             ? SupabaseConfig.adminClient
@@ -416,7 +422,7 @@ class SayfaYetkiService {
     }
   }
 
-  /// Kullanici icin explicit sayfa yetki kaydi var mi?
+  /// Kullanici icin explicit sayfa yetki kaydi var mi
   ///
   /// Kayit yoksa eski davranis korunur ve rol bazli yetkilere dusulur.
   /// Kayit varsa aktif=false satirlar da kullanicinin bilincli tercihi sayilir.
@@ -440,7 +446,7 @@ class SayfaYetkiService {
     }
   }
 
-  /// Kullanıcı belirli sayfaya erişebilir mi?
+  /// Kullanıcı belirli sayfaya erişebilir mi
   static Future<bool> sayfaErisimKontrol(
       String userId, String sayfaKodu) async {
     final yetkiler = await kullaniciYetkileriniGetir(userId);
@@ -584,16 +590,28 @@ class SayfaYetkiService {
   /// Kullanıcının rolüne göre sayfa yetkilerini getirir
   static Future<Set<String>> kullaniciRolYetkileriniGetir(String userId) async {
     try {
-      final rol = await kullaniciFirmaRolunuGetir(userId);
-      if (rol == null) return {};
+      final firmaRolu = await kullaniciFirmaRolunuGetir(userId);
+      if (firmaRolu == null) return {};
 
-      // Admin rolleri her şeyi görebilir
-      if (rol == 'firma_sahibi' || rol == 'firma_admin' || rol == 'admin') {
+      if (firmaRolu == 'firma_sahibi' ||
+          firmaRolu == 'firma_admin' ||
+          firmaRolu == 'admin') {
         return SayfaRegistry.tumSayfalar.map((s) => s.kod).toSet();
       }
 
-      // Rolün yetkilerini getir
-      return await rolYetkileriniGetir(rol);
+      final roller = <String>{firmaRolu};
+      final operasyonRolleri =
+          await UserRoleService.kullaniciOperasyonRolleriniGetir(
+        userId: userId,
+        firmaId: _firmaId,
+      );
+      roller.addAll(operasyonRolleri.where((rol) => rol != 'admin'));
+
+      final tumYetkiler = <String>{};
+      for (final rol in roller) {
+        tumYetkiler.addAll(await rolYetkileriniGetir(rol));
+      }
+      return tumYetkiler;
     } catch (e) {
       debugPrint('Kullanıcı rol yetkileri yüklenemedi: $e');
       return {};
@@ -632,9 +650,14 @@ class SayfaYetkiService {
 
   static Future<SayfaYetkiPaketi> efektifSayfaYetkiPaketiniGetir(
       String userId) async {
-    final rol = await kullaniciFirmaRolunuGetir(userId);
-    final adminMi =
-        rol == 'admin' || rol == 'firma_sahibi' || rol == 'firma_admin';
+    final firmaRolu = await kullaniciFirmaRolunuGetir(userId);
+    final roller = await UserRoleService.kullaniciTumRolleriniGetir(
+      userId: userId,
+      firmaId: _firmaId,
+    );
+    final adminMi = roller.contains('admin') ||
+        firmaRolu == 'firma_sahibi' ||
+        firmaRolu == 'firma_admin';
 
     if (adminMi) {
       final tumSayfalar = SayfaRegistry.tumSayfalar

@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/secure_storage.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/yetki_service.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
 
 /// Merkezi kimlik doğrulama ve kullanıcı durumu yönetimi.
@@ -19,13 +19,15 @@ import 'package:uretim_takip/utils/role_utils.dart';
 /// ```
 class AuthProvider extends ChangeNotifier {
   User? _user;
-  String? _role; // Platform rolü (user_roles tablosu)
+  String? _role; // Birincil rol
+  Set<String> _roles = {}; // Tum aktif roller
   String? _firmaRol; // Aktif firmadaki rol (firma_kullanicilari)
   List<String> _yetkiler = []; // Modül:yetki listesi
   bool _loading = true;
 
   User? get user => _user;
   String? get role => _role;
+  Set<String> get roles => Set.unmodifiable(_roles);
   String? get firmaRol => _firmaRol;
   List<String> get yetkiler => List.unmodifiable(_yetkiler);
   String get userId => _user?.id ?? '';
@@ -43,13 +45,16 @@ class AuthProvider extends ChangeNotifier {
 
   /// Belirtilen rollerden birine sahip mi (admin dahil)
   bool hasRole(List<String> roles) {
-    if (_role == null) return false;
-    if (isAdmin) return true;
-    return roles.any((role) => RoleUtils.sameUserRole(_role, role));
+    if (_roles.isEmpty) return false;
+    if (isAdmin || isFirmaAdmin) return true;
+    final hedefler =
+        roles.map(RoleUtils.normalizeUserRole).whereType<String>().toSet();
+    return _roles.any(hedefler.contains);
   }
 
   /// Belirtilen role sahip mi (admin hariç)
-  bool hasExactRole(String role) => RoleUtils.sameUserRole(_role, role);
+  bool hasExactRole(String role) =>
+      _roles.contains(RoleUtils.normalizeUserRole(role));
 
   /// Modül + yetki bazlı kontrol.
   /// firma_sahibi ve firma_admin tüm yetkilere sahiptir.
@@ -85,6 +90,7 @@ class AuthProvider extends ChangeNotifier {
           _fetchRole();
         } else {
           _role = null;
+          _roles = {};
           _firmaRol = null;
           _yetkiler = [];
           notifyListeners();
@@ -95,17 +101,17 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _fetchRole() async {
     try {
-      final response = await Supabase.instance.client
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', _user!.id)
-          .eq('aktif', true)
-          .maybeSingle();
-
-      _role = response?['role'];
+      _firmaRol = await UserRoleService.kullaniciFirmaRolunuGetir(
+        userId: _user!.id,
+      );
+      _roles = await UserRoleService.kullaniciTumRolleriniGetir(
+        userId: _user!.id,
+      );
+      _role = UserRoleService.birincilRolSec(_roles, firmaRolu: _firmaRol);
     } catch (e) {
       debugPrint('Rol getirme hatası: $e');
       _role = null;
+      _roles = {};
     }
     notifyListeners();
   }
@@ -140,6 +146,7 @@ class AuthProvider extends ChangeNotifier {
     await SecureCredentialStorage.clear();
     _user = null;
     _role = null;
+    _roles = {};
     _firmaRol = null;
     _yetkiler = [];
     notifyListeners();
@@ -149,11 +156,13 @@ class AuthProvider extends ChangeNotifier {
   @visibleForTesting
   void testDurumAyarla({
     String? role,
+    Set<String>? roles,
     String? firmaRol,
     List<String>? yetkiler,
     bool loading = false,
   }) {
     _role = role;
+    if (roles != null) _roles = roles;
     _firmaRol = firmaRol;
     if (yetkiler != null) _yetkiler = yetkiler;
     _loading = loading;

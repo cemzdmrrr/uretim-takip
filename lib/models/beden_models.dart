@@ -1,4 +1,4 @@
-/// Beden bazl� �retim takip modelleri
+/// Beden bazlı üretim takip modelleri
 
 class BedenTanimi {
   final int id;
@@ -17,7 +17,8 @@ class BedenTanimi {
     this.firmaId,
   });
 
-  factory BedenTanimi.fromJson(Map<String, dynamic> json) => BedenTanimi.fromMap(json);
+  factory BedenTanimi.fromJson(Map<String, dynamic> json) =>
+      BedenTanimi.fromMap(json);
 
   factory BedenTanimi.fromMap(Map<String, dynamic> map) {
     return BedenTanimi(
@@ -46,7 +47,8 @@ class ModelBedenDagilimi {
     this.firmaId,
   });
 
-  factory ModelBedenDagilimi.fromJson(Map<String, dynamic> json) => ModelBedenDagilimi.fromMap(json);
+  factory ModelBedenDagilimi.fromJson(Map<String, dynamic> json) =>
+      ModelBedenDagilimi.fromMap(json);
 
   factory ModelBedenDagilimi.fromMap(Map<String, dynamic> map) {
     return ModelBedenDagilimi(
@@ -97,7 +99,8 @@ class BedenUretimTakip {
     this.firmaId,
   });
 
-  factory BedenUretimTakip.fromJson(Map<String, dynamic> json) => BedenUretimTakip.fromMap(json);
+  factory BedenUretimTakip.fromJson(Map<String, dynamic> json) =>
+      BedenUretimTakip.fromMap(json);
 
   factory BedenUretimTakip.fromMap(Map<String, dynamic> map) {
     return BedenUretimTakip(
@@ -109,11 +112,11 @@ class BedenUretimTakip {
       uretilenAdet: map['uretilen_adet'] ?? 0,
       kabulEdilenAdet: map['kabul_edilen_adet'] ?? 0,
       fireAdet: map['fire_adet'] ?? 0,
-      kayitTarihi: map['kayit_tarihi'] != null 
-          ? DateTime.tryParse(map['kayit_tarihi'].toString()) 
+      kayitTarihi: map['kayit_tarihi'] != null
+          ? DateTime.tryParse(map['kayit_tarihi'].toString())
           : null,
-      guncellemeTarihi: map['guncelleme_tarihi'] != null 
-          ? DateTime.tryParse(map['guncelleme_tarihi'].toString()) 
+      guncellemeTarihi: map['guncelleme_tarihi'] != null
+          ? DateTime.tryParse(map['guncelleme_tarihi'].toString())
           : null,
       firmaId: map['firma_id'],
     );
@@ -135,10 +138,11 @@ class BedenUretimTakip {
   }
 
   int get kalanAdet => hedefAdet - uretilenAdet;
-  double get tamamlanmaOrani => hedefAdet > 0 ? (uretilenAdet / hedefAdet) * 100 : 0;
+  double get tamamlanmaOrani =>
+      hedefAdet > 0 ? (uretilenAdet / hedefAdet) * 100 : 0;
 }
 
-/// Model i�in t�m beden verilerini tutan �zet s�n�f
+/// Model için tüm beden verilerini tutan özet sınıf
 class ModelBedenOzet {
   final String modelId;
   final String? itemNo;
@@ -155,11 +159,16 @@ class ModelBedenOzet {
   });
 
   int get toplamSiparis => bedenler.fold(0, (sum, b) => sum + b.siparisAdedi);
-  int get toplamDokumaUretilen => bedenler.fold(0, (sum, b) => sum + b.dokumaUretilen);
-  int get toplamKonfeksiyonUretilen => bedenler.fold(0, (sum, b) => sum + b.konfeksiyonUretilen);
-  int get toplamYikamaUretilen => bedenler.fold(0, (sum, b) => sum + b.yikamaUretilen);
-  int get toplamUtuUretilen => bedenler.fold(0, (sum, b) => sum + b.utuUretilen);
-  int get toplamIlikDugmeUretilen => bedenler.fold(0, (sum, b) => sum + b.ilikDugmeUretilen);
+  int get toplamDokumaUretilen =>
+      bedenler.fold(0, (sum, b) => sum + b.dokumaUretilen);
+  int get toplamKonfeksiyonUretilen =>
+      bedenler.fold(0, (sum, b) => sum + b.konfeksiyonUretilen);
+  int get toplamYikamaUretilen =>
+      bedenler.fold(0, (sum, b) => sum + b.yikamaUretilen);
+  int get toplamUtuUretilen =>
+      bedenler.fold(0, (sum, b) => sum + b.utuUretilen);
+  int get toplamIlikDugmeUretilen =>
+      bedenler.fold(0, (sum, b) => sum + b.ilikDugmeUretilen);
   int get toplamFire => bedenler.fold(0, (sum, b) => sum + b.toplamFire);
 }
 
@@ -184,7 +193,8 @@ class BedenDetay {
     this.toplamFire = 0,
   });
 
-  factory BedenDetay.fromJson(Map<String, dynamic> json) => BedenDetay.fromMap(json);
+  factory BedenDetay.fromJson(Map<String, dynamic> json) =>
+      BedenDetay.fromMap(json);
 
   factory BedenDetay.fromMap(Map<String, dynamic> map) {
     return BedenDetay(

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 
@@ -66,6 +66,8 @@ String getTableNameForStage(String asamaKey) {
       return DbTables.ilikDugmeAtamalari;
     case 'utu':
       return DbTables.utuAtamalari;
+    case 'paketleme':
+      return DbTables.paketlemeAtamalari;
     default:
       return DbTables.dokumaAtamalari;
   }
@@ -85,6 +87,8 @@ String getAsamaDisplayName(String asamaKey) {
       return 'İlik Düğme';
     case 'utu':
       return 'Ütü';
+    case 'paketleme':
+      return 'Paketleme';
     default:
       return asamaKey;
   }

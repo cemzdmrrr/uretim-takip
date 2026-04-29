@@ -6,36 +6,44 @@ class OdemeModel {
   final int? id;
   final String personelId;
   final String userId;
-  final String tur; // avans, prim, mesai, ikramiye, kesinti - varsay�lan: 'avans'
+  final String
+      tur; // avans, prim, mesai, ikramiye, kesinti - varsayılan: 'avans'
   final double tutar;
-  final String aciklama; // varsay�lan: ''
+  final String aciklama; // varsayılan: ''
   final DateTime tarih;
-  final String durum; // beklemede, onaylandi, red - varsay�lan: 'beklemede'
-  final String? onaylayanId;  final String? firmaId;
+  final String durum; // beklemede, onaylandi, red - varsayılan: 'beklemede'
+  final String? onaylayanId;
+  final String? firmaId;
   OdemeModel({
     this.id,
     required this.personelId,
     required this.userId,
-    this.tur = 'avans', // varsay�lan de�er ekle
+    this.tur = 'avans', // varsayılan değer ekle
     required this.tutar,
-    this.aciklama = '', // varsay�lan de�er ekle
+    this.aciklama = '', // varsayılan değer ekle
     required this.tarih,
-    this.durum = 'beklemede', // varsay�lan de�er ekle
-    this.onaylayanId,    this.firmaId,  });
+    this.durum = 'beklemede', // varsayılan değer ekle
+    this.onaylayanId,
+    this.firmaId,
+  });
 
-  factory OdemeModel.fromJson(Map<String, dynamic> json) => OdemeModel.fromMap(json);
+  factory OdemeModel.fromJson(Map<String, dynamic> json) =>
+      OdemeModel.fromMap(json);
 
   factory OdemeModel.fromMap(Map<String, dynamic> map) {
-    // Veritaban�nda sadece user_id var
+    // Veritabanında sadece user_id var
     final userId = map['user_id']?.toString() ?? '';
     return OdemeModel(
       id: map['id'] as int?,
-      personelId: userId, // user_id'yi personelId olarak da ata (geriye d�n�k uyumluluk)
+      personelId:
+          userId, // user_id'yi personelId olarak da ata (geriye dönük uyumluluk)
       userId: userId,
       tur: map['odeme_turu']?.toString() ?? 'avans',
       tutar: (map['tutar'] as num?)?.toDouble() ?? 0.0,
       aciklama: map['aciklama']?.toString() ?? '',
-      tarih: map['odeme_tarihi'] != null ? DateTime.parse(map['odeme_tarihi']) : DateTime.now(),
+      tarih: map['odeme_tarihi'] != null
+          ? DateTime.parse(map['odeme_tarihi'])
+          : DateTime.now(),
       durum: map['durum']?.toString() ?? 'beklemede',
       onaylayanId: map['onaylayan_user_id']?.toString(),
       firmaId: map['firma_id'],
@@ -45,14 +53,14 @@ class OdemeModel {
   Map<String, dynamic> toJson() => toMap();
 
   Map<String, dynamic> toMap() {
-    // Veritaban�nda sadece user_id var
-    // personelId, �demenin kime ait oldu�unu g�sterir (se�ilen personel)
-    // userId ise i�lemi yapan kullan�c�d�r
-    // �deme kayd� se�ilen personele ait olmal�, bu y�zden personelId �ncelikli
-    final effectiveUserId = (personelId).trim().isNotEmpty 
-        ? personelId 
+    // Veritabanında sadece user_id var
+    // personelId, ödemenin kime ait olduğunu gösterir (seçilen personel)
+    // userId ise işlemi yapan kullanıcıdır
+    // Ödeme kaydı seçilen personele ait olmalı, bu yüzden personelId öncelikli
+    final effectiveUserId = (personelId).trim().isNotEmpty
+        ? personelId
         : ((userId).trim().isNotEmpty ? userId : null);
-    
+
     return {
       'user_id': effectiveUserId,
       'odeme_turu': tur.isEmpty ? 'avans' : tur,

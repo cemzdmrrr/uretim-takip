@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/app_logger.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 
 /// Firma bazlı kullanıcı rolleri ve modül-yetki yönetimi servisi.
 ///
@@ -34,9 +35,14 @@ class YetkiService {
     'dokumaci',
     'konfeksiyoncu',
     'kalite_kontrol',
+    'sevkiyat',
     'sofor',
     'muhasebeci',
     'depocu',
+    'nakis',
+    'yikama',
+    'utu_paket',
+    'ilik_dugme',
   ];
 
   /// Tüm geçerli roller.
@@ -52,9 +58,14 @@ class YetkiService {
     'dokumaci': 'Dokumacı',
     'konfeksiyoncu': 'Konfeksiyoncu',
     'kalite_kontrol': 'Kalite Kontrol',
+    'sevkiyat': 'Sevkiyat',
     'sofor': 'Şoför',
     'muhasebeci': 'Muhasebeci',
     'depocu': 'Depocu',
+    'nakis': 'Nakış',
+    'yikama': 'Yıkama',
+    'utu_paket': 'Ütü Paket',
+    'ilik_dugme': 'İlik Düğme',
   };
 
   /// Yetki türleri.
@@ -90,25 +101,31 @@ class YetkiService {
     if (userId == null) return [];
 
     try {
-      // Kullanıcının firmadaki rolünü al
       final firmaRol = await kullaniciFirmaRolGetir();
       if (firmaRol == null) return [];
 
-      // firma_sahibi ve firma_admin tam yetkili
       if (firmaRol == 'firma_sahibi' || firmaRol == 'firma_admin') {
-        return ['*']; // Özel joker — tüm yetkiler
+        return ['*'];
       }
 
-      // Önce firmaya özel yetkileri sorgula, yoksa platform varsayılanını al
+      final roller = <String>{firmaRol};
+      final operasyonRolleri =
+          await UserRoleService.kullaniciOperasyonRolleriniGetir(
+        userId: userId,
+        firmaId: _firmaId,
+      );
+      roller.addAll(operasyonRolleri.where((rol) => rol != 'admin'));
+
       final response = await _client
           .from(DbTables.yetkiTanimlari)
           .select('modul_kodu, yetki')
           .or('firma_id.eq.$_firmaId,firma_id.is.null')
-          .eq('rol', firmaRol)
+          .inFilter('rol', roller.toList())
           .eq('aktif', true);
 
       return (response as List)
           .map((r) => '${r['modul_kodu']}:${r['yetki']}')
+          .toSet()
           .toList();
     } catch (e) {
       AppLogger.error('YetkiService', 'Yetki yükleme hatası', e);
@@ -119,7 +136,8 @@ class YetkiService {
   // ── Yetki Kontrolleri ────────────────────────────────────
 
   /// Belirli modülde belirli yetkisi var mı?
-  static bool yetkiVarMi(List<String> yetkiler, String modulKodu, String yetki) {
+  static bool yetkiVarMi(
+      List<String> yetkiler, String modulKodu, String yetki) {
     if (yetkiler.contains('*')) return true;
     return yetkiler.contains('$modulKodu:$yetki');
   }

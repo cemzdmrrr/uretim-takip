@@ -19,6 +19,7 @@ import 'package:uretim_takip/pages/muhasebe/kasa_banka_hareket_listesi_page.dart
 import 'package:uretim_takip/pages/ayarlar/dosyalar_page.dart';
 import 'package:uretim_takip/pages/uretim/dokuma_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/konfeksiyon_dashboard.dart';
+import 'package:uretim_takip/pages/uretim/nakis_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/yikama_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/ilik_dugme_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/kalite_kontrol_dashboard.dart';
@@ -39,9 +40,11 @@ import 'package:uretim_takip/pages/uretim/genel_uretim_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/platform_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/migrasyon_durumu_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
+import 'package:uretim_takip/services/user_role_service.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
 import 'package:uretim_takip/services/sayfa_yetki_service.dart';
 import 'package:uretim_takip/pages/ayarlar/sayfa_yetki_yonetimi_page.dart';
+import 'package:uretim_takip/config/asama_registry.dart';
 
 class AnaSayfa extends StatefulWidget {
   const AnaSayfa({super.key});
@@ -94,20 +97,14 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         return;
       }
 
-      final response = await Supabase.instance.client
-          .from(DbTables.userRoles)
-          .select('role, aktif')
-          .eq('user_id', user.id)
-          .maybeSingle();
+      final birincilRol = await UserRoleService.kullaniciBirincilRolunuGetir(
+        userId: user.id,
+        firmaId: _firmaId,
+      );
 
       setState(() {
-        if (response != null && response['aktif'] == true) {
-          kullaniciRolu =
-              RoleUtils.normalizeDashboardRole(response['role']?.toString()) ??
-                  RoleUtils.standardUserRole;
-        } else {
-          kullaniciRolu = RoleUtils.standardUserRole;
-        }
+        kullaniciRolu = RoleUtils.normalizeDashboardRole(birincilRol) ??
+            RoleUtils.standardUserRole;
       });
 
       debugPrint('✅ Kullanıcı rolü alındı: $kullaniciRolu (RLS kapalı)');
@@ -1060,13 +1057,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
   /// Kullanıcının belirli sayfaya erişimi var mı?
   bool _sayfaErisimVar(String sayfaKodu) {
-    // 1. Admin her sayfayı görebilir
-    if (kullaniciRolu == 'admin' ||
-        kullaniciRolu == 'firma_sahibi' ||
-        kullaniciRolu == 'firma_admin') {
-      return true;
-    }
-
     // 2. Birleşik yetkileri kontrol et (kullanıcı + rol yetkileri)
     // Normalleştirilmiş sayfa kodu ile kontrol
     final normalized = SayfaYetkiService.normalizeSayfaKodu(sayfaKodu);
@@ -1113,6 +1103,164 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     return tenant.modulAktifMi(modulKodu);
   }
 
+  List<Map<String, dynamic>> _buildUretimPanelleri({
+    required bool kaliteAktif,
+    required bool sevkiyatAktif,
+  }) {
+    const panelRengi = Color(0xFF1976D2);
+    final paneller = <Map<String, dynamic>>[];
+
+    if (_sayfaErisimVar('genel_uretim')) {
+      paneller.add({
+        'text': 'Genel Üretim',
+        'icon': Icons.dashboard,
+        'color': panelRengi,
+        'onPressed': () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GenelUretimDashboard()),
+            ),
+      });
+    }
+
+    final tenant = context.read<TenantProvider>();
+    final aktifDallar = tenant.aktifUretimDallari.isEmpty
+        ? TenantManager.instance.aktifUretimDallari
+        : tenant.aktifUretimDallari;
+
+    const panelSirasi = <String>[
+      'dokuma',
+      'konfeksiyon',
+      'nakis',
+      'yikama',
+      'utu',
+      'ilik_dugme',
+      'kalite_kontrol',
+    ];
+
+    final bulunanAsamalar = <String, AsamaTanim>{};
+    for (final dal in aktifDallar) {
+      for (final asama in AsamaRegistry.dashboardAsamalari(dal)) {
+        final kod = asama.asamaKodu;
+        if (kod == 'paketleme' || kod == 'sevkiyat') {
+          continue;
+        }
+        if (panelSirasi.contains(kod) && !bulunanAsamalar.containsKey(kod)) {
+          bulunanAsamalar[kod] = asama;
+        }
+      }
+    }
+
+    for (final kod in panelSirasi) {
+      final asama = bulunanAsamalar[kod];
+      if (asama == null) continue;
+
+      final sayfaKodu = kod == 'utu' ? 'utu_paket' : kod;
+      if (!_sayfaErisimVar(sayfaKodu)) continue;
+      if (kod == 'kalite_kontrol' && !kaliteAktif) continue;
+
+      final panel = _buildUretimPanelTanimi(asama, panelRengi);
+      if (panel != null) {
+        paneller.add(panel);
+      }
+    }
+
+    if (sevkiyatAktif && _sayfaErisimVar('sevkiyat')) {
+      paneller.add({
+        'text': 'Sevkiyat',
+        'icon': Icons.local_shipping,
+        'color': panelRengi,
+        'onPressed': () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SevkiyatPanel()),
+            ),
+      });
+    }
+
+    return paneller;
+  }
+
+  Map<String, dynamic>? _buildUretimPanelTanimi(
+    AsamaTanim asama,
+    Color panelRengi,
+  ) {
+    switch (asama.asamaKodu) {
+      case 'dokuma':
+        return {
+          'text': 'Dokuma',
+          'icon': Icons.build,
+          'color': panelRengi,
+          'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DokumaDashboard()),
+              ),
+        };
+      case 'konfeksiyon':
+        return {
+          'text': 'Konfeksiyon',
+          'icon': Icons.style,
+          'color': panelRengi,
+          'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const KonfeksiyonDashboard()),
+              ),
+        };
+      case 'nakis':
+        return {
+          'text': 'Nakış',
+          'icon': Icons.brush,
+          'color': panelRengi,
+          'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NakisDashboard()),
+              ),
+        };
+      case 'yikama':
+        return {
+          'text': 'Yıkama',
+          'icon': Icons.local_laundry_service,
+          'color': panelRengi,
+          'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const YikamaDashboard()),
+              ),
+        };
+      case 'utu':
+        return {
+          'text': 'Ütü Paket',
+          'icon': Icons.inventory,
+          'color': panelRengi,
+          'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UtuPaketDashboard()),
+              ),
+        };
+      case 'ilik_dugme':
+        return {
+          'text': 'İlik Düğme',
+          'icon': Icons.radio_button_checked,
+          'color': panelRengi,
+          'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const IlikDugmeDashboard()),
+              ),
+        };
+      case 'kalite_kontrol':
+        return {
+          'text': 'Kalite Kontrol',
+          'icon': Icons.verified,
+          'color': panelRengi,
+          'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const KaliteKontrolDashboard(),
+                ),
+              ),
+        };
+      default:
+        return null;
+    }
+  }
+
   Map<String, List<Map<String, dynamic>>> _buildKategoriler() {
     final Map<String, List<Map<String, dynamic>>> kategoriler = {};
 
@@ -1125,83 +1273,12 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     final bool kaliteAktif = _modulAktif('kalite');
     final bool sevkiyatAktif = _modulAktif('sevkiyat');
 
-    // 1. Üretim Panelleri
-    if (uretimAktif) {
-      const c = Color(0xFF1976D2);
-      final paneller = <Map<String, dynamic>>[];
-      if (_sayfaErisimVar('genel_uretim')) {
-        paneller.add({
-          'text': 'Genel Üretim',
-          'icon': Icons.dashboard,
-          'color': c,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const GenelUretimDashboard()))
-        });
-      }
-      if (_sayfaErisimVar('dokuma')) {
-        paneller.add({
-          'text': 'Dokuma',
-          'icon': Icons.build,
-          'color': c,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const DokumaDashboard()))
-        });
-      }
-      if (_sayfaErisimVar('konfeksiyon')) {
-        paneller.add({
-          'text': 'Konfeksiyon',
-          'icon': Icons.style,
-          'color': c,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const KonfeksiyonDashboard()))
-        });
-      }
-      if (_sayfaErisimVar('yikama')) {
-        paneller.add({
-          'text': 'Yıkama',
-          'icon': Icons.local_laundry_service,
-          'color': c,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const YikamaDashboard()))
-        });
-      }
-      if (_sayfaErisimVar('utu_paket')) {
-        paneller.add({
-          'text': 'Ütü Paket',
-          'icon': Icons.inventory,
-          'color': c,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const UtuPaketDashboard()))
-        });
-      }
-      if (_sayfaErisimVar('ilik_dugme')) {
-        paneller.add({
-          'text': 'İlik Düğme',
-          'icon': Icons.radio_button_checked,
-          'color': c,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const IlikDugmeDashboard()))
-        });
-      }
-      if (kaliteAktif && _sayfaErisimVar('kalite_kontrol')) {
-        paneller.add({
-          'text': 'Kalite Kontrol',
-          'icon': Icons.verified,
-          'color': c,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const KaliteKontrolDashboard()))
-        });
-      }
-      if (sevkiyatAktif && _sayfaErisimVar('sevkiyat')) {
-        paneller.add({
-          'text': 'Sevkiyat',
-          'icon': Icons.local_shipping,
-          'color': c,
-          'onPressed': () => Navigator.push(
-              context, MaterialPageRoute(builder: (_) => const SevkiyatPanel()))
-        });
-      }
-      if (paneller.isNotEmpty) kategoriler['Üretim Panelleri'] = paneller;
+    final uretimPanelleri = _buildUretimPanelleri(
+      kaliteAktif: kaliteAktif,
+      sevkiyatAktif: sevkiyatAktif,
+    );
+    if (uretimPanelleri.isNotEmpty) {
+      kategoriler['Üretim Panelleri'] = uretimPanelleri;
     }
 
     // 2. Üretim & Stok

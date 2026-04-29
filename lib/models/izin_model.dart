@@ -28,21 +28,24 @@ class IzinModel {
     this.firmaId,
   });
 
-  factory IzinModel.fromJson(Map<String, dynamic> json) => IzinModel.fromMap(json);
+  factory IzinModel.fromJson(Map<String, dynamic> json) =>
+      IzinModel.fromMap(json);
 
   factory IzinModel.fromMap(Map<String, dynamic> map) {
-    // Veritaban�nda sadece user_id var
+    // Veritabanında sadece user_id var
     final effectiveUserId = map['user_id']?.toString() ?? '';
     return IzinModel(
       id: map['id']?.toString(),
-      personelId: effectiveUserId, // Geriye d�n�k uyumluluk i�in
+      personelId: effectiveUserId, // Geriye dönük uyumluluk için
       izinTuru: map['izin_turu'] as String,
       baslangic: DateTime.parse(map['baslama_tarihi']),
       bitis: DateTime.parse(map['bitis_tarihi'] ?? map['bitis']),
       aciklama: map['aciklama'] ?? '',
       onayDurumu: map['onay_durumu'] ?? 'beklemede',
       onaylayanId: map['onaylayan_user_id']?.toString(),
-      gunSayisi: map['gun_sayisi'] is int ? map['gun_sayisi'] : int.tryParse(map['gun_sayisi']?.toString() ?? '0') ?? 0,
+      gunSayisi: map['gun_sayisi'] is int
+          ? map['gun_sayisi']
+          : int.tryParse(map['gun_sayisi']?.toString() ?? '0') ?? 0,
       userId: effectiveUserId,
       firmaId: map['firma_id'],
     );
@@ -51,8 +54,9 @@ class IzinModel {
   Map<String, dynamic> toJson() => toMap();
 
   Map<String, dynamic> toMap() {
-    // Veritaban�nda sadece user_id var, personelId'yi user_id olarak g�nder
-    final effectiveUserId = (userId ?? '').trim().isNotEmpty ? userId : personelId;
+    // Veritabanında sadece user_id var, personelId'yi user_id olarak gönder
+    final effectiveUserId =
+        (userId ?? '').trim().isNotEmpty ? userId : personelId;
     final map = <String, dynamic>{
       'user_id': effectiveUserId,
       'izin_turu': izinTuru,
@@ -62,7 +66,7 @@ class IzinModel {
       'onay_durumu': onayDurumu,
       'gun_sayisi': gunSayisi,
     };
-    // onaylayan_id sadece doluysa ekle (s�tun yoksa hata vermemesi i�in)
+    // onaylayan_id sadece doluysa ekle (sütun yoksa hata vermemesi için)
     if (onaylayanId != null && onaylayanId!.isNotEmpty) {
       map['onaylayan_user_id'] = onaylayanId;
     }

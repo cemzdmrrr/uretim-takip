@@ -1912,6 +1912,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/odeme_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/personel_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/platform_admin_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/sayfa_yetki_service.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/sevkiyat_atama_guard.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/sistem_ayarlari_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/supabase_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/tedarikci_service.dart

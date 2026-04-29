@@ -22,7 +22,7 @@ extension _LogicExt on _PersonelArsivPageState {
 
   Future<void> _getArsiv() async {
     if (seciliDonem == null) {
-      // DÃ¶nem seÃ§ili deÄŸilse verileri sÄ±fÄ±rla
+      // Dönem seçili değilse verileri sıfırla
       setState(() {
         yukleniyor = false;
         _resetData();
@@ -35,18 +35,18 @@ extension _LogicExt on _PersonelArsivPageState {
     try {
       final client = Supabase.instance.client;
 
-      debugPrint('=== ARÅÄ°V VERÄ° YÃœKLEME ===');
+      debugPrint('=== ARŞİV VERİ YÜKLEME ===');
       debugPrint('personelId: ${widget.personelId}');
       debugPrint('seciliDonem: $seciliDonem');
 
-      // Bordro verilerini Ã§ek - bordro tablosunda personel_id kullanÄ±lÄ±yor
+      // Bordro verilerini çek - bordro tablosunda personel_id kullanılıyor
       final bordroResponse = await client
           .from(DbTables.bordro)
           .select()
           .eq('personel_id', widget.personelId)
           .eq('donem', seciliDonem!);
 
-      debugPrint('Bordro sayÄ±sÄ±: ${bordroResponse.length}');
+      debugPrint('Bordro sayısı: ${bordroResponse.length}');
 
       if (bordroResponse.isNotEmpty) {
         final bordro = bordroResponse.first;
@@ -59,39 +59,38 @@ extension _LogicExt on _PersonelArsivPageState {
         toplamPrim = (bordro['ek_odenek'] as num? ?? 0).toDouble();
         normalCalismaGunu = bordro['normal_gun'] as int? ?? 22;
 
-        // Yol ve yemek Ã¼cretlerini bordrodan al
+        // Yol ve yemek ücretlerini bordrodan al
         toplamYol = (bordro['yol_ucreti'] as num? ?? 0).toDouble();
         toplamYemek = (bordro['yemek_ucreti'] as num? ?? 0).toDouble();
       } else {
-        debugPrint(
-            'Bordro bulunamadÄ±, personel tablosundan veri Ã§ekiliyor...');
-        // EÄŸer bordro yoksa, personel tablosundan temel maaÅŸ bilgisini al
+        debugPrint('Bordro bulunamadı, personel tablosundan veri çekiliyor...');
+        // Eğer bordro yoksa, personel tablosundan temel maaş bilgisini al
         final personelResponse = await client
             .from(DbTables.personel)
             .select('brut_maas, net_maas, yol_ucreti, yemek_ucreti')
             .eq('user_id', widget.personelId)
             .maybeSingle();
 
-        debugPrint('Personel maaÅŸ verisi: $personelResponse');
+        debugPrint('Personel maaş verisi: $personelResponse');
 
         if (personelResponse != null) {
-          // Ã–nce net_maas'Ä± dene, yoksa brut_maas'Ä± kullan
+          // Önce net_maas'ı dene, yoksa brut_maas'ı kullan
           final netMaasVal = personelResponse['net_maas'];
           final brutMaasVal = personelResponse['brut_maas'];
 
           toplamNet = double.tryParse(netMaasVal?.toString() ?? '0') ?? 0;
           toplamMaas = double.tryParse(brutMaasVal?.toString() ?? '0') ?? 0;
 
-          // EÄŸer brut_maas null ise net_maas'Ä± kullan
+          // Eğer brut_maas null ise net_maas'ı kullan
           if (toplamMaas == 0 && toplamNet > 0) {
-            toplamMaas = toplamNet * 1.35; // Tahmini brÃ¼t (net'in ~1.35 katÄ±)
+            toplamMaas = toplamNet * 1.35; // Tahmini brüt (net'in ~1.35 katı)
           }
 
           debugPrint('toplamMaas: $toplamMaas, toplamNet: $toplamNet');
 
-          normalCalismaGunu = 22; // VarsayÄ±lan Ã§alÄ±ÅŸma gÃ¼nÃ¼
+          normalCalismaGunu = 22; // Varsayılan çalışma günü
 
-          // AylÄ±k yol ve yemek Ã¼creti hesapla
+          // Aylık yol ve yemek ücreti hesapla
           final gunlukYol = double.tryParse(
                   personelResponse['yol_ucreti']?.toString() ?? '0') ??
               0;
@@ -101,15 +100,15 @@ extension _LogicExt on _PersonelArsivPageState {
           toplamYol = gunlukYol * normalCalismaGunu;
           toplamYemek = gunlukYemek * normalCalismaGunu;
 
-          // Bordro yoksa kesinti hesapla (yaklaÅŸÄ±k)
+          // Bordro yoksa kesinti hesapla (yaklaşık)
           toplamKesinti =
               toplamMaas > 0 ? toplamMaas * 0.20 : 0; // %20 kesinti tahmini
         }
       }
 
-      // Ã–deme verilerini Ã§ek - gerÃ§ek tutarlar
+      // Ödeme verilerini çek - gerçek tutarlar
       debugPrint(
-          'Ã–deme sorgusu: user_id=${widget.personelId}, tarih>=${seciliDonem!}-01, tarih<${_getNextMonthDate()}');
+          'Ödeme sorgusu: user_id=${widget.personelId}, tarih>=${seciliDonem!}-01, tarih<${_getNextMonthDate()}');
       final odemeResponse = await client
           .from(DbTables.odemeKayitlari)
           .select('tutar, odeme_turu, durum, aciklama, odeme_tarihi')
@@ -117,9 +116,9 @@ extension _LogicExt on _PersonelArsivPageState {
           .gte('odeme_tarihi', '${seciliDonem!}-01')
           .lt('odeme_tarihi', _getNextMonthDate());
 
-      debugPrint('Ã–deme sayÄ±sÄ±: ${odemeResponse.length}');
+      debugPrint('Ödeme sayısı: ${odemeResponse.length}');
       if (odemeResponse.isNotEmpty) {
-        debugPrint('Ä°lk Ã¶deme: ${odemeResponse.first}');
+        debugPrint('İlk ödeme: ${odemeResponse.first}');
       }
 
       toplamAvans = 0;
@@ -130,7 +129,7 @@ extension _LogicExt on _PersonelArsivPageState {
         final tur = odeme['odeme_turu']?.toString() ?? '';
         final durum = odeme['durum']?.toString() ?? '';
 
-        // Sadece onaylanan Ã¶demeleri say
+        // Sadece onaylanan ödemeleri say
         if (durum == 'onaylandi') {
           switch (tur) {
             case 'avans':
@@ -142,16 +141,16 @@ extension _LogicExt on _PersonelArsivPageState {
               odemePrimi += tutar;
               break;
             case 'mesai_ucreti':
-              odemePrimi += tutar; // Mesai Ã¶demesi prim olarak sayÄ±labilir
+              odemePrimi += tutar; // Mesai ödemesi prim olarak sayılabilir
               break;
           }
         }
       }
 
-      // Ã–deme kayÄ±tlarÄ±ndaki primleri de topla
+      // Ödeme kayıtlarındaki primleri de topla
       toplamPrim += odemePrimi;
 
-      // Ä°zin verilerini Ã§ek
+      // İzin verilerini çek
       final izinResponse = await client
           .from(DbTables.izinler)
           .select()
@@ -159,11 +158,11 @@ extension _LogicExt on _PersonelArsivPageState {
           .gte('baslama_tarihi', '${seciliDonem!}-01')
           .lt('baslama_tarihi', _getNextMonthDate());
 
-      debugPrint('Ä°zin sayÄ±sÄ±: ${izinResponse.length}');
+      debugPrint('İzin sayısı: ${izinResponse.length}');
 
       izinGunu = 0;
       for (var izin in izinResponse) {
-        debugPrint('Ä°zin kaydÄ±: $izin');
+        debugPrint('İzin kaydı: $izin');
         final onayDurumu = izin['onay_durumu']?.toString() ?? '';
         // "onaylandi" veya "approved" kabul et
         if (onayDurumu == 'onaylandi' || onayDurumu == 'approved') {
@@ -172,7 +171,7 @@ extension _LogicExt on _PersonelArsivPageState {
         }
       }
 
-      // Mesai verilerini Ã§ek
+      // Mesai verilerini çek
       debugPrint(
           'Mesai sorgusu: user_id=${widget.personelId}, tarih>=${seciliDonem!}-01, tarih<${_getNextMonthDate()}');
       final mesaiResponse = await client
@@ -182,24 +181,24 @@ extension _LogicExt on _PersonelArsivPageState {
           .gte('tarih', '${seciliDonem!}-01')
           .lt('tarih', _getNextMonthDate());
 
-      debugPrint('Mesai sayÄ±sÄ±: ${mesaiResponse.length}');
+      debugPrint('Mesai sayısı: ${mesaiResponse.length}');
       if (mesaiResponse.isNotEmpty) {
-        debugPrint('Ä°lk mesai: ${mesaiResponse.first}');
+        debugPrint('İlk mesai: ${mesaiResponse.first}');
       }
 
       toplamMesaiSaati = 0;
       double mesaiUcreti = 0;
       for (var mesai in mesaiResponse) {
-        debugPrint('Mesai kaydÄ±: $mesai');
+        debugPrint('Mesai kaydı: $mesai');
         final onayDurumu = mesai['onay_durumu']?.toString() ?? '';
-        // "onaylandi" veya "approved" kabul et, ya da beklemede olanlarÄ± da say
+        // "onaylandi" veya "approved" kabul et, ya da beklemede olanları da say
         if (onayDurumu == 'onaylandi' ||
             onayDurumu == 'approved' ||
             onayDurumu == 'beklemede') {
           final saatSayisi = (mesai['saat'] as num? ?? 0).toDouble();
           toplamMesaiSaati += saatSayisi;
 
-          // Mesai Ã¼cretini de prim olarak ekle (sadece onaylananlar)
+          // Mesai ücretini de prim olarak ekle (sadece onaylananlar)
           if (onayDurumu == 'onaylandi' || onayDurumu == 'approved') {
             final mesaiUcret = (mesai['mesai_ucret'] as num? ?? 0).toDouble();
             final yemekUcret = (mesai['yemek_ucreti'] as num? ?? 0).toDouble();
@@ -208,16 +207,16 @@ extension _LogicExt on _PersonelArsivPageState {
         }
       }
 
-      // Mesai Ã¼cretlerini prim toplamÄ±na ekle
+      // Mesai ücretlerini prim toplamına ekle
       toplamPrim += mesaiUcreti;
 
-      // Puantaj verilerini Ã§ek
+      // Puantaj verilerini çek
       if (seciliDonem!.length >= 7) {
         final parts = seciliDonem!.split('-');
         final yil = int.tryParse(parts[0]) ?? DateTime.now().year;
         final ay = int.tryParse(parts[1]) ?? DateTime.now().month;
 
-        // Puantaj tablosunda personel_id kullanÄ±lÄ±yor
+        // Puantaj tablosunda personel_id kullanılıyor
         final puantajResponse = await client
             .from(DbTables.puantaj)
             .select('gun, devamsizlik, fazla_mesai, eksik_gun')
@@ -225,7 +224,7 @@ extension _LogicExt on _PersonelArsivPageState {
             .eq('yil', yil)
             .eq('ay', ay);
 
-        debugPrint('Puantaj sayÄ±sÄ±: ${puantajResponse.length}');
+        debugPrint('Puantaj sayısı: ${puantajResponse.length}');
 
         if (puantajResponse.isNotEmpty) {
           final puantaj = puantajResponse.first;
@@ -234,18 +233,18 @@ extension _LogicExt on _PersonelArsivPageState {
           final fazlaMesai = puantaj['fazla_mesai'] as num? ?? 0;
           toplamMesaiSaati += fazlaMesai.toDouble();
 
-          // Eksik gÃ¼nleri de hesaba kat
+          // Eksik günleri de hesaba kat
           final eksikGun = puantaj['eksik_gun'] as int? ?? 0;
           toplamCalismaGunu = (toplamCalismaGunu - eksikGun).clamp(0, 31);
         } else {
-          // Puantaj yoksa varsayÄ±lan deÄŸerler
+          // Puantaj yoksa varsayılan değerler
           toplamCalismaGunu = normalCalismaGunu > 0 ? normalCalismaGunu : 22;
           raporGunu = 0;
         }
       }
 
       // Final hesaplamalar
-      // EÄŸer net maaÅŸ hesaplanmamÄ±ÅŸsa, brÃ¼t maaÅŸ - kesintiler ÅŸeklinde hesapla
+      // Eğer net maaş hesaplanmamışsa, brüt maaş - kesintiler şeklinde hesapla
       if (toplamNet == 0 && toplamMaas > 0) {
         toplamNet = toplamMaas -
             toplamKesinti +
@@ -258,7 +257,7 @@ extension _LogicExt on _PersonelArsivPageState {
       // Performans hesaplama
       _hesaplaPerformans();
     } catch (e, stackTrace) {
-      debugPrint('ArÅŸiv veri yÃ¼kleme hatasÄ±: $e');
+      debugPrint('Arşiv veri yükleme hatası: $e');
       debugPrint('Stack trace: $stackTrace');
     }
 
@@ -281,9 +280,9 @@ extension _LogicExt on _PersonelArsivPageState {
   }
 
   void _hesaplaPerformans() {
-    double puan = 70; // BaÅŸlangÄ±Ã§ puanÄ±
+    double puan = 70; // Başlangıç puanı
 
-    // Ã‡alÄ±ÅŸma gÃ¼nÃ¼ performansÄ±
+    // Çalışma günü performansı
     if (normalCalismaGunu >= 22) {
       puan += 10;
     } else if (normalCalismaGunu >= 20) {
@@ -294,14 +293,14 @@ extension _LogicExt on _PersonelArsivPageState {
       puan -= 10;
     }
 
-    // Ä°zin kullanÄ±mÄ±
+    // İzin kullanımı
     if (izinGunu > 5) {
       puan -= 15;
     } else if (izinGunu > 2) {
       puan -= 5;
     }
 
-    // Mesai performansÄ±
+    // Mesai performansı
     if (toplamMesaiSaati > 40) {
       puan += 15;
     } else if (toplamMesaiSaati > 20) {
@@ -310,14 +309,14 @@ extension _LogicExt on _PersonelArsivPageState {
       puan += 5;
     }
 
-    // Rapor gÃ¼nÃ¼
+    // Rapor günü
     if (raporGunu > 3) {
       puan -= 20;
     } else if (raporGunu > 1) {
       puan -= 10;
     }
 
-    // Toplam Ã§alÄ±ÅŸma gÃ¼nÃ¼ bazÄ±nda da deÄŸerlendirme
+    // Toplam çalışma günü bazında da değerlendirme
     final totalWorkDays = toplamCalismaGunu + izinGunu + raporGunu;
     if (totalWorkDays >= 22) puan += 5;
 
@@ -444,7 +443,7 @@ extension _LogicExt on _PersonelArsivPageState {
   Future<double> _getAylikToplamMesaiUcreti() async {
     debugPrint('=== _getAylikToplamMesaiUcreti ===');
     if (seciliDonem == null) {
-      debugPrint('seciliDonem null, 0 dÃ¶nÃ¼yor');
+      debugPrint('seciliDonem null, 0 dönüyor');
       return 0;
     }
 
@@ -453,11 +452,11 @@ extension _LogicExt on _PersonelArsivPageState {
     final year = int.tryParse(parts[0]) ?? DateTime.now().year;
     final month = int.tryParse(parts[1]) ?? DateTime.now().month;
 
-    debugPrint('YÄ±l: $year, Ay: $month');
+    debugPrint('Yıl: $year, Ay: $month');
 
     final mesailer = await MesaiService()
         .getMesailerForPersonel(widget.personelId, donem: seciliDonem);
-    debugPrint('Mesai sayÄ±sÄ±: ${mesailer.length}');
+    debugPrint('Mesai sayısı: ${mesailer.length}');
 
     final personel = await _getPersonel();
 
@@ -472,26 +471,26 @@ extension _LogicExt on _PersonelArsivPageState {
 
     for (final m in mesailer) {
       if (m.onayDurumu != 'onaylandi') continue;
-      // Sadece seÃ§ili dÃ¶nem iÃ§indeki mesaileri hesapla
+      // Sadece seçili dönem içindeki mesaileri hesapla
       if (m.tarih.month == month && m.tarih.year == year) {
         if (m.saat != null) {
-          // Mesai Ã¼cretini hesapla - tÃ¼re gÃ¶re farklÄ± hesaplama yÃ¶ntemleri
+          // Mesai ücretini hesapla - türe göre farklı hesaplama yöntemleri
           double hesaplananUcret = 0;
 
           if (m.mesaiTuru == 'Pazar') {
-            // Pazar mesaisi: GÃ¼nlÃ¼k net maaÅŸ x 2 (saat bazÄ±nda deÄŸil, gÃ¼nlÃ¼k sabit Ã¼cret)
+            // Pazar mesaisi: Günlük net maaş x 2 (saat bazında değil, günlük sabit ücret)
             final gunlukNetMaas = netMaas / 30;
             hesaplananUcret = gunlukNetMaas * 2.0;
           } else if (m.mesaiTuru == 'Bayram') {
-            // Bayram mesaisi: Saatlik Ã¼cret x database'den gelen Ã§arpan x saat
+            // Bayram mesaisi: Saatlik ücret x database'den gelen çarpan x saat
             final carpan = m.carpan ?? 1.5;
             hesaplananUcret = saatlikUcret * carpan * m.saat!;
           } else if (m.mesaiTuru == 'Saatlik') {
-            // Saatlik mesai: Saatlik Ã¼cret x 1.5 x saat
+            // Saatlik mesai: Saatlik ücret x 1.5 x saat
             hesaplananUcret = saatlikUcret * 1.5 * m.saat!;
           }
 
-          // Yemek Ã¼creti mesai hesaplamasÄ±na dahil edilmiyor, ayrÄ± olarak finansal Ã¶zette toplanacak
+          // Yemek ücreti mesai hesaplamasına dahil edilmiyor, ayrı olarak finansal özette toplanacak
           toplamMesaiUcret += hesaplananUcret;
         }
       }
@@ -515,9 +514,9 @@ extension _LogicExt on _PersonelArsivPageState {
 
     for (final m in mesailer) {
       if (m.onayDurumu != 'onaylandi') continue;
-      // Sadece seÃ§ili dÃ¶nem iÃ§indeki mesaileri hesapla
+      // Sadece seçili dönem içindeki mesaileri hesapla
       if (m.tarih.month == month && m.tarih.year == year) {
-        // Pazar ve Bayram mesaileri iÃ§in yemek Ã¼creti var
+        // Pazar ve Bayram mesaileri için yemek ücreti var
         if (m.mesaiTuru == 'Pazar' || m.mesaiTuru == 'Bayram') {
           toplamYemekUcreti += m.yemekUcreti ?? 0;
         }
@@ -548,26 +547,26 @@ extension _LogicExt on _PersonelArsivPageState {
 
     for (final izin in izinler) {
       if (izin.onayDurumu != 'onaylandi') continue;
-      // Sadece seÃ§ili dÃ¶nem iÃ§indeki izinleri hesapla
+      // Sadece seçili dönem içindeki izinleri hesapla
       if (izin.baslangic.month == month && izin.baslangic.year == year) {
         if (izin.izinTuru == 'Raporlu') {
-          // Raporlu gÃ¼nler iÃ§in
+          // Raporlu günler için
           final raporluGun = izin.gunSayisi;
           if (raporluGun > 2) {
             final odemeGun = raporluGun - 2;
-            // IzinModel'de toplamOdeme ve tedaviSekli yok, sadece gÃ¼nlÃ¼k Ã¼cret ve aÃ§Ä±klama ile devam et
-            // Tedavi ÅŸekli aÃ§Ä±klamada aranacak
-            double oran = 2 / 3; // VarsayÄ±lan ayakta tedavi
+            // IzinModel'de toplamOdeme ve tedaviSekli yok, sadece günlük ücret ve açıklama ile devam et
+            // Tedavi şekli açıklamada aranacak
+            double oran = 2 / 3; // Varsayılan ayakta tedavi
             if ((izin.aciklama.toLowerCase().contains('yatarak'))) {
               oran = 1 / 2;
             }
-            // Ã–denmeyen kÄ±sÄ±m: (1 - oran)
+            // Ödenmeyen kısım: (1 - oran)
             toplamKesinti += odemeGun * gunlukUcret * (1 - oran);
           }
         } else if (izin.izinTuru == '\u00DCcretsiz \u0130zin') {
           toplamKesinti += gunlukUcret * izin.gunSayisi;
         }
-        // DiÄŸer izin tÃ¼rlerinde kesinti yok
+        // Diğer izin türlerinde kesinti yok
       }
     }
 
@@ -578,11 +577,11 @@ extension _LogicExt on _PersonelArsivPageState {
     debugPrint('=== _getAylikYolUcreti ===');
     final personel = await _getPersonel();
     if (personel == null) {
-      debugPrint('Personel null, 0 dÃ¶ndÃ¼rÃ¼yor');
+      debugPrint('Personel null, 0 döndürüyor');
       return 0;
     }
-    // Personel tablosundaki yol Ã¼creti aylÄ±k tutar olarak dÃ¶ndÃ¼rÃ¼lÃ¼yor
-    // EÄŸer gÃ¼nlÃ¼k ise Ã§alÄ±ÅŸma gÃ¼nÃ¼ ile Ã§arpÄ±lmalÄ±
+    // Personel tablosundaki yol ücreti aylık tutar olarak döndürülüyor
+    // Eğer günlük ise çalışma günü ile çarpılmalı
     final yolUcreti = double.tryParse(personel.yolUcreti) ?? 0;
     debugPrint('yolUcreti: $yolUcreti');
     return yolUcreti;
@@ -596,11 +595,11 @@ extension _LogicExt on _PersonelArsivPageState {
     debugPrint('seciliDonem: $seciliDonem');
 
     try {
-      // OdemeService kullan - tutarlÄ±lÄ±k iÃ§in
+      // OdemeService kullan - tutarlılık için
       final servis = OdemeService();
       final ozet = await servis.getOnayliBakiyeOzet(widget.personelId,
           donem: seciliDonem);
-      debugPrint('Ã–zet bakiyeler: $ozet');
+      debugPrint('Özet bakiyeler: $ozet');
       return ozet;
     } catch (e) {
       debugPrint('_getOzetBakiyeler HATA: $e');

@@ -3,10 +3,10 @@ import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/app_logger.dart';
 import 'package:uretim_takip/services/edge_function_service.dart';
 
-/// Platform yÃ¶netim paneli servisi (Super Admin).
+/// Platform yönetim paneli servisi (Super Admin).
 ///
-/// Firma-baÄŸÄ±msÄ±z, tÃ¼m platform verilerine eriÅŸim saÄŸlar.
-/// Sadece platform_admin rolÃ¼ndeki kullanÄ±cÄ±lar kullanmalÄ±dÄ±r.
+/// Firma-bağımsız, tüm platform verilerine erişim sağlar.
+/// Sadece platform_admin rolündeki kullanıcılar kullanmalıdır.
 class PlatformAdminService {
   static final _client = Supabase.instance.client;
 
@@ -33,7 +33,7 @@ class PlatformAdminService {
             error.message.contains(DbTables.platformLoglari));
   }
 
-  // â”€â”€ Platform Ä°statistikleri â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Platform İstatistikleri ────────────────────────────────
 
   /// Genel platform istatistiklerini getirir.
   static Future<Map<String, dynamic>> platformIstatistikleri() async {
@@ -42,7 +42,7 @@ class PlatformAdminService {
           await _client.from('v_platform_istatistikleri').select().single();
       return Map<String, dynamic>.from(response as Map);
     } catch (e) {
-      AppLogger.error('PlatformAdmin', 'Ä°statistik hatasÄ±', e);
+      AppLogger.error('PlatformAdmin', 'İstatistik hatası', e);
       return {
         'aktif_firma_sayisi': 0,
         'pasif_firma_sayisi': 0,
@@ -56,7 +56,7 @@ class PlatformAdminService {
     }
   }
 
-  /// Plan bazlÄ± abonelik daÄŸÄ±lÄ±mÄ±nÄ± getirir.
+  /// Plan bazlı abonelik dağılımını getirir.
   static Future<List<Map<String, dynamic>>> abonelikDagilimi() async {
     final response = await _client
         .from(DbTables.firmaAbonelikleri)
@@ -65,7 +65,7 @@ class PlatformAdminService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// En Ã§ok kullanÄ±lan modÃ¼lleri getirir.
+  /// En çok kullanılan modülleri getirir.
   static Future<List<Map<String, dynamic>>> populerModuller() async {
     final response = await _client
         .from(DbTables.firmaModulleri)
@@ -76,7 +76,7 @@ class PlatformAdminService {
     for (final r in response) {
       final modulData = r['modul_tanimlari'];
       if (modulData is Map) {
-        final kod = modulData['modul_kodu'] as String?;
+        final kod = modulData['modul_kodu'] as String;
         if (kod != null) {
           sayac[kod] = (sayac[kod] ?? 0) + 1;
         }
@@ -91,7 +91,7 @@ class PlatformAdminService {
         .toList();
   }
 
-  /// En Ã§ok seÃ§ilen Ã¼retim dallarÄ±nÄ± getirir.
+  /// En çok seçilen üretim dallarını getirir.
   static Future<List<Map<String, dynamic>>> populerUretimDallari() async {
     try {
       final response = await _client
@@ -103,7 +103,7 @@ class PlatformAdminService {
       for (final r in response) {
         final uretimData = r['uretim_modulleri'];
         if (uretimData is Map) {
-          final dal = uretimData['tekstil_dali']?.toString();
+          final dal = uretimData['tekstil_dali'].toString();
           if (dal != null && dal.isNotEmpty) {
             sayac[dal] = (sayac[dal] ?? 0) + 1;
           }
@@ -117,14 +117,14 @@ class PlatformAdminService {
           .map((e) => {'tekstil_dali': e.key, 'firma_sayisi': e.value})
           .toList();
     } catch (e) {
-      AppLogger.error('PlatformAdmin', 'PopÃ¼ler Ã¼retim dallarÄ± hatasÄ±', e);
+      AppLogger.error('PlatformAdmin', 'Popüler üretim dalları hatası', e);
       return [];
     }
   }
 
-  // â”€â”€ Firma YÃ¶netimi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Firma Yönetimi ────────────────────────────────────────
 
-  /// TÃ¼m firmalarÄ± Ã¶zet bilgileriyle getirir.
+  /// Tüm firmaları özet bilgileriyle getirir.
   static Future<List<Map<String, dynamic>>> firmalariGetir({
     String? arama,
     bool? sadecAktif,
@@ -158,7 +158,7 @@ class PlatformAdminService {
     }
 
     final firmaIdleri = firmalar
-        .map((firma) => firma['id']?.toString())
+        .map((firma) => firma['id'].toString())
         .whereType<String>()
         .toList();
 
@@ -185,14 +185,14 @@ class PlatformAdminService {
 
     final kullaniciSayilari = <String, int>{};
     for (final kayit in firmaKullanicilari) {
-      final firmaId = kayit['firma_id']?.toString();
+      final firmaId = kayit['firma_id'].toString();
       if (firmaId == null || firmaId.isEmpty) continue;
       kullaniciSayilari[firmaId] = (kullaniciSayilari[firmaId] ?? 0) + 1;
     }
 
     final aktifModulSayilari = <String, int>{};
     for (final kayit in firmaModulleri) {
-      final firmaId = kayit['firma_id']?.toString();
+      final firmaId = kayit['firma_id'].toString();
       if (firmaId == null || firmaId.isEmpty) continue;
       if (kayit['aktif'] == true) {
         aktifModulSayilari[firmaId] = (aktifModulSayilari[firmaId] ?? 0) + 1;
@@ -201,11 +201,11 @@ class PlatformAdminService {
 
     final sonAbonelikler = <String, Map<String, dynamic>>{};
     for (final abonelik in abonelikler) {
-      final firmaId = abonelik['firma_id']?.toString();
+      final firmaId = abonelik['firma_id'].toString();
       if (firmaId == null || firmaId.isEmpty) continue;
 
       final mevcut = sonAbonelikler[firmaId];
-      final durum = abonelik['durum']?.toString();
+      final durum = abonelik['durum'].toString();
       final oncelikli = durum == 'aktif' || durum == 'deneme';
 
       if (mevcut == null) {
@@ -213,7 +213,7 @@ class PlatformAdminService {
         continue;
       }
 
-      final mevcutDurum = mevcut['durum']?.toString();
+      final mevcutDurum = mevcut['durum'].toString();
       final mevcutOncelikli = mevcutDurum == 'aktif' || mevcutDurum == 'deneme';
 
       if (oncelikli && !mevcutOncelikli) {
@@ -239,7 +239,7 @@ class PlatformAdminService {
     }).toList();
   }
 
-  /// Firma detayÄ±nÄ± getirir.
+  /// Firma detayını getirir.
   static Future<Map<String, dynamic>?> firmaDetayGetir(String firmaId) async {
     return await _client
         .from(DbTables.firmalar)
@@ -248,7 +248,7 @@ class PlatformAdminService {
         .maybeSingle();
   }
 
-  /// FirmanÄ±n kullanÄ±cÄ±larÄ±nÄ± detaylÄ± getirir.
+  /// Firmanın kullanıcılarını detaylı getirir.
   static Future<List<Map<String, dynamic>>> firmaKullanicilariGetir(
       String firmaId) async {
     final response = await _client
@@ -256,7 +256,7 @@ class PlatformAdminService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// FirmanÄ±n modÃ¼llerini getirir.
+  /// Firmanın modüllerini getirir.
   static Future<List<Map<String, dynamic>>> firmaModulleriGetir(
       String firmaId) async {
     final response = await _client
@@ -267,7 +267,7 @@ class PlatformAdminService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Firma aktif/pasif durumunu deÄŸiÅŸtirir.
+  /// Firma aktif/pasif durumunu değiştirir.
   static Future<void> firmaDurumDegistir(String firmaId, bool aktif) async {
     await _client.from(DbTables.firmalar).update({
       'aktif': aktif,
@@ -292,9 +292,9 @@ class PlatformAdminService {
     return response;
   }
 
-  // â”€â”€ Abonelik YÃ¶netimi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Abonelik Yönetimi ─────────────────────────────────────
 
-  /// TÃ¼m abonelikleri firma bilgisiyle getirir.
+  /// Tüm abonelikleri firma bilgisiyle getirir.
   static Future<List<Map<String, dynamic>>> tumAbonelikleriGetir() async {
     final response = await _client
         .from(DbTables.firmaAbonelikleri)
@@ -304,7 +304,7 @@ class PlatformAdminService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Abonelik durumunu gÃ¼nceller.
+  /// Abonelik durumunu günceller.
   static Future<void> abonelikDurumGuncelle(
       String abonelikId, String yeniDurum) async {
     final now = DateTime.now();
@@ -360,7 +360,7 @@ class PlatformAdminService {
         abonelikId, {'yeni_durum': yeniDurum});
   }
 
-  /// FirmanÄ±n abonelik planÄ±nÄ± deÄŸiÅŸtirir.
+  /// Firmanın abonelik planını değiştirir.
   static Future<void> abonelikPlanDegistir(
       String abonelikId, String yeniPlanId) async {
     await _client
@@ -371,16 +371,16 @@ class PlatformAdminService {
         {'yeni_plan_id': yeniPlanId});
   }
 
-  // â”€â”€ ModÃ¼l YÃ¶netimi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Modül Yönetimi ────────────────────────────────────────
 
-  /// TÃ¼m modÃ¼l tanÄ±mlarÄ±nÄ± getirir.
+  /// Tüm modül tanımlarını getirir.
   static Future<List<Map<String, dynamic>>> modulTanimlariGetir() async {
     final response =
         await _client.from(DbTables.modulTanimlari).select().order('sira_no');
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// ModÃ¼l tanÄ±mÄ±nÄ± gÃ¼nceller.
+  /// Modül tanımını günceller.
   static Future<void> modulTanimGuncelle(
       String modulId, Map<String, dynamic> veri) async {
     await _client.from(DbTables.modulTanimlari).update(veri).eq('id', modulId);
@@ -388,7 +388,7 @@ class PlatformAdminService {
     await _logKaydet('modul_guncelle', 'modul_tanimlari', modulId, veri);
   }
 
-  /// Yeni modÃ¼l tanÄ±mÄ± ekler.
+  /// Yeni modül tanımı ekler.
   static Future<void> modulTanimEkle(Map<String, dynamic> veri) async {
     final res = await _client
         .from(DbTables.modulTanimlari)
@@ -400,16 +400,16 @@ class PlatformAdminService {
         'modul_ekle', 'modul_tanimlari', res['id'].toString(), veri);
   }
 
-  // â”€â”€ Ãœretim DalÄ± YÃ¶netimi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Üretim Dalı Yönetimi ─────────────────────────────────
 
-  /// TÃ¼m Ã¼retim dalÄ± tanÄ±mlarÄ±nÄ± getirir.
+  /// Tüm üretim dalı tanımlarını getirir.
   static Future<List<Map<String, dynamic>>> uretimDallariGetir() async {
     final response =
         await _client.from(DbTables.uretimModulleri).select().order('sira_no');
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Ãœretim dalÄ± tanÄ±mÄ±nÄ± gÃ¼nceller.
+  /// Üretim dalı tanımını günceller.
   static Future<void> uretimDaliGuncelle(
       String dalId, Map<String, dynamic> veri) async {
     await _client.from(DbTables.uretimModulleri).update(veri).eq('id', dalId);
@@ -417,9 +417,9 @@ class PlatformAdminService {
     await _logKaydet('uretim_dali_guncelle', 'uretim_modulleri', dalId, veri);
   }
 
-  // â”€â”€ Destek Talepleri â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Destek Talepleri ──────────────────────────────────────
 
-  /// TÃ¼m destek taleplerini getirir.
+  /// Tüm destek taleplerini getirir.
   static Future<List<Map<String, dynamic>>> destekTalepleriGetir({
     String? durumFiltre,
   }) async {
@@ -451,7 +451,7 @@ class PlatformAdminService {
     });
   }
 
-  /// Destek talebini kapatÄ±r.
+  /// Destek talebini kapatır.
   static Future<void> destekKapat(String talepId) async {
     await _client.from('destek_talepleri').update({
       'durum': 'kapali',
@@ -462,9 +462,9 @@ class PlatformAdminService {
     await _logKaydet('destek_kapat', 'destek_talepleri', talepId, {});
   }
 
-  // â”€â”€ Gelir RaporlarÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Gelir Raporları ───────────────────────────────────────
 
-  /// AylÄ±k gelir verilerini getirir (son 12 ay).
+  /// Aylık gelir verilerini getirir (son 12 ay).
   static Future<List<Map<String, dynamic>>> aylikGelirRaporu() async {
     final response = await _client
         .from(DbTables.abonelikOdemeleri)
@@ -474,7 +474,7 @@ class PlatformAdminService {
 
     final sonuclar = List<Map<String, dynamic>>.from(response);
 
-    // AylÄ±k gruplama
+    // Aylık gruplama
     final aylikGelir = <String, double>{};
     for (final odeme in sonuclar) {
       final tarih = DateTime.tryParse(odeme['odeme_tarihi']?.toString() ?? '');
@@ -491,7 +491,7 @@ class PlatformAdminService {
     return sirali.take(12).map((e) => {'ay': e.key, 'gelir': e.value}).toList();
   }
 
-  /// Yeni kayÄ±t trendini getirir (son 12 ay firma kayÄ±t sayÄ±larÄ±).
+  /// Yeni kayıt trendini getirir (son 12 ay firma kayıt sayıları).
   static Future<List<Map<String, dynamic>>> yeniKayitTrendi() async {
     final response = await _client
         .from(DbTables.firmalar)
@@ -516,9 +516,9 @@ class PlatformAdminService {
         .toList();
   }
 
-  // â”€â”€ Platform LoglarÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Platform Logları ──────────────────────────────────────
 
-  /// Admin iÅŸlem loglarÄ±nÄ± getirir.
+  /// Admin işlem loglarını getirir.
   static Future<List<Map<String, dynamic>>> platformLoglariniGetir({
     int limit = 50,
   }) async {
@@ -537,7 +537,7 @@ class PlatformAdminService {
     }
   }
 
-  /// Log kaydÄ± oluÅŸturur.
+  /// Log kaydı oluşturur.
   static Future<void> _logKaydet(
     String islemTipi,
     String? hedefTablo,
@@ -559,7 +559,7 @@ class PlatformAdminService {
       if (_isMissingPlatformLogTable(e)) {
         return;
       }
-      AppLogger.error('PlatformAdmin', 'Log kayÄ±t hatasÄ±', e);
+      AppLogger.error('PlatformAdmin', 'Log kayıt hatası', e);
     }
   }
 }

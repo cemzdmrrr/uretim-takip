@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'sevkiyat_panel.dart';
 
 /// Sevkiyat panel - widget builders, dialoglar ve aksiyonlar
@@ -10,15 +10,21 @@ extension _WidgetsExt on _SevkiyatPanelState {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              tip == 'bekleyen' ? Icons.inbox : 
-              tip == 'devam' ? Icons.local_shipping : Icons.check_circle,
+              tip == 'bekleyen'
+                  ? Icons.inbox
+                  : tip == 'devam'
+                      ? Icons.local_shipping
+                      : Icons.check_circle,
               size: 40,
               color: Colors.grey.shade400,
             ),
             const SizedBox(height: 12),
             Text(
-              tip == 'bekleyen' ? 'Sevk bekleyen ürün yok' :
-              tip == 'devam' ? 'Sevk edilen ürün yok' : 'Tamamlanan sevk yok',
+              tip == 'bekleyen'
+                  ? 'Sevk bekleyen ürün yok'
+                  : tip == 'devam'
+                      ? 'Sevk edilen ürün yok'
+                      : 'Tamamlanan sevk yok',
               style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             ),
           ],
@@ -39,7 +45,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
   Widget _buildSevkCard(Map<String, dynamic> sevk, String tip) {
     final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final durum = sevk['durum'] as String?;
-    final adet = sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
+    final adet =
+        sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
 
     return Card(
       elevation: 3,
@@ -59,7 +66,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
                     color: Colors.indigo.shade50,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(Icons.inventory_2, color: Colors.indigo.shade600, size: 22),
+                  child: Icon(Icons.inventory_2,
+                      color: Colors.indigo.shade600, size: 22),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -68,11 +76,14 @@ extension _WidgetsExt on _SevkiyatPanelState {
                     children: [
                       Text(
                         '${model['marka'] ?? 'Bilinmiyor'} - ${model['item_no'] ?? 'N/A'}',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       Text(
                         'Kalite Kontrolden Geldi',
-                        style: TextStyle(color: Colors.green.shade600, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                            color: Colors.green.shade600,
+                            fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -88,22 +99,25 @@ extension _WidgetsExt on _SevkiyatPanelState {
             // Bilgiler
             _buildBilgiSatiri('Renk', model['renk']),
             _buildBilgiSatiri('Sevk Edilecek Adet', '$adet adet', isBold: true),
-            
+
             if (model['termin_tarihi'] != null)
               _buildBilgiSatiri(
                 'Termin',
-                DateFormat('dd.MM.yyyy').format(DateTime.parse(model['termin_tarihi'])),
+                DateFormat('dd.MM.yyyy')
+                    .format(DateTime.parse(model['termin_tarihi'])),
                 textColor: Colors.orange,
               ),
 
             if (sevk['atama_tarihi'] != null)
               _buildBilgiSatiri(
                 'Sevk Talebi',
-                DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(sevk['atama_tarihi'])),
+                DateFormat('dd.MM.yyyy HH:mm')
+                    .format(DateTime.parse(sevk['atama_tarihi'])),
               ),
 
             if (sevk['hedef_asama'] != null)
-              _buildBilgiSatiri('Hedef Aşama', sevk['hedef_asama'], textColor: Colors.blue),
+              _buildBilgiSatiri('Hedef Aşama', sevk['hedef_asama'],
+                  textColor: Colors.blue),
 
             if (sevk['notlar'] != null && sevk['notlar'].toString().isNotEmpty)
               _buildBilgiSatiri('Notlar', sevk['notlar']),
@@ -119,7 +133,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
     );
   }
 
-  Widget _buildBilgiSatiri(String label, String? value, {Color? textColor, bool isBold = false}) {
+  Widget _buildBilgiSatiri(String label, String? value,
+      {Color? textColor, bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -129,7 +144,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
             width: 140,
             child: Text(
               '$label:',
-              style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                  color: Colors.grey.shade600, fontWeight: FontWeight.w500),
             ),
           ),
           Expanded(
@@ -149,7 +165,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
   Widget _buildDurumBadge(String? durum) {
     Color renk;
     String text;
-    
+
     switch (durum) {
       case 'atandi':
       case 'beklemede':
@@ -179,7 +195,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
       ),
       child: Text(
         text,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
   }
@@ -280,7 +297,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
   void _showSevkDialog(Map<String, dynamic> sevk) {
     final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
-    final mevcutAdet = sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
+    final mevcutAdet =
+        sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
     final adetController = TextEditingController(text: mevcutAdet.toString());
     final notlarController = TextEditingController();
     String? secilenHedefAsama;
@@ -289,13 +307,21 @@ extension _WidgetsExt on _SevkiyatPanelState {
     bool tedarikcilerYukleniyor = false;
 
     // Dış atölye gerektiren aşamalar (firma seçimi gerektirenler)
-    final disAtolyeAsamalar = ['yikama', 'nakis', 'konfeksiyon', 'dokuma', 'utu', 'ilik_dugme'];
+    final disAtolyeAsamalar = [
+      'yikama',
+      'nakis',
+      'konfeksiyon',
+      'dokuma',
+      'utu',
+      'ilik_dugme'
+    ];
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
               Container(
@@ -327,10 +353,10 @@ extension _WidgetsExt on _SevkiyatPanelState {
                     children: [
                       Text(
                         '${model['marka']} - ${model['item_no']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
-                      if (model['renk'] != null)
-                        Text('Renk: ${model['renk']}'),
+                      if (model['renk'] != null) Text('Renk: ${model['renk']}'),
                       Text('Mevcut Adet: $mevcutAdet'),
                     ],
                   ),
@@ -356,7 +382,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                
+
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -369,66 +395,84 @@ extension _WidgetsExt on _SevkiyatPanelState {
                           secilenTedarikci = null;
                           tedarikciler = [];
                         });
-                        
+
                         // Dış atölye aşaması ise tedarikcileri yükle
                         if (disAtolyeAsamalar.contains(asama['key'])) {
                           setDialogState(() => tedarikcilerYukleniyor = true);
                           try {
                             // Faaliyet değerini belirle - birden fazla varyasyonu ara
                             if (asama['key'] == 'yikama') {
-                            } else if (asama['key'] == 'nakis') {
-                            }
-                            
+                            } else if (asama['key'] == 'nakis') {}
+
                             // Tüm tedarikcileri çek ve faaliyet içerenleri filtrele
                             final response = await supabase
                                 .from(DbTables.tedarikciler)
                                 .select('id, sirket, faaliyet');
-                            
-                            final tumTedarikciler = List<Map<String, dynamic>>.from(response);
-                            
+
+                            final tumTedarikciler =
+                                List<Map<String, dynamic>>.from(response);
+
                             // Faaliyet alanında arama yap (case-insensitive)
                             final filtrelenmis = tumTedarikciler.where((t) {
-                              final faaliyet = (t['faaliyet'] ?? '').toString().toLowerCase();
+                              final faaliyet = (t['faaliyet'] ?? '')
+                                  .toString()
+                                  .toLowerCase();
                               final asamaKey = asama['key'];
                               if (asamaKey == 'yikama') {
-                                return faaliyet.contains('yikama') || faaliyet.contains('yıkama');
+                                return faaliyet.contains('yikama') ||
+                                    faaliyet.contains('yıkama');
                               } else if (asamaKey == 'nakis') {
-                                return faaliyet.contains('nakis') || faaliyet.contains('nakış');
+                                return faaliyet.contains('nakis') ||
+                                    faaliyet.contains('nakış');
                               } else if (asamaKey == 'konfeksiyon') {
-                                return faaliyet.contains('konfeksiyon') || faaliyet.contains('dikim');
+                                return faaliyet.contains('konfeksiyon') ||
+                                    faaliyet.contains('dikim');
                               } else if (asamaKey == 'dokuma') {
-                                return faaliyet.contains('dokuma') || faaliyet.contains('orgu') || faaliyet.contains('örgü');
+                                return faaliyet.contains('dokuma') ||
+                                    faaliyet.contains('orgu') ||
+                                    faaliyet.contains('örgü');
                               } else if (asamaKey == 'utu') {
-                                return faaliyet.contains('utu') || faaliyet.contains('ütü');
+                                return faaliyet.contains('utu') ||
+                                    faaliyet.contains('ütü');
                               } else if (asamaKey == 'ilik_dugme') {
-                                return faaliyet.contains('ilik') || faaliyet.contains('dugme') || faaliyet.contains('düğme');
+                                return faaliyet.contains('ilik') ||
+                                    faaliyet.contains('dugme') ||
+                                    faaliyet.contains('düğme');
                               }
                               return false;
                             }).toList();
-                            
+
                             setDialogState(() {
                               tedarikciler = filtrelenmis;
                               tedarikcilerYukleniyor = false;
                             });
-                            debugPrint('📦 ${asama['key']} tedarikcileri: ${tedarikciler.length} (toplam: ${tumTedarikciler.length})');
-                            
+                            debugPrint(
+                                '📦 ${asama['key']} tedarikcileri: ${tedarikciler.length} (toplam: ${tumTedarikciler.length})');
+
                             // Debug: Tüm faaliyetleri listele
                             for (var t in tumTedarikciler) {
-                              debugPrint('   - ${t['sirket']}: ${t['faaliyet']}');
+                              debugPrint(
+                                  '   - ${t['sirket']}: ${t['faaliyet']}');
                             }
                           } catch (e) {
                             debugPrint('❌ Tedarikci yükleme hatası: $e');
-                            setDialogState(() => tedarikcilerYukleniyor = false);
+                            setDialogState(
+                                () => tedarikcilerYukleniyor = false);
                           }
                         }
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          color: isSelected ? (asama['color'] as Color) : Colors.grey.shade100,
+                          color: isSelected
+                              ? (asama['color'] as Color)
+                              : Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSelected ? (asama['color'] as Color) : Colors.grey.shade300,
+                            color: isSelected
+                                ? (asama['color'] as Color)
+                                : Colors.grey.shade300,
                             width: 2,
                           ),
                         ),
@@ -437,15 +481,20 @@ extension _WidgetsExt on _SevkiyatPanelState {
                           children: [
                             Icon(
                               asama['icon'] as IconData,
-                              color: isSelected ? Colors.white : (asama['color'] as Color),
+                              color: isSelected
+                                  ? Colors.white
+                                  : (asama['color'] as Color),
                               size: 20,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               asama['name'] as String,
                               style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black87,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                color:
+                                    isSelected ? Colors.white : Colors.black87,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                               ),
                             ),
                           ],
@@ -457,7 +506,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
                 const SizedBox(height: 16),
 
                 // Dış atölye seçilmişse tedarikci seçimi göster
-                if (secilenHedefAsama != null && disAtolyeAsamalar.contains(secilenHedefAsama)) ...[
+                if (secilenHedefAsama != null &&
+                    disAtolyeAsamalar.contains(secilenHedefAsama)) ...[
                   const Text(
                     'Tedarikci/Firma Seçin:',
                     style: TextStyle(fontWeight: FontWeight.bold),
@@ -494,31 +544,41 @@ extension _WidgetsExt on _SevkiyatPanelState {
                       ),
                       child: Column(
                         children: tedarikciler.map((tedarikci) {
-                          final isSelected = secilenTedarikci?['id'] == tedarikci['id'];
+                          final isSelected =
+                              secilenTedarikci?['id'] == tedarikci['id'];
                           return InkWell(
                             onTap: () {
-                              setDialogState(() => secilenTedarikci = tedarikci);
+                              setDialogState(
+                                  () => secilenTedarikci = tedarikci);
                             },
                             child: Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: isSelected ? Colors.indigo.shade50 : null,
+                                color:
+                                    isSelected ? Colors.indigo.shade50 : null,
                                 border: Border(
-                                  bottom: BorderSide(color: Colors.grey.shade200),
+                                  bottom:
+                                      BorderSide(color: Colors.grey.shade200),
                                 ),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
-                                    isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                    color: isSelected ? Colors.indigo : Colors.grey,
+                                    isSelected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: isSelected
+                                        ? Colors.indigo
+                                        : Colors.grey,
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       tedarikci['sirket'] ?? 'Bilinmiyor',
                                       style: TextStyle(
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     ),
                                   ),
@@ -551,36 +611,41 @@ extension _WidgetsExt on _SevkiyatPanelState {
               child: const Text('İptal'),
             ),
             ElevatedButton.icon(
-              onPressed: secilenHedefAsama == null ? null : () async {
-                final sevkAdet = int.tryParse(adetController.text) ?? 0;
-                
-                if (sevkAdet <= 0) {
-                  context.showErrorSnackBar('Geçerli bir adet giriniz');
-                  return;
-                }
-                
-                if (sevkAdet > mevcutAdet) {
-                  context.showErrorSnackBar('Sevk adeti mevcut adetten ($mevcutAdet) fazla olamaz');
-                  return;
-                }
+              onPressed: secilenHedefAsama == null
+                  ? null
+                  : () async {
+                      final sevkAdet = int.tryParse(adetController.text) ?? 0;
 
-                // Dış atölye için tedarikci kontrolü
-                if (disAtolyeAsamalar.contains(secilenHedefAsama) && secilenTedarikci == null) {
-                  context.showErrorSnackBar('Lütfen bir tedarikci/firma seçin');
-                  return;
-                }
+                      if (sevkAdet <= 0) {
+                        context.showErrorSnackBar('Geçerli bir adet giriniz');
+                        return;
+                      }
 
-                await _sevkYap(
-                  sevk: sevk,
-                  hedefAsama: secilenHedefAsama!,
-                  adet: sevkAdet,
-                  notlar: notlarController.text,
-                  tedarikciId: secilenTedarikci?['id'],
-                );
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
-              },
+                      if (sevkAdet > mevcutAdet) {
+                        context.showErrorSnackBar(
+                            'Sevk adeti mevcut adetten ($mevcutAdet) fazla olamaz');
+                        return;
+                      }
+
+                      // Dış atölye için tedarikci kontrolü
+                      if (disAtolyeAsamalar.contains(secilenHedefAsama) &&
+                          secilenTedarikci == null) {
+                        context.showErrorSnackBar(
+                            'Lütfen bir tedarikci/firma seçin');
+                        return;
+                      }
+
+                      await _sevkYap(
+                        sevk: sevk,
+                        hedefAsama: secilenHedefAsama!,
+                        adet: sevkAdet,
+                        notlar: notlarController.text,
+                        tedarikciId: secilenTedarikci?['id'],
+                      );
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
               icon: const Icon(Icons.send),
               label: const Text('Sevk Et'),
               style: ElevatedButton.styleFrom(
@@ -603,14 +668,15 @@ extension _WidgetsExt on _SevkiyatPanelState {
   }) async {
     try {
       final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
-      final hedefAsamaInfo = hedefAsamalar.firstWhere((a) => a['key'] == hedefAsama);
+      final hedefAsamaInfo =
+          hedefAsamalar.firstWhere((a) => a['key'] == hedefAsama);
       final currentUser = supabase.auth.currentUser;
-      
+
       // 1. Kaynak tabloyu belirle ve güncelle
       // Önce onceki_asama'ya bak, sonra kaynak_tablo'ya, en son default olarak sevkiyat_kayitlari
       final oncekiAsama = sevk['onceki_asama']?.toString().toLowerCase();
       String kaynakTablo;
-      
+
       if (sevk['kaynak_tablo'] != null) {
         kaynakTablo = sevk['kaynak_tablo'];
       } else if (sevk['alinan_adet'] != null) {
@@ -621,9 +687,10 @@ extension _WidgetsExt on _SevkiyatPanelState {
       } else {
         kaynakTablo = DbTables.sevkiyatKayitlari;
       }
-      
-      debugPrint('📦 Sevk işlemi - Kaynak tablo: $kaynakTablo, Önceki aşama: $oncekiAsama');
-      
+
+      debugPrint(
+          '📦 Sevk işlemi - Kaynak tablo: $kaynakTablo, Önceki aşama: $oncekiAsama');
+
       if (kaynakTablo == DbTables.sevkiyatKayitlari) {
         // sevkiyat_kayitlari tablosunu güncelle
         final mevcutSevkEdilen = sevk['sevk_edilen_adet'] ?? 0;
@@ -631,25 +698,24 @@ extension _WidgetsExt on _SevkiyatPanelState {
         final yeniSevkEdilen = mevcutSevkEdilen + adet;
         final kalanAdet = alinanAdet - yeniSevkEdilen;
         final yeniDurum = kalanAdet <= 0 ? 'tamamlandi' : 'kismen_sevk';
-        
-        await supabase
-            .from(DbTables.sevkiyatKayitlari)
-            .update({
-              'sevk_edilen_adet': yeniSevkEdilen,
-              'kalan_adet': kalanAdet < 0 ? 0 : kalanAdet,
-              'hedef_asama': hedefAsama,
-              'hedef_tedarikci_id': tedarikciId,
-              'sevkiyat_personeli_id': currentUser?.id,
-              'durum': yeniDurum,
-              'sevk_tarihi': DateTime.now().toIso8601String(),
-              'tamamlanma_tarihi': yeniDurum == 'tamamlandi' ? DateTime.now().toIso8601String() : null,
-              'updated_at': DateTime.now().toIso8601String(),
-              'notlar': notlar != null && notlar.isNotEmpty
-                  ? '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi. $notlar'
-                  : '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi.',
-            })
-            .eq('id', sevk['id']);
-        
+
+        await supabase.from(DbTables.sevkiyatKayitlari).update({
+          'sevk_edilen_adet': yeniSevkEdilen,
+          'kalan_adet': kalanAdet < 0 ? 0 : kalanAdet,
+          'hedef_asama': hedefAsama,
+          'hedef_tedarikci_id': tedarikciId,
+          'sevkiyat_personeli_id': currentUser?.id,
+          'durum': yeniDurum,
+          'sevk_tarihi': DateTime.now().toIso8601String(),
+          'tamamlanma_tarihi': yeniDurum == 'tamamlandi'
+              ? DateTime.now().toIso8601String()
+              : null,
+          'updated_at': DateTime.now().toIso8601String(),
+          'notlar': notlar != null && notlar.isNotEmpty
+              ? '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi. $notlar'
+              : '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi.',
+        }).eq('id', sevk['id']);
+
         // 2. Sevkiyat detayı kaydet
         try {
           await supabase.from(DbTables.sevkiyatDetaylari).insert({
@@ -665,22 +731,19 @@ extension _WidgetsExt on _SevkiyatPanelState {
         } catch (e) {
           debugPrint('⚠️ Sevkiyat detayı kaydedilemedi: $e');
         }
-        
+
         debugPrint('✅ sevkiyat_kayitlari güncellendi - Yeni durum: $yeniDurum');
       } else {
         // Kaynak tabloyu güncelle (yikama_atamalari, paketleme_atamalari vb.)
         debugPrint('📦 Kaynak tablo güncelleniyor: $kaynakTablo');
-        await supabase
-            .from(kaynakTablo)
-            .update({
-              'durum': 'sevk_ediliyor',
-              'hedef_asama': hedefAsama,
-              'updated_at': DateTime.now().toIso8601String(),
-              'notlar': notlar != null && notlar.isNotEmpty
-                  ? '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi. $notlar'
-                  : '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi.',
-            })
-            .eq('id', sevk['id']);
+        await supabase.from(kaynakTablo).update({
+          'durum': 'sevk_ediliyor',
+          'hedef_asama': hedefAsama,
+          'updated_at': DateTime.now().toIso8601String(),
+          'notlar': notlar != null && notlar.isNotEmpty
+              ? '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi. $notlar'
+              : '${sevk['notlar'] ?? ''}\n[SEVK] $hedefAsama aşamasına $adet adet gönderildi.',
+        }).eq('id', sevk['id']);
         debugPrint('✅ $kaynakTablo güncellendi');
       }
 
@@ -690,14 +753,17 @@ extension _WidgetsExt on _SevkiyatPanelState {
         // Atama verisi hazırla
         final atamaData = {
           'model_id': sevk['model_id'],
+          'firma_id': TenantManager.instance.requireFirmaId,
           'adet': adet,
           'talep_edilen_adet': adet,
           'tamamlanan_adet': 0,
-          'durum': 'bekleyen', // ÖNEMLİ: Önce bekleyen durumunda gelsin, sonra onaylansın
+          'durum':
+              'bekleyen', // ÖNEMLİ: Önce bekleyen durumunda gelsin, sonra onaylansın
           'atama_tarihi': DateTime.now().toIso8601String(),
-          'notlar': 'Sevkiyattan geldi - ${model['marka']} ${model['item_no']} - $adet adet',
+          'notlar':
+              'Sevkiyattan geldi - ${model['marka']} ${model['item_no']} - $adet adet',
         };
-        
+
         // Tedarikci ID varsa ekle (yıkama, nakış gibi dış atölyeler için)
         if (tedarikciId != null) {
           atamaData['tedarikci_id'] = tedarikciId;
@@ -705,14 +771,16 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
         // HER ZAMAN YENİ KAYIT EKLE (update yapma)
         await supabase.from(hedefTabloAdi).insert(atamaData);
-        debugPrint('✅ $hedefTabloAdi tablosuna yeni atama oluşturuldu (tedarikci_id: $tedarikciId)');
+        debugPrint(
+            '✅ $hedefTabloAdi tablosuna yeni atama oluşturuldu (tedarikci_id: $tedarikciId)');
 
         // 4. Hedef aşama personeline bildirim gönder
         try {
           await BildirimService().roleGoreBildirimGonder(
             rol: hedefAsama,
             baslik: '📦 Yeni Sevkiyat Geldi',
-            mesaj: '${model['marka']} ${model['item_no']} - $adet adet sevkiyattan geldi. İşleme alınmayı bekliyor.',
+            mesaj:
+                '${model['marka']} ${model['item_no']} - $adet adet sevkiyattan geldi. İşleme alınmayı bekliyor.',
             tip: 'sevkiyat_geldi',
             modelId: sevk['model_id']?.toString(),
             asama: 'Sevkiyat',
@@ -726,14 +794,14 @@ extension _WidgetsExt on _SevkiyatPanelState {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ $adet adet ${hedefAsamaInfo['name']} aşamasına sevk edildi'),
+            content: Text(
+                '✅ $adet adet ${hedefAsamaInfo['name']} aşamasına sevk edildi'),
             backgroundColor: Colors.green,
           ),
         );
       }
 
       await _verileriYukle();
-
     } catch (e) {
       debugPrint('❌ Sevk hatası: $e');
       if (mounted) {
@@ -763,21 +831,17 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
   Future<void> _sevkTamamla(Map<String, dynamic> sevk) async {
     try {
-      await supabase
-          .from(DbTables.paketlemeAtamalari)
-          .update({
-            'durum': 'tamamlandi',
-            'tamamlanma_tarihi': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', sevk['id']);
+      await supabase.from(DbTables.paketlemeAtamalari).update({
+        'durum': 'tamamlandi',
+        'tamamlanma_tarihi': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', sevk['id']);
 
       if (mounted) {
         context.showSuccessSnackBar('✅ Sevkiyat tamamlandı');
       }
 
       await _verileriYukle();
-
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Hata: $e');
@@ -788,7 +852,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
   void _showDetayDialog(Map<String, dynamic> sevk) {
     final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final modelId = sevk['model_id'] ?? model['id'];
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -820,12 +884,18 @@ extension _WidgetsExt on _SevkiyatPanelState {
                 if (sevk['hedef_asama'] != null)
                   _buildDetaySatiri('Hedef Aşama', sevk['hedef_asama']),
                 if (model['termin_tarihi'] != null)
-                  _buildDetaySatiri('Termin', DateFormat('dd.MM.yyyy').format(DateTime.parse(model['termin_tarihi']))),
+                  _buildDetaySatiri(
+                      'Termin',
+                      DateFormat('dd.MM.yyyy')
+                          .format(DateTime.parse(model['termin_tarihi']))),
                 if (sevk['atama_tarihi'] != null)
-                  _buildDetaySatiri('Atama Tarihi', DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(sevk['atama_tarihi']))),
+                  _buildDetaySatiri(
+                      'Atama Tarihi',
+                      DateFormat('dd.MM.yyyy HH:mm')
+                          .format(DateTime.parse(sevk['atama_tarihi']))),
                 if (sevk['notlar'] != null)
                   _buildDetaySatiri('Notlar', sevk['notlar']),
-                
+
                 // Üretim Aşamaları Bölümü
                 const SizedBox(height: 16),
                 const Divider(),
@@ -836,15 +906,18 @@ extension _WidgetsExt on _SevkiyatPanelState {
                     SizedBox(width: 8),
                     Text(
                       'Üretim Aşamaları',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 if (modelId != null)
-                  _UretimAsamalariWidget(modelId: modelId.toString(), supabase: supabase)
+                  _UretimAsamalariWidget(
+                      modelId: modelId.toString(), supabase: supabase)
                 else
-                  const Text('Model bilgisi bulunamadı', style: TextStyle(color: Colors.grey)),
+                  const Text('Model bilgisi bulunamadı',
+                      style: TextStyle(color: Colors.grey)),
               ],
             ),
           ),
@@ -869,7 +942,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, color: Colors.grey),
             ),
           ),
           Expanded(

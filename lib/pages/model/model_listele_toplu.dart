@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'model_listele.dart';
 
 /// Model listele - toplu islem fonksiyonlari
@@ -80,7 +80,8 @@ extension _TopluIslemExt on _ModelListeleState {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Seçili ${seciliIdler.length} model için $asamaAdi tedarikçisi atanacak:'),
+                  Text(
+                      'Seçili ${seciliIdler.length} model için $asamaAdi tedarikçisi atanacak:'),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     decoration: InputDecoration(
@@ -88,10 +89,13 @@ extension _TopluIslemExt on _ModelListeleState {
                       border: const OutlineInputBorder(),
                     ),
                     isExpanded: true,
-                    items: tedarikciler.map<DropdownMenuItem<String>>((tedarikci) {
+                    items:
+                        tedarikciler.map<DropdownMenuItem<String>>((tedarikci) {
                       return DropdownMenuItem<String>(
                         value: tedarikci['id'].toString(),
-                        child: Text(tedarikci['sirket'] ?? tedarikci['ad'] ?? 'Tedarikçi'),
+                        child: Text(tedarikci['sirket'] ??
+                            tedarikci['ad'] ??
+                            'Tedarikçi'),
                       );
                     }).toList(),
                     onChanged: (value) {
@@ -121,12 +125,12 @@ extension _TopluIslemExt on _ModelListeleState {
                 child: const Text('Vazgeç'),
               ),
               ElevatedButton(
-                onPressed: seciliTedarikciId == null 
-                    ? null 
+                onPressed: seciliTedarikciId == null
+                    ? null
                     : () => Navigator.pop(ctx, {
-                        'tedarikciId': seciliTedarikciId,
-                        'notlar': notlar,
-                      }),
+                          'tedarikciId': seciliTedarikciId,
+                          'notlar': notlar,
+                        }),
                 child: const Text('Ata'),
               ),
             ],
@@ -167,32 +171,65 @@ extension _TopluIslemExt on _ModelListeleState {
       // Seçili modellere tedarikçi ata
       for (String modelId in seciliIdler) {
         try {
+          final eskiSema = _eskiAtamaSemasi(tabloAdi);
+          final now = DateTime.now().toIso8601String();
+
           // Önce mevcut atama var mı kontrol et (birden fazla olabilir, sadece ilkini al)
           final mevcutAtamaList = await supabase
               .from(tabloAdi)
               .select('id')
               .eq('model_id', modelId)
               .limit(1);
-          
+
           if (mevcutAtamaList.isNotEmpty) {
             // Güncelle
-            await supabase.from(tabloAdi).update({
-              'tedarikci_id': int.tryParse(result['tedarikciId'].toString()),
-              'durum': 'atandi',
-              'notlar': result['notlar'],
-              'updated_at': DateTime.now().toIso8601String(),
-            }).eq('id', mevcutAtamaList[0]['id']);
+            final updateData = eskiSema
+                ? {
+                    'tedarikci_id':
+                        int.tryParse(result['tedarikciId'].toString()),
+                    'durum': 'atandi',
+                    'aciklama': result['notlar'],
+                    'updated_at': now,
+                    'son_guncelleme_tarihi': now,
+                  }
+                : {
+                    'tedarikci_id':
+                        int.tryParse(result['tedarikciId'].toString()),
+                    'durum': 'atandi',
+                    'notlar': result['notlar'],
+                    'updated_at': now,
+                  };
+
+            await supabase
+                .from(tabloAdi)
+                .update(updateData)
+                .eq('id', mevcutAtamaList[0]['id']);
           } else {
             // Yeni kayıt ekle
-            await supabase.from(tabloAdi).insert({
-              'model_id': modelId,
-              'tedarikci_id': int.tryParse(result['tedarikciId'].toString()),
-              'durum': 'atandi',
-              'notlar': result['notlar'],
-              'atama_tarihi': DateTime.now().toIso8601String(),
-            });
+            final insertData = eskiSema
+                ? {
+                    'model_id': modelId,
+                    'tedarikci_id':
+                        int.tryParse(result['tedarikciId'].toString()),
+                    'durum': 'atandi',
+                    'aciklama': result['notlar'],
+                    'created_at': now,
+                    'updated_at': now,
+                    'son_guncelleme_tarihi': now,
+                  }
+                : {
+                    'model_id': modelId,
+                    'tedarikci_id':
+                        int.tryParse(result['tedarikciId'].toString()),
+                    'durum': 'atandi',
+                    'notlar': result['notlar'],
+                    'atama_tarihi': now,
+                    'firma_id': TenantManager.instance.requireFirmaId,
+                  };
+
+            await supabase.from(tabloAdi).insert(insertData);
           }
-          
+
           basariliAtama++;
         } catch (e) {
           debugPrint('Atama hatası (model: $modelId): $e');
@@ -212,11 +249,13 @@ extension _TopluIslemExt on _ModelListeleState {
 
       if (mounted) {
         if (hataliAtama == 0) {
-          context.showSuccessSnackBar('$basariliAtama model $asamaAdi tedarikçisine atandı.');
+          context.showSuccessSnackBar(
+              '$basariliAtama model $asamaAdi tedarikçisine atandı.');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('$basariliAtama başarılı, $hataliAtama hatalı atama.'),
+              content:
+                  Text('$basariliAtama başarılı, $hataliAtama hatalı atama.'),
               backgroundColor: Colors.orange,
             ),
           );
@@ -234,7 +273,7 @@ extension _TopluIslemExt on _ModelListeleState {
   // Durum güncelleme
   Future<void> _topluDurumGuncelle() async {
     String? seciliYeniDurum;
-    
+
     final durum = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -249,9 +288,11 @@ extension _TopluIslemExt on _ModelListeleState {
                 labelText: 'Yeni Durum',
                 border: OutlineInputBorder(),
               ),
-              items: durumOptions.where((d) => d != 'Tümü').map((durum) => 
-                DropdownMenuItem(value: durum, child: Text(durum))
-              ).toList(),
+              items: durumOptions
+                  .where((d) => d != 'Tümü')
+                  .map((durum) =>
+                      DropdownMenuItem(value: durum, child: Text(durum)))
+                  .toList(),
               onChanged: (value) {
                 seciliYeniDurum = value;
               },
@@ -274,11 +315,10 @@ extension _TopluIslemExt on _ModelListeleState {
     if (durum != null) {
       try {
         setState(() => yukleniyor = true);
-        
+
         await supabase
             .from(DbTables.trikoTakip)
-            .update({'durum': durum})
-            .filter('id', 'in', seciliIdler);
+            .update({'durum': durum}).inFilter('id', seciliIdler);
 
         await modelleriGetir();
         seciliIdler.clear();
@@ -310,7 +350,8 @@ extension _TopluIslemExt on _ModelListeleState {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Termin Tarihi Güncelle'),
-          content: Text('Seçili ${seciliIdler.length} modelin termin tarihini "${DateFormat('dd.MM.yyyy').format(tarih)}" olarak güncellemek istediğinize emin misiniz?'),
+          content: Text(
+              'Seçili ${seciliIdler.length} modelin termin tarihini "${DateFormat('dd.MM.yyyy').format(tarih)}" olarak güncellemek istediğinize emin misiniz?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -327,11 +368,11 @@ extension _TopluIslemExt on _ModelListeleState {
       if (confirm == true) {
         try {
           setState(() => yukleniyor = true);
-          
+
           await supabase
               .from(DbTables.trikoTakip)
-              .update({'termin_tarihi': tarih.toIso8601String()})
-              .filter('id', 'in', seciliIdler);
+              .update({'termin_tarihi': tarih.toIso8601String()}).inFilter(
+                  'id', seciliIdler);
 
           await modelleriGetir();
           seciliIdler.clear();
@@ -354,7 +395,8 @@ extension _TopluIslemExt on _ModelListeleState {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Tamamlandı Durumu Güncelle'),
-        content: Text('Seçili ${seciliIdler.length} modeli "${tamamlandi ? "Tamamlandı" : "Devam Ediyor"}" olarak işaretlemek istediğinize emin misiniz?'),
+        content: Text(
+            'Seçili ${seciliIdler.length} modeli "${tamamlandi ? "Tamamlandı" : "Devam Ediyor"}" olarak işaretlemek istediğinize emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -371,17 +413,17 @@ extension _TopluIslemExt on _ModelListeleState {
     if (confirm == true) {
       try {
         setState(() => yukleniyor = true);
-        
+
         await supabase
             .from(DbTables.trikoTakip)
-            .update({'tamamlandi': tamamlandi})
-            .filter('id', 'in', seciliIdler);
+            .update({'tamamlandi': tamamlandi}).inFilter('id', seciliIdler);
 
         await modelleriGetir();
         seciliIdler.clear();
 
         if (mounted) {
-          context.showSuccessSnackBar('Tamamlandı durumu başarıyla güncellendi');
+          context
+              .showSuccessSnackBar('Tamamlandı durumu başarıyla güncellendi');
         }
       } catch (e) {
         if (mounted) {
@@ -397,7 +439,8 @@ extension _TopluIslemExt on _ModelListeleState {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Modelleri Sil'),
-        content: Text('Seçili ${seciliIdler.length} modeli silmek istediğinize emin misiniz? Bu işlem geri alınamaz.'),
+        content: Text(
+            'Seçili ${seciliIdler.length} modeli silmek istediğinize emin misiniz? Bu işlem geri alınamaz.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -415,7 +458,7 @@ extension _TopluIslemExt on _ModelListeleState {
     if (confirm == true) {
       try {
         setState(() => yukleniyor = true);
-        
+
         // Önce ilişkili atamaları sil (foreign key constraint önlemek için)
         final atamaTablolari = [
           DbTables.dokumaAtamalari,
@@ -428,28 +471,32 @@ extension _TopluIslemExt on _ModelListeleState {
           DbTables.paketlemeAtamalari,
           DbTables.sevkiyatKayitlari,
         ];
-        
+
         for (final tablo in atamaTablolari) {
           try {
-            await supabase.from(tablo).delete().filter('model_id', 'in', seciliIdler);
+            await supabase
+                .from(tablo)
+                .delete()
+                .inFilter('model_id', seciliIdler);
           } catch (e) {
             // Tablo yoksa veya kayıt yoksa devam et
           }
         }
-        
+
         // Modelleri sil
         await supabase
             .from(DbTables.trikoTakip)
             .delete()
-            .filter('id', 'in', seciliIdler);
+            .inFilter('id', seciliIdler);
 
         // Önce local listeden kaldır
         if (!mounted) return;
         setState(() {
           modeller.removeWhere((m) => seciliIdler.contains(m['id'].toString()));
-          filtreliModeller.removeWhere((m) => seciliIdler.contains(m['id'].toString()));
+          filtreliModeller
+              .removeWhere((m) => seciliIdler.contains(m['id'].toString()));
         });
-        
+
         seciliIdler.clear();
         await modelleriGetir();
 
@@ -463,5 +510,4 @@ extension _TopluIslemExt on _ModelListeleState {
       }
     }
   }
-
 }
