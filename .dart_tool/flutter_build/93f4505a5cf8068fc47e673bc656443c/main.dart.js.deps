@@ -1779,6 +1779,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_aksesuar
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_bilgiler.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_durum.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_fiyatlandirma.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_maliyet_karlilik.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_uretim.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_utils.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/model/model_detay_yukleme.dart
@@ -1906,6 +1907,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/kasa_banka_hareket_serv
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/kasa_banka_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/mesai_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/migration_service.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/model_karlilik_servisi.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/model_maliyet_hesaplama_servisi.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/notification_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/odeme_service.dart
@@ -1919,6 +1921,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/tedarikci_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/tenant_manager.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/uretim_raporu_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_helper.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_role_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/yetki_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/theme/app_theme.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/utils/app_exceptions.dart

@@ -7,6 +7,7 @@ class DbTables {
 
   // ─── Model & Üretim ───
   static const modeller = 'modeller';
+
   /// Tüm üretim dallarının model tablosu (eski adıyla triko_takip, geriye uyumluluk)
   static const trikoTakip = 'triko_takip';
   static const uretimKayitlari = 'uretim_kayitlari';
@@ -52,6 +53,10 @@ class DbTables {
   static const odemeKayitlari = 'odeme_kayitlari';
   static const odemeGecmisi = 'odeme_gecmisi';
   static const maliyetHesaplama = 'maliyet_hesaplama';
+  static const modelMaliyetPlanlari = 'model_maliyet_planlari';
+  static const modelMaliyetKalemleri = 'model_maliyet_kalemleri';
+  static const modelMaliyetGerceklesen = 'model_maliyet_gerceklesen';
+  static const modelKarlilikOzetleri = 'model_karlilik_ozetleri';
   static const yevmiyeKayitlari = 'yevmiye_kayitlari';
   static const hesapPlani = 'hesap_plani';
   static const donemler = 'donemler';

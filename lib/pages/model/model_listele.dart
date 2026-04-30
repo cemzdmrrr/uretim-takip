@@ -177,6 +177,8 @@ class _ModelListeleState extends State<ModelListele> {
               ana_iplik_turu,
               iplik_karisimi,
               ana_renkler,
+              renk,
+              renk_kombinasyonu,
               bedenler,
               toplam_adet,
               siparis_tarihi,
@@ -247,6 +249,8 @@ class _ModelListeleState extends State<ModelListele> {
                   ana_iplik_turu,
                   iplik_karisimi,
                   ana_renkler,
+                  renk,
+                  renk_kombinasyonu,
                   bedenler,
                   toplam_adet,
                   siparis_tarihi,
@@ -425,35 +429,103 @@ class _ModelListeleState extends State<ModelListele> {
   }
 
   String _renkMetni(Map<String, dynamic> model) {
-    final renk =
-        model['ana_renkler'] ?? model['renk'] ?? model['renk_kombinasyonu'];
-    if (renk == null) return '-';
+    final renk = _renkDegeriMetni(
+        model['renk'] ?? model['renk_kombinasyonu'] ?? model['ana_renkler']);
+    if (renk != null) return renk;
+
+    final itemNoRengi = _itemNoRenkMetni(model['item_no']);
+    if (itemNoRengi != null) return itemNoRengi;
+
+    return '-';
+  }
+
+  String? _renkDegeriMetni(dynamic renk) {
+    if (renk == null) return null;
     if (renk is String) {
       final temiz = renk.trim();
       if (temiz.startsWith('[') || temiz.startsWith('{')) {
         try {
           final parsed = jsonDecode(temiz);
-          return _renkMetni({'ana_renkler': parsed});
+          return _renkDegeriMetni(parsed);
         } catch (_) {}
       }
-      return temiz.isEmpty ? '-' : temiz;
+      return temiz.isEmpty ? null : temiz;
     }
     if (renk is List) {
       final values = renk
           .map((e) => e?.toString().trim() ?? '')
           .where((e) => e.isNotEmpty)
           .toList();
-      return values.isEmpty ? '-' : values.join(', ');
+      return values.isEmpty ? null : values.join(', ');
     }
     if (renk is Map) {
       final values = renk.values
           .map((e) => e?.toString().trim() ?? '')
           .where((e) => e.isNotEmpty)
           .toList();
-      return values.isEmpty ? '-' : values.join(', ');
+      return values.isEmpty ? null : values.join(', ');
     }
     final text = renk.toString().trim();
-    return text.isEmpty ? '-' : text;
+    return text.isEmpty ? null : text;
+  }
+
+  String? _itemNoRenkMetni(dynamic itemNo) {
+    final text = itemNo?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+
+    final parts = text
+        .replaceAll(RegExp(r'[-_/]+'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+    if (parts.length < 2) return null;
+
+    final suffix =
+        parts.last.replaceAll(RegExp(r'[^A-Za-zÇĞİÖŞÜçğıöşü]'), '').trim();
+    if (suffix.length < 2 || suffix.length > 10) return null;
+
+    return _renkKodunuGenislet(suffix);
+  }
+
+  String _renkKodunuGenislet(String kod) {
+    final normalized = kod
+        .toUpperCase()
+        .replaceAll('İ', 'I')
+        .replaceAll('Ş', 'S')
+        .replaceAll('Ğ', 'G')
+        .replaceAll('Ü', 'U')
+        .replaceAll('Ö', 'O')
+        .replaceAll('Ç', 'C');
+
+    const renkKodlari = {
+      'ANM': 'ANTRASİT MELANJ',
+      'BEJ': 'BEJ',
+      'BEY': 'BEYAZ',
+      'BRD': 'BORDO',
+      'EKR': 'EKRU',
+      'GMJ': 'GRİ MELANJ',
+      'GR': 'GRİ',
+      'GRI': 'GRİ',
+      'KAH': 'KAHVE',
+      'KHV': 'KAHVE',
+      'KIR': 'KIRMIZI',
+      'KRM': 'KIRMIZI',
+      'LAC': 'LACİVERT',
+      'LACI': 'LACİVERT',
+      'MAV': 'MAVİ',
+      'MOR': 'MOR',
+      'MVI': 'MAVİ',
+      'PEM': 'PEMBE',
+      'PUD': 'PUDRA',
+      'SARI': 'SARI',
+      'SIY': 'SİYAH',
+      'SYH': 'SİYAH',
+      'VIZ': 'VİZON',
+      'YES': 'YEŞİL',
+      'YSL': 'YEŞİL',
+    };
+
+    return renkKodlari[normalized] ?? kod.toUpperCase();
   }
 
   DateTime? _tarihDegeri(dynamic value) {
@@ -520,6 +592,15 @@ class _ModelListeleState extends State<ModelListele> {
     yeniModel['tamamlandi'] = false;
     yeniModel['iplik_geldi'] = false;
     yeniModel['kase_onayi'] = false;
+
+    final yeniRenk = _itemNoRenkMetni(yeniItemNo);
+    if (yeniRenk != null) {
+      yeniModel['renk'] = yeniRenk;
+      yeniModel['renk_kombinasyonu'] = yeniRenk;
+      if (yeniModel.containsKey('ana_renkler')) {
+        yeniModel['ana_renkler'] = null;
+      }
+    }
 
     for (final key in const [
       'yuklenen_adet',

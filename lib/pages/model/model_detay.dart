@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uretim_takip/services/model_maliyet_hesaplama_servisi.dart';
+import 'package:uretim_takip/services/model_karlilik_servisi.dart';
 import 'package:uretim_takip/services/sevkiyat_atama_guard.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'model_detay_utils.dart' as utils;
@@ -18,6 +19,7 @@ part 'model_detay_admin.dart';
 part 'model_detay_durum.dart';
 part 'model_detay_bilgiler.dart';
 part 'model_detay_uretim.dart';
+part 'model_detay_maliyet_karlilik.dart';
 
 class ModelDetay extends StatefulWidget {
   final String modelId;
@@ -65,6 +67,10 @@ class _ModelDetayState extends State<ModelDetay>
   List<dynamic> modelAksesuarlari = [];
   List<dynamic> teknikDosyalar = [];
   List<dynamic> yuklemeKayitlari = [];
+  Map<String, dynamic>? karlilikDbOzet;
+  List<dynamic> maliyetPlanlari = [];
+  List<dynamic> maliyetKalemleri = [];
+  List<dynamic> maliyetGerceklesen = [];
 
   // Düzenleme modları
   bool _isEditing = false;
@@ -78,10 +84,18 @@ class _ModelDetayState extends State<ModelDetay>
   bool _isLoading = true;
   bool _hasAccess = false; // Erişim kontrolü
 
+  void _updateState(VoidCallback fn) {
+    if (mounted) {
+      setState(fn);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    currentModelData = widget.modelData;
+    currentModelData = widget.modelData == null
+        ? null
+        : Map<String, dynamic>.from(widget.modelData!);
     _initializeData();
   }
 
@@ -93,6 +107,7 @@ class _ModelDetayState extends State<ModelDetay>
       await _aksesuarlariGetir();
       await _teknikDosyalariGetir();
       await _yuklemeKayitlariniGetir();
+      await _maliyetVerileriniGetir();
       _initializeTabController();
     }
     if (!mounted) return;
@@ -327,7 +342,7 @@ class _ModelDetayState extends State<ModelDetay>
           .single();
 
       setState(() {
-        currentModelData = modelResponse;
+        currentModelData = Map<String, dynamic>.from(modelResponse);
       });
 
       // Üretim kayıtlarını getir
@@ -449,7 +464,7 @@ class _ModelDetayState extends State<ModelDetay>
     int tabCount =
         4; // Varsayılan: Model Bilgileri, Model Durumu, Üretim Durumu, Aksesuarlar
     if (kullaniciRolu == 'admin') {
-      tabCount = 6; // Admin için tüm sekmeler
+      tabCount = 7; // Admin için tüm sekmeler
     }
 
     if (mounted) {
@@ -553,6 +568,10 @@ class _ModelDetayState extends State<ModelDetay>
                   if (kullaniciRolu == 'admin')
                     const Tab(
                         icon: Icon(Icons.attach_money), text: 'Fiyatlandırma'),
+                  if (kullaniciRolu == 'admin')
+                    const Tab(
+                        icon: Icon(Icons.assessment),
+                        text: 'Maliyet & Karlılık'),
                   const Tab(icon: Icon(Icons.category), text: 'Aksesuarlar'),
                   if (kullaniciRolu == 'admin')
                     const Tab(icon: Icon(Icons.upload_file), text: 'Yükleme'),
@@ -568,6 +587,7 @@ class _ModelDetayState extends State<ModelDetay>
                 _buildModelDurumuTab(),
                 _buildUretimDurumuTab(),
                 if (kullaniciRolu == 'admin') _buildFiyatlandirmaTab(),
+                if (kullaniciRolu == 'admin') _buildMaliyetKarlilikTab(),
                 _buildAksesuarlarTab(),
                 if (kullaniciRolu == 'admin') _buildYuklemeTab(),
               ],
