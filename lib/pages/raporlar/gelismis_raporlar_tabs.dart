@@ -1462,6 +1462,13 @@ extension _TabsExt on _GelismisRaporlarPageState {
         Map<String, double>.from(maliyetVerileri['maliyetDagilimi'] ?? {});
     final modelMaliyetleri = List<Map<String, dynamic>>.from(
         maliyetVerileri['modelMaliyetleri'] ?? []);
+    final durumDagilimi =
+        Map<String, int>.from(maliyetVerileri['durumDagilimi'] ?? {});
+    final sqlOzetliModelSayisi =
+        ((maliyetVerileri['sqlOzetliModelSayisi'] ?? 0) as num).toInt();
+    final tumAksiyonModelleri = _maliyetAksiyonModelleri(modelMaliyetleri);
+    final aksiyonModelleri = _maliyetRiskFiltresiUygula(
+        tumAksiyonModelleri, secilenMaliyetRiskFiltresi);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1515,6 +1522,17 @@ extension _TabsExt on _GelismisRaporlarPageState {
                     ]);
                   },
                 ))),
+        const SizedBox(height: 16),
+        _buildMaliyetKontrolPanel(
+          modelSayisi: modelMaliyetleri.length,
+          sqlOzetliModelSayisi: sqlOzetliModelSayisi,
+          durumDagilimi: durumDagilimi,
+        ),
+        const SizedBox(height: 16),
+        _buildMaliyetAksiyonPanel(
+          tumModeller: tumAksiyonModelleri,
+          gosterilenModeller: aksiyonModelleri,
+        ),
         const SizedBox(height: 24),
         _buildSectionTitle('Maliyet Dağılımı'),
         const SizedBox(height: 8),
@@ -1581,37 +1599,606 @@ extension _TabsExt on _GelismisRaporlarPageState {
                       DataColumn(label: Text('Marka')),
                       DataColumn(label: Text('Item No')),
                       DataColumn(label: Text('Adet')),
-                      DataColumn(label: Text('Birim Maliyet')),
+                      DataColumn(label: Text('Plan Birim')),
+                      DataColumn(label: Text('Gerçek Birim')),
                       DataColumn(label: Text('Satış Fiyatı')),
                       DataColumn(label: Text('Kâr')),
-                      DataColumn(label: Text('Marj %'))
+                      DataColumn(label: Text('Marj %')),
+                      DataColumn(label: Text('Durum')),
+                      DataColumn(label: Text('Kaynak'))
                     ],
                     rows: modelMaliyetleri.take(20).map((model) {
                       final kar = (model['kar'] ?? 0) as num;
-                      return DataRow(cells: [
-                        DataCell(Text(model['marka'] ?? '')),
-                        DataCell(Text(model['itemNo'] ?? '')),
-                        DataCell(Text('${model['adet'] ?? 0}')),
-                        DataCell(Text(
-                            currencyFormat.format(model['birimMaliyet'] ?? 0))),
-                        DataCell(Text(
-                            currencyFormat.format(model['satisFiyati'] ?? 0))),
-                        DataCell(Text(currencyFormat.format(kar),
-                            style: TextStyle(
-                                color: kar >= 0 ? Colors.green : Colors.red,
-                                fontWeight: FontWeight.bold))),
-                        DataCell(Text(
-                            '%${((model['karMarji'] ?? 0) as num).toStringAsFixed(1)}',
-                            style: TextStyle(
-                                color: (model['karMarji'] ?? 0) >= 0
-                                    ? Colors.green
-                                    : Colors.red))),
-                      ]);
+                      final durum = model['durum']?.toString() ?? '';
+                      return DataRow(
+                          onSelectChanged: (_) => _maliyetModelDetayAc(model),
+                          cells: [
+                            DataCell(Text(model['marka'] ?? '')),
+                            DataCell(Text(model['itemNo'] ?? '')),
+                            DataCell(Text('${model['adet'] ?? 0}')),
+                            DataCell(Text(currencyFormat.format(
+                                model['planBirimMaliyet'] ??
+                                    model['birimMaliyet'] ??
+                                    0))),
+                            DataCell(Text(currencyFormat.format(
+                                model['gercekBirimMaliyet'] ??
+                                    model['birimMaliyet'] ??
+                                    0))),
+                            DataCell(Text(currencyFormat
+                                .format(model['satisFiyati'] ?? 0))),
+                            DataCell(Text(currencyFormat.format(kar),
+                                style: TextStyle(
+                                    color: kar >= 0 ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.bold))),
+                            DataCell(Text(
+                                '%${((model['karMarji'] ?? 0) as num).toStringAsFixed(1)}',
+                                style: TextStyle(
+                                    color: (model['karMarji'] ?? 0) >= 0
+                                        ? Colors.green
+                                        : Colors.red))),
+                            DataCell(Text(_maliyetDurumMetni(durum),
+                                style: TextStyle(
+                                    color: _maliyetDurumRengi(durum),
+                                    fontWeight: FontWeight.w600))),
+                            DataCell(
+                                Text(model['veriKaynagi']?.toString() ?? '-')),
+                          ]);
                     }).toList(),
                   ))),
         ],
       ]),
     );
+  }
+
+  Widget _buildMaliyetKontrolPanel({
+    required int modelSayisi,
+    required int sqlOzetliModelSayisi,
+    required Map<String, int> durumDagilimi,
+  }) {
+    final planMaliyet =
+        ((maliyetVerileri['toplamPlanMaliyet'] ?? 0) as num).toDouble();
+    final gercekMaliyet =
+        ((maliyetVerileri['toplamMaliyet'] ?? 0) as num).toDouble();
+    final sapma = ((maliyetVerileri['maliyetSapmasi'] ?? 0) as num).toDouble();
+    final sapmaOrani =
+        ((maliyetVerileri['maliyetSapmaOrani'] ?? 0) as num).toDouble();
+    final fireOrani = ((maliyetVerileri['fireOrani'] ?? 0) as num).toDouble();
+    final tamamlananAdet =
+        ((maliyetVerileri['toplamTamamlananAdet'] ?? 0) as num).toInt();
+    final fireAdedi =
+        ((maliyetVerileri['toplamFireAdedi'] ?? 0) as num).toInt();
+    final sapmaRengi = sapma <= 0 ? Colors.green : Colors.red;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.checklist,
+                  color: Color(0xFF1565C0), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Plan / Gerçekleşen Kontrolü',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    '$sqlOzetliModelSayisi / $modelSayisi model SQL kârlılık özetinden okunuyor',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          LayoutBuilder(builder: (context, constraints) {
+            final dar = constraints.maxWidth < 720;
+            final kartlar = [
+              _buildMaliyetKontrolKutusu(
+                  'Plan Maliyet',
+                  currencyFormat.format(planMaliyet),
+                  Icons.assignment,
+                  Colors.blueGrey),
+              _buildMaliyetKontrolKutusu(
+                  'Gerçek Maliyet',
+                  currencyFormat.format(gercekMaliyet),
+                  Icons.receipt_long,
+                  Colors.indigo),
+              _buildMaliyetKontrolKutusu(
+                  'Sapma',
+                  '${currencyFormat.format(sapma)}  %${sapmaOrani.toStringAsFixed(1)}',
+                  Icons.compare_arrows,
+                  sapmaRengi),
+              _buildMaliyetKontrolKutusu(
+                  'Fire',
+                  '$fireAdedi adet  %${fireOrani.toStringAsFixed(1)}',
+                  Icons.warning_amber,
+                  fireOrani > 0 ? Colors.orange : Colors.green),
+              _buildMaliyetKontrolKutusu('Tamamlanan', '$tamamlananAdet adet',
+                  Icons.done_all, Colors.teal),
+            ];
+
+            if (dar) {
+              return Column(
+                children: kartlar
+                    .map((item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: item,
+                        ))
+                    .toList(),
+              );
+            }
+
+            return Row(
+              children: kartlar
+                  .map((item) => Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: item,
+                        ),
+                      ))
+                  .toList(),
+            );
+          }),
+          if (durumDagilimi.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: durumDagilimi.entries
+                  .map((entry) => Chip(
+                        avatar: Icon(Icons.circle,
+                            size: 10, color: _maliyetDurumRengi(entry.key)),
+                        label: Text(
+                            '${_maliyetDurumMetni(entry.key)}: ${entry.value}'),
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildMaliyetKontrolKutusu(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label,
+                style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+            const SizedBox(height: 2),
+            FittedBox(
+              alignment: Alignment.centerLeft,
+              child: Text(value,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800, color: color, fontSize: 15)),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  List<Map<String, dynamic>> _maliyetAksiyonModelleri(
+      List<Map<String, dynamic>> modeller) {
+    final riskli = modeller.where((model) {
+      final durum = model['durum']?.toString() ?? '';
+      final sapmaOrani = _maliyetNum(model['maliyetSapmaOrani']);
+      final fireOrani = _maliyetNum(model['fireOrani']);
+      final satisFiyati = _maliyetNum(model['satisFiyati']);
+      final kar = _maliyetNum(model['kar']);
+      return durum == 'zarar_riski' ||
+          durum == 'hedef_alti' ||
+          durum == 'fiyat_eksik' ||
+          satisFiyati <= 0 ||
+          kar < 0 ||
+          sapmaOrani > 5 ||
+          fireOrani > 3;
+    }).toList();
+
+    riskli.sort(
+        (a, b) => _maliyetAksiyonPuani(b).compareTo(_maliyetAksiyonPuani(a)));
+    return riskli;
+  }
+
+  Widget _buildMaliyetAksiyonPanel({
+    required List<Map<String, dynamic>> tumModeller,
+    required List<Map<String, dynamic>> gosterilenModeller,
+  }) {
+    final kritik = tumModeller
+        .where((model) => model['durum']?.toString() == 'zarar_riski')
+        .length;
+    final hedefAlti = tumModeller
+        .where((model) => model['durum']?.toString() == 'hedef_alti')
+        .length;
+    final fiyatEksik = tumModeller
+        .where((model) => model['durum']?.toString() == 'fiyat_eksik')
+        .length;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1565C0).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.rule, color: Color(0xFF1565C0), size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Aksiyon Gerektiren Modeller',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    tumModeller.isEmpty
+                        ? 'Seçili kapsamda kritik maliyet riski görünmüyor'
+                        : '$kritik zarar riski, $hedefAlti hedef altı, $fiyatEksik fiyat girilecek',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          if (tumModeller.isNotEmpty) ...[
+            _buildMaliyetRiskFiltreleri(tumModeller),
+            const SizedBox(height: 12),
+          ],
+          if (tumModeller.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+              ),
+              child: Row(children: [
+                Icon(Icons.check_circle,
+                    color: Colors.green.shade700, size: 20),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Model maliyetleri hedef, fiyat ve fire açısından izlenebilir seviyede.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ]),
+            )
+          else
+            Column(
+              children: gosterilenModeller.take(8).map((model) {
+                final durum = model['durum']?.toString() ?? '';
+                final renk = _maliyetDurumRengi(durum);
+                final kar = _maliyetNum(model['kar']);
+                final karMarji = _maliyetNum(model['karMarji']);
+                final sapmaOrani = _maliyetNum(model['maliyetSapmaOrani']);
+                final fireOrani = _maliyetNum(model['fireOrani']);
+                return InkWell(
+                  onTap: () => _maliyetModelDetayAc(model),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE5EAF0)),
+                      ),
+                    ),
+                    child: LayoutBuilder(builder: (context, constraints) {
+                      final dar = constraints.maxWidth < 760;
+                      final baslik = Row(children: [
+                        Container(
+                          width: 8,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: renk,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${model['marka'] ?? '-'} - ${model['itemNo'] ?? '-'}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(_maliyetAksiyonMetni(model),
+                                  style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Tooltip(
+                          message: 'Model detayını aç',
+                          child: Icon(Icons.open_in_new,
+                              size: 18, color: Colors.grey.shade600),
+                        ),
+                      ]);
+                      final metrikler = Wrap(
+                        spacing: 12,
+                        runSpacing: 6,
+                        alignment:
+                            dar ? WrapAlignment.start : WrapAlignment.end,
+                        children: [
+                          _buildMaliyetAksiyonEtiket(
+                              _maliyetDurumMetni(durum), renk),
+                          _buildMaliyetAksiyonMetrik(
+                              'Kâr', currencyFormat.format(kar), kar),
+                          _buildMaliyetAksiyonMetrik(
+                              'Marj', '%${karMarji.toStringAsFixed(1)}', kar),
+                          _buildMaliyetAksiyonMetrik(
+                              'Sapma',
+                              '%${sapmaOrani.toStringAsFixed(1)}',
+                              sapmaOrani <= 0 ? 1 : -1),
+                          _buildMaliyetAksiyonMetrik(
+                              'Fire',
+                              '%${fireOrani.toStringAsFixed(1)}',
+                              fireOrani <= 3 ? 1 : -1),
+                        ],
+                      );
+
+                      if (dar) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            baslik,
+                            const SizedBox(height: 10),
+                            metrikler,
+                          ],
+                        );
+                      }
+
+                      return Row(children: [
+                        Expanded(child: baslik),
+                        const SizedBox(width: 16),
+                        metrikler,
+                      ]);
+                    }),
+                  ),
+                );
+              }).toList(),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildMaliyetAksiyonEtiket(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _buildMaliyetRiskFiltreleri(List<Map<String, dynamic>> modeller) {
+    final filtreler = [
+      ('tum', 'Tümü', Icons.list),
+      ('zarar', 'Zarar', Icons.trending_down),
+      ('hedef_alti', 'Hedef Altı', Icons.flag),
+      ('fiyat_eksik', 'Fiyat Girilecek', Icons.local_offer),
+      ('sapma', 'Sapma', Icons.compare_arrows),
+      ('fire', 'Fire', Icons.warning_amber),
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: filtreler.map((filtre) {
+        final secili = secilenMaliyetRiskFiltresi == filtre.$1;
+        final adet = _maliyetRiskSayisi(modeller, filtre.$1);
+        return ChoiceChip(
+          selected: secili,
+          avatar: Icon(filtre.$3,
+              size: 16, color: secili ? Colors.white : const Color(0xFF475569)),
+          label: Text('${filtre.$2} ($adet)'),
+          onSelected: (_) {
+            setState(() {
+              secilenMaliyetRiskFiltresi = filtre.$1;
+            });
+          },
+          selectedColor: const Color(0xFF1565C0),
+          labelStyle: TextStyle(
+            color: secili ? Colors.white : const Color(0xFF334155),
+            fontWeight: FontWeight.w700,
+          ),
+          side: const BorderSide(color: Color(0xFFD8E1EC)),
+          visualDensity: VisualDensity.compact,
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildMaliyetAksiyonMetrik(String label, String value, num signal) {
+    final color = signal >= 0 ? Colors.green : Colors.red;
+    return SizedBox(
+      width: 92,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+        const SizedBox(height: 2),
+        FittedBox(
+          alignment: Alignment.centerRight,
+          child: Text(value,
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.w800, fontSize: 13)),
+        ),
+      ]),
+    );
+  }
+
+  int _maliyetAksiyonPuani(Map<String, dynamic> model) {
+    final durum = model['durum']?.toString() ?? '';
+    final sapmaOrani = _maliyetNum(model['maliyetSapmaOrani']);
+    final fireOrani = _maliyetNum(model['fireOrani']);
+    final kar = _maliyetNum(model['kar']);
+    final satisFiyati = _maliyetNum(model['satisFiyati']);
+    var puan = 0;
+    if (durum == 'zarar_riski' || kar < 0) puan += 1000;
+    if (durum == 'fiyat_eksik' || satisFiyati <= 0) puan += 800;
+    if (durum == 'hedef_alti') puan += 500;
+    if (sapmaOrani > 5) puan += (sapmaOrani * 10).round();
+    if (fireOrani > 3) puan += (fireOrani * 8).round();
+    return puan;
+  }
+
+  List<Map<String, dynamic>> _maliyetRiskFiltresiUygula(
+      List<Map<String, dynamic>> modeller, String filtre) {
+    return modeller
+        .where((model) => _maliyetRiskEslesir(model, filtre))
+        .toList();
+  }
+
+  int _maliyetRiskSayisi(List<Map<String, dynamic>> modeller, String filtre) {
+    return modeller.where((model) => _maliyetRiskEslesir(model, filtre)).length;
+  }
+
+  bool _maliyetRiskEslesir(Map<String, dynamic> model, String filtre) {
+    final durum = model['durum']?.toString() ?? '';
+    final sapmaOrani = _maliyetNum(model['maliyetSapmaOrani']);
+    final fireOrani = _maliyetNum(model['fireOrani']);
+    final satisFiyati = _maliyetNum(model['satisFiyati']);
+    final kar = _maliyetNum(model['kar']);
+
+    switch (filtre) {
+      case 'zarar':
+        return durum == 'zarar_riski' || kar < 0;
+      case 'hedef_alti':
+        return durum == 'hedef_alti';
+      case 'fiyat_eksik':
+        return durum == 'fiyat_eksik' || satisFiyati <= 0;
+      case 'sapma':
+        return sapmaOrani > 5;
+      case 'fire':
+        return fireOrani > 3;
+      case 'tum':
+      default:
+        return true;
+    }
+  }
+
+  void _maliyetModelDetayAc(Map<String, dynamic> model) {
+    final modelId = model['id']?.toString();
+    if (modelId == null || modelId.isEmpty) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ModelDetay(
+          modelId: modelId,
+          modelData: {
+            'id': modelId,
+            'marka': model['marka'],
+            'item_no': model['itemNo'],
+            'renk': model['renk'],
+            'toplam_adet': model['adet'],
+            'yuklenen_adet': model['tamamlananAdet'] ?? model['yuklenenAdet'],
+            'pesin_fiyat': model['satisFiyati'],
+          },
+        ),
+      ),
+    );
+  }
+
+  String _maliyetAksiyonMetni(Map<String, dynamic> model) {
+    final durum = model['durum']?.toString() ?? '';
+    final sapmaOrani = _maliyetNum(model['maliyetSapmaOrani']);
+    final fireOrani = _maliyetNum(model['fireOrani']);
+    final satisFiyati = _maliyetNum(model['satisFiyati']);
+    if (durum == 'fiyat_eksik' || satisFiyati <= 0) {
+      return 'Satış fiyatı tamamlanmalı veya fiyatlandırma aktif plana bağlanmalı.';
+    }
+    if (durum == 'zarar_riski') {
+      return 'Satış fiyatı gerçekleşen maliyetin altında; fiyat ve maliyet kalemleri kontrol edilmeli.';
+    }
+    if (durum == 'hedef_alti') {
+      return 'Brüt marj hedefin altında; hedef fiyat veya maliyet kalemleri revize edilmeli.';
+    }
+    if (sapmaOrani > 5) {
+      return 'Gerçekleşen maliyet planın üzerinde; sapma nedeni incelenmeli.';
+    }
+    if (fireOrani > 3) {
+      return 'Fire oranı toleransın üzerinde; üretim kayıtları kontrol edilmeli.';
+    }
+    return 'Model takip listesinde.';
+  }
+
+  double _maliyetNum(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
+  }
+
+  String _maliyetDurumMetni(String durum) {
+    switch (durum) {
+      case 'hedefte':
+        return 'Hedefte';
+      case 'hedef_alti':
+        return 'Hedef Altı';
+      case 'zarar_riski':
+        return 'Zarar Riski';
+      case 'fiyat_eksik':
+        return 'Fiyat Girilecek';
+      case 'ekran_hesabi':
+        return 'Ekran Hesabı';
+      default:
+        return durum;
+    }
+  }
+
+  Color _maliyetDurumRengi(String durum) {
+    switch (durum) {
+      case 'hedefte':
+        return Colors.green;
+      case 'hedef_alti':
+        return Colors.orange;
+      case 'zarar_riski':
+        return Colors.red;
+      case 'fiyat_eksik':
+        return const Color(0xFF607D8B);
+      default:
+        return Colors.indigo;
+    }
   }
 
   Widget _buildTedarikciTab() {
@@ -1987,7 +2574,7 @@ extension _TabsExt on _GelismisRaporlarPageState {
   Widget _buildSectionTitle(String title, [Color? color]) {
     return _buildSectionHeader(
       title,
-      Icons.analytics_rounded,
+      Icons.analytics,
       color ?? const Color(0xFF1565C0),
     );
   }

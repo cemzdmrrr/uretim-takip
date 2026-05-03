@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:uretim_takip/models/rapor_filtresi.dart';
+import 'package:uretim_takip/pages/model/model_detay.dart';
 import 'package:uretim_takip/services/gelismis_rapor_servisleri.dart';
 import 'package:uretim_takip/services/gelismis_rapor_operasyon_servisleri.dart';
 import 'package:uretim_takip/utils/excel_export.dart';
@@ -35,17 +37,37 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
   String? secilenMarka;
   String? secilenModel;
   int? secilenYil;
+  String secilenMaliyetRiskFiltresi = 'tum';
 
   List<String> markalar = [];
   List<String> modeller = [];
   List<int> yillar = [];
+
+  RaporFiltresi get _aktifFiltre => RaporFiltresi(
+        baslangicTarihi: baslangicTarihi,
+        bitisTarihi: bitisTarihi,
+        marka: secilenMarka,
+        model: secilenModel,
+        modelId: _secilenModelId,
+        yil: secilenYil,
+      );
+
+  String? get _secilenModelId {
+    if (secilenModel == null) return null;
+    for (final item in tumModeller) {
+      if (item['item_no']?.toString() == secilenModel) {
+        return item['id']?.toString();
+      }
+    }
+    return null;
+  }
 
   // Ham veriler
   List<Map<String, dynamic>> tumModeller = [];
   List<Map<String, dynamic>> filtrelenmisModeller = [];
   List<Map<String, dynamic>> depoSatislari = [];
 
-  String selectedZamanAraligi = 'Bu Ay';
+  String selectedZamanAraligi = 'Tüm Zamanlar';
   bool isLoading = false;
   DateTime? baslangicTarihi;
   DateTime? bitisTarihi;
@@ -137,6 +159,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
   }
 
   void _filtreUygula() {
+    final filtre = _aktifFiltre;
     filtrelenmisModeller = tumModeller.where((item) {
       // Marka filtresi
       if (secilenMarka != null && item['marka'] != secilenMarka) {
@@ -155,6 +178,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
           return false;
         }
       }
+      if (!filtre.tarihAraliginda(item, 'created_at')) return false;
       return true;
     }).toList();
 
@@ -180,8 +204,22 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
       secilenMarka = null;
       secilenModel = null;
       secilenYil = null;
+      selectedZamanAraligi = 'Tüm Zamanlar';
+      baslangicTarihi = null;
+      bitisTarihi = null;
       _filtreUygula();
     });
+    _loadAllData();
+  }
+
+  void _tumZamanlariGoster() {
+    setState(() {
+      selectedZamanAraligi = 'Tüm Zamanlar';
+      baslangicTarihi = null;
+      bitisTarihi = null;
+      _filtreUygula();
+    });
+    _loadAllData();
   }
 
   // TARİH ARALIĞI SEÇİCİ
@@ -215,6 +253,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
         bitisTarihi = secilen.end;
         selectedZamanAraligi =
             '${DateFormat('dd.MM.yyyy').format(secilen.start)} - ${DateFormat('dd.MM.yyyy').format(secilen.end)}';
+        _filtreUygula();
       });
       await _loadAllData();
     }
@@ -263,10 +302,13 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
   // RENK ANALİZİ HESAPLA
   Map<String, Map<String, dynamic>> _hesaplaRenkAnalizi() {
     final Map<String, Map<String, dynamic>> renkler = {};
+    final filtre = _aktifFiltre;
 
     // Depo satışlarından renk bazlı satışlar
     for (var satis in depoSatislari) {
-      if (satis['satildi'] == true && satis['renk'] != null) {
+      if (satis['satildi'] == true &&
+          satis['renk'] != null &&
+          filtre.depoEslesir(satis)) {
         final renk = satis['renk'].toString();
         final adet = (satis['satilan_adet'] ?? 0) as int;
         final tutar = (satis['satilan_tutar'] ?? 0).toDouble();
@@ -377,11 +419,13 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
   // STOK DEVİR HIZI HESAPLA
   Map<String, dynamic> _hesaplaStokDevirHizi() {
     final List<Map<String, dynamic>> satislar = [];
+    final filtre = _aktifFiltre;
 
     for (var item in depoSatislari) {
       if (item['satildi'] == true &&
           item['satis_tarihi'] != null &&
-          item['created_at'] != null) {
+          item['created_at'] != null &&
+          filtre.depoEslesir(item)) {
         try {
           final olusturma = DateTime.parse(item['created_at']);
           final satis = DateTime.parse(item['satis_tarihi']);
@@ -500,18 +544,25 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
   Future<void> _loadAllData() async {
     setState(() => isLoading = true);
     try {
+      final filtre = _aktifFiltre;
       final results = await Future.wait([
         GelismisRaporServisleri.getModelMaliyetAnalizi(
-            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+            baslangicTarihi: baslangicTarihi,
+            bitisTarihi: bitisTarihi,
+            filtre: filtre),
         GelismisRaporServisleri.getKarZararAnalizi(
-            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
+            baslangicTarihi: baslangicTarihi,
+            bitisTarihi: bitisTarihi,
+            filtre: filtre),
         GelismisRaporServisleri.getTedarikciPerformansAnalizi(
             baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
         GelismisRaporServisleri.getUretimVerimlilikAnalizi(
             baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
         GelismisRaporServisleri.getMarkaBazliAnaliz(
-            baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
-        GelismisRaporOperasyonServisleri.getTerminTakipAnalizi(),
+            baslangicTarihi: baslangicTarihi,
+            bitisTarihi: bitisTarihi,
+            filtre: filtre),
+        GelismisRaporOperasyonServisleri.getTerminTakipAnalizi(filtre: filtre),
         GelismisRaporOperasyonServisleri.getStokAnalizi(
             baslangicTarihi: baslangicTarihi, bitisTarihi: bitisTarihi),
         GelismisRaporOperasyonServisleri.getSevkiyatAnalizi(
@@ -574,6 +625,8 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
     return Column(
       children: [
         _buildFiltreBari(),
+        if (filtrelenmisModeller.isEmpty && tumModeller.isNotEmpty)
+          _buildBosFiltreUyarisi(),
         Expanded(
           child: TabBarView(controller: _tabController, children: [
             _buildOzetTab(),
@@ -593,6 +646,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
 
   Widget _buildPageHeader() {
     final ozet = _hesaplaFiltrelenmisOzet();
+    final yonetim = _hesaplaYonetimGostergeOzeti();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -612,7 +666,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                     message: 'Geri',
                     child: IconButton(
                       onPressed: () => Navigator.maybePop(context),
-                      icon: const Icon(Icons.arrow_back_rounded),
+                      icon: const Icon(Icons.arrow_back),
                       color: const Color(0xFF334155),
                     ),
                   ),
@@ -623,7 +677,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                       color: const Color(0xFF1565C0).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.analytics_rounded,
+                    child: const Icon(Icons.analytics,
                         color: Color(0xFF1565C0), size: 23),
                   ),
                   const SizedBox(width: 12),
@@ -646,20 +700,51 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                           runSpacing: 6,
                           children: [
                             _buildInfoPill(
-                                Icons.inventory_2_rounded,
+                                Icons.inventory_2,
                                 '${ozet['toplamUrun']} model',
                                 const Color(0xFF1565C0)),
                             _buildInfoPill(
-                                Icons.local_shipping_rounded,
+                                Icons.local_shipping,
                                 '${ozet['toplamYuklenenAdet']} yüklenen',
                                 const Color(0xFF0F766E)),
                             _buildInfoPill(
-                              Icons.trending_up_rounded,
+                              Icons.trending_up,
                               currencyFormat.format(ozet['kar']),
                               (ozet['kar'] as double) >= 0
                                   ? const Color(0xFF2E7D32)
                                   : const Color(0xFFD32F2F),
                             ),
+                            _buildInfoPill(
+                                Icons.error_outline,
+                                '${yonetim['riskliModel']} risk',
+                                (yonetim['riskliModel'] as int) > 0
+                                    ? const Color(0xFFD32F2F)
+                                    : const Color(0xFF2E7D32),
+                                onTap: () => _maliyetRiskSekmesineGit('tum')),
+                            _buildInfoPill(
+                                Icons.flag,
+                                '${yonetim['hedefAlti']} hedef altı',
+                                (yonetim['hedefAlti'] as int) > 0
+                                    ? const Color(0xFFF57C00)
+                                    : const Color(0xFF64748B),
+                                onTap: () =>
+                                    _maliyetRiskSekmesineGit('hedef_alti')),
+                            _buildInfoPill(
+                                Icons.local_offer,
+                                '${yonetim['fiyatEksik']} fiyat girilecek',
+                                (yonetim['fiyatEksik'] as int) > 0
+                                    ? const Color(0xFF607D8B)
+                                    : const Color(0xFF64748B),
+                                onTap: () =>
+                                    _maliyetRiskSekmesineGit('fiyat_eksik')),
+                            _buildInfoPill(
+                                Icons.compare_arrows,
+                                currencyFormat
+                                    .format(yonetim['maliyetSapmasi']),
+                                (yonetim['maliyetSapmasi'] as double) > 0
+                                    ? const Color(0xFFD32F2F)
+                                    : const Color(0xFF2E7D32),
+                                onTap: () => _maliyetRiskSekmesineGit('sapma')),
                           ],
                         ),
                       ],
@@ -674,12 +759,12 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                 alignment: narrow ? WrapAlignment.start : WrapAlignment.end,
                 children: [
                   _buildToolbarButton(
-                    icon: Icons.picture_as_pdf_rounded,
+                    icon: Icons.picture_as_pdf,
                     label: 'PDF',
                     onPressed: _pdfOlustur,
                   ),
                   _buildToolbarButton(
-                    icon: Icons.table_chart_rounded,
+                    icon: Icons.table_chart,
                     label: 'Excel',
                     onPressed: _excelOlustur,
                     filled: true,
@@ -688,7 +773,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                     message: 'Yenile',
                     child: IconButton.filledTonal(
                       onPressed: _verileriYukle,
-                      icon: const Icon(Icons.refresh_rounded),
+                      icon: const Icon(Icons.refresh),
                     ),
                   ),
                 ],
@@ -736,17 +821,15 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
             unselectedLabelColor: const Color(0xFF64748B),
             labelStyle: const TextStyle(fontWeight: FontWeight.w800),
             tabs: const [
-              Tab(icon: Icon(Icons.dashboard_rounded), text: 'Özet'),
-              Tab(
-                  icon: Icon(Icons.account_balance_wallet_rounded),
-                  text: 'Kâr/Zarar'),
-              Tab(icon: Icon(Icons.calculate_rounded), text: 'Maliyet'),
-              Tab(icon: Icon(Icons.business_rounded), text: 'Tedarikçi'),
-              Tab(icon: Icon(Icons.speed_rounded), text: 'Verimlilik'),
-              Tab(icon: Icon(Icons.schedule_rounded), text: 'Termin'),
-              Tab(icon: Icon(Icons.inventory_2_rounded), text: 'Stok'),
-              Tab(icon: Icon(Icons.local_shipping_rounded), text: 'Sevkiyat'),
-              Tab(icon: Icon(Icons.verified_rounded), text: 'Kalite'),
+              Tab(icon: Icon(Icons.dashboard), text: 'Özet'),
+              Tab(icon: Icon(Icons.account_balance_wallet), text: 'Kâr/Zarar'),
+              Tab(icon: Icon(Icons.calculate), text: 'Maliyet'),
+              Tab(icon: Icon(Icons.business), text: 'Tedarikçi'),
+              Tab(icon: Icon(Icons.speed), text: 'Verimlilik'),
+              Tab(icon: Icon(Icons.schedule), text: 'Termin'),
+              Tab(icon: Icon(Icons.inventory_2), text: 'Stok'),
+              Tab(icon: Icon(Icons.local_shipping), text: 'Sevkiyat'),
+              Tab(icon: Icon(Icons.verified), text: 'Kalite'),
             ],
           ),
         ),
@@ -771,7 +854,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                   children: [
                     _buildSectionHeader(
                       'Filtreler',
-                      Icons.tune_rounded,
+                      Icons.tune,
                       const Color(0xFF1565C0),
                       trailing: '${filtrelenmisModeller.length} kayıt',
                     ),
@@ -793,7 +876,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                           child: _buildYilDropdown(),
                         ),
                         _buildToolbarButton(
-                          icon: Icons.date_range_rounded,
+                          icon: Icons.date_range,
                           label: selectedZamanAraligi,
                           onPressed: _tarihAraligiSec,
                         ),
@@ -801,7 +884,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                           message: 'Filtreleri Temizle',
                           child: IconButton.filledTonal(
                             onPressed: _filtreleriTemizle,
-                            icon: const Icon(Icons.clear_all_rounded),
+                            icon: const Icon(Icons.clear_all),
                           ),
                         ),
                       ],
@@ -813,6 +896,49 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildBosFiltreUyarisi() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFED7AA)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.info_outline,
+                  color: Color(0xFFC2410C), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Seçili tarih/filtre kapsamında kayıt bulunamadı. Toplam ${tumModeller.length} model var.',
+                  style: const TextStyle(
+                    color: Color(0xFF7C2D12),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _tumZamanlariGoster,
+                icon: const Icon(Icons.history, size: 17),
+                label: const Text('Tüm Zamanlar'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFC2410C),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 
@@ -832,6 +958,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
           secilenModel = null;
           _filtreUygula();
         });
+        _loadAllData();
       },
     );
   }
@@ -853,6 +980,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
                 secilenModel = value;
                 _filtreUygula();
               });
+              _loadAllData();
             },
     );
   }
@@ -871,6 +999,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
           secilenYil = value;
           _filtreUygula();
         });
+        _loadAllData();
       },
     );
   }
@@ -987,33 +1116,102 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
     );
   }
 
-  Widget _buildInfoPill(IconData icon, String text, Color color) {
-    return Container(
+  Widget _buildInfoPill(IconData icon, String text, Color color,
+      {VoidCallback? onTap}) {
+    final child = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.14)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
           ),
-        ],
-      ),
+        ),
+      ]),
+    );
+
+    if (onTap == null) return child;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: child,
     );
   }
 
   // Filtrelenmiş özet hesaplama
+  void _maliyetRiskSekmesineGit(String filtre) {
+    setState(() {
+      secilenMaliyetRiskFiltresi = filtre;
+    });
+    _tabController.animateTo(2);
+  }
+
+  Map<String, dynamic> _hesaplaYonetimGostergeOzeti() {
+    final durumDagilimi =
+        Map<String, int>.from(maliyetVerileri['durumDagilimi'] ?? {});
+    final modelMaliyetleri = List<Map<String, dynamic>>.from(
+        maliyetVerileri['modelMaliyetleri'] ?? []);
+
+    final zararRiski = durumDagilimi['zarar_riski'] ??
+        modelMaliyetleri.where((model) {
+          final kar = _raporNum(model['kar']);
+          return model['durum']?.toString() == 'zarar_riski' || kar < 0;
+        }).length;
+    final hedefAlti = durumDagilimi['hedef_alti'] ?? 0;
+    final fiyatEksik = durumDagilimi['fiyat_eksik'] ??
+        modelMaliyetleri.where((model) {
+          final fiyat = _raporNum(model['satisFiyati']);
+          return model['durum']?.toString() == 'fiyat_eksik' || fiyat <= 0;
+        }).length;
+    final sapmali = modelMaliyetleri.where((model) {
+      final sapmaOrani = _raporNum(model['maliyetSapmaOrani']);
+      return sapmaOrani > 5;
+    }).length;
+    final fireli = modelMaliyetleri.where((model) {
+      final fireOrani = _raporNum(model['fireOrani']);
+      return fireOrani > 3;
+    }).length;
+    final riskliModel = modelMaliyetleri.where((model) {
+      final durum = model['durum']?.toString() ?? '';
+      final kar = _raporNum(model['kar']);
+      final sapmaOrani = _raporNum(model['maliyetSapmaOrani']);
+      final fireOrani = _raporNum(model['fireOrani']);
+      return durum == 'zarar_riski' ||
+          durum == 'hedef_alti' ||
+          kar < 0 ||
+          sapmaOrani > 5 ||
+          fireOrani > 3;
+    }).length;
+
+    return {
+      'zararRiski': zararRiski,
+      'hedefAlti': hedefAlti,
+      'fiyatEksik': fiyatEksik,
+      'sapmali': sapmali,
+      'fireli': fireli,
+      'riskliModel': riskliModel,
+      'maliyetSapmasi': _raporNum(maliyetVerileri['maliyetSapmasi']),
+      'maliyetSapmaOrani': _raporNum(maliyetVerileri['maliyetSapmaOrani']),
+      'fireOrani': _raporNum(maliyetVerileri['fireOrani']),
+    };
+  }
+
+  double _raporNum(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
+  }
+
   Map<String, dynamic> _hesaplaFiltrelenmisOzet() {
     final int toplamUrun = filtrelenmisModeller.length;
     int toplamAdet = 0;
@@ -1064,9 +1262,13 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage>
     // Depo satışları
     double depoSatisGeliri = 0;
     int depoSatilanAdet = 0;
+    final filtre = _aktifFiltre;
     for (var satis in depoSatislari) {
       bool dahilEt = true;
       if (secilenMarka != null && satis['marka'] != secilenMarka) {
+        dahilEt = false;
+      }
+      if (!filtre.depoEslesir(satis)) {
         dahilEt = false;
       }
 

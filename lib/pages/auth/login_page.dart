@@ -377,13 +377,46 @@ class _LoginPageState extends State<LoginPage>
       }
     } catch (e) {
       if (mounted) {
-        _showErrorDialog('Giriş Hatası', e.toString());
+        _showErrorDialog('Giriş Yapılamadı', _friendlyLoginErrorMessage(e));
       }
     } finally {
       if (mounted) {
         setState(() => loading = false);
       }
     }
+  }
+
+  String _friendlyLoginErrorMessage(Object error) {
+    final rawMessage =
+        error is AuthException ? error.message : error.toString();
+    final message = rawMessage.toLowerCase();
+
+    if (message.contains('invalid login credentials') ||
+        message.contains('invalid credentials') ||
+        message.contains('invalid email or password') ||
+        message.contains('email not found') ||
+        message.contains('wrong password')) {
+      return 'E-posta veya şifre hatalı. Lütfen bilgilerinizi kontrol edip tekrar deneyin.';
+    }
+
+    if (message.contains('email not confirmed') ||
+        message.contains('not confirmed')) {
+      return 'E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı doğruladıktan sonra tekrar giriş yapın.';
+    }
+
+    if (message.contains('too many requests') ||
+        message.contains('rate limit')) {
+      return 'Çok fazla başarısız deneme yapıldı. Lütfen birkaç dakika bekleyip tekrar deneyin.';
+    }
+
+    if (message.contains('network') ||
+        message.contains('socket') ||
+        message.contains('failed host lookup') ||
+        message.contains('connection')) {
+      return 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
+    }
+
+    return 'Giriş işlemi tamamlanamadı. Lütfen bilgilerinizi kontrol edip tekrar deneyin.';
   }
 
   void _showErrorDialog(String title, String message) {
