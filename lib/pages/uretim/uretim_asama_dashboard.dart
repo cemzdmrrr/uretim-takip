@@ -195,6 +195,9 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
         DbTables.ilikDugmeAtamalari,
       }.contains(widget.atamaTablosu);
 
+  bool get _eskiAtamaAciklamaKolonuVar =>
+      widget.atamaTablosu == DbTables.nakisAtamalari;
+
   String get _siralamayaEsasTarihKolonu =>
       _eskiAtamaSemasi ? 'created_at' : 'atama_tarihi';
 
@@ -205,7 +208,7 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
         model_id,
         created_at,
         durum,
-        aciklama,
+        ${_eskiAtamaAciklamaKolonuVar ? 'aciklama,' : ''}
         adet,
         talep_edilen_adet,
         tamamlanan_adet,
@@ -511,68 +514,13 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
         bitisTarihi != null;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         title: Text('${widget.asamaDisplayName} Paneli'),
-        backgroundColor: widget.asamaRengi,
+        backgroundColor: const Color(0xFF0F766E),
         foregroundColor: Colors.white,
-        elevation: 2,
+        elevation: 0,
         actions: [
-          // Arama
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () async {
-              final result = await showSearch<String>(
-                context: context,
-                delegate: _AsamaModelAramaDelegate(
-                  tumModeller: atanmisModeller,
-                  asamaRengi: widget.asamaRengi,
-                ),
-              );
-              if (result != null && result.isNotEmpty) {
-                setState(() {
-                  aramaMetni = result;
-                  _aramaController.text = result;
-                });
-              }
-            },
-            tooltip: 'Ara',
-          ),
-          // Filtreleme
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_alt),
-                onPressed: _showFilterDialog,
-                tooltip: 'Filtrele',
-              ),
-              if (aktifFiltreVar)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Text('!',
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-            ],
-          ),
-          // Raporlama
-          IconButton(
-            icon: const Icon(Icons.analytics),
-            onPressed: _showRaporDialog,
-            tooltip: 'Rapor',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _modelleriGetir,
-            tooltip: 'Yenile',
-          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -584,64 +532,24 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
             tooltip: 'Çıkış Yap',
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(
-              text: 'Bekleyen (${filtreliBekleyenler.length})',
-              icon: const Icon(Icons.pending),
-            ),
-            Tab(
-              text: 'Onaylanan (${filtreliOnaylananlar.length})',
-              icon: const Icon(Icons.check_circle),
-            ),
-            Tab(
-              text: 'İşlemde (${filtreliUretimdekiler.length})',
-              icon: Icon(widget.asamaIconu),
-            ),
-            Tab(
-              text: 'Tümü (${tumFiltrelenmisler.length})',
-              icon: const Icon(Icons.list),
-            ),
-          ],
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-        ),
       ),
       body: Column(
         children: [
-          // Aktif filtre göstergesi
-          if (aktifFiltreVar)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.amber.shade100,
-              child: Row(
-                children: [
-                  const Icon(Icons.filter_alt, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Aktif Filtre: ${[
-                        if (aramaMetni.isNotEmpty) '"$aramaMetni"',
-                        if (seciliMarka != null) 'Marka: $seciliMarka',
-                        if (baslangicTarihi != null)
-                          'Başlangıç: ${DateFormat('dd.MM.yyyy').format(baslangicTarihi!)}',
-                        if (bitisTarihi != null)
-                          'Bitiş: ${DateFormat('dd.MM.yyyy').format(bitisTarihi!)}',
-                      ].join(', ')}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _filtreleriTemizle,
-                    icon: const Icon(Icons.clear, size: 16),
-                    label: const Text('Temizle'),
-                  ),
-                ],
-              ),
-            ),
-          // Tab içerikleri
+          _buildErpHeader(
+            bekleyen: filtreliBekleyenler.length,
+            onaylanan: filtreliOnaylananlar.length,
+            islemde: filtreliUretimdekiler.length,
+            tamamlanan: filtreliTamamlananlar.length,
+            toplam: tumFiltrelenmisler.length,
+            aktifFiltreVar: aktifFiltreVar,
+          ),
+          if (aktifFiltreVar) _buildAktifFiltreSeridi(),
+          _buildErpTabSeridi(
+            bekleyen: filtreliBekleyenler.length,
+            onaylanan: filtreliOnaylananlar.length,
+            islemde: filtreliUretimdekiler.length,
+            toplam: tumFiltrelenmisler.length,
+          ),
           Expanded(
             child: TabBarView(
               controller: _tabController,

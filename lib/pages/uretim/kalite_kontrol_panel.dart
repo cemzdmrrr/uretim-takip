@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:intl/intl.dart';
@@ -9,7 +9,6 @@ import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 part 'kalite_kontrol_panel_widgets.dart';
-
 
 class KaliteKontrolPanel extends StatefulWidget {
   const KaliteKontrolPanel({Key? key}) : super(key: key);
@@ -33,7 +32,14 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
   // Filtreleme
   String aramaMetni = '';
   String? seciliAsama;
-  List<String> asamalar = ['Dokuma', 'Konfeksiyon', 'Yıkama', 'Ütü', 'İlik Düğme', 'Paketleme'];
+  List<String> asamalar = [
+    'Dokuma',
+    'Konfeksiyon',
+    'Yıkama',
+    'Ütü',
+    'İlik Düğme',
+    'Paketleme'
+  ];
   final TextEditingController _aramaController = TextEditingController();
 
   @override
@@ -61,7 +67,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
             .select('rol')
             .eq('user_id', user.id)
             .maybeSingle();
-        
+
         if (response1 != null) {
           setState(() => currentUserRole = response1['rol']);
         } else {
@@ -71,7 +77,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
               .select('rol')
               .eq('id', user.id)
               .maybeSingle();
-          
+
           if (response2 != null) {
             setState(() => currentUserRole = response2['rol']);
           }
@@ -84,7 +90,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
 
   Future<void> _verileriYukle() async {
     setState(() => yukleniyor = true);
-    
+
     try {
       // Önce tüm kalite kontrol kayıtlarını al
       final response = await supabase
@@ -93,9 +99,9 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
           .order('created_at', ascending: false);
 
       debugPrint('📋 Kalite kontrol sorgu sonucu: ${response.length} kayıt');
-      
+
       final tumKontroller = List<Map<String, dynamic>>.from(response);
-      
+
       // Her kayıt için model bilgisini ayrı çek
       final List<Map<String, dynamic>> zenginKontroller = [];
       for (var kontrol in tumKontroller) {
@@ -107,7 +113,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
                 .select('id, marka, item_no, renk, adet, termin_tarihi')
                 .eq('id', modelId)
                 .maybeSingle();
-            
+
             if (modelResponse != null) {
               kontrol[DbTables.trikoTakip] = modelResponse;
               zenginKontroller.add(kontrol);
@@ -117,7 +123,12 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
               kontrol[DbTables.trikoTakip] = {
                 'id': modelId,
                 'marka': 'Bilinmiyor',
-                'item_no': kontrol['notlar']?.toString().split('-').elementAtOrNull(1)?.trim() ?? 'N/A',
+                'item_no': kontrol['notlar']
+                        ?.toString()
+                        .split('-')
+                        .elementAtOrNull(1)
+                        ?.trim() ??
+                    'N/A',
                 'renk': null,
                 'adet': kontrol['kontrol_edilecek_adet'],
                 'termin_tarihi': null,
@@ -129,38 +140,40 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
           debugPrint('⚠️ Model bilgisi alınamadı: $e');
         }
       }
-      
-      debugPrint('📋 Zenginleştirilmiş kontroller: ${zenginKontroller.length} kayıt');
+
+      debugPrint(
+          '📋 Zenginleştirilmiş kontroller: ${zenginKontroller.length} kayıt');
 
       setState(() {
         // Bekleyenler: atandi durumu (yeni atamalar)
-        bekleyenler = zenginKontroller.where((k) => 
-          k['durum'] == 'atandi' || 
-          k['durum'] == 'beklemede' || 
-          k['durum'] == 'kontrol_bekliyor'
-        ).toList();
-        
+        bekleyenler = zenginKontroller
+            .where((k) =>
+                k['durum'] == 'atandi' ||
+                k['durum'] == 'beklemede' ||
+                k['durum'] == 'kontrol_bekliyor')
+            .toList();
+
         // Kontrol ediliyor: baslandi durumu
-        kontrolEdiliyor = zenginKontroller.where((k) => 
-          k['durum'] == 'baslandi' ||
-          k['durum'] == 'kontrolde'
-        ).toList();
-        
+        kontrolEdiliyor = zenginKontroller
+            .where((k) => k['durum'] == 'baslandi' || k['durum'] == 'kontrolde')
+            .toList();
+
         // Tamamlananlar: tamamlandi, iptal
-        tamamlananlar = zenginKontroller.where((k) => 
-          k['durum'] == 'tamamlandi' ||
-          k['durum'] == 'onaylandi' || 
-          k['durum'] == 'kalite_onay' || 
-          k['durum'] == 'reddedildi' || 
-          k['durum'] == 'kalite_red' ||
-          k['durum'] == 'iptal'
-        ).toList();
-        
+        tamamlananlar = zenginKontroller
+            .where((k) =>
+                k['durum'] == 'tamamlandi' ||
+                k['durum'] == 'onaylandi' ||
+                k['durum'] == 'kalite_onay' ||
+                k['durum'] == 'reddedildi' ||
+                k['durum'] == 'kalite_red' ||
+                k['durum'] == 'iptal')
+            .toList();
+
         yukleniyor = false;
       });
 
-      debugPrint('✅ Kalite kontrol verileri yüklendi: ${bekleyenler.length} bekleyen, ${kontrolEdiliyor.length} kontrolde, ${tamamlananlar.length} tamamlanan');
-
+      debugPrint(
+          '✅ Kalite kontrol verileri yüklendi: ${bekleyenler.length} bekleyen, ${kontrolEdiliyor.length} kontrolde, ${tamamlananlar.length} tamamlanan');
     } catch (e) {
       debugPrint('❌ Kalite kontrol verileri yüklenemedi: $e');
       setState(() => yukleniyor = false);
@@ -172,14 +185,14 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
 
   Future<int> _getModelToplamAdet(String? modelId) async {
     if (modelId == null) return 0;
-    
+
     try {
       // Beden dağılımından toplam adedi hesapla
       final response = await supabase
           .from(DbTables.modelBedenDagilimi)
           .select('siparis_adedi')
           .eq('model_id', modelId);
-      
+
       if (response.isNotEmpty) {
         int toplam = 0;
         for (var item in response) {
@@ -187,14 +200,14 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
         }
         return toplam;
       }
-      
+
       // Eğer beden dağılımı yoksa, model'den al
       final modelResponse = await supabase
           .from(DbTables.trikoTakip)
           .select('adet')
           .eq('id', modelId)
           .maybeSingle();
-      
+
       return (modelResponse?['adet'] as int?) ?? 0;
     } catch (e) {
       debugPrint('Model toplam adet alınamadı: $e');
@@ -213,7 +226,9 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
         final itemNo = (model['item_no'] ?? '').toString().toLowerCase();
         final renk = (model['renk'] ?? '').toString().toLowerCase();
         final arama = aramaMetni.toLowerCase();
-        if (!marka.contains(arama) && !itemNo.contains(arama) && !renk.contains(arama)) {
+        if (!marka.contains(arama) &&
+            !itemNo.contains(arama) &&
+            !renk.contains(arama)) {
           return false;
         }
       }
@@ -232,82 +247,62 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
     final filtreliBekleyenler = _filtreleListe(bekleyenler);
     final filtreliKontrolEdiliyor = _filtreleListe(kontrolEdiliyor);
     final filtreliTamamlananlar = _filtreleListe(tamamlananlar);
+    final toplam = filtreliBekleyenler.length +
+        filtreliKontrolEdiliyor.length +
+        filtreliTamamlananlar.length;
+    final aktifFiltreVar = aramaMetni.isNotEmpty || seciliAsama != null;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         title: const Text('Kalite Kontrol Paneli'),
-        backgroundColor: Colors.teal,
+        backgroundColor: const Color(0xFF0F766E),
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: _showAramaDialog,
-            tooltip: 'Ara',
-          ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFiltreDialog,
-            tooltip: 'Filtrele',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _verileriYukle,
-            tooltip: 'Yenile',
-          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await supabase.auth.signOut();
               if (!context.mounted) return;
-              if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.login);
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, AppRoutes.login);
+              }
             },
             tooltip: 'Çıkış',
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: [
-            Tab(
-              icon: Badge(
-                label: Text('${filtreliBekleyenler.length}'),
-                backgroundColor: Colors.orange,
-                child: const Icon(Icons.pending_actions),
-              ),
-              text: 'Bekleyen',
-            ),
-            Tab(
-              icon: Badge(
-                label: Text('${filtreliKontrolEdiliyor.length}'),
-                backgroundColor: Colors.blue,
-                child: const Icon(Icons.search),
-              ),
-              text: 'Kontrol Ediliyor',
-            ),
-            Tab(
-              icon: Badge(
-                label: Text('${filtreliTamamlananlar.length}'),
-                backgroundColor: Colors.green,
-                child: const Icon(Icons.check_circle),
-              ),
-              text: 'Tamamlanan',
-            ),
-          ],
-        ),
       ),
       body: yukleniyor
           ? const LoadingWidget()
-          : TabBarView(
-              controller: _tabController,
+          : Column(
               children: [
-                _buildKontrolListesi(filtreliBekleyenler, 'bekleyen'),
-                _buildKontrolListesi(filtreliKontrolEdiliyor, 'kontrolde'),
-                _buildKontrolListesi(filtreliTamamlananlar, 'tamamlanan'),
+                _buildErpHeader(
+                  bekleyen: filtreliBekleyenler.length,
+                  kontrolde: filtreliKontrolEdiliyor.length,
+                  tamamlanan: filtreliTamamlananlar.length,
+                  toplam: toplam,
+                  aktifFiltreVar: aktifFiltreVar,
+                ),
+                if (aktifFiltreVar) _buildAktifFiltreSeridi(),
+                _buildKaliteTabSeridi(
+                  bekleyen: filtreliBekleyenler.length,
+                  kontrolde: filtreliKontrolEdiliyor.length,
+                  tamamlanan: filtreliTamamlananlar.length,
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildKontrolListesi(filtreliBekleyenler, 'bekleyen'),
+                      _buildKontrolListesi(
+                          filtreliKontrolEdiliyor, 'kontrolde'),
+                      _buildKontrolListesi(filtreliTamamlananlar, 'tamamlanan'),
+                    ],
+                  ),
+                ),
               ],
             ),
     );
   }
-
 }

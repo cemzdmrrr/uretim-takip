@@ -131,6 +131,9 @@ class _BedenUretimTamamlaDialogGenericState
         DbTables.ilikDugmeAtamalari,
       }.contains(widget.atamaTablosu);
 
+  bool get _eskiAtamaAciklamaKolonuVar =>
+      widget.atamaTablosu == DbTables.nakisAtamalari;
+
   @override
   void initState() {
     super.initState();
@@ -439,13 +442,13 @@ class _BedenUretimTamamlaDialogGenericState
 
       // Atama tablosunu güncelle
       final Map<String, dynamic> updateData = _eskiAtamaSemasi
-          ? {
+          ? <String, dynamic>{
               'tamamlanan_adet': toplamUretilen,
               'durum': yeniDurum,
               'teslim_tarihi': yeniDurum == 'tamamlandi' ? now : null,
               'updated_at': now,
               'son_guncelleme_tarihi': now,
-              'aciklama': yeniNot,
+              if (_eskiAtamaAciklamaKolonuVar) 'aciklama': yeniNot,
             }
           : {
               'tamamlanan_adet': toplamUretilen,

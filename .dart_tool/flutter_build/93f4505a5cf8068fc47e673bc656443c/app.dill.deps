@@ -1757,6 +1757,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/mesai_model.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/notification_model.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/odeme_model.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/personel_model.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/rapor_filtresi.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/tedarikci_model.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/abonelik/abonelik_plan_fiyat_yonetimi_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/abonelik/abonelik_yonetimi_page.dart
@@ -1860,11 +1861,6 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/tedarikci/tedarikci_listes
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/tedarikci/tedarikci_panel.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/tedarikci/tedarikci_panel_aksiyonlar.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/dokuma_dashboard.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/dokuma_dashboard_aksiyonlar.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/dokuma_dashboard_detay.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/dokuma_dashboard_dialog.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/dokuma_dashboard_rapor.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/dokuma_dashboard_widgets.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/genel_uretim_dashboard.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/ilik_dugme_dashboard.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/kalite_kontrol_dashboard.dart

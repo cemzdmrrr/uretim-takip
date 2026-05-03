@@ -3,152 +3,709 @@ part of 'uretim_asama_dashboard.dart';
 
 /// Uretim asama model karti, aksiyonlar ve dialog'lar
 extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
-  Widget _buildModelKarti(Map<String, dynamic> atama) {
-    final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
-    final durum = atama['durum'] as String?;
-    final tamamlananAdet = atama['tamamlanan_adet'] ?? 0;
-    final kabulEdilenAdet = atama['kabul_edilen_adet'] ??
-        atama['talep_edilen_adet'] ??
-        atama['adet'] ??
-        model['adet'] ??
-        0;
-
-    // Model verisi yoksa atama tablosundaki adet'i kullan
-    final displayAdet = model['adet']?.toString() ?? atama['adet']?.toString();
-    final displayRenk = model['renk'] ?? '-';
-
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Başlık ve durum badge
-            Row(
+  Widget _buildErpAksiyonButonu({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    bool aktif = false,
+  }) {
+    final renk = aktif ? const Color(0xFFEF6C00) : const Color(0xFF334155);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: aktif ? const Color(0xFFFFF3E0) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    '${model['marka'] ?? 'Bilinmeyen Marka'} - ${model['item_no'] ?? 'Bilinmeyen Model'}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _buildDurumBadge(durum),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Model bilgileri
-            _buildModelBilgisi('Adet', displayAdet),
-            _buildModelBilgisi('Renk', displayRenk),
-
-            // Atama bilgileri
-            if (atama['talep_edilen_adet'] != null)
-              _buildModelBilgisi(
-                  'Talep Edilen', atama['talep_edilen_adet']?.toString()),
-            if (atama['kabul_edilen_adet'] != null)
-              _buildModelBilgisi(
-                  'Kabul Edilen', atama['kabul_edilen_adet']?.toString()),
-            if (tamamlananAdet > 0)
-              _buildModelBilgisi('Tamamlanan', '$tamamlananAdet',
-                  textColor: Colors.green),
-
-            // İlerleme çubuğu (sadece aktif işler için)
-            if (kabulEdilenAdet > 0 &&
-                (durum == 'onaylandi' ||
-                    durum == 'uretimde' ||
-                    durum == 'baslatildi' ||
-                    durum == 'kismi_tamamlandi')) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: (tamamlananAdet as num) / (kabulEdilenAdet as num),
-                      backgroundColor: Colors.grey[300],
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        tamamlananAdet >= kabulEdilenAdet
-                            ? Colors.green
-                            : widget.asamaRengi,
+                Icon(icon, color: renk, size: 21),
+                if (aktif)
+                  const Positioned(
+                    right: 8,
+                    top: 8,
+                    child: SizedBox(
+                      width: 7,
+                      height: 7,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Color(0xFFEF6C00),
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '%${(((tamamlananAdet) / (kabulEdilenAdet)) * 100).toInt()}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErpHeader({
+    required int bekleyen,
+    required int onaylanan,
+    required int islemde,
+    required int tamamlanan,
+    required int toplam,
+    required bool aktifFiltreVar,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFDDE5EE))),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1550),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: widget.asamaRengi.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        widget.asamaIconu,
+                        color: widget.asamaRengi,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${widget.asamaDisplayName} Paneli',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$toplam aktif iş emri izleniyor',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      children: [
+                        _buildErpAksiyonButonu(
+                          icon: Icons.search,
+                          tooltip: 'Ara',
+                          onPressed: () async {
+                            final result = await showSearch<String>(
+                              context: context,
+                              delegate: _AsamaModelAramaDelegate(
+                                tumModeller: atanmisModeller,
+                                asamaRengi: widget.asamaRengi,
+                              ),
+                            );
+                            if (result != null && result.isNotEmpty) {
+                              setState(() {
+                                aramaMetni = result;
+                                _aramaController.text = result;
+                              });
+                            }
+                          },
+                        ),
+                        _buildErpAksiyonButonu(
+                          icon: Icons.filter_alt,
+                          tooltip: 'Filtrele',
+                          onPressed: _showFilterDialog,
+                          aktif: aktifFiltreVar,
+                        ),
+                        _buildErpAksiyonButonu(
+                          icon: Icons.analytics_outlined,
+                          tooltip: 'Rapor',
+                          onPressed: _showRaporDialog,
+                        ),
+                        _buildErpAksiyonButonu(
+                          icon: Icons.refresh,
+                          tooltip: 'Yenile',
+                          onPressed: _modelleriGetir,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildHeaderMetric('Toplam', toplam.toString(),
+                        Icons.assignment_outlined, widget.asamaRengi),
+                    _buildHeaderMetric('Bekleyen', bekleyen.toString(),
+                        Icons.pending_actions, const Color(0xFFEF6C00)),
+                    _buildHeaderMetric('Onaylanan', onaylanan.toString(),
+                        Icons.verified_outlined, const Color(0xFF2E7D32)),
+                    _buildHeaderMetric('İşlemde', islemde.toString(),
+                        Icons.play_circle_outline, const Color(0xFF1565C0)),
+                    _buildHeaderMetric('Tamamlanan', tamamlanan.toString(),
+                        Icons.task_alt, const Color(0xFF6A1B9A)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderMetric(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 142),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF475569),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
 
-            if (model['termin_tarihi'] != null)
-              _buildModelBilgisi(
-                'Termin',
-                DateFormat('dd.MM.yyyy')
-                    .format(DateTime.parse(model['termin_tarihi'])),
-                textColor: Colors.red,
+  Widget _buildAktifFiltreSeridi() {
+    final filtreler = [
+      if (aramaMetni.isNotEmpty) '"$aramaMetni"',
+      if (seciliMarka != null) 'Marka: $seciliMarka',
+      if (baslangicTarihi != null)
+        'Başlangıç: ${DateFormat('dd.MM.yyyy').format(baslangicTarihi!)}',
+      if (bitisTarihi != null)
+        'Bitiş: ${DateFormat('dd.MM.yyyy').format(bitisTarihi!)}',
+    ].join('  •  ');
+
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFF8FAFC),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1550),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFCD34D)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.filter_alt,
+                  size: 18,
+                  color: Color(0xFFB45309),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    filtreler,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF78350F),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _filtreleriTemizle,
+                  icon: const Icon(Icons.close, size: 16),
+                  label: const Text('Temizle'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF92400E),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErpTabSeridi({
+    required int bekleyen,
+    required int onaylanan,
+    required int islemde,
+    required int toplam,
+  }) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFF8FAFC),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1550),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFDDE5EE)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicatorColor: widget.asamaRengi,
+              indicatorWeight: 3,
+              labelColor: widget.asamaRengi,
+              unselectedLabelColor: const Color(0xFF64748B),
+              labelStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
               ),
-
-            if (atama['atama_tarihi'] != null)
-              _buildModelBilgisi(
-                'Atama Tarihi',
-                DateFormat('dd.MM.yyyy HH:mm')
-                    .format(DateTime.parse(atama['atama_tarihi'])),
+              unselectedLabelStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
               ),
+              tabs: [
+                Tab(
+                  icon: const Icon(Icons.pending_actions),
+                  text: 'Bekleyen ($bekleyen)',
+                ),
+                Tab(
+                  icon: const Icon(Icons.verified_outlined),
+                  text: 'Onaylanan ($onaylanan)',
+                ),
+                Tab(
+                  icon: Icon(widget.asamaIconu),
+                  text: 'İşlemde ($islemde)',
+                ),
+                Tab(
+                  icon: const Icon(Icons.view_list),
+                  text: 'Tümü ($toplam)',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            if (atama['onay_tarihi'] != null)
-              _buildModelBilgisi(
-                'Onay Tarihi',
-                DateFormat('dd.MM.yyyy HH:mm')
-                    .format(DateTime.parse(atama['onay_tarihi'])),
-                textColor: Colors.green,
+  Widget _buildModelKarti(Map<String, dynamic> atama) {
+    final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
+    final durum = atama['durum'] as String?;
+    final tamamlananAdet = _atamaInt(atama['tamamlanan_adet']);
+    final kabulEdilenAdet = _atamaInt(atama['kabul_edilen_adet'] ??
+        atama['talep_edilen_adet'] ??
+        atama['adet'] ??
+        model['adet'] ??
+        0);
+    final talepEdilenAdet =
+        _atamaInt(atama['talep_edilen_adet'] ?? model['adet'] ?? atama['adet']);
+    final kalanAdet = (kabulEdilenAdet - tamamlananAdet).clamp(0, 999999999);
+    final ilerleme = kabulEdilenAdet <= 0
+        ? 0.0
+        : (tamamlananAdet / kabulEdilenAdet).clamp(0.0, 1.0);
+    final durumRengi = _durumRengi(durum);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFDDE5EE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 5,
+              decoration: BoxDecoration(
+                color: durumRengi,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  bottomLeft: Radius.circular(8),
+                ),
               ),
-
-            if (atama['uretim_baslangic_tarihi'] != null)
-              _buildModelBilgisi(
-                'Başlangıç',
-                DateFormat('dd.MM.yyyy HH:mm')
-                    .format(DateTime.parse(atama['uretim_baslangic_tarihi'])),
-                textColor: Colors.blue,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: widget.asamaRengi.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            widget.asamaIconu,
+                            color: widget.asamaRengi,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${model['marka'] ?? 'Bilinmeyen Marka'} - ${model['item_no'] ?? 'Bilinmeyen Model'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 4,
+                                children: [
+                                  _buildKisaBilgi(
+                                    Icons.palette_outlined,
+                                    (model['renk'] ?? '-').toString(),
+                                  ),
+                                  _buildKisaBilgi(
+                                    Icons.event_outlined,
+                                    _kisaTarih(model['termin_tarihi']),
+                                  ),
+                                  if (atama['atama_tarihi'] != null)
+                                    _buildKisaBilgi(
+                                      Icons.assignment_ind_outlined,
+                                      _kisaTarihSaat(atama['atama_tarihi']),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildDurumPili(durum),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _buildUretimMetric(
+                          'Sipariş',
+                          _adetMetni(talepEdilenAdet),
+                          Icons.inventory_2_outlined,
+                          const Color(0xFF2563EB),
+                        ),
+                        _buildUretimMetric(
+                          'Kabul',
+                          _adetMetni(kabulEdilenAdet),
+                          Icons.verified_outlined,
+                          const Color(0xFF16A34A),
+                        ),
+                        _buildUretimMetric(
+                          'Tamamlanan',
+                          _adetMetni(tamamlananAdet),
+                          Icons.task_alt,
+                          const Color(0xFF0F766E),
+                        ),
+                        _buildUretimMetric(
+                          'Kalan',
+                          _adetMetni(kalanAdet),
+                          Icons.pending_actions,
+                          const Color(0xFFEA580C),
+                        ),
+                      ],
+                    ),
+                    if (kabulEdilenAdet > 0 &&
+                        (durum == 'onaylandi' ||
+                            durum == 'uretimde' ||
+                            durum == 'baslatildi' ||
+                            durum == 'kismi_tamamlandi')) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: LinearProgressIndicator(
+                                minHeight: 8,
+                                value: ilerleme,
+                                backgroundColor: const Color(0xFFE2E8F0),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(durumRengi),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            '%${(ilerleme * 100).round()}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: durumRengi,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if ((atama['notlar'] ?? atama['aciklama']) != null &&
+                        (atama['notlar'] ?? atama['aciklama'])
+                            .toString()
+                            .isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Text(
+                          (atama['notlar'] ?? atama['aciklama']).toString(),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF475569),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _buildAksiyonButonlari(atama, model, durum),
+                    ),
+                  ],
+                ),
               ),
-
-            if (atama['planlanan_bitis_tarihi'] != null)
-              _buildModelBilgisi(
-                'Planlanan Bitiş',
-                DateFormat('dd.MM.yyyy')
-                    .format(DateTime.parse(atama['planlanan_bitis_tarihi'])),
-                textColor: Colors.orange,
-              ),
-
-            if ((atama['tamamlama_tarihi'] ?? atama['teslim_tarihi']) != null)
-              _buildModelBilgisi(
-                'Tamamlama',
-                DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(
-                    (atama['tamamlama_tarihi'] ?? atama['teslim_tarihi'])
-                        .toString())),
-                textColor: Colors.purple,
-              ),
-
-            if ((atama['notlar'] ?? atama['aciklama']) != null &&
-                (atama['notlar'] ?? atama['aciklama']).toString().isNotEmpty)
-              _buildModelBilgisi(
-                  'Notlar', (atama['notlar'] ?? atama['aciklama']).toString()),
-
-            // Aksiyon butonları
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 8),
-            _buildAksiyonButonlari(atama, model, durum),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildKisaBilgi(IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF64748B)),
+        const SizedBox(width: 5),
+        Text(
+          value.isEmpty ? '-' : value,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF475569),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUretimMetric(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 126),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDurumPili(String? durum) {
+    final color = _durumRengi(durum);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        _durumMetni(durum),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  int _atamaInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _adetMetni(int value) =>
+      NumberFormat.decimalPattern('tr_TR').format(value);
+
+  String _kisaTarih(dynamic value) {
+    if (value == null) return '-';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return '-';
+    return DateFormat('dd.MM.yyyy').format(parsed);
+  }
+
+  String _kisaTarihSaat(dynamic value) {
+    if (value == null) return '-';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return '-';
+    return DateFormat('dd.MM.yyyy HH:mm').format(parsed);
+  }
+
+  Color _durumRengi(String? durum) {
+    switch (durum) {
+      case 'atandi':
+      case 'bekleyen':
+      case 'beklemede':
+      case 'kontrol_bekliyor':
+        return const Color(0xFFEA580C);
+      case 'onaylandi':
+        return const Color(0xFF16A34A);
+      case 'reddedildi':
+        return const Color(0xFFDC2626);
+      case 'uretimde':
+      case 'baslatildi':
+      case 'kismi_tamamlandi':
+        return const Color(0xFF2563EB);
+      case 'tamamlandi':
+        return const Color(0xFF7C3AED);
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  String _durumMetni(String? durum) {
+    switch (durum) {
+      case 'atandi':
+      case 'bekleyen':
+      case 'beklemede':
+      case 'kontrol_bekliyor':
+        return 'Onay Bekliyor';
+      case 'onaylandi':
+        return 'Onaylandı';
+      case 'reddedildi':
+        return 'Reddedildi';
+      case 'uretimde':
+      case 'baslatildi':
+        return 'İşlemde';
+      case 'kismi_tamamlandi':
+        return 'Kısmi Tamamlandı';
+      case 'tamamlandi':
+        return 'Tamamlandı';
+      default:
+        return 'Bekliyor';
+    }
   }
 
   Widget _buildAksiyonButonlari(

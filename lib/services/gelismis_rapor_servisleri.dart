@@ -88,6 +88,11 @@ class GelismisRaporServisleri {
     return int.tryParse(value.toString()) ?? 0;
   }
 
+  static double _hedefBrutKarMarji(double hedefKarOrani) {
+    if (hedefKarOrani <= -100) return 0;
+    return (hedefKarOrani / (100 + hedefKarOrani)) * 100;
+  }
+
   // ==============================================
   // PERSONEL VERİMLİLİK ANALİZİ
   // ==============================================
@@ -541,6 +546,10 @@ class GelismisRaporServisleri {
           final karMarji = dbOzet == null
               ? (toplamModelSatis > 0 ? (kar / toplamModelSatis) * 100 : 0)
               : _doubleDeger(dbOzet['brut_kar_marji']);
+          final hedefKarOrani = _doubleDeger(model['kar_marji']);
+          final hedefBrutKarMarji = _hedefBrutKarMarji(hedefKarOrani);
+          final karOrani =
+              toplamModelMaliyet > 0 ? (kar / toplamModelMaliyet) * 100 : 0.0;
           final maliyetSapmasi =
               dbOzet == null ? 0.0 : _doubleDeger(dbOzet['maliyet_sapmasi']);
           final maliyetSapmaOrani = dbOzet == null
@@ -548,11 +557,13 @@ class GelismisRaporServisleri {
               : _doubleDeger(dbOzet['maliyet_sapma_orani']);
           final fireOrani =
               dbOzet == null ? 0.0 : _doubleDeger(dbOzet['fire_orani']);
-          final durum = dbOzet == null
-              ? (satis <= 0
-                  ? 'fiyat_eksik'
-                  : (kar < 0 ? 'zarar_riski' : 'ekran_hesabi'))
-              : (dbOzet['durum']?.toString() ?? 'fiyat_eksik');
+          final durum = satis <= 0
+              ? 'fiyat_eksik'
+              : (kar < 0
+                  ? 'zarar_riski'
+                  : (hedefKarOrani > 0 && karOrani + 0.05 < hedefKarOrani
+                      ? 'hedef_alti'
+                      : (dbOzet == null ? 'ekran_hesabi' : 'hedefte')));
 
           toplamMaliyet += toplamModelMaliyet;
           toplamPlanMaliyet += planToplamMaliyet;
@@ -596,6 +607,9 @@ class GelismisRaporServisleri {
             'toplamSatis': toplamModelSatis,
             'kar': kar,
             'karMarji': karMarji,
+            'karOrani': karOrani,
+            'hedefKarOrani': hedefKarOrani,
+            'hedefBrutKarMarji': hedefBrutKarMarji,
             'maliyetSapmasi': maliyetSapmasi,
             'maliyetSapmaOrani': maliyetSapmaOrani,
             'fireOrani': fireOrani,

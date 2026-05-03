@@ -257,6 +257,11 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
   }
 
   Widget _buildKarlilikKpiGrid(ModelKarlilikOzeti ozet) {
+    final karOraniLabel =
+        ozet.uretimGerceklesmedi ? 'Plan Kar Oranı' : 'Gerçek Kar Oranı';
+    final karOraniAciklama = ozet.uretimGerceklesmedi
+        ? 'Üretim yokken satış fiyatı ve plan maliyet üzerinden proforma kar oranı.'
+        : 'Brüt karın gerçekleşen maliyete oranı. Hedef kar oranıyla aynı bazdadır.';
     final items = [
       _KpiData(
         'Plan Birim Maliyet',
@@ -288,9 +293,9 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
               ? const Color(0xFF2E7D32)
               : const Color(0xFFC62828)),
       _KpiData(
-          'Brüt Kar Marjı',
-          _yuzde(ozet.brutKarMarji),
-          'Brüt karın satış gelirine oranı. Hedef marjla karşılaştırılır.',
+          karOraniLabel,
+          _yuzde(ozet.gercekKarOrani),
+          karOraniAciklama,
           Icons.percent,
           ozet.hedefAltinda
               ? const Color(0xFFC62828)
@@ -410,15 +415,23 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
   }
 
   Widget _buildHedefPlanGerceklesen(ModelKarlilikOzeti ozet) {
+    final karOraniLabel =
+        ozet.uretimGerceklesmedi ? 'Plan Kar Oranı' : 'Gerçek Kar Oranı';
     return _panel(
       title: 'Hedef / Plan / Gerçekleşen',
       icon: Icons.stacked_line_chart,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _karsilastirmaSatiri('Hedef Kar Marjı', _yuzde(ozet.hedefKarMarji),
-              'Gerçek Marj', _yuzde(ozet.brutKarMarji),
+          _karsilastirmaSatiri('Hedef Kar Oranı', _yuzde(ozet.hedefKarMarji),
+              karOraniLabel, _yuzde(ozet.gercekKarOrani),
               negative: ozet.hedefAltinda),
+          _karsilastirmaSatiri(
+              'Hedef Brüt Eşdeğer',
+              _yuzde(ozet.hedefBrutKarMarji),
+              'Satış Üstü Brüt Marj',
+              _yuzde(ozet.brutKarMarji),
+              negative: false),
           _karsilastirmaSatiri('Plan Maliyet', _para(ozet.planBirimMaliyet),
               'Gerçek Maliyet', _para(ozet.gercekBirimMaliyet),
               negative: ozet.maliyetSapmasi > 0),
@@ -432,9 +445,11 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
           _hesaplamaSatiri('Plan maliyet',
               'Aktif plan kalemleri toplanarak adet başı maliyet bulunur.'),
           _hesaplamaSatiri('Gerçek maliyet',
-              'Gerçekleşen maliyet kayıtları varsa bunlar, yoksa plan ve fire etkisi kullanılır.'),
-          _hesaplamaSatiri(
-              'Brüt kar', 'Satış geliri eksi gerçekleşen toplam maliyettir.'),
+              'Gerçekleşen maliyet kayıtları varsa bunlar, yoksa plan/proforma tahmin kullanılır.'),
+          _hesaplamaSatiri('Kar oranı',
+              'Brüt karın maliyete oranıdır; hedef kar oranı ile aynı bazda karşılaştırılır.'),
+          _hesaplamaSatiri('Brüt marj',
+              'Satış üstü marjdır; bilgi amaçlı ayrıca gösterilir.'),
           _hesaplamaSatiri('Hedef fiyat',
               'Gerçek birim maliyet üzerine hedef kar marjı eklenir.'),
         ],
@@ -446,10 +461,12 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
     final oneriler = <String>[
       if (ozet.satisFiyatiEksik)
         'Satış fiyatı eksik. Karlılık takibi için fiyatlandırma sekmesinde peşin fiyatı kaydedin.',
+      if (ozet.uretimGerceklesmedi && !ozet.satisFiyatiEksik)
+        'Üretim tamamlanmadığı için marj plan/proforma seviyedir; gerçek marj üretim ve fire kayıtlarıyla kesinleşir.',
       if (ozet.zararRiski)
         'Model zarar bölgesinde. Satış fiyatı gerçek birim maliyetin altında kalıyor.',
       if (ozet.hedefAltinda && !ozet.zararRiski)
-        'Gerçek marj hedefin altında. Fiyat, fire veya fason kalemlerini yeniden kontrol edin.',
+        '${ozet.uretimGerceklesmedi ? 'Plan kar oranı' : 'Gerçek kar oranı'} hedefin altında. Fiyat, fire veya fason kalemlerini yeniden kontrol edin.',
       if (ozet.fireOrani > 3)
         'Fire oranı yüksek. Fire maliyeti birim maliyeti yukarı taşıyor.',
       if (!ozet.satisFiyatiEksik && !ozet.hedefAltinda && ozet.fireOrani <= 3)
@@ -660,14 +677,14 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
         ? 'Model alanlarından anlık hesap'
         : 'Aktif maliyet planı v${_intDeger(aktifPlan['versiyon_no'])}';
     final gercekKaynak = maliyetGerceklesen.isEmpty
-        ? 'Plan + üretim/fire tahmini'
+        ? 'Plan/proforma tahmin'
         : '${maliyetGerceklesen.length} gerçekleşen kayıt';
     final satisAdedi =
         ozet.tamamlananAdet > 0 ? ozet.tamamlananAdet : ozet.siparisAdedi;
     final maliyetBazAdet =
         ozet.tamamlananAdet > 0 ? ozet.tamamlananAdet : ozet.siparisAdedi;
     final gercekToplamKaynak = maliyetGerceklesen.isEmpty
-        ? 'Kayıt yok; plan maliyet üretim adedine uygulanıyor'
+        ? 'Kayıt yok; gerçek maliyet yerine plan/proforma maliyet kullanılıyor'
         : 'Gerçekleşen kayıt toplamı ve RPC özeti kullanılıyor';
 
     return [
@@ -688,7 +705,7 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
         kullanilanDeger: _adet(ozet.tamamlananAdet),
         not: ozet.tamamlananAdet > 0
             ? '${_asamaEtiketi(ozet.tamamlananAsama)} aşaması baz alınıyor'
-            : 'Üretim tamamı yok; sipariş adedi baz alınır',
+            : 'Üretim tamamı yok; gerçek satış ve marj kesinleşmedi',
         uyari: ozet.tamamlananAdet <= 0,
       ),
       _DenetimSatiri(
@@ -735,13 +752,13 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
       ),
       _DenetimSatiri(
         gosterge: 'Kar Marjı',
-        kaynak: 'Özet hesap',
-        formul: 'Brüt kar / satış geliri',
+        kaynak: ozet.uretimGerceklesmedi ? 'Plan/proforma hesap' : 'Özet hesap',
+        formul: 'Brüt kar / maliyet',
         kullanilanDeger:
-            '${_yuzde(ozet.brutKarMarji)} hedef: ${_yuzde(ozet.hedefKarMarji)}',
+            '${_yuzde(ozet.gercekKarOrani)} hedef: ${_yuzde(ozet.hedefKarMarji)}',
         not: ozet.hedefAltinda
-            ? 'Gerçek marj hedefin altında'
-            : 'Gerçek marj hedefi karşılıyor',
+            ? '${ozet.uretimGerceklesmedi ? 'Plan kar oranı' : 'Gerçek kar oranı'} hedefin altında'
+            : '${ozet.uretimGerceklesmedi ? 'Plan kar oranı' : 'Gerçek kar oranı'} hedefi karşılıyor',
         uyari: ozet.hedefAltinda,
       ),
       _DenetimSatiri(
@@ -1080,15 +1097,24 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
           'Fiyat Eksik', Icons.info, Color(0xFF607D8B));
     }
     if (ozet.zararRiski) {
-      return const _KarlilikDurumu(
-          'Zarar Riski', Icons.error_outline, Color(0xFFC62828));
+      return _KarlilikDurumu(
+        ozet.uretimGerceklesmedi ? 'Plan Zarar Riski' : 'Zarar Riski',
+        Icons.error_outline,
+        const Color(0xFFC62828),
+      );
     }
     if (ozet.hedefAltinda) {
-      return const _KarlilikDurumu(
-          'Hedef Altı', Icons.trending_down, Color(0xFFEF6C00));
+      return _KarlilikDurumu(
+        ozet.uretimGerceklesmedi ? 'Plan Hedef Altı' : 'Hedef Altı',
+        Icons.trending_down,
+        const Color(0xFFEF6C00),
+      );
     }
-    return const _KarlilikDurumu(
-        'Hedefte', Icons.check_circle, Color(0xFF2E7D32));
+    return _KarlilikDurumu(
+      ozet.uretimGerceklesmedi ? 'Plan Hedefte' : 'Hedefte',
+      Icons.check_circle,
+      const Color(0xFF2E7D32),
+    );
   }
 
   Color _sapmaRengi(double value) {

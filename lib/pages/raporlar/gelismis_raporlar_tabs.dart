@@ -1603,7 +1603,7 @@ extension _TabsExt on _GelismisRaporlarPageState {
                       DataColumn(label: Text('Gerçek Birim')),
                       DataColumn(label: Text('Satış Fiyatı')),
                       DataColumn(label: Text('Kâr')),
-                      DataColumn(label: Text('Marj %')),
+                      DataColumn(label: Text('Kar Oranı %')),
                       DataColumn(label: Text('Durum')),
                       DataColumn(label: Text('Kaynak'))
                     ],
@@ -1631,9 +1631,12 @@ extension _TabsExt on _GelismisRaporlarPageState {
                                     color: kar >= 0 ? Colors.green : Colors.red,
                                     fontWeight: FontWeight.bold))),
                             DataCell(Text(
-                                '%${((model['karMarji'] ?? 0) as num).toStringAsFixed(1)}',
+                                '%${((model['karOrani'] ?? model['karMarji'] ?? 0) as num).toStringAsFixed(1)}',
                                 style: TextStyle(
-                                    color: (model['karMarji'] ?? 0) >= 0
+                                    color: (model['karOrani'] ??
+                                                model['karMarji'] ??
+                                                0) >=
+                                            0
                                         ? Colors.green
                                         : Colors.red))),
                             DataCell(Text(_maliyetDurumMetni(durum),
@@ -1901,7 +1904,8 @@ extension _TabsExt on _GelismisRaporlarPageState {
                 final durum = model['durum']?.toString() ?? '';
                 final renk = _maliyetDurumRengi(durum);
                 final kar = _maliyetNum(model['kar']);
-                final karMarji = _maliyetNum(model['karMarji']);
+                final karOrani =
+                    _maliyetNum(model['karOrani'] ?? model['karMarji']);
                 final sapmaOrani = _maliyetNum(model['maliyetSapmaOrani']);
                 final fireOrani = _maliyetNum(model['fireOrani']);
                 return InkWell(
@@ -1960,8 +1964,8 @@ extension _TabsExt on _GelismisRaporlarPageState {
                               _maliyetDurumMetni(durum), renk),
                           _buildMaliyetAksiyonMetrik(
                               'Kâr', currencyFormat.format(kar), kar),
-                          _buildMaliyetAksiyonMetrik(
-                              'Marj', '%${karMarji.toStringAsFixed(1)}', kar),
+                          _buildMaliyetAksiyonMetrik('Kar Oranı',
+                              '%${karOrani.toStringAsFixed(1)}', kar),
                           _buildMaliyetAksiyonMetrik(
                               'Sapma',
                               '%${sapmaOrani.toStringAsFixed(1)}',
@@ -2152,7 +2156,7 @@ extension _TabsExt on _GelismisRaporlarPageState {
       return 'Satış fiyatı gerçekleşen maliyetin altında; fiyat ve maliyet kalemleri kontrol edilmeli.';
     }
     if (durum == 'hedef_alti') {
-      return 'Brüt marj hedefin altında; hedef fiyat veya maliyet kalemleri revize edilmeli.';
+      return 'Kar oranı hedefin altında; hedef fiyat veya maliyet kalemleri revize edilmeli.';
     }
     if (sapmaOrani > 5) {
       return 'Gerçekleşen maliyet planın üzerinde; sapma nedeni incelenmeli.';

@@ -63,8 +63,14 @@ class ModelKarlilikOzeti {
   });
 
   bool get satisFiyatiEksik => satisBirimFiyati <= 0;
+  bool get uretimGerceklesmedi => tamamlananAdet <= 0 && fireAdedi <= 0;
+  double get hedefBrutKarMarji =>
+      hedefKarMarji <= -100 ? 0 : (hedefKarMarji / (100 + hedefKarMarji)) * 100;
+  double get gercekKarOrani =>
+      gercekToplamMaliyet > 0 ? (brutKar / gercekToplamMaliyet) * 100 : 0;
   bool get zararRiski => !satisFiyatiEksik && brutKar < 0;
-  bool get hedefAltinda => !satisFiyatiEksik && brutKarMarji < hedefKarMarji;
+  bool get hedefAltinda =>
+      !satisFiyatiEksik && gercekKarOrani + 0.05 < hedefKarMarji;
 }
 
 class ModelKarlilikServisi {
