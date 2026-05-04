@@ -1028,13 +1028,32 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final durum = atama['durum'] as String?;
 
-    // Model verisi yoksa atama tablosundaki adet'i kullan
-    final displayAdet = model['adet']?.toString() ?? atama['adet']?.toString();
+    // Başlık: marka + item_no
+    final modelAdi = [
+      model['marka']?.toString(),
+      model['item_no']?.toString(),
+    ].where((s) => s != null && s.isNotEmpty).join(' - ');
+
+    // Adet bilgileri
+    final talepAdet = (atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet'])?.toString();
+    final kabulAdet = atama['kabul_edilen_adet']?.toString();
+    final tamamlananAdet = atama['tamamlanan_adet']?.toString();
+
+    // Tarih yardımcısı
+    String? _fmt(dynamic val) {
+      if (val == null) return null;
+      final dt = DateTime.tryParse(val.toString());
+      if (dt == null) return val.toString();
+      return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+    }
 
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${widget.asamaDisplayName} - ${model['model_adi']}'),
+        title: Text(
+          modelAdi.isEmpty ? widget.asamaDisplayName : modelAdi,
+          style: const TextStyle(fontSize: 16),
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1042,10 +1061,50 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
             children: [
               _buildDurumBadge(durum),
               const SizedBox(height: 16),
-              _buildModelBilgisi('Adet', displayAdet),
-              _buildModelBilgisi('Renk', model['renk'] ?? '-'),
-              if (atama['notlar'] != null)
-                _buildModelBilgisi('Notlar', atama['notlar']),
+              // Model bilgileri
+              if (model['marka'] != null)
+                _buildModelBilgisi('Marka', model['marka']?.toString()),
+              if (model['item_no'] != null)
+                _buildModelBilgisi('Model No', model['item_no']?.toString()),
+              if (model['renk'] != null && model['renk'].toString().isNotEmpty)
+                _buildModelBilgisi('Renk', model['renk']?.toString()),
+              if (model['bedenler'] != null)
+                _buildModelBilgisi('Bedenler', model['bedenler']?.toString()),
+              const Divider(height: 16),
+              // Adet bilgileri
+              _buildModelBilgisi('Sipariş Adeti', talepAdet),
+              if (kabulAdet != null)
+                _buildModelBilgisi('Kabul Adeti', kabulAdet),
+              if (tamamlananAdet != null)
+                _buildModelBilgisi('Tamamlanan', tamamlananAdet),
+              const Divider(height: 16),
+              // Tarih bilgileri
+              if (model['termin_tarihi'] != null)
+                _buildModelBilgisi('Termin', _fmt(model['termin_tarihi'])),
+              if ((atama['atama_tarihi'] ?? atama['created_at']) != null)
+                _buildModelBilgisi('Atama Tarihi',
+                    _fmt(atama['atama_tarihi'] ?? atama['created_at'])),
+              if ((atama['onay_tarihi'] ?? atama['kabul_tarihi']) != null)
+                _buildModelBilgisi('Onay Tarihi',
+                    _fmt(atama['onay_tarihi'] ?? atama['kabul_tarihi'])),
+              if ((atama['uretim_baslangic_tarihi'] ??
+                      atama['son_guncelleme_tarihi']) !=
+                  null)
+                _buildModelBilgisi(
+                    'Başlangıç',
+                    _fmt(atama['uretim_baslangic_tarihi'] ??
+                        atama['son_guncelleme_tarihi'])),
+              if ((atama['tamamlama_tarihi'] ?? atama['teslim_tarihi']) != null)
+                _buildModelBilgisi('Tamamlanma',
+                    _fmt(atama['tamamlama_tarihi'] ?? atama['teslim_tarihi'])),
+              // Notlar
+              if (atama['notlar'] != null && atama['notlar'].toString().isNotEmpty) ...[
+                const Divider(height: 16),
+                _buildModelBilgisi('Notlar', atama['notlar']?.toString()),
+              ],
+              if (atama['red_sebebi'] != null && atama['red_sebebi'].toString().isNotEmpty)
+                _buildModelBilgisi('Red Sebebi', atama['red_sebebi']?.toString(),
+                    textColor: Colors.red),
             ],
           ),
         ),
@@ -1263,25 +1322,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       debugPrint(
           '📦 Sevkiyat ataması oluşturuluyor - Adet: $adet - Önceki Aşama: $oncekiAsama');
 
-      // 1. Paketleme ataması oluştur
-      try {
-        await supabase.from(DbTables.paketlemeAtamalari).insert({
-          'model_id': atama['model_id'],
-          'durum': 'atandi',
-          'adet': adet,
-          'talep_edilen_adet': adet,
-          'tamamlanan_adet': 0,
-          'atama_tarihi': DateTime.now().toIso8601String(),
-          'notlar':
-              '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet [$uniqueId]',
-          'firma_id': TenantManager.instance.requireFirmaId,
-        });
-        debugPrint('✅ Paketleme ataması oluşturuldu - $adet adet');
-      } catch (e) {
-        debugPrint('⚠️ Paketleme ataması oluşturulamadı: $e');
-      }
-
-      // 2. Sevkiyat kaydı oluştur
+      // Sevkiyat kaydı oluştur
       try {
         await supabase.from(DbTables.sevkiyatKayitlari).insert({
           'model_id': atama['model_id'],
@@ -1299,7 +1340,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         debugPrint('⚠️ Sevkiyat kaydı oluşturulamadı: $e');
       }
 
-      // 3. Sevkiyat rolüne sahip kullanıcılara bildirim gönder
+      // 2. Sevkiyat rolüne sahip kullanıcılara bildirim gönder
       try {
         await BildirimService().roleGoreBildirimGonder(
           rol: 'sevkiyat',

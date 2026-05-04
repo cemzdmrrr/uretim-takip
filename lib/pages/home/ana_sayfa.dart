@@ -35,7 +35,6 @@ import 'package:uretim_takip/pages/auth/firma_secim_page.dart';
 import 'package:uretim_takip/pages/abonelik/abonelik_yonetimi_page.dart';
 import 'package:uretim_takip/pages/abonelik/plan_secim_page.dart';
 import 'package:uretim_takip/pages/ayarlar/firma_kullanici_yonetimi_page.dart';
-import 'package:uretim_takip/pages/ayarlar/rol_yetki_yonetimi_page.dart';
 import 'package:uretim_takip/pages/uretim/genel_uretim_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/platform_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/migrasyon_durumu_page.dart';
@@ -172,7 +171,10 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
   void _startAutoRefresh() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!mounted) return;
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) await _sayfaYetkileriniYukle(user.id);
       if (mounted) _dashboardVerileriniYukle();
     });
   }
@@ -1463,23 +1465,20 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                   builder: (_) => const FirmaKullaniciYonetimiPage()))
         });
       }
-      if (_sayfaErisimVar('rol_yetki_yonetimi')) {
-        yetkiItems.add({
-          'text': 'Rol & Yetki Yönetimi',
-          'icon': Icons.security,
-          'color': yc,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const RolYetkiYonetimiPage()))
-        });
-      }
       if (_sayfaErisimVar('sayfa_yetki_yonetimi') ||
           _sayfaErisimVar('rol_sayfa_yetkileri')) {
         yetkiItems.add({
           'text': 'Kullanıcı Yetkileri',
           'icon': Icons.lock_open,
           'color': yc,
-          'onPressed': () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const SayfaYetkiYonetimiPage()))
+          'onPressed': () async {
+            await Navigator.push(context,
+                MaterialPageRoute(
+                    builder: (_) => const SayfaYetkiYonetimiPage()));
+            if (!mounted) return;
+            final user = Supabase.instance.client.auth.currentUser;
+            if (user != null) await _sayfaYetkileriniYukle(user.id);
+          }
         });
       }
       if (yetkiItems.isNotEmpty) kategoriler['Kullanıcı & Yetki'] = yetkiItems;

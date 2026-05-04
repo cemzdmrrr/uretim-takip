@@ -163,6 +163,26 @@ class _SplashScreenState extends State<SplashScreen> {
 
       // Kullanıcı rollerini kontrol et (birden fazla rol olabilir)
       if (operasyonRolleri.isNotEmpty) {
+        // Operasyon rolü olsa bile firma_kullanicilari kaydı varsa AnaSayfa'ya yönlendir.
+        // (TenantManager.firmaId henüz null olabileceğinden firmaRolu yukarıda null dönmüş olabilir)
+        final firmaKayitlari = await dbClient
+            .from(DbTables.firmaKullanicilari)
+            .select('firma_id, rol')
+            .eq('user_id', currentUser.id)
+            .eq('aktif', true)
+            .limit(1);
+
+        if ((firmaKayitlari as List).isNotEmpty) {
+          debugPrint(
+              '✅ firma_kullanicilari kaydı bulundu, AnaSayfa\'ya yönlendiriliyor: ${currentUser.email}');
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const AnaSayfa()),
+            );
+          }
+          return;
+        }
+
         final roles = operasyonRolleri.toList();
 
         // Sevkiyat kontrolü (öncelikli)

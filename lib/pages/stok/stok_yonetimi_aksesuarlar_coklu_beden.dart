@@ -19,13 +19,23 @@ class StokYonetimiAksesuarlarCokluBeden extends StatefulWidget {
 }
 
 class _StokYonetimiAksesuarlarCokluBedenState
-    extends State<StokYonetimiAksesuarlarCokluBeden> {
+    extends State<StokYonetimiAksesuarlarCokluBeden>
+    with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
+  late TabController _pageTabController;
+
   List<Map<String, dynamic>> aksesuarlar = [];
   // Aksesuar ID -> Model kullanım listesi (model_adi, toplam_adet, adet_per_model)
   Map<String, List<Map<String, dynamic>>> _modelKullanimlari = {};
   bool isLoading = true;
   String searchQuery = '';
+
+  // Sarf raporu state
+  List<Map<String, dynamic>> _sarfKayitlari = [];
+  bool _sarfYukleniyor = false;
+  String _sarfArama = '';
+  DateTime? _sarfBaslangic;
+  DateTime? _sarfBitis;
 
   static const Color _primaryColor = Color(0xFF2563EB);
   static const Color _successColor = Color(0xFF059669);
@@ -36,7 +46,43 @@ class _StokYonetimiAksesuarlarCokluBedenState
   @override
   void initState() {
     super.initState();
+    _pageTabController = TabController(length: 2, vsync: this);
+    _pageTabController.addListener(() {
+      if (_pageTabController.index == 1 && _sarfKayitlari.isEmpty && !_sarfYukleniyor) {
+        _loadSarfKayitlari();
+      }
+    });
     _loadAksesuarlar();
+  }
+
+  @override
+  void dispose() {
+    _pageTabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSarfKayitlari() async {
+    setState(() => _sarfYukleniyor = true);
+    try {
+      final firmaId = TenantManager.instance.requireFirmaId;
+      var query = supabase
+          .from(DbTables.aksesuarKullanim)
+          .select('*, aksesuarlar(ad, sku, renk), tedarikciler(ad, sirket)')
+          .eq('firma_id', firmaId)
+          .eq('islem_tipi', 'sarf')
+          .order('created_at', ascending: false);
+
+      final data = await query;
+      if (mounted) {
+        setState(() {
+          _sarfKayitlari = List<Map<String, dynamic>>.from(data);
+          _sarfYukleniyor = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Sarf kayıtları yüklenemedi: $e');
+      if (mounted) setState(() => _sarfYukleniyor = false);
+    }
   }
 
   Future<void> _loadAksesuarlar() async {
@@ -1120,50 +1166,417 @@ class _StokYonetimiAksesuarlarCokluBedenState
     );
   }
 
+  // ── Sarf Raporu ──────────────────────────────────────────────────────────────
+
+  List<Map<String, dynamic>> get _filtreliSarfKayitlari {
+    var liste = _sarfKayitlari;
+
+    if (_sarfArama.isNotEmpty) {
+      final q = _sarfArama.toLowerCase();
+      liste = liste.where((k) {
+        final aksAd = (k['aksesuarlar']?['ad'] ?? '').toString().toLowerCase();
+        final aksSku = (k['aksesuarlar']?['sku'] ?? '').toString().toLowerCase();
+        final tedAd = _tedarikciAdi(k).toLowerCase();
+        final beden = (k['beden'] ?? '').toString().toLowerCase();
+        return aksAd.contains(q) || aksSku.contains(q) || tedAd.contains(q) || beden.contains(q);
+      }).toList();
+    }
+
+    if (_sarfBaslangic != null) {
+      liste = liste.where((k) {
+        final t = DateTime.tryParse(k['created_at']?.toString() ?? '');
+        return t != null && !t.isBefore(_sarfBaslangic!);
+      }).toList();
+    }
+
+    if (_sarfBitis != null) {
+      final bitis = _sarfBitis!.add(const Duration(days: 1));
+      liste = liste.where((k) {
+        final t = DateTime.tryParse(k['created_at']?.toString() ?? '');
+        return t != null && t.isBefore(bitis);
+      }).toList();
+    }
+
+    return liste;
+  }
+
+  String _tedarikciAdi(Map<String, dynamic> kayit) {
+    final t = kayit['tedarikciler'];
+    if (t == null) return '-';
+    final sirket = t['sirket']?.toString() ?? '';
+    final ad = t['ad']?.toString() ?? '';
+    return sirket.isNotEmpty ? sirket : (ad.isNotEmpty ? ad : '-');
+  }
+
+  String _formatTarih(String? iso) {
+    if (iso == null) return '-';
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return '-';
+    final local = dt.toLocal();
+    return '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year} '
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildSarfRaporuTab() {
+    final kayitlar = _filtreliSarfKayitlari;
+    final toplamAdet = kayitlar.fold<int>(0, (s, k) => s + ((k['miktar'] as int?) ?? 0));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Başlık + yenile
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _warningColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.output_rounded, color: _warningColor),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Aksesuar Sarf Raporu',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A))),
+                      Text('Yapılan tüm sarf işlemlerinin kayıt ve geçmiş raporu',
+                          style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: _loadSarfKayitlari,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Yenile',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Özet
+          LayoutBuilder(builder: (ctx, cs) {
+            final kart1 = _buildOzetKutusu(
+                'Toplam Sarf', '${kayitlar.length} kayıt', Icons.receipt_long, _warningColor);
+            final kart2 = _buildOzetKutusu(
+                'Toplam Adet', '$toplamAdet', Icons.numbers, _dangerColor);
+            if (cs.maxWidth < 480) {
+              return Column(children: [
+                kart1,
+                const SizedBox(height: 8),
+                kart2,
+              ]);
+            }
+            return Row(children: [
+              Expanded(child: kart1),
+              const SizedBox(width: 8),
+              Expanded(child: kart2),
+            ]);
+          }),
+          const SizedBox(height: 12),
+
+          // Filtreler
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: LayoutBuilder(builder: (ctx, cs) {
+              final dar = cs.maxWidth < 700;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: dar ? cs.maxWidth : 280,
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Aksesuar, SKU, tedarikçi, beden ara',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onChanged: (v) => setState(() => _sarfArama = v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: dar ? cs.maxWidth : 180,
+                    child: InkWell(
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _sarfBaslangic ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now().add(const Duration(days: 1)),
+                        );
+                        if (d != null) setState(() => _sarfBaslangic = d);
+                      },
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Başlangıç tarihi',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        child: Text(
+                          _sarfBaslangic != null
+                              ? '${_sarfBaslangic!.day.toString().padLeft(2, '0')}.${_sarfBaslangic!.month.toString().padLeft(2, '0')}.${_sarfBaslangic!.year}'
+                              : 'Seçiniz',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: dar ? cs.maxWidth : 180,
+                    child: InkWell(
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _sarfBitis ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now().add(const Duration(days: 1)),
+                        );
+                        if (d != null) setState(() => _sarfBitis = d);
+                      },
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Bitiş tarihi',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        child: Text(
+                          _sarfBitis != null
+                              ? '${_sarfBitis!.day.toString().padLeft(2, '0')}.${_sarfBitis!.month.toString().padLeft(2, '0')}.${_sarfBitis!.year}'
+                              : 'Seçiniz',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_sarfBaslangic != null || _sarfBitis != null || _sarfArama.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: () => setState(() {
+                        _sarfBaslangic = null;
+                        _sarfBitis = null;
+                        _sarfArama = '';
+                      }),
+                      icon: const Icon(Icons.clear, size: 16),
+                      label: const Text('Temizle'),
+                    ),
+                ],
+              );
+            }),
+          ),
+          const SizedBox(height: 12),
+
+          // Tablo veya liste
+          if (_sarfYukleniyor)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: LoadingWidget(),
+            )
+          else if (kayitlar.isEmpty)
+            Container(
+              height: 200,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.inbox_outlined, size: 48, color: Colors.grey),
+                  SizedBox(height: 8),
+                  Text('Henüz sarf kaydı bulunmuyor',
+                      style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            )
+          else
+            _buildSarfTablosu(kayitlar),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSarfTablosu(List<Map<String, dynamic>> kayitlar) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+            columnSpacing: 20,
+            horizontalMargin: 16,
+            columns: const [
+              DataColumn(label: Text('Tarih')),
+              DataColumn(label: Text('Aksesuar')),
+              DataColumn(label: Text('SKU')),
+              DataColumn(label: Text('Beden')),
+              DataColumn(label: Text('Tedarikçi')),
+              DataColumn(label: Text('Adet'), numeric: true),
+              DataColumn(label: Text('Açıklama')),
+            ],
+            rows: kayitlar.map((k) {
+              final aksAd = k['aksesuarlar']?['ad']?.toString() ?? '-';
+              final aksSku = k['aksesuarlar']?['sku']?.toString() ?? '-';
+              final beden = k['beden']?.toString() ?? '-';
+              final tedAdi = _tedarikciAdi(k);
+              final miktar = (k['miktar'] as int?) ?? 0;
+              final aciklama = k['aciklama']?.toString() ?? '';
+              final tarih = _formatTarih(k['created_at']?.toString());
+
+              return DataRow(cells: [
+                DataCell(Text(tarih,
+                    style: const TextStyle(fontSize: 12))),
+                DataCell(SizedBox(
+                  width: 160,
+                  child: Text(aksAd,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                )),
+                DataCell(Text(aksSku)),
+                DataCell(Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(beden,
+                      style: TextStyle(
+                          color: _primaryColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12)),
+                )),
+                DataCell(Text(tedAdi)),
+                DataCell(Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _dangerColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text('$miktar',
+                      style: TextStyle(
+                          color: _dangerColor,
+                          fontWeight: FontWeight.w800)),
+                )),
+                DataCell(SizedBox(
+                  width: 140,
+                  child: Text(aciklama,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                )),
+              ]);
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _surfaceColor,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final kisaEkran = constraints.maxHeight < 560;
-          final ustBolum = [
-            _buildAksesuarUstPanel(),
-            const SizedBox(height: 12),
-            _buildAksesuarAracCubugu(),
-            const SizedBox(height: 12),
-            _buildAksesuarOzetleri(),
-            const SizedBox(height: 12),
-          ];
+      body: Column(
+        children: [
+          // Tab bar
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _pageTabController,
+              labelColor: _primaryColor,
+              unselectedLabelColor: const Color(0xFF64748B),
+              indicatorColor: _primaryColor,
+              tabs: const [
+                Tab(icon: Icon(Icons.inventory_2_outlined, size: 18), text: 'Aksesuar Stok'),
+                Tab(icon: Icon(Icons.output_rounded, size: 18), text: 'Sarf Raporu'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _pageTabController,
+              children: [
+                _buildStokTab(),
+                _buildSarfRaporuTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-          if (kisaEkran) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  ...ustBolum,
-                  SizedBox(
-                    height: constraints.maxHeight < 420
-                        ? 260
-                        : constraints.maxHeight * 0.52,
-                    child: _buildAksesuarListeAlani(),
-                  ),
-                ],
-              ),
-            );
-          }
+  Widget _buildStokTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final kisaEkran = constraints.maxHeight < 560;
+        final ustBolum = [
+          _buildAksesuarUstPanel(),
+          const SizedBox(height: 12),
+          _buildAksesuarAracCubugu(),
+          const SizedBox(height: 12),
+          _buildAksesuarOzetleri(),
+          const SizedBox(height: 12),
+        ];
 
-          return Padding(
+        if (kisaEkran) {
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 ...ustBolum,
-                Expanded(child: _buildAksesuarListeAlani()),
+                SizedBox(
+                  height: constraints.maxHeight < 420
+                      ? 260
+                      : constraints.maxHeight * 0.52,
+                  child: _buildAksesuarListeAlani(),
+                ),
               ],
             ),
           );
-        },
-      ),
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              ...ustBolum,
+              Expanded(child: _buildAksesuarListeAlani()),
+            ],
+          ),
+        );
+      },
     );
   }
 

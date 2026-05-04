@@ -1569,11 +1569,23 @@ class _ModelListeleState extends State<ModelListele> {
               icon: const Icon(Icons.refresh), onPressed: modelleriGetir),
         ],
       ),
-      body: Column(children: [
-        _buildErpSummary(liste),
-        _buildErpFilters(),
-        Expanded(child: _buildErpTable(liste))
-      ]),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(children: [
+                _buildErpSummary(liste),
+                _buildErpFilters(),
+                SizedBox(
+                  height: constraints.maxHeight,
+                  child: _buildErpTable(liste),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -284,18 +284,23 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
 
       return Scaffold(
         backgroundColor: _surfaceColor,
-        body: Padding(
+        body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
               ...content,
-              Expanded(
-                child: _yukleniyor
-                    ? const LoadingWidget()
-                    : filtreliSiparisler.isEmpty
-                        ? _buildBosDurum()
-                        : _buildTablo(filtreliSiparisler),
-              ),
+              if (_yukleniyor)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: LoadingWidget(),
+                )
+              else if (filtreliSiparisler.isEmpty)
+                SizedBox(
+                  height: 320,
+                  child: _buildBosDurum(),
+                )
+              else
+                _buildTablo(filtreliSiparisler),
             ],
           ),
         ),
@@ -632,8 +637,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         thumbVisibility: true,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: SingleChildScrollView(
-            child: DataTable(
+          child: DataTable(
               headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
               columnSpacing: 20,
               horizontalMargin: 16,
@@ -678,7 +682,6 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             ),
           ),
         ),
-      ),
     );
   }
 

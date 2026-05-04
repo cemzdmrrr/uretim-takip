@@ -30,7 +30,6 @@ class AppRoutes {
 
   // Firma yönetim routes
   static const String firmaKullaniciYonetimi = '/ayarlar/firma_kullanicilari';
-  static const String rolYetkiYonetimi = '/ayarlar/rol_yetki';
 
   // Üretim routes
   static const String genelUretimDashboard = '/uretim/genel';

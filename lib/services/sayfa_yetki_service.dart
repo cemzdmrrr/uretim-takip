@@ -165,11 +165,6 @@ class SayfaRegistry {
         ikon: Icons.people_alt_rounded,
         kategori: katKullaniciYetki),
     SayfaTanimi(
-        kod: 'rol_yetki_yonetimi',
-        etiket: 'Rol & Yetki Yönetimi',
-        ikon: Icons.security_rounded,
-        kategori: katKullaniciYetki),
-    SayfaTanimi(
         kod: 'rol_sayfa_yetkileri',
         etiket: 'Rol Bazlı Sayfa Yetkileri',
         ikon: Icons.shield_rounded,

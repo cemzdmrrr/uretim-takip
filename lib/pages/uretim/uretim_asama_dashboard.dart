@@ -13,6 +13,7 @@ import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/models/beden_models.dart';
 import 'package:uretim_takip/services/user_role_service.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
+import 'package:uretim_takip/services/sayfa_yetki_service.dart';
 
 part 'uretim_asama_dashboard_dialog.dart';
 part 'uretim_asama_rapor.dart';
@@ -294,6 +295,18 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
         }
       }
 
+      // Hâlâ ilgili rolü yoksa, sayfa yetkisi ile erişim kontrol et
+      if (!_rolAsamayaErisir(userRole)) {
+        final sayfaYetkileri =
+            await SayfaYetkiService.efektifSayfaYetkileriniGetir(currentUser.id);
+        if (sayfaYetkileri
+            .contains(SayfaYetkiService.normalizeSayfaKodu(widget.asamaAdi))) {
+          userRole = 'admin';
+          debugPrint(
+              '✅ Sayfa yetkisi ile erişim sağlandı: ${currentUser.email} → ${widget.asamaAdi}');
+        }
+      }
+
       setState(() {
         currentUserRole = userRole;
         currentUserId = currentUser.id;
@@ -533,47 +546,57 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildErpHeader(
-            bekleyen: filtreliBekleyenler.length,
-            onaylanan: filtreliOnaylananlar.length,
-            islemde: filtreliUretimdekiler.length,
-            tamamlanan: filtreliTamamlananlar.length,
-            toplam: tumFiltrelenmisler.length,
-            aktifFiltreVar: aktifFiltreVar,
-          ),
-          if (aktifFiltreVar) _buildAktifFiltreSeridi(),
-          _buildErpTabSeridi(
-            bekleyen: filtreliBekleyenler.length,
-            onaylanan: filtreliOnaylananlar.length,
-            islemde: filtreliUretimdekiler.length,
-            toplam: tumFiltrelenmisler.length,
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildModelListesi(
-                  filtreliBekleyenler,
-                  'Onayınızı bekleyen ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                ),
-                _buildModelListesi(
-                  filtreliOnaylananlar,
-                  'Onaylanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                ),
-                _buildModelListesi(
-                  filtreliUretimdekiler,
-                  'İşlemde olan ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                ),
-                _buildModelListesi(
-                  tumFiltrelenmisler,
-                  'Size atanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                ),
-              ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                children: [
+                  _buildErpHeader(
+                    bekleyen: filtreliBekleyenler.length,
+                    onaylanan: filtreliOnaylananlar.length,
+                    islemde: filtreliUretimdekiler.length,
+                    tamamlanan: filtreliTamamlananlar.length,
+                    toplam: tumFiltrelenmisler.length,
+                    aktifFiltreVar: aktifFiltreVar,
+                  ),
+                  if (aktifFiltreVar) _buildAktifFiltreSeridi(),
+                  _buildErpTabSeridi(
+                    bekleyen: filtreliBekleyenler.length,
+                    onaylanan: filtreliOnaylananlar.length,
+                    islemde: filtreliUretimdekiler.length,
+                    toplam: tumFiltrelenmisler.length,
+                  ),
+                  SizedBox(
+                    height: constraints.maxHeight,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildModelListesi(
+                          filtreliBekleyenler,
+                          'Onayınızı bekleyen ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+                        ),
+                        _buildModelListesi(
+                          filtreliOnaylananlar,
+                          'Onaylanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+                        ),
+                        _buildModelListesi(
+                          filtreliUretimdekiler,
+                          'İşlemde olan ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+                        ),
+                        _buildModelListesi(
+                          tumFiltrelenmisler,
+                          'Size atanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

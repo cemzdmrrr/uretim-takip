@@ -275,33 +275,46 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
       ),
       body: yukleniyor
           ? const LoadingWidget()
-          : Column(
-              children: [
-                _buildErpHeader(
-                  bekleyen: filtreliBekleyenler.length,
-                  kontrolde: filtreliKontrolEdiliyor.length,
-                  tamamlanan: filtreliTamamlananlar.length,
-                  toplam: toplam,
-                  aktifFiltreVar: aktifFiltreVar,
-                ),
-                if (aktifFiltreVar) _buildAktifFiltreSeridi(),
-                _buildKaliteTabSeridi(
-                  bekleyen: filtreliBekleyenler.length,
-                  kontrolde: filtreliKontrolEdiliyor.length,
-                  tamamlanan: filtreliTamamlananlar.length,
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildKontrolListesi(filtreliBekleyenler, 'bekleyen'),
-                      _buildKontrolListesi(
-                          filtreliKontrolEdiliyor, 'kontrolde'),
-                      _buildKontrolListesi(filtreliTamamlananlar, 'tamamlanan'),
-                    ],
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Column(
+                      children: [
+                        _buildErpHeader(
+                          bekleyen: filtreliBekleyenler.length,
+                          kontrolde: filtreliKontrolEdiliyor.length,
+                          tamamlanan: filtreliTamamlananlar.length,
+                          toplam: toplam,
+                          aktifFiltreVar: aktifFiltreVar,
+                        ),
+                        if (aktifFiltreVar) _buildAktifFiltreSeridi(),
+                        _buildKaliteTabSeridi(
+                          bekleyen: filtreliBekleyenler.length,
+                          kontrolde: filtreliKontrolEdiliyor.length,
+                          tamamlanan: filtreliTamamlananlar.length,
+                        ),
+                        SizedBox(
+                          height: constraints.maxHeight,
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _buildKontrolListesi(
+                                  filtreliBekleyenler, 'bekleyen'),
+                              _buildKontrolListesi(
+                                  filtreliKontrolEdiliyor, 'kontrolde'),
+                              _buildKontrolListesi(
+                                  filtreliTamamlananlar, 'tamamlanan'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
     );
   }

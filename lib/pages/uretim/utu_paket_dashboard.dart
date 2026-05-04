@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:intl/intl.dart';
@@ -100,7 +100,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           .from(DbTables.yuklemeKayitlari)
           .select('adet')
           .eq('model_id', modelId);
-      
+
       int toplamYuklenen = 0;
       for (var kayit in yukleme) {
         toplamYuklenen += (kayit['adet'] as num?)?.toInt() ?? 0;
@@ -112,17 +112,19 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           .select('toplam_adet, adet')
           .eq('id', modelId)
           .single();
-      
-      final modelAdet = (modelData['toplam_adet'] ?? modelData['adet'] ?? 0) as num;
+
+      final modelAdet =
+          (modelData['toplam_adet'] ?? modelData['adet'] ?? 0) as num;
       final kalanAdet = modelAdet.toInt() - toplamYuklenen;
-      
+
       // triko_takip tablosunu güncelle
       await supabase.from(DbTables.trikoTakip).update({
         'yuklenen_adet': toplamYuklenen,
         'kalan_adet': kalanAdet > 0 ? kalanAdet : 0,
       }).eq('id', modelId);
-      
-      debugPrint('📊 Model raporları güncellendi - Yüklenen: $toplamYuklenen, Kalan: $kalanAdet');
+
+      debugPrint(
+          '📊 Model raporları güncellendi - Yüklenen: $toplamYuklenen, Kalan: $kalanAdet');
     } catch (e) {
       debugPrint('⚠️ Rapor güncelleme hatası: $e');
       // Hata olsa da devam et
@@ -300,12 +302,16 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     try {
       debugPrint('🔄 Ütü atamaları yükleniyor...');
 
-      final response = await supabase.from(DbTables.utuAtamalari).select('''
+      final response = await supabase
+          .from(DbTables.utuAtamalari)
+          .select('''
         id, model_id, atama_tarihi, durum, notlar, adet, onay_tarihi, red_sebebi,
         talep_edilen_adet, kabul_edilen_adet, tamamlanan_adet, tamamlama_tarihi,
         tedarikci_id, atanan_kullanici_id,
         triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)
-      ''').eq('firma_id', TenantManager.instance.requireFirmaId).order('atama_tarihi', ascending: false);
+      ''')
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
+          .order('atama_tarihi', ascending: false);
 
       final liste = List<Map<String, dynamic>>.from(response);
 
@@ -346,12 +352,16 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     try {
       debugPrint('🔄 Paketleme atamaları yükleniyor...');
 
-      final response = await supabase.from(DbTables.paketlemeAtamalari).select('''
+      final response = await supabase
+          .from(DbTables.paketlemeAtamalari)
+          .select('''
         id, model_id, atama_tarihi, durum, notlar, adet, onay_tarihi, red_sebebi,
         talep_edilen_adet, tamamlanan_adet, tamamlama_tarihi,
         atanan_kullanici_id,
         triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)
-      ''').eq('firma_id', TenantManager.instance.requireFirmaId).order('atama_tarihi', ascending: false);
+      ''')
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
+          .order('atama_tarihi', ascending: false);
 
       final liste = List<Map<String, dynamic>>.from(response);
 
@@ -393,12 +403,16 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       debugPrint('🔄 Çeki listesi yükleniyor...');
 
       try {
-        final response = await supabase.from(DbTables.cekiListesi).select('''
+        final response = await supabase
+            .from(DbTables.cekiListesi)
+            .select('''
           id, model_id, koli_no, koli_adedi, adet, paketleme_tarihi, 
           gonderim_durumu, gonderim_tarihi, alici_bilgisi, kargo_firmasi, takip_no, notlar, created_at,
           beden_kodu, adet_per_koli, is_mix_koli, mix_beden_detay,
           triko_takip(id, marka, item_no, adet, bedenler, renk)
-        ''').eq('firma_id', TenantManager.instance.requireFirmaId).order('created_at', ascending: false);
+        ''')
+            .eq('firma_id', TenantManager.instance.requireFirmaId)
+            .order('created_at', ascending: false);
         cekiListesi = List<Map<String, dynamic>>.from(response);
         debugPrint('✅ Çeki listesi yüklendi: ${cekiListesi.length} kayıt');
       } catch (e) {
@@ -539,51 +553,61 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   Widget _buildUtuPaketPanel() {
     // Alt tab: Bekleyen, Onaylanan, İşlemde, Tamamlanan
     final int durumTab = utuDurumTab; // eski değişkeni kullanıyoruz
-    return Column(
-      children: [
-        Container(
-          color: Colors.amber[50],
-          child: Row(
-            children: [
-              _buildDurumTab(
-                  'Bekleyen',
-                  utuBekleyenler.length + paketBekleyenler.length,
-                  0,
-                  durumTab,
-                  (i) => setState(() => utuDurumTab = i),
-                  Icons.hourglass_empty,
-                  Colors.orange),
-              _buildDurumTab(
-                  'Onaylanan',
-                  utuOnaylananlar.length + paketOnaylananlar.length,
-                  1,
-                  durumTab,
-                  (i) => setState(() => utuDurumTab = i),
-                  Icons.check_circle,
-                  Colors.green),
-              _buildDurumTab(
-                  'İşlemde',
-                  utuUretimde.length + paketUretimde.length,
-                  2,
-                  durumTab,
-                  (i) => setState(() => utuDurumTab = i),
-                  Icons.play_circle,
-                  Colors.blue),
-              _buildDurumTab(
-                  'Tamamlanan',
-                  utuTamamlananlar.length + paketTamamlananlar.length,
-                  3,
-                  durumTab,
-                  (i) => setState(() => utuDurumTab = i),
-                  Icons.done_all,
-                  Colors.grey),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              children: [
+                Container(
+                  color: Colors.amber[50],
+                  child: Row(
+                    children: [
+                      _buildDurumTab(
+                          'Bekleyen',
+                          utuBekleyenler.length + paketBekleyenler.length,
+                          0,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.hourglass_empty,
+                          Colors.orange),
+                      _buildDurumTab(
+                          'Onaylanan',
+                          utuOnaylananlar.length + paketOnaylananlar.length,
+                          1,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.check_circle,
+                          Colors.green),
+                      _buildDurumTab(
+                          'İşlemde',
+                          utuUretimde.length + paketUretimde.length,
+                          2,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.play_circle,
+                          Colors.blue),
+                      _buildDurumTab(
+                          'Tamamlanan',
+                          utuTamamlananlar.length + paketTamamlananlar.length,
+                          3,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.done_all,
+                          Colors.grey),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: constraints.maxHeight,
+                  child: _buildUtuPaketTabContent(durumTab),
+                ),
+              ],
+            ),
           ),
-        ),
-        Expanded(
-          child: _buildUtuPaketTabContent(durumTab),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -638,8 +662,6 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     );
   }
 
-
-
   Widget _buildDurumTab(String baslik, int sayi, int index, int secilenIndex,
       Function(int) onTap, IconData icon, Color renk) {
     final secili = index == secilenIndex;
@@ -676,8 +698,4 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       ),
     );
   }
-
-
-
-
 }
