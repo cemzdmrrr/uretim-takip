@@ -20,32 +20,32 @@ class UretimRaporuService {
     'dokuma': {
       'tablo': DbTables.dokumaAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
     },
     'nakis': {
       'tablo': DbTables.nakisAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
     },
     'konfeksiyon': {
       'tablo': DbTables.konfeksiyonAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
     },
     'yikama': {
       'tablo': DbTables.yikamaAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
     },
     'utu': {
       'tablo': DbTables.utuAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
     },
     'ilik_dugme': {
       'tablo': DbTables.ilikDugmeAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
     },
     'kalite_kontrol': {
       'tablo': DbTables.kaliteKontrolAtamalari,
@@ -55,7 +55,7 @@ class UretimRaporuService {
     'paketleme': {
       'tablo': DbTables.paketlemeAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, talep_edilen_adet, created_at',
+          'model_id, durum, tamamlanan_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
     },
   };
 
@@ -208,6 +208,17 @@ class UretimRaporuService {
       if (mevcutAsamaData != null && mevcutAsamaData['tedarikci_id'] != null) {
         tedarikciAdi =
             tedarikciIndex[mevcutAsamaData['tedarikci_id'].toString()] ?? '';
+      }
+
+      // Her aşama datasına tedarikçi adını da ekle (export için)
+      for (final asamaKey in asamaDurumlari.keys) {
+        final asamaData = asamaDurumlari[asamaKey];
+        if (asamaData != null && asamaData['tedarikci_id'] != null) {
+          asamaDurumlari[asamaKey] = {
+            ...asamaData,
+            'firma_adi': tedarikciIndex[asamaData['tedarikci_id'].toString()] ?? '',
+          };
+        }
       }
 
       final toplamAdet = _intDeger(model['toplam_adet'] ?? model['adet']);

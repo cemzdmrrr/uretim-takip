@@ -17,27 +17,26 @@ extension _ExportExt on _UretimRaporuPageState {
     try {
       final data = _modeller.map(_excelSatiriOlustur).toList();
       final fileName =
-          'uretim_durumu_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
+          'uretim_raporu_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
 
-      final columns = <String, String>{
-        'marka': 'MARKA',
-        'item_no': 'MODEL KODU',
-        'model_adi': 'MODEL ADI',
-        'ana_renk': 'ANA RENK',
-        'yaka_tipi': 'YAKA TIPI',
-        'iplik_karisimi': 'IPLIK KARISIMI',
-        'termin_tarihi': 'TERMIN TARIHI',
-        'mevcut_asama': 'MEVCUT ASAMA',
-        'toplam_adet': 'TOPLAM ADET',
-        'gonderilen_adet': 'GONDERILEN ADET',
-        'kalan_adet': 'KALAN ADET',
+      const columns = <String, String>{
+        'model_adi': 'Model Adı',
+        'ana_renk': 'Renk',
+        'iplik_karisimi': 'Karışım',
+        'toplam_adet': 'Adet',
+        'termin_tarihi': 'Termin',
+        'tamamlanan_adet': 'Tamamlanan Adet',
+        'kalan_adet': 'Kalan Adet',
+        'dokuma_firma': 'Dokumayı Yapan Firma',
+        'dokuma_baslangic': 'Dokuma Başlama Tarihi',
+        'dokuma_bitis': 'Dokuma Bitiş Tarihi',
+        'konfeksiyon_firma': 'Konfeksiyonu Yapan Firma',
+        'konfeksiyon_baslangic': 'Konfeksiyon Başlama Tarihi',
+        'konfeksiyon_bitis': 'Konfeksiyon Bitiş Tarihi',
+        'utu_firma': 'Ütü Paket Yapan Firma',
+        'utu_baslangic': 'Ütü Başlama Tarihi',
+        'utu_bitis': 'Ütü Bitiş Tarihi',
       };
-
-      for (final asama in _uretimRaporuExcelAsamalari) {
-        columns['${asama['key']}_durum'] = '${asama['label']} DURUM';
-        columns['${asama['key']}_tamamlanan'] = '${asama['label']} TAMAMLANAN';
-        columns['${asama['key']}_fire'] = '${asama['label']} FIRE';
-      }
 
       await ExcelHelper.exportToExcel(
         data: data,
@@ -47,12 +46,12 @@ extension _ExportExt on _UretimRaporuPageState {
 
       if (mounted) {
         context.showSuccessSnackBar(
-          'Excel raporu basariyla indirildi: $fileName',
+          'Excel raporu başarıyla indirildi: $fileName',
         );
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Export hatasi: $e');
+        context.showErrorSnackBar('Export hatası: $e');
       }
     }
   }
@@ -189,28 +188,31 @@ extension _ExportExt on _UretimRaporuPageState {
     final kalanAdet =
         _intDeger(model['kalan_adet'] ?? (toplamAdet - gonderilenAdet));
 
-    final satir = <String, dynamic>{
-      'marka': model['marka'] ?? '',
-      'item_no': model['item_no'] ?? '',
+    String _asamaFirma(String key) =>
+        asamalar[key]?['firma_adi']?.toString() ?? '';
+    String _asamaBaslangic(String key) =>
+        _formatTarih(asamalar[key]?['uretim_baslangic_tarihi']);
+    String _asamaBitis(String key) =>
+        _formatTarih(asamalar[key]?['planlanan_bitis_tarihi']);
+
+    return {
       'model_adi': model['model_adi'] ?? model['item_no'] ?? '',
       'ana_renk': _anaRenkDeger(model),
-      'yaka_tipi': model['yaka_tipi'] ?? '',
       'iplik_karisimi': model['iplik_karisimi'] ?? '',
-      'termin_tarihi': _formatTarih(model['termin_tarihi']),
-      'mevcut_asama': _mevcutAsamaExportMetni(model),
       'toplam_adet': toplamAdet,
-      'gonderilen_adet': gonderilenAdet,
+      'termin_tarihi': _formatTarih(model['termin_tarihi']),
+      'tamamlanan_adet': gonderilenAdet,
       'kalan_adet': kalanAdet < 0 ? 0 : kalanAdet,
+      'dokuma_firma': _asamaFirma('dokuma'),
+      'dokuma_baslangic': _asamaBaslangic('dokuma'),
+      'dokuma_bitis': _asamaBitis('dokuma'),
+      'konfeksiyon_firma': _asamaFirma('konfeksiyon'),
+      'konfeksiyon_baslangic': _asamaBaslangic('konfeksiyon'),
+      'konfeksiyon_bitis': _asamaBitis('konfeksiyon'),
+      'utu_firma': _asamaFirma('utu'),
+      'utu_baslangic': _asamaBaslangic('utu'),
+      'utu_bitis': _asamaBitis('utu'),
     };
-
-    for (final asama in _uretimRaporuExcelAsamalari) {
-      final asamaData = asamalar[asama['key']];
-      satir['${asama['key']}_durum'] = _asamaDurumExportMetni(asamaData);
-      satir['${asama['key']}_tamamlanan'] = _asamaTamamlananAdet(asamaData);
-      satir['${asama['key']}_fire'] = _asamaFireAdet(asamaData);
-    }
-
-    return satir;
   }
 
   String _asamaDurumExportMetni(Map<String, dynamic>? asama) {
