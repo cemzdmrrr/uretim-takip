@@ -44,6 +44,8 @@ class DbTables {
   static const aksesuarKullanim = 'aksesuar_kullanim';
   static const aksesuarBedenler = 'aksesuar_bedenler';
   static const modelAksesuar = 'model_aksesuar';
+  static const aksesuarStokHareketleri = 'aksesuar_stok_hareketleri';
+  static const aksesuarHareketleri = 'aksesuar_hareketleri';
 
   // ─── Finans ───
   static const faturalar = 'faturalar';

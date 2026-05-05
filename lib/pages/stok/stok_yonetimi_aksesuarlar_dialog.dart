@@ -669,11 +669,15 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
     List<Map<String, dynamic>> firmalar = [];
     bool firmaYukleniyor = true;
 
+    Map<String, dynamic>? seciliModel;
+    List<Map<String, dynamic>> modeller = [];
+    bool modelYukleniyor = true;
+
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (ctx, setStateDialog) {
-          // Firmaları yükle (ilk açılışta)
+          // Firmaları ve modelleri yükle (ilk açılışta)
           if (firmaYukleniyor) {
             firmaYukleniyor = false;
             final firmaId = TenantManager.instance.requireFirmaId;
@@ -690,6 +694,24 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
               }
             }).catchError((e) {
               debugPrint('Firma yükleme hatası: $e');
+            });
+          }
+          if (modelYukleniyor) {
+            modelYukleniyor = false;
+            final firmaId = TenantManager.instance.requireFirmaId;
+            supabase
+                .from(DbTables.trikoTakip)
+                .select('id, item_no, marka, model_adi')
+                .eq('firma_id', firmaId)
+                .order('item_no')
+                .then((data) {
+              if (ctx.mounted) {
+                setStateDialog(() {
+                  modeller = List<Map<String, dynamic>>.from(data);
+                });
+              }
+            }).catchError((e) {
+              debugPrint('Model yükleme hatası: $e');
             });
           }
 
@@ -771,6 +793,36 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                     ),
                     const SizedBox(height: 12),
 
+                    // Model seçimi
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                      value: seciliModel,
+                      decoration: const InputDecoration(
+                        labelText: 'Model (Opsiyonel)',
+                        border: OutlineInputBorder(),
+                        helperText: 'Hangi model için sarf yapılıyor?',
+                      ),
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem<Map<String, dynamic>>(
+                          value: null,
+                          child: Text('— Seçilmedi —',
+                              style: TextStyle(color: Colors.grey)),
+                        ),
+                        ...modeller.map((m) {
+                          final marka = m['marka']?.toString() ?? '';
+                          final itemNo = m['item_no']?.toString() ?? '';
+                          final label = [marka, itemNo]
+                              .where((s) => s.isNotEmpty)
+                              .join(' - ');
+                          return DropdownMenuItem<Map<String, dynamic>>(
+                              value: m, child: Text(label));
+                        }),
+                      ],
+                      onChanged: (val) =>
+                          setStateDialog(() => seciliModel = val),
+                    ),
+                    const SizedBox(height: 12),
+
                     // Adet
                     TextField(
                       controller: adetController,
@@ -842,18 +894,23 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                         .eq('firma_id', firmaId)
                         .eq('id', seciliBeden!['id']);
 
-                    // 2. Kullanım kaydı oluştur
-                    await supabase.from(DbTables.aksesuarKullanim).insert({
-                      'aksesuar_id': aksesuar['id'].toString(),
-                      'beden_id': seciliBeden!['id'].toString(),
-                      'beden': seciliBeden!['beden'],
-                      'musteri_id': seciliFirma!['id'].toString(),
+                    // 2. Sarf hareketi kaydı
+                    final tedLabel = (seciliFirma!['sirket'] != null && seciliFirma!['sirket'].toString().isNotEmpty)
+                        ? seciliFirma!['sirket'].toString()
+                        : seciliFirma!['ad']?.toString() ?? '';
+                    await supabase.from(DbTables.aksesuarStokHareketleri).insert({
+                      'aksesuar_beden_id': seciliBeden!['id'].toString(),
+                      'firma_id': firmaId,
+                      'hareket_tipi': 'cikis',
                       'miktar': adet,
-                      'islem_tipi': 'sarf',
+                      'onceki_stok': stok,
+                      'yeni_stok': stok - adet,
                       'aciklama': aciklamaController.text.trim().isEmpty
                           ? null
                           : aciklamaController.text.trim(),
-                      'firma_id': firmaId,
+                      'tedarikci_adi': tedLabel.isNotEmpty ? tedLabel : null,
+                      if (seciliModel != null) 'model_id': seciliModel!['id'].toString(),
+                      'kullanici_id': supabase.auth.currentUser?.id,
                     });
 
                     await _aksesuarToplamStokGuncelle(
@@ -867,6 +924,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
 
                     // Listeyi yenile
                     await _loadAksesuarlar();
+                    _loadSarfKayitlari();
                   } catch (e) {
                     if (!ctx.mounted) return;
                     ctx.showErrorSnackBar('Sarf hatası: $e');
