@@ -672,6 +672,15 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
     Map<String, dynamic>? seciliModel;
     List<Map<String, dynamic>> modeller = [];
     bool modelYukleniyor = true;
+    final aksesuarId = aksesuar['id']?.toString();
+    final List<String> iliskiliModelIds = (aksesuarId != null
+        ? (_modelKullanimlari[aksesuarId] ?? [])
+          .map((k) => k['model_id']?.toString())
+        : const Iterable<String?>.empty())
+      .where((id) => id != null && id!.isNotEmpty)
+      .cast<String>()
+      .toSet()
+      .toList();
 
     showDialog(
       context: context,
@@ -698,21 +707,30 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
           }
           if (modelYukleniyor) {
             modelYukleniyor = false;
-            final firmaId = TenantManager.instance.requireFirmaId;
-            supabase
-                .from(DbTables.trikoTakip)
-                .select('id, item_no, marka, model_adi')
-                .eq('firma_id', firmaId)
-                .order('item_no')
-                .then((data) {
+            if (iliskiliModelIds.isEmpty) {
               if (ctx.mounted) {
                 setStateDialog(() {
-                  modeller = List<Map<String, dynamic>>.from(data);
+                  modeller = [];
                 });
               }
-            }).catchError((e) {
-              debugPrint('Model yükleme hatası: $e');
-            });
+            } else {
+              final firmaId = TenantManager.instance.requireFirmaId;
+              supabase
+                  .from(DbTables.trikoTakip)
+                  .select('id, item_no, marka, model_adi')
+                  .eq('firma_id', firmaId)
+                  .inFilter('id', iliskiliModelIds)
+                  .order('item_no')
+                  .then((data) {
+                if (ctx.mounted) {
+                  setStateDialog(() {
+                    modeller = List<Map<String, dynamic>>.from(data);
+                  });
+                }
+              }).catchError((e) {
+                debugPrint('Model yükleme hatası: $e');
+              });
+            }
           }
 
           final mevcutStok = (seciliBeden?['stok_miktari'] as int?) ?? 0;
@@ -799,7 +817,8 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                       decoration: const InputDecoration(
                         labelText: 'Model (Opsiyonel)',
                         border: OutlineInputBorder(),
-                        helperText: 'Hangi model için sarf yapılıyor?',
+                        helperText:
+                            'Sadece bu aksesuarın kullanıldığı modeller listelenir',
                       ),
                       isExpanded: true,
                       items: [

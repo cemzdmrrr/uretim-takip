@@ -71,6 +71,7 @@ class DbTables {
 
   // ─── Tedarikçi ───
   static const tedarikciler = 'tedarikciler';
+  static const tedarikciModelKapasiteleri = 'tedarikci_model_kapasiteleri';
   static const tedarikciSiparisleri = 'tedarikci_siparisleri';
   static const tedarikciOdemeleri = 'tedarikci_odemeleri';
 

@@ -26,6 +26,7 @@ import 'package:uretim_takip/pages/uretim/kalite_kontrol_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/utu_paket_dashboard.dart';
 import 'package:uretim_takip/pages/sevkiyat/sevkiyat_panel.dart';
 import 'package:uretim_takip/pages/uretim/uretim_raporu_page.dart';
+import 'package:uretim_takip/pages/raporlar/uretim_plani_page.dart';
 import 'package:uretim_takip/widgets/bildirim_popup.dart';
 
 import 'package:provider/provider.dart';
@@ -948,13 +949,23 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
   }
 
   bool _hasQuickActions() {
-    return _sayfaErisimVar('uretim_raporu') ||
+    return _sayfaErisimVar('uretim_plani') ||
+      _sayfaErisimVar('uretim_raporu') ||
         _sayfaErisimVar('yeni_model_ekle') ||
         _sayfaErisimVar('kayitli_modeller');
   }
 
   Widget _buildQuickActionsRow() {
     final actions = <Widget>[];
+    if (_sayfaErisimVar('uretim_plani') || _sayfaErisimVar('uretim_raporu')) {
+      actions.add(_buildQuickAction(
+        'Üretim Planı',
+        Icons.event_note,
+        const Color(0xFF455A64),
+        () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const UretimPlaniPage())),
+      ));
+    }
     if (_sayfaErisimVar('uretim_raporu')) {
       actions.add(_buildQuickAction(
         'Üretim Raporu',
@@ -1345,6 +1356,15 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     if (raporAktif) {
       const rc = Color(0xFF00695C);
       final raporlar = <Map<String, dynamic>>[];
+      if (_sayfaErisimVar('uretim_plani') || _sayfaErisimVar('uretim_raporu')) {
+        raporlar.add({
+          'text': 'Üretim Planı',
+          'icon': Icons.event_note,
+          'color': rc,
+          'onPressed': () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const UretimPlaniPage()))
+        });
+      }
       if (uretimAktif && _sayfaErisimVar('uretim_raporu')) {
         raporlar.add({
           'text': 'Üretim Raporu',

@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:uretim_takip/utils/web_download.dart';
 import 'package:flutter/painting.dart' show Border, BorderSide;
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'dart:math' as math;
 
 part 'stok_yonetimi_aksesuarlar_dialog.dart';
 
@@ -27,6 +28,10 @@ class _StokYonetimiAksesuarlarCokluBedenState
   List<Map<String, dynamic>> aksesuarlar = [];
   // Aksesuar ID -> Model kullanım listesi (model_adi, toplam_adet, adet_per_model)
   Map<String, List<Map<String, dynamic>>> _modelKullanimlari = {};
+  // Aksesuar ID -> toplam sarf miktarı (hareket_tipi='cikis')
+  Map<String, int> _sarfToplamlari = {};
+  // Aksesuar Beden ID -> toplam sarf miktarı (hareket_tipi='cikis')
+  Map<String, int> _bedenSarfToplamlari = {};
   bool isLoading = true;
   String searchQuery = '';
 
@@ -118,6 +123,28 @@ class _StokYonetimiAksesuarlarCokluBedenState
           .select('aksesuar_id, adet_per_model, miktar, model_id')
           .eq('firma_id', firmaId);
 
+      // Sarf toplamlarını yükle (kalan talep hesabı için)
+      final sarfResponse = await supabase
+          .from(DbTables.aksesuarStokHareketleri)
+          .select('miktar, aksesuar_beden_id')
+          .eq('firma_id', firmaId)
+          .eq('hareket_tipi', 'cikis');
+
+      // Yüklenen aksesuarlardan beden->aksesuar eşleşme haritası
+      final Map<String, String> bedenAksesuarMap = {};
+      for (var aksesuar in response) {
+        final aksesuarId = aksesuar['id']?.toString();
+        if (aksesuarId == null || aksesuarId.isEmpty) continue;
+
+        final bedenler = aksesuar['aksesuar_bedenler'] as List? ?? [];
+        for (var beden in bedenler) {
+          final bedenId = beden['id']?.toString();
+          if (bedenId != null && bedenId.isNotEmpty) {
+            bedenAksesuarMap[bedenId] = aksesuarId;
+          }
+        }
+      }
+
       // İlgili model ID'lerini topla ve model bilgilerini çek
       final modelIds = <String>{};
       for (var ma in modelAksesuarResponse) {
@@ -169,9 +196,31 @@ class _StokYonetimiAksesuarlarCokluBedenState
         });
       }
 
+      // Sarf kayıtlarını aksesuar ve beden bazında topla
+      final Map<String, int> sarfToplamMap = {};
+      final Map<String, int> bedenSarfToplamMap = {};
+      for (var kayit in sarfResponse) {
+        final miktar = (kayit['miktar'] as num?)?.toInt() ?? 0;
+        if (miktar <= 0) continue;
+
+        final bedenId = kayit['aksesuar_beden_id']?.toString();
+        if (bedenId != null && bedenId.isNotEmpty) {
+          bedenSarfToplamMap[bedenId] =
+              (bedenSarfToplamMap[bedenId] ?? 0) + miktar;
+        }
+
+        final aksesuarId = bedenId != null ? bedenAksesuarMap[bedenId] : null;
+        if (aksesuarId != null && aksesuarId.isNotEmpty) {
+          sarfToplamMap[aksesuarId] =
+              (sarfToplamMap[aksesuarId] ?? 0) + miktar;
+        }
+      }
+
       setState(() {
         aksesuarlar = List<Map<String, dynamic>>.from(response);
         _modelKullanimlari = kullanimMap;
+        _sarfToplamlari = sarfToplamMap;
+        _bedenSarfToplamlari = bedenSarfToplamMap;
         isLoading = false;
       });
     } catch (e) {
@@ -190,6 +239,18 @@ class _StokYonetimiAksesuarlarCokluBedenState
     final kullanimlar = _modelKullanimlari[aksesuarId];
     if (kullanimlar == null || kullanimlar.isEmpty) return 0;
     return kullanimlar.fold(0, (sum, k) => sum + (k['gereken_adet'] as int));
+  }
+
+  int _getToplamSarf(Map<String, dynamic> aksesuar) {
+    final aksesuarId = aksesuar['id']?.toString();
+    if (aksesuarId == null) return 0;
+    return _sarfToplamlari[aksesuarId] ?? 0;
+  }
+
+  int _getKalanToplamTalep(Map<String, dynamic> aksesuar) {
+    final planlananTalep = _getToplamTalep(aksesuar);
+    final toplamSarf = _getToplamSarf(aksesuar);
+    return math.max(0, planlananTalep - toplamSarf);
   }
 
   /// Aksesuar beden adları model beden anahtarlarıyla eşleşiyor mu?
@@ -241,6 +302,20 @@ class _StokYonetimiAksesuarlarCokluBedenState
     return (toplamTalep / aktifBedenSayisi).ceil();
   }
 
+  int _getBedenSarf(Map<String, dynamic> beden) {
+    final bedenId = beden['id']?.toString();
+    if (bedenId == null || bedenId.isEmpty) return 0;
+    return _bedenSarfToplamlari[bedenId] ?? 0;
+  }
+
+  int _getKalanBedenTalep(
+      Map<String, dynamic> aksesuar, Map<String, dynamic> beden) {
+    final bedenAdi = beden['beden']?.toString() ?? '';
+    final planlananTalep = _getBedenTalep(aksesuar, bedenAdi);
+    final bedenSarf = _getBedenSarf(beden);
+    return math.max(0, planlananTalep - bedenSarf);
+  }
+
   /// Stok yeterli mi? Çoklu beden aksesuarlar için beden bazlı kontrol
   bool _isStokYeterli(Map<String, dynamic> aksesuar) {
     final aksesuarId = aksesuar['id']?.toString();
@@ -255,22 +330,21 @@ class _StokYonetimiAksesuarlarCokluBedenState
       if (_hasBedenEslesmesi(aksesuar)) {
         // Beden adları eşleşiyor: her bedeni ayrı kontrol et
         for (var beden in aktifBedenler) {
-          final bedenAdi = beden['beden']?.toString() ?? '';
           final stok = (beden['stok_miktari'] as int? ?? 0);
-          final talep = _getBedenTalep(aksesuar, bedenAdi);
+          final talep = _getKalanBedenTalep(aksesuar, beden);
           if (talep > 0 && stok < talep) return false;
         }
         return true;
       } else {
         // Beden adları eşleşmiyor: toplam stok vs toplam talep
-        final toplamTalep = _getToplamTalep(aksesuar);
+        final toplamTalep = _getKalanToplamTalep(aksesuar);
         if (toplamTalep == 0) return true;
         return _getTotalStock(aksesuar) >= toplamTalep;
       }
     }
 
     // Bedensiz aksesuar: toplam kontrol
-    final toplamTalep = _getToplamTalep(aksesuar);
+    final toplamTalep = _getKalanToplamTalep(aksesuar);
     if (toplamTalep == 0) return true;
     return _getTotalStock(aksesuar) >= toplamTalep;
   }
@@ -300,11 +374,14 @@ class _StokYonetimiAksesuarlarCokluBedenState
   }
 
   int get _toplamAksesuarTalep {
-    return filteredAksesuarlar.fold(0, (sum, a) => sum + _getToplamTalep(a));
+    return filteredAksesuarlar.fold(
+      0,
+      (sum, a) => sum + _getKalanToplamTalep(a),
+    );
   }
 
   bool _aksesuarKritikMi(Map<String, dynamic> aksesuar) {
-    final talep = _getToplamTalep(aksesuar);
+    final talep = _getKalanToplamTalep(aksesuar);
     if (talep > 0) return !_isStokYeterli(aksesuar);
     return _getTotalStock(aksesuar) < (aksesuar['minimum_stok'] ?? 10);
   }
@@ -335,12 +412,12 @@ class _StokYonetimiAksesuarlarCokluBedenState
 
   Widget _buildStokCard(Map<String, dynamic> aksesuar) {
     final totalStock = _getTotalStock(aksesuar);
-    final toplamTalep = _getToplamTalep(aksesuar);
+    final kalanTalep = _getKalanToplamTalep(aksesuar);
     final aksesuarId = aksesuar['id']?.toString();
     final kullanimlar = aksesuarId != null
         ? _modelKullanimlari[aksesuarId] ?? []
         : <Map<String, dynamic>>[];
-    final eksikAdet = toplamTalep > totalStock ? toplamTalep - totalStock : 0;
+    final eksikAdet = kalanTalep > totalStock ? kalanTalep - totalStock : 0;
 
     final isLowStock = _aksesuarKritikMi(aksesuar);
 
@@ -398,8 +475,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
                           _buildMiniBilgi(
                               'Marka', aksesuar['marka'] ?? 'Belirtilmemiş'),
                           _buildMiniBilgi('Stok', '$totalStock'),
-                          if (toplamTalep > 0)
-                            _buildMiniBilgi('Talep', '$toplamTalep'),
+                          if (kalanTalep > 0)
+                            _buildMiniBilgi('Kalan Talep', '$kalanTalep'),
                           if (kullanimlar.isNotEmpty)
                             _buildMiniBilgi('Model', '${kullanimlar.length}'),
                         ],
@@ -407,7 +484,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
                       if (isLowStock) ...[
                         const SizedBox(height: 8),
                         _buildDurumEtiketi(
-                          toplamTalep > 0
+                          kalanTalep > 0
                               ? '$eksikAdet adet eksik'
                               : 'Düşük stok',
                           _dangerColor,
@@ -474,13 +551,15 @@ class _StokYonetimiAksesuarlarCokluBedenState
   void _showAksesuarDetayModal(Map<String, dynamic> aksesuar) {
     final totalStock = _getTotalStock(aksesuar);
     final toplamTalep = _getToplamTalep(aksesuar);
+    final toplamSarf = _getToplamSarf(aksesuar);
+    final kalanTalep = _getKalanToplamTalep(aksesuar);
     final stokYeterli = _isStokYeterli(aksesuar);
     final aksesuarId = aksesuar['id']?.toString();
     final kullanimlar = aksesuarId != null
         ? _modelKullanimlari[aksesuarId] ?? []
         : <Map<String, dynamic>>[];
-    final eksikAdet = toplamTalep > totalStock ? toplamTalep - totalStock : 0;
-    final bool isLowStock = toplamTalep > 0
+    final eksikAdet = kalanTalep > totalStock ? kalanTalep - totalStock : 0;
+    final bool isLowStock = kalanTalep > 0
         ? !stokYeterli
         : totalStock < (aksesuar['minimum_stok'] ?? 10);
 
@@ -572,18 +651,28 @@ class _StokYonetimiAksesuarlarCokluBedenState
                                   'Mevcut Stok', '$totalStock', Colors.green)),
                           Expanded(
                               child: _buildMiniInfo(
-                                  'Toplam Talep', '$toplamTalep', Colors.blue)),
+                                  'Kalan Talep', '$kalanTalep', Colors.blue)),
                           Expanded(
                             child: _buildMiniInfo(
                               stokYeterli ? 'Fazla' : 'Eksik',
-                              stokYeterli
-                                  ? '${totalStock - toplamTalep}'
-                                  : '$eksikAdet',
+                              stokYeterli ? '${totalStock - kalanTalep}' : '$eksikAdet',
                               stokYeterli ? Colors.green : Colors.red,
                             ),
                           ),
                         ],
                       ),
+                      if (toplamSarf > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Planlanan talep: $toplamTalep • Gerçekleşen sarf: $toplamSarf • Kalan: $kalanTalep',
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 16),
 
                       // Uyarı / başarı mesajı
@@ -613,7 +702,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
                             ],
                           ),
                         ),
-                      if (stokYeterli && toplamTalep > 0)
+                      if (stokYeterli && kalanTalep > 0)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(10),
@@ -629,7 +718,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Stok yeterli. ${totalStock - toplamTalep} adet fazla stok mevcut.',
+                                  'Stok yeterli. ${totalStock - kalanTalep} adet fazla stok mevcut.',
                                   style: TextStyle(
                                       color: Colors.green.shade700,
                                       fontWeight: FontWeight.w600,
@@ -712,7 +801,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
                             .map((beden) {
                           final bedenAdi = beden['beden']?.toString() ?? '';
                           final stok = (beden['stok_miktari'] as int? ?? 0);
-                          final bedenTalep = _getBedenTalep(aksesuar, bedenAdi);
+                            final bedenTalep = _getKalanBedenTalep(aksesuar, beden);
                           final bedenYeterli =
                               bedenTalep == 0 || stok >= bedenTalep;
                           final bedenEksik =
@@ -1058,7 +1147,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
               Icons.warning_amber, _dangerColor),
           _buildOzetKutusu('Toplam Stok', '$_toplamAksesuarStok',
               Icons.inventory_2, _successColor),
-          _buildOzetKutusu('Toplam Talep', '$_toplamAksesuarTalep',
+          _buildOzetKutusu('Kalan Talep', '$_toplamAksesuarTalep',
               Icons.assignment, _warningColor),
         ];
 
@@ -1285,6 +1374,242 @@ class _StokYonetimiAksesuarlarCokluBedenState
     final local = dt.toLocal();
     return '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year} '
         '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _showSarfDuzenleDialog(Map<String, dynamic> kayit) async {
+    final kayitId = kayit['id']?.toString();
+    final bedenId = kayit['aksesuar_beden_id']?.toString();
+    final aksesuarId = kayit['aksesuar_bedenler']?['aksesuar_id']?.toString();
+
+    if (kayitId == null || bedenId == null) {
+      context.showErrorSnackBar('Sarf kaydı bilgisi eksik');
+      return;
+    }
+
+    final eskiAdet = (kayit['miktar'] as num?)?.toInt() ?? 0;
+    final adetController = TextEditingController(text: '$eskiAdet');
+    final aciklamaController =
+        TextEditingController(text: kayit['aciklama']?.toString() ?? '');
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sarf Kaydı Düzenle'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                (kayit['aksesuar_bedenler']?['aksesuarlar']?['ad'] ?? '-')
+                    .toString(),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Beden: ${(kayit['aksesuar_bedenler']?['beden'] ?? '-').toString()}',
+                style: const TextStyle(color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: adetController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Sarf Adedi *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: aciklamaController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Açıklama',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final yeniAdet = int.tryParse(adetController.text.trim());
+              if (yeniAdet == null || yeniAdet <= 0) {
+                dialogContext.showErrorSnackBar('Geçerli bir adet giriniz');
+                return;
+              }
+
+              try {
+                final firmaId = TenantManager.instance.requireFirmaId;
+                final delta = yeniAdet - eskiAdet;
+
+                if (delta != 0) {
+                  final beden = await supabase
+                      .from(DbTables.aksesuarBedenler)
+                      .select('stok_miktari')
+                      .eq('firma_id', firmaId)
+                      .eq('id', bedenId)
+                      .single();
+
+                  final mevcutStok =
+                      (beden['stok_miktari'] as num?)?.toInt() ?? 0;
+
+                  if (delta > 0 && mevcutStok < delta) {
+                    if (!dialogContext.mounted) return;
+                    dialogContext.showErrorSnackBar(
+                      'Yetersiz stok. En fazla ${mevcutStok + eskiAdet} adede çıkabilirsiniz.',
+                    );
+                    return;
+                  }
+
+                  await supabase
+                      .from(DbTables.aksesuarBedenler)
+                      .update({
+                        'stok_miktari': mevcutStok - delta,
+                        'updated_at': DateTime.now().toIso8601String(),
+                      })
+                      .eq('firma_id', firmaId)
+                      .eq('id', bedenId);
+                }
+
+                final updateData = <String, dynamic>{
+                  'miktar': yeniAdet,
+                  'aciklama': aciklamaController.text.trim().isEmpty
+                      ? null
+                      : aciklamaController.text.trim(),
+                };
+
+                final oncekiStok = (kayit['onceki_stok'] as num?)?.toInt();
+                if (oncekiStok != null) {
+                  updateData['yeni_stok'] = oncekiStok - yeniAdet;
+                }
+
+                await supabase
+                    .from(DbTables.aksesuarStokHareketleri)
+                    .update(updateData)
+                    .eq('firma_id', firmaId)
+                    .eq('id', kayitId);
+
+                if (aksesuarId != null && aksesuarId.isNotEmpty) {
+                  await _aksesuarToplamStokGuncelle(aksesuarId);
+                }
+
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
+                context.showSuccessSnackBar('Sarf kaydı güncellendi');
+
+                await _loadAksesuarlar();
+                await _loadSarfKayitlari();
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+                dialogContext.showErrorSnackBar('Güncelleme hatası: $e');
+              }
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showSarfSilDialog(Map<String, dynamic> kayit) async {
+    final kayitId = kayit['id']?.toString();
+    final bedenId = kayit['aksesuar_beden_id']?.toString();
+    final aksesuarId = kayit['aksesuar_bedenler']?['aksesuar_id']?.toString();
+    final miktar = (kayit['miktar'] as num?)?.toInt() ?? 0;
+
+    if (kayitId == null || bedenId == null) {
+      context.showErrorSnackBar('Sarf kaydı bilgisi eksik');
+      return;
+    }
+
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sarf Kaydını Sil'),
+        content: Text(
+          '${(kayit['aksesuar_bedenler']?['aksesuarlar']?['ad'] ?? '-')} için $miktar adet sarf kaydı silinecek.\n\nBu işlem stok miktarını geri ekler.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _dangerColor),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sil', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (onay != true) return;
+
+    try {
+      final firmaId = TenantManager.instance.requireFirmaId;
+
+      final beden = await supabase
+          .from(DbTables.aksesuarBedenler)
+          .select('stok_miktari')
+          .eq('firma_id', firmaId)
+          .eq('id', bedenId)
+          .single();
+
+      final mevcutStok = (beden['stok_miktari'] as num?)?.toInt() ?? 0;
+
+      await supabase
+          .from(DbTables.aksesuarBedenler)
+          .update({
+            'stok_miktari': mevcutStok + miktar,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('firma_id', firmaId)
+          .eq('id', bedenId);
+
+      await supabase
+          .from(DbTables.aksesuarStokHareketleri)
+          .delete()
+          .eq('firma_id', firmaId)
+          .eq('id', kayitId);
+
+      if (aksesuarId != null && aksesuarId.isNotEmpty) {
+        await _aksesuarToplamStokGuncelle(aksesuarId);
+      }
+
+      context.showSuccessSnackBar('Sarf kaydı silindi');
+
+      await _loadAksesuarlar();
+      await _loadSarfKayitlari();
+    } catch (e) {
+      context.showErrorSnackBar('Silme hatası: $e');
+    }
+  }
+
+  Widget _buildSarfIslemButonlari(Map<String, dynamic> kayit) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Sarf kaydını düzenle',
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          color: _primaryColor,
+          onPressed: () => _showSarfDuzenleDialog(kayit),
+        ),
+        IconButton(
+          tooltip: 'Sarf kaydını sil',
+          icon: const Icon(Icons.delete_outline, size: 18),
+          color: _dangerColor,
+          onPressed: () => _showSarfSilDialog(kayit),
+        ),
+      ],
+    );
   }
 
   Widget _buildSarfRaporuTab() {
@@ -1627,6 +1952,11 @@ class _StokYonetimiAksesuarlarCokluBedenState
               // Açıklama
               if (aciklama.isNotEmpty)
                 _sarfInfoRow(Icons.notes, aciklama),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _buildSarfIslemButonlari(k),
+              ),
             ],
           ),
         );
@@ -1689,6 +2019,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
               DataColumn(label: Text('Tedarikçi')),
               DataColumn(label: Text('Adet'), numeric: true),
               DataColumn(label: Text('Açıklama')),
+              DataColumn(label: Text('İşlem')),
             ],
             rows: kayitlar.map((k) {
               final aksAd = k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ?? '-';
@@ -1753,6 +2084,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                 )),
+                DataCell(_buildSarfIslemButonlari(k)),
               ]);
             }).toList(),
           ),

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'dart:math';
 import 'package:uretim_takip/pages/raporlar/gelismis_raporlar_page.dart';
+import 'package:uretim_takip/pages/raporlar/uretim_plani_page.dart';
 import 'package:uretim_takip/pages/model/model_ekle.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_listesi_page.dart';
 
@@ -589,10 +590,10 @@ class _DashboardPageState extends State<DashboardPage> {
               children: [
                 Expanded(
                   child: _buildQuickActionButton(
-                    'Yeni Fatura',
-                    Icons.receipt,
+                    'Üretim Planı',
+                    Icons.event_note,
                     Colors.orange,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FaturaListesiPage())),
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UretimPlaniPage())),
                   ),
                 ),
                 const SizedBox(width: 12),
