@@ -102,7 +102,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Ãœretimden gelen iÅŸler kontrol ediliyor',
+                            'Üretimden gelen işler kontrol ediliyor',
                             style: TextStyle(
                               fontSize: 13,
                               color: Color(0xFF64748B),
@@ -226,8 +226,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
   Widget _buildAktifFiltreSeridi() {
     final filtreler = [
       if (aramaMetni.isNotEmpty) '"$aramaMetni"',
-      if (seciliAsama != null) 'AÅŸama: $seciliAsama',
-    ].join('  â€¢  ');
+      if (seciliAsama != null) 'Aşama: $seciliAsama',
+    ].join('  •  ');
 
     return Container(
       width: double.infinity,
@@ -533,9 +533,9 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
               ),
             ],
             if (kontrol['notlar'] != null &&
-                kontrol['notlar'].toString().isNotEmpty) ...[
+                _temizNotMetni(kontrol['notlar']?.toString()).isNotEmpty) ...[
               const SizedBox(height: 12),
-              _buildNotKutusu(kontrol['notlar'].toString()),
+              _buildNotKutusu(_temizNotMetni(kontrol['notlar']?.toString())),
             ],
             const SizedBox(height: 12),
             const Divider(height: 1, color: Color(0xFFE2E8F0)),
@@ -668,7 +668,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       case 'kalite_onay':
       case 'tamamlandi':
         renk = Colors.green;
-        metin = 'OnaylandÄ±';
+        metin = 'Onaylandı';
         break;
       case 'reddedildi':
       case 'kalite_red':
@@ -707,12 +707,12 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
           style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
         ),
 
-        // Bekleyenler iÃ§in aksiyonlar
+        // Bekleyenler icin aksiyonlar
         if (tip == 'bekleyen') ...[
           ElevatedButton.icon(
             onPressed: () => _kontrolBaslat(kontrol),
             icon: const Icon(Icons.play_arrow, size: 18),
-            label: const Text('Kontrole BaÅŸla'),
+            label: const Text('Kontrole Başla'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               foregroundColor: Colors.white,
@@ -720,7 +720,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
           ),
         ],
 
-        // Kontrol edilenler iÃ§in aksiyonlar
+        // Kontrol edilenler icin aksiyonlar
         if (tip == 'kontrolde') ...[
           ElevatedButton.icon(
             onPressed: () => _showOnaylaDialog(kontrol),
@@ -751,11 +751,11 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
         return Colors.brown;
       case 'Konfeksiyon':
         return Colors.purple;
-      case 'YÄ±kama':
+      case 'Yıkama':
         return Colors.cyan;
-      case 'ÃœtÃ¼':
+      case 'Ütü':
         return Colors.orange;
-      case 'Ä°lik DÃ¼ÄŸme':
+      case 'İlik Düğme':
         return Colors.indigo;
       case 'Paketleme':
         return Colors.teal;
@@ -770,11 +770,11 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
         return Icons.grid_on;
       case 'Konfeksiyon':
         return Icons.checkroom;
-      case 'YÄ±kama':
+      case 'Yıkama':
         return Icons.local_laundry_service;
-      case 'ÃœtÃ¼':
+      case 'Ütü':
         return Icons.iron;
-      case 'Ä°lik DÃ¼ÄŸme':
+      case 'İlik Düğme':
         return Icons.radio_button_checked;
       case 'Paketleme':
         return Icons.inventory_2;
@@ -785,16 +785,23 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
 
   Future<void> _kontrolBaslat(Map<String, dynamic> kontrol) async {
     try {
-      await supabase.from(DbTables.kaliteKontrolAtamalari).update({
-        'durum': 'baslandi',
-        'baslangic_tarihi': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', kontrol['id']);
+      await _workflowTransitionService.applyTransition(
+        tableName: DbTables.kaliteKontrolAtamalari,
+        recordId: kontrol['id'],
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: kontrol['durum']?.toString(),
+        toStatus: 'baslandi',
+        idempotencyKey: 'kalite:${kontrol['id']}:baslat',
+        extraFields: {
+          'baslangic_tarihi': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('âœ… Kalite kontrolÃ¼ baÅŸlatÄ±ldÄ±'),
+          content: Text('✅ Kalite kontrolü başlatıldı'),
           backgroundColor: Colors.blue,
         ),
       );
@@ -806,8 +813,936 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     }
   }
 
-  void _showOnaylaDialog(Map<String, dynamic> kontrol) {
+  String _normalizeAsamaKodu(String? rawAsama) {
+    final value = (rawAsama ?? '')
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll('/', ' ')
+        .replaceAll('-', ' ')
+        .trim();
+
+    if (value.contains('dokuma')) return 'dokuma';
+    if (value.contains('nakis')) return 'nakis';
+    if (value.contains('konfeksiyon')) return 'konfeksiyon';
+    if (value.contains('yikama')) return 'yikama';
+    if (value.contains('utu')) return 'utu';
+    if (value.contains('ilik') || value.contains('dugme')) return 'ilik_dugme';
+    if (value.contains('paket')) return 'paketleme';
+    if (value.contains('kalite')) return 'kalite_kontrol';
+    if (value.contains('sevkiyat') || value.contains('depo')) return 'sevkiyat';
+
+    return value.replaceAll(' ', '_');
+  }
+
+  String _kaliteSonrasiHedefAsama(String oncekiAsama) {
+    switch (_normalizeAsamaKodu(oncekiAsama)) {
+      case 'dokuma':
+        return 'nakis';
+      case 'nakis':
+        return 'konfeksiyon';
+      case 'konfeksiyon':
+        return 'yikama';
+      case 'yikama':
+        return 'utu';
+      case 'utu':
+        return 'ilik_dugme';
+      case 'ilik_dugme':
+      case 'paketleme':
+      case 'kalite_kontrol':
+      default:
+        return 'sevkiyat';
+    }
+  }
+
+  String _asamaDisplayAdi(String asamaKodu) {
+    switch (asamaKodu) {
+      case 'dokuma':
+        return 'Dokuma';
+      case 'nakis':
+        return 'Nakış';
+      case 'konfeksiyon':
+        return 'Konfeksiyon';
+      case 'yikama':
+        return 'Yıkama';
+      case 'utu':
+        return 'Ütü';
+      case 'ilik_dugme':
+        return 'İlik Düğme';
+      case 'paketleme':
+        return 'Paketleme';
+      case 'sevkiyat':
+        return 'Sevkiyat';
+      default:
+        return asamaKodu;
+    }
+  }
+
+  String? _asamaTablosu(String asamaKodu) {
+    switch (asamaKodu) {
+      case 'dokuma':
+        return DbTables.dokumaAtamalari;
+      case 'nakis':
+        return DbTables.nakisAtamalari;
+      case 'konfeksiyon':
+        return DbTables.konfeksiyonAtamalari;
+      case 'yikama':
+        return DbTables.yikamaAtamalari;
+      case 'utu':
+        return DbTables.utuAtamalari;
+      case 'ilik_dugme':
+        return DbTables.ilikDugmeAtamalari;
+      case 'paketleme':
+        return DbTables.paketlemeAtamalari;
+      default:
+        return null;
+    }
+  }
+
+  int _toInt(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _toplamAdetMetni(
+    Map<String, dynamic> model,
+    Map<String, dynamic> kontrol,
+  ) {
+    final modelAdet = _toInt(model['adet']);
+    final kontrolAdet = _toInt(kontrol['kontrol_edilecek_adet']);
+    final toplam = modelAdet > 0 ? modelAdet : kontrolAdet;
+    return toplam > 0 ? '$toplam' : '-';
+  }
+
+  Map<String, int> _parseBedenDetayi(dynamic raw) {
+    dynamic value = raw;
+    if (value == null) return const <String, int>{};
+
+    if (value is String) {
+      final text = value.trim();
+      if (text.isEmpty) return const <String, int>{};
+      try {
+        value = jsonDecode(text);
+      } catch (_) {
+        return const <String, int>{};
+      }
+    }
+
+    if (value is Map) {
+      final result = <String, int>{};
+      value.forEach((key, adet) {
+        final beden = key.toString().trim().toUpperCase();
+        final qty = _toInt(adet);
+        if (beden.isNotEmpty && qty > 0) {
+          result[beden] = qty;
+        }
+      });
+      return _siraliBedenMap(result);
+    }
+
+    if (value is List) {
+      final result = <String, int>{};
+      for (final item in value) {
+        if (item is! Map) continue;
+
+        final beden = (item['beden_kodu'] ??
+                item['beden'] ??
+                item['size'] ??
+                item['label'] ??
+                '')
+            .toString()
+            .trim()
+            .toUpperCase();
+        final qty = _toInt(
+          item['adet'] ?? item['miktar'] ?? item['quantity'] ?? item['value'],
+        );
+
+        if (beden.isNotEmpty && qty > 0) {
+          result[beden] = (result[beden] ?? 0) + qty;
+        }
+      }
+      return _siraliBedenMap(result);
+    }
+
+    return const <String, int>{};
+  }
+
+  int _bedenSiraSkoru(String beden) {
+    const standartSira = <String>[
+      'XXS',
+      'XS',
+      'S',
+      'M',
+      'L',
+      'XL',
+      'XXL',
+      '3XL',
+      '4XL',
+      '5XL',
+    ];
+    final index = standartSira.indexOf(beden.toUpperCase());
+    return index >= 0 ? index : 10 + beden.codeUnitAt(0);
+  }
+
+  Map<String, int> _siraliBedenMap(Map<String, int> values) {
+    final entries = values.entries.toList()
+      ..sort((a, b) {
+        final sa = _bedenSiraSkoru(a.key);
+        final sb = _bedenSiraSkoru(b.key);
+        if (sa != sb) return sa.compareTo(sb);
+        return a.key.compareTo(b.key);
+      });
+    return Map<String, int>.fromEntries(entries);
+  }
+
+  int _toplamBedenAdedi(Map<String, int> bedenler) {
+    return bedenler.values.fold<int>(0, (toplam, adet) => toplam + adet);
+  }
+
+  Map<String, int> _toplamaUyarliBedenMap(
+    Map<String, int> kaynak,
+    int hedefToplam,
+  ) {
+    final temiz = kaynak.map((key, value) => MapEntry(key, value < 0 ? 0 : value))
+      ..removeWhere((_, value) => value <= 0);
+    if (temiz.isEmpty) return const <String, int>{};
+
+    if (hedefToplam <= 0) return _siraliBedenMap(temiz);
+
+    final mevcutToplam = _toplamBedenAdedi(temiz);
+    if (mevcutToplam == hedefToplam) return _siraliBedenMap(temiz);
+    if (mevcutToplam <= 0) return const <String, int>{};
+
+    final tabanDegerler = <String, int>{};
+    final kalanlar = <Map<String, dynamic>>[];
+
+    for (final entry in temiz.entries) {
+      final oransal = (entry.value * hedefToplam) / mevcutToplam;
+      final taban = oransal.floor();
+      tabanDegerler[entry.key] = taban;
+      kalanlar.add({
+        'beden': entry.key,
+        'kalan': oransal - taban,
+      });
+    }
+
+    var dagitilacak = hedefToplam - _toplamBedenAdedi(tabanDegerler);
+    kalanlar.sort((a, b) =>
+        (b['kalan'] as double).compareTo(a['kalan'] as double));
+
+    for (var i = 0; i < dagitilacak; i++) {
+      final beden = kalanlar[i % kalanlar.length]['beden'] as String;
+      tabanDegerler[beden] = (tabanDegerler[beden] ?? 0) + 1;
+    }
+
+    tabanDegerler.removeWhere((_, value) => value <= 0);
+    return _siraliBedenMap(tabanDegerler);
+  }
+
+  String? _asamaBedenTakipTablosu(String? asamaKodu) {
+    switch (_normalizeAsamaKodu(asamaKodu)) {
+      case 'dokuma':
+        return 'dokuma_beden_takip';
+      case 'nakis':
+        return 'nakis_beden_takip';
+      case 'konfeksiyon':
+        return 'konfeksiyon_beden_takip';
+      case 'yikama':
+        return 'yikama_beden_takip';
+      case 'utu':
+        return 'utu_beden_takip';
+      case 'ilik_dugme':
+        return 'ilik_dugme_beden_takip';
+      case 'paketleme':
+        return 'paketleme_beden_takip';
+      default:
+        return null;
+    }
+  }
+
+  Future<Map<String, int>> _asamaBedenGerceklesenAdetleriGetir({
+    required String modelId,
+    required String? asamaKodu,
+  }) async {
+    final tablo = _asamaBedenTakipTablosu(asamaKodu);
+    if (tablo == null) return const <String, int>{};
+
+    var useFirmaFilter = true;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        var query = supabase.from(tablo).select('*').eq('model_id', modelId);
+        if (useFirmaFilter) {
+          query = query.eq('firma_id', TenantManager.instance.requireFirmaId);
+        }
+
+        final response = await query;
+        final sonuc = <String, int>{};
+
+        for (final row in List<Map<String, dynamic>>.from(response)) {
+          final beden =
+              (row['beden_kodu'] ?? '').toString().trim().toUpperCase();
+          if (beden.isEmpty) continue;
+
+          final uretilen = _toInt(row['uretilen_adet']);
+          final fire = _toInt(row['fire_adet']);
+          final kabul = _toInt(row['kabul_edilen_adet']);
+          final hedef = _toInt(row['hedef_adet']);
+
+          final net = uretilen > 0
+              ? (uretilen - fire).clamp(0, 999999999).toInt()
+              : (kabul > 0 ? kabul : hedef);
+
+          if (net <= 0) continue;
+          sonuc[beden] = (sonuc[beden] ?? 0) + net;
+        }
+
+        return _siraliBedenMap(sonuc);
+      } catch (e) {
+        final missingColumn = _missingColumnName(e);
+        if (missingColumn == 'firma_id' && useFirmaFilter) {
+          useFirmaFilter = false;
+          continue;
+        }
+        break;
+      }
+    }
+
+    return const <String, int>{};
+  }
+
+  String? _rpcSonrakiAsamaKodu(String oncekiAsamaKodu) {
+    switch (oncekiAsamaKodu) {
+      case 'dokuma':
+        return 'konfeksiyon';
+      case 'konfeksiyon':
+        return 'yikama';
+      case 'yikama':
+        return 'utu';
+      case 'utu':
+        return 'ilik_dugme';
+      case 'ilik_dugme':
+        return 'kalite_kontrol';
+      case 'paketleme':
+        return 'sevkiyat';
+      default:
+        return null;
+    }
+  }
+
+  String _bedenDagilimiMetni(Map<String, int> bedenler) {
+    if (bedenler.isEmpty) return '-';
+    return bedenler.entries.map((e) => '${e.key}:${e.value}').join(' | ');
+  }
+
+  Widget _buildBedenDagilimiKutusu(
+    Map<String, int> bedenler, {
+    Color? color,
+  }) {
+    if (bedenler.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: (color ?? const Color(0xFF0F766E)).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: (color ?? const Color(0xFF0F766E)).withValues(alpha: 0.24),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Beden Dağılımı',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: bedenler.entries
+                .map(
+                  (entry) => Chip(
+                    label: Text('${entry.key}: ${entry.value}'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Map<String, int>> _kontrolBedenDagilimiGetir({
+    required Map<String, dynamic> kontrol,
+    required Map<String, dynamic> model,
+    required int kontrolAdedi,
+  }) async {
+    final kayitli = _parseBedenDetayi(
+      kontrol['beden_detaylari'] ?? kontrol['beden_dagilimi'],
+    );
+    if (kayitli.isNotEmpty) {
+      return _toplamaUyarliBedenMap(kayitli, kontrolAdedi);
+    }
+
+    final kaynakAtamaBeden = await _kaynakAtamadanBedenDagilimiGetir(
+      kontrol: kontrol,
+      kontrolAdedi: kontrolAdedi,
+    );
+    if (kaynakAtamaBeden.isNotEmpty) {
+      return kaynakAtamaBeden;
+    }
+
+    final modelId = (kontrol['model_id'] ?? model['id'])?.toString();
+    if (modelId == null || modelId.isEmpty) return const <String, int>{};
+
+    final oncekiAsamaKodu = _normalizeAsamaKodu(
+      kontrol['onceki_asama']?.toString(),
+    );
+
+    final oncekiAsamaGerceklesen = await _asamaBedenGerceklesenAdetleriGetir(
+      modelId: modelId,
+      asamaKodu: oncekiAsamaKodu,
+    );
+    if (oncekiAsamaGerceklesen.isNotEmpty) {
+      return _toplamaUyarliBedenMap(oncekiAsamaGerceklesen, kontrolAdedi);
+    }
+
+    final rpcSonrakiAsama = _rpcSonrakiAsamaKodu(oncekiAsamaKodu);
+    if (rpcSonrakiAsama != null) {
+      try {
+        final oncekiAsama = await _bedenService.getOncekiAsamaGerceklesenAdetler(
+          modelId,
+          rpcSonrakiAsama,
+        );
+        if (oncekiAsama.isNotEmpty) {
+          return _toplamaUyarliBedenMap(oncekiAsama, kontrolAdedi);
+        }
+      } catch (_) {}
+    }
+
+    try {
+      final response = await supabase
+          .from(DbTables.modelBedenDagilimi)
+          .select('beden_kodu, siparis_adedi')
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
+          .eq('model_id', modelId);
+
+      final dagilim = <String, int>{};
+      for (final row in List<Map<String, dynamic>>.from(response)) {
+        final beden = (row['beden_kodu'] ?? '').toString().trim().toUpperCase();
+        final adet = _toInt(row['siparis_adedi']);
+        if (beden.isNotEmpty && adet > 0) {
+          dagilim[beden] = adet;
+        }
+      }
+
+      if (dagilim.isNotEmpty) {
+        return _toplamaUyarliBedenMap(dagilim, kontrolAdedi);
+      }
+    } catch (_) {}
+
+    return const <String, int>{};
+  }
+
+  Future<Map<String, int>> _kaynakAtamadanBedenDagilimiGetir({
+    required Map<String, dynamic> kontrol,
+    required int kontrolAdedi,
+  }) async {
+    final tablo = (kontrol['kaynak_atama_tablosu'] ?? '').toString().trim();
+    if (tablo.isEmpty) return const <String, int>{};
+
+    final hamKaynakAtamaId = kontrol['kaynak_atama_id'];
+    if (hamKaynakAtamaId == null) return const <String, int>{};
+
+    final adayKaynakIdler = <dynamic>[hamKaynakAtamaId];
+    final kaynakIdMetin = hamKaynakAtamaId.toString().trim();
+    final kaynakIdInt = int.tryParse(kaynakIdMetin);
+    if (kaynakIdInt != null && kaynakIdInt != hamKaynakAtamaId) {
+      adayKaynakIdler.add(kaynakIdInt);
+    }
+
+    for (final kaynakId in adayKaynakIdler) {
+      try {
+        final kaynakAtama = await supabase
+            .from(tablo)
+            .select('*')
+            .eq('id', kaynakId)
+            .maybeSingle();
+
+        if (kaynakAtama == null) continue;
+
+        final kaynakBeden = _parseBedenDetayi(
+          kaynakAtama['beden_detaylari'] ?? kaynakAtama['beden_dagilimi'],
+        );
+        if (kaynakBeden.isNotEmpty) {
+          return _toplamaUyarliBedenMap(kaynakBeden, kontrolAdedi);
+        }
+      } catch (_) {
+        // Kaynak atama kolonu/erişimi farklı şemada olmayabilir.
+      }
+    }
+
+    return const <String, int>{};
+  }
+
+  String _temizNotMetni(String? raw) {
+    final text = (raw ?? '').toString();
+    if (text.isEmpty) return '';
+
+    return text
+        .replaceAll(RegExp(r'\[(?:IDEMP|REWORK):[^\]]+\]'), '')
+        .replaceAll(RegExp(r'\s{2,}'), ' ')
+        .replaceAll(' \n', '\n')
+        .trim();
+  }
+
+  String? _missingColumnName(Object error) {
+    if (error is! PostgrestException) return null;
+    final message =
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+
+    final withTable = RegExp(
+      r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    if (withTable != null) return withTable.group(1);
+
+    final plain = RegExp(
+      r'column\s+"?([a-z0-9_]+)"?\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    return plain?.group(1);
+  }
+
+  Future<List<Map<String, dynamic>>> _adayAtamaKayitlariGetir({
+    required String hedefTablo,
+    required String firmaId,
+    required dynamic modelId,
+  }) async {
+    var includeNotlar = true;
+    var useFirmaFilter = true;
+    var useModelFilter = true;
+
+    for (var attempt = 0; attempt < 6; attempt++) {
+      try {
+        final secim = includeNotlar ? 'id, notlar' : 'id';
+
+        final response = useFirmaFilter && useModelFilter
+            ? await supabase
+                .from(hedefTablo)
+                .select(secim)
+                .eq('firma_id', firmaId)
+                .eq('model_id', modelId)
+                .order('created_at', ascending: false)
+                .limit(10)
+            : useFirmaFilter
+                ? await supabase
+                    .from(hedefTablo)
+                    .select(secim)
+                    .eq('firma_id', firmaId)
+                    .order('created_at', ascending: false)
+                    .limit(10)
+                : useModelFilter
+                    ? await supabase
+                        .from(hedefTablo)
+                        .select(secim)
+                        .eq('model_id', modelId)
+                        .order('created_at', ascending: false)
+                        .limit(10)
+                    : await supabase
+                        .from(hedefTablo)
+                        .select(secim)
+                        .order('created_at', ascending: false)
+                        .limit(10);
+
+        return List<Map<String, dynamic>>.from(response);
+      } catch (e) {
+        final missingColumn = _missingColumnName(e);
+        if (missingColumn == 'firma_id' && useFirmaFilter) {
+          useFirmaFilter = false;
+          continue;
+        }
+        if (missingColumn == 'model_id' && useModelFilter) {
+          useModelFilter = false;
+          continue;
+        }
+        if (missingColumn == 'notlar' && includeNotlar) {
+          includeNotlar = false;
+          continue;
+        }
+
+        if (includeNotlar) {
+          includeNotlar = false;
+          continue;
+        }
+
+        rethrow;
+      }
+    }
+
+    return const <Map<String, dynamic>>[];
+  }
+
+  Future<void> _esnekAtamaGuncelle({
+    required String hedefTablo,
+    required dynamic kayitId,
+    required String firmaId,
+    required Map<String, dynamic> values,
+  }) async {
+    final data = Map<String, dynamic>.from(values);
+    var useFirmaFilter = true;
+
+    for (var attempt = 0; attempt < 6; attempt++) {
+      try {
+        var query =
+            supabase.from(hedefTablo).update(data).eq('id', kayitId);
+        if (useFirmaFilter) {
+          query = query.eq('firma_id', firmaId);
+        }
+
+        await query;
+        return;
+      } catch (e) {
+        final missingColumn = _missingColumnName(e);
+        if (missingColumn == 'firma_id' && useFirmaFilter) {
+          useFirmaFilter = false;
+          continue;
+        }
+        if (missingColumn != null && data.containsKey(missingColumn)) {
+          data.remove(missingColumn);
+          continue;
+        }
+
+        if (data.containsKey('notlar')) {
+          data.remove('notlar');
+          continue;
+        }
+
+        rethrow;
+      }
+    }
+
+    throw Exception('$hedefTablo güncellemesi başarısız oldu.');
+  }
+
+  Future<void> _esnekAtamaInsert({
+    required String hedefTablo,
+    required Map<String, dynamic> values,
+  }) async {
+    final data = Map<String, dynamic>.from(values);
+    Object? sonHata;
+    const siraliOpsiyonelAlanlar = [
+      'model_id',
+      'idempotency_key',
+      'kaynak_kalite_kontrol_id',
+      'kabul_edilen_adet',
+      'beden_detaylari',
+      'onceki_asama',
+      'hedef_asama',
+      'kalite_kontrol_id',
+      'alis_tarihi',
+      'notlar',
+    ];
+
+    for (var attempt = 0; attempt < 8; attempt++) {
+      try {
+        await supabase.from(hedefTablo).insert(data);
+        return;
+      } catch (e) {
+        sonHata = e;
+        final missingColumn = _missingColumnName(e);
+        if (missingColumn != null && data.containsKey(missingColumn)) {
+          data.remove(missingColumn);
+          continue;
+        }
+
+        final kaldirilacak =
+            siraliOpsiyonelAlanlar.firstWhere((alan) => data.containsKey(alan),
+                orElse: () => '');
+        if (kaldirilacak.isNotEmpty) {
+          data.remove(kaldirilacak);
+          continue;
+        }
+
+        break;
+      }
+    }
+
+    throw Exception('$hedefTablo insert başarısız oldu. Son hata: $sonHata');
+  }
+
+  Future<void> _upsertSevkiyatKaydiFromKalite({
+    required Map<String, dynamic> kontrol,
+    required Map<String, dynamic> model,
+    required int kontrolAdet,
+    required Map<String, int> bedenDetaylari,
+    required String oncekiAsama,
+    required String hedefAsama,
+    required String idempotencyKey,
+  }) async {
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final idTag = '[IDEMP:$idempotencyKey]';
+
+    Map<String, dynamic>? mevcutKayit;
+    try {
+      mevcutKayit = await supabase
+          .from(DbTables.sevkiyatKayitlari)
+          .select('id, sevk_edilen_adet, notlar')
+          .eq('firma_id', firmaId)
+          .eq('idempotency_key', idempotencyKey)
+          .maybeSingle();
+    } catch (_) {
+      // idempotency_key kolonu henüz eklenmemiş olabilir.
+    }
+
+    if (mevcutKayit == null) {
+      final adaylar = await _adayAtamaKayitlariGetir(
+        hedefTablo: DbTables.sevkiyatKayitlari,
+        firmaId: firmaId,
+        modelId: kontrol['model_id'],
+      );
+      for (final aday in adaylar) {
+        if ((aday['notlar'] ?? '').toString().contains(idTag)) {
+          mevcutKayit = aday;
+          break;
+        }
+      }
+    }
+
+    final notMetni =
+        'Kalite kontrol onaylandı - ${model['marka']} ${model['item_no']} $idTag';
+
+    if (mevcutKayit != null) {
+      final sevkEdilen = (mevcutKayit['sevk_edilen_adet'] as int?) ?? 0;
+      await _esnekAtamaGuncelle(
+        hedefTablo: DbTables.sevkiyatKayitlari,
+        kayitId: mevcutKayit['id'],
+        firmaId: firmaId,
+        values: {
+          'alinan_adet': kontrolAdet,
+          'kalan_adet': (kontrolAdet - sevkEdilen).clamp(0, 999999999),
+          'durum': 'beklemede',
+          'onceki_asama': oncekiAsama,
+          'hedef_asama': hedefAsama,
+          if (bedenDetaylari.isNotEmpty) 'beden_detaylari': bedenDetaylari,
+          'updated_at': DateTime.now().toIso8601String(),
+          'notlar': notMetni,
+        },
+      );
+      return;
+    }
+
+    final insertData = {
+      'model_id': kontrol['model_id'],
+      'kalite_kontrol_id': kontrol['id'],
+      'sevkiyat_personeli_id': supabase.auth.currentUser?.id,
+      'onceki_asama': oncekiAsama,
+      'hedef_asama': hedefAsama,
+      'alinan_adet': kontrolAdet,
+      'sevk_edilen_adet': 0,
+      'kalan_adet': kontrolAdet,
+      'durum': 'beklemede',
+      'alis_tarihi': DateTime.now().toIso8601String(),
+      'notlar': notMetni,
+      if (bedenDetaylari.isNotEmpty) 'beden_detaylari': bedenDetaylari,
+      'firma_id': firmaId,
+      'idempotency_key': idempotencyKey,
+    };
+
+    await _esnekAtamaInsert(
+      hedefTablo: DbTables.sevkiyatKayitlari,
+      values: insertData,
+    );
+  }
+
+  Future<void> _upsertAsamaAtamasiFromKalite({
+    required String hedefAsama,
+    required String hedefTablo,
+    required Map<String, dynamic> kontrol,
+    required Map<String, dynamic> model,
+    required int kontrolAdet,
+    required String idempotencyKey,
+  }) async {
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final idTag = '[IDEMP:$idempotencyKey]';
+
+    Map<String, dynamic>? mevcutAtama;
+    try {
+      mevcutAtama = await supabase
+          .from(hedefTablo)
+          .select('id, notlar')
+          .eq('firma_id', firmaId)
+          .eq('idempotency_key', idempotencyKey)
+          .maybeSingle();
+    } catch (_) {
+      // idempotency_key kolonu henüz eklenmemiş olabilir.
+    }
+
+    if (mevcutAtama == null) {
+      final adaylar = await _adayAtamaKayitlariGetir(
+        hedefTablo: hedefTablo,
+        firmaId: firmaId,
+        modelId: kontrol['model_id'],
+      );
+      for (final aday in adaylar) {
+        if ((aday['notlar'] ?? '').toString().contains(idTag)) {
+          mevcutAtama = aday;
+          break;
+        }
+      }
+    }
+
+    final notMetni =
+        'Kalite kontrolden geçti - ${model['marka']} ${model['item_no']} - $kontrolAdet adet $idTag';
+
+    if (mevcutAtama != null) {
+      await _esnekAtamaGuncelle(
+        hedefTablo: hedefTablo,
+        kayitId: mevcutAtama['id'],
+        firmaId: firmaId,
+        values: {
+          'adet': kontrolAdet,
+          'talep_edilen_adet': kontrolAdet,
+          'updated_at': DateTime.now().toIso8601String(),
+          'notlar': notMetni,
+        },
+      );
+      return;
+    }
+
+    final insertData = {
+      'model_id': kontrol['model_id'],
+      'durum': 'bekleyen',
+      'adet': kontrolAdet,
+      'talep_edilen_adet': kontrolAdet,
+      'kabul_edilen_adet': kontrolAdet,
+      'tamamlanan_adet': 0,
+      'atama_tarihi': DateTime.now().toIso8601String(),
+      'notlar': notMetni,
+      'firma_id': firmaId,
+      'kaynak_kalite_kontrol_id': kontrol['id'],
+      'idempotency_key': idempotencyKey,
+    };
+
+    await _esnekAtamaInsert(
+      hedefTablo: hedefTablo,
+      values: insertData,
+    );
+
+    await BildirimService().roleGoreBildirimGonder(
+      rol: hedefAsama,
+      baslik: '✅ Kalite Onayı Tamamlandı',
+      mesaj:
+          '${model['marka']} ${model['item_no']} - $kontrolAdet adet $hedefAsama aşamasına yönlendirildi.',
+      tip: 'kalite_onay_hedef_atama',
+      modelId: kontrol['model_id']?.toString(),
+      asama: 'Kalite Kontrol',
+    );
+  }
+
+  Future<void> _kaliteRedReworkAtamasiOlustur({
+    required Map<String, dynamic> kontrol,
+    required Map<String, dynamic> model,
+    required String redSebebi,
+  }) async {
+    final kaynakAsama = _normalizeAsamaKodu(kontrol['onceki_asama']?.toString());
+    final hedefTablo = _asamaTablosu(kaynakAsama);
+    if (hedefTablo == null) {
+      debugPrint('⚠️ Rework için hedef tablo bulunamadı: $kaynakAsama');
+      return;
+    }
+
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final reworkAdet = kontrol['kontrol_edilecek_adet'] ?? model['adet'] ?? 0;
+    final idempotencyKey = 'kalite_red:${kontrol['id']}';
+    final tag = '[REWORK:$idempotencyKey]';
+    final notMetni =
+        'Kalite redi sonrası rework - ${model['marka']} ${model['item_no']} - $reworkAdet adet | Sebep: $redSebebi $tag';
+
+    Map<String, dynamic>? mevcut;
+    try {
+      mevcut = await supabase
+          .from(hedefTablo)
+          .select('id, notlar')
+          .eq('firma_id', firmaId)
+          .eq('idempotency_key', idempotencyKey)
+          .maybeSingle();
+    } catch (_) {
+      // idempotency_key kolonu olmayabilir.
+    }
+
+    if (mevcut == null) {
+      final adaylar = await _adayAtamaKayitlariGetir(
+        hedefTablo: hedefTablo,
+        firmaId: firmaId,
+        modelId: kontrol['model_id'],
+      );
+      for (final aday in adaylar) {
+        if ((aday['notlar'] ?? '').toString().contains(tag)) {
+          mevcut = aday;
+          break;
+        }
+      }
+    }
+
+    if (mevcut != null) {
+      await _esnekAtamaGuncelle(
+        hedefTablo: hedefTablo,
+        kayitId: mevcut['id'],
+        firmaId: firmaId,
+        values: {
+          'talep_edilen_adet': reworkAdet,
+          'updated_at': DateTime.now().toIso8601String(),
+          'notlar': notMetni,
+        },
+      );
+      return;
+    }
+
+    final insertData = {
+      'model_id': kontrol['model_id'],
+      'durum': 'bekleyen',
+      'adet': reworkAdet,
+      'talep_edilen_adet': reworkAdet,
+      'tamamlanan_adet': 0,
+      'atama_tarihi': DateTime.now().toIso8601String(),
+      'notlar': notMetni,
+      'firma_id': firmaId,
+      'idempotency_key': idempotencyKey,
+      'kaynak_kalite_kontrol_id': kontrol['id'],
+    };
+
+    await _esnekAtamaInsert(
+      hedefTablo: hedefTablo,
+      values: insertData,
+    );
+
+    await BildirimService().roleGoreBildirimGonder(
+      rol: kaynakAsama,
+      baslik: '🔁 Rework Talebi',
+      mesaj:
+          '${model['marka']} ${model['item_no']} kalite kontrolden reddedildi. Rework için $reworkAdet adet yeniden işleme alındı.',
+      tip: 'kalite_red_rework',
+      modelId: kontrol['model_id']?.toString(),
+      asama: 'Kalite Kontrol',
+    );
+  }
+
+  Future<void> _showOnaylaDialog(Map<String, dynamic> kontrol) async {
     final model = kontrol[DbTables.trikoTakip] as Map<String, dynamic>;
+    final kontrolAdet = kontrol['kontrol_edilecek_adet'] ?? model['adet'] ?? 0;
+    final bedenDetaylari = await _kontrolBedenDagilimiGetir(
+      kontrol: kontrol,
+      model: model,
+      kontrolAdedi: _toInt(kontrolAdet),
+    );
+    if (!mounted) return;
+
     final notlarController = TextEditingController();
 
     showDialog(
@@ -825,7 +1760,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
               child: const Icon(Icons.check_circle, color: Colors.green),
             ),
             const SizedBox(width: 12),
-            const Text('Kalite KontrolÃ¼ Onayla'),
+            const Text('Kalite Kontrolü Onayla'),
           ],
         ),
         content: SingleChildScrollView(
@@ -844,17 +1779,20 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                   children: [
                     Text('${model['marka']} - ${model['item_no']}',
                         style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text('Ã–nceki AÅŸama: ${kontrol['onceki_asama']}'),
-                    Text(
-                        'Kontrol Edilen: ${kontrol['kontrol_edilecek_adet'] ?? model['adet']} adet'),
+                    Text('Önceki Aşama: ${kontrol['onceki_asama']}'),
+                    Text('Kontrol Edilen: $kontrolAdet adet'),
                   ],
                 ),
               ),
+              if (bedenDetaylari.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _buildBedenDagilimiKutusu(bedenDetaylari, color: Colors.green),
+              ],
               const SizedBox(height: 16),
               TextField(
                 controller: notlarController,
                 decoration: const InputDecoration(
-                  labelText: 'Kalite Kontrol NotlarÄ± (Ä°steÄŸe BaÄŸlÄ±)',
+                  labelText: 'Kalite Kontrol Notları (İsteğe Bağlı)',
                   border: OutlineInputBorder(),
                 ),
                 maxLines: 3,
@@ -873,7 +1811,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Onay sonrasÄ± Ã¼rÃ¼nler bir sonraki aÅŸamaya geÃ§ebilir.',
+                        'Onay sonrası ürünler bir sonraki aşamaya geçebilir.',
                         style: TextStyle(
                             color: Colors.green.shade700, fontSize: 13),
                       ),
@@ -887,86 +1825,67 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Ä°ptal'),
+            child: const Text('İptal'),
           ),
           ElevatedButton.icon(
             onPressed: () async {
               try {
-                // Kalite kontrolÃ¼nÃ¼ tamamla
-                await supabase.from(DbTables.kaliteKontrolAtamalari).update({
-                  'durum': 'tamamlandi',
-                  'tamamlanma_tarihi': DateTime.now().toIso8601String(),
-                  'updated_at': DateTime.now().toIso8601String(),
-                  'notlar': notlarController.text.isNotEmpty
-                      ? notlarController.text
-                      : null,
-                }).eq('id', kontrol['id']);
+                final oncekiAsama = (kontrol['onceki_asama'] ?? '').toString();
+                final hedefAsama = _kaliteSonrasiHedefAsama(oncekiAsama);
+                final hedefAsamaDisplay = _asamaDisplayAdi(hedefAsama);
+                final idempotencyKey = 'kalite:${kontrol['id']}:onay';
+                final onayNotu = notlarController.text.trim();
 
-                // Sevkiyat kaydÄ± oluÅŸtur
-                final kontrolAdet =
-                    kontrol['kontrol_edilecek_adet'] ?? model['adet'] ?? 0;
-                debugPrint(
-                    'ğŸ“¦ Kalite kontrol onaylandÄ± - $kontrolAdet adet sevkiyata gÃ¶nderilecek');
+                await _workflowTransitionService.applyTransition(
+                  tableName: DbTables.kaliteKontrolAtamalari,
+                  recordId: kontrol['id'],
+                  firmaId: TenantManager.instance.requireFirmaId,
+                  fromStatus: kontrol['durum']?.toString(),
+                  toStatus: 'tamamlandi',
+                  idempotencyKey: idempotencyKey,
+                  extraFields: {
+                    'tamamlanma_tarihi': DateTime.now().toIso8601String(),
+                    'updated_at': DateTime.now().toIso8601String(),
+                    if (onayNotu.isNotEmpty) 'notlar': onayNotu,
+                  },
+                );
 
-                // 1. paketleme_atamalari tablosuna YENÄ° KAYIT ekle (her zaman insert)
-                try {
-                  await supabase.from(DbTables.paketlemeAtamalari).insert({
-                    'model_id': kontrol['model_id'],
-                    'durum': 'atandi',
-                    'adet': kontrolAdet,
-                    'talep_edilen_adet': kontrolAdet,
-                    'tamamlanan_adet': 0,
-                    'atama_tarihi': DateTime.now().toIso8601String(),
-                    'notlar':
-                        'Kalite kontrol onaylandÄ± - ${model['marka']} ${model['item_no']} - $kontrolAdet adet sevkiyata hazÄ±r',
-                    'firma_id': TenantManager.instance.requireFirmaId,
-                  });
-                  debugPrint(
-                      'âœ… Paketleme atamasÄ± oluÅŸturuldu (yeni kayÄ±t)');
-                } catch (e) {
-                  debugPrint('âŒ Paketleme atamasÄ± hatasÄ±: $e');
-                }
-
-                // 2. sevkiyat_kayitlari tablosuna YENÄ° KAYIT ekle (her zaman insert)
-                try {
-                  await supabase.from(DbTables.sevkiyatKayitlari).insert({
-                    'model_id': kontrol['model_id'],
-                    'kalite_kontrol_id': kontrol['id'],
-                    'alinan_adet': kontrolAdet,
-                    'sevk_edilen_adet': 0,
-                    'kalan_adet': kontrolAdet,
-                    'durum': 'beklemede',
-                    'alis_tarihi': DateTime.now().toIso8601String(),
-                    'notlar':
-                        'Kalite kontrol onaylandÄ± - ${model['marka']} ${model['item_no']}',
-                    'firma_id': TenantManager.instance.requireFirmaId,
-                  });
-                  debugPrint('âœ… Sevkiyat kaydÄ± oluÅŸturuldu (yeni kayÄ±t)');
-                } catch (e) {
-                  debugPrint(
-                      'âš ï¸ sevkiyat_kayitlari tablosu henÃ¼z oluÅŸturulmamÄ±ÅŸ olabilir: $e');
-                }
-
-                // 3. Sevkiyat rolÃ¼ne sahip kullanÄ±cÄ±lara bildirim gÃ¶nder
-                try {
-                  await BildirimService().roleGoreBildirimGonder(
-                    rol: 'sevkiyat',
-                    baslik: 'ğŸ“¦ Yeni Sevkiyat Talebi',
-                    mesaj:
-                        '${model['marka']} ${model['item_no']} - $kontrolAdet adet kalite kontrolden geÃ§ti. Sevkiyat bekliyor.',
-                    tip: 'sevkiyat_hazir',
-                    modelId: kontrol['model_id']?.toString(),
-                    asama: 'Kalite Kontrol',
+                if (bedenDetaylari.isNotEmpty) {
+                  await _esnekAtamaGuncelle(
+                    hedefTablo: DbTables.kaliteKontrolAtamalari,
+                    kayitId: kontrol['id'],
+                    firmaId: TenantManager.instance.requireFirmaId,
+                    values: {
+                      'beden_detaylari': bedenDetaylari,
+                      'updated_at': DateTime.now().toIso8601String(),
+                    },
                   );
-                  debugPrint('âœ… Sevkiyat bildirimi gÃ¶nderildi');
-                } catch (e) {
-                  debugPrint('âš ï¸ Bildirim gÃ¶nderilemedi: $e');
                 }
+
+                await _upsertSevkiyatKaydiFromKalite(
+                  kontrol: kontrol,
+                  model: model,
+                  kontrolAdet: kontrolAdet,
+                  bedenDetaylari: bedenDetaylari,
+                  oncekiAsama: oncekiAsama,
+                  hedefAsama: hedefAsama,
+                  idempotencyKey: idempotencyKey,
+                );
+
+                await BildirimService().roleGoreBildirimGonder(
+                  rol: 'sevkiyat',
+                  baslik: '📦 Yeni Sevkiyat Talebi',
+                  mesaj:
+                      '${model['marka']} ${model['item_no']} - $kontrolAdet adet kalite kontrolden geçti. Sevkiyat bekliyor.',
+                  tip: 'sevkiyat_hazir',
+                  modelId: kontrol['model_id']?.toString(),
+                  asama: 'Kalite Kontrol',
+                );
 
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 context.showSuccessSnackBar(
-                    'âœ… Kalite kontrolÃ¼ onaylandÄ± - Sevkiyata gÃ¶nderildi');
+                  '✅ Kalite kontrolü onaylandı - Sevkiyat bekleme listesine alındı (Hedef: $hedefAsamaDisplay)');
                 await _verileriYukle();
               } catch (e) {
                 if (!context.mounted) return;
@@ -1004,7 +1923,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
               child: const Icon(Icons.cancel, color: Colors.red),
             ),
             const SizedBox(width: 12),
-            const Text('Kalite KontrolÃ¼ Reddet'),
+            const Text('Kalite Kontrolü Reddet'),
           ],
         ),
         content: SingleChildScrollView(
@@ -1023,7 +1942,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                   children: [
                     Text('${model['marka']} - ${model['item_no']}',
                         style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text('Ã–nceki AÅŸama: ${kontrol['onceki_asama']}'),
+                    Text('Önceki Aşama: ${kontrol['onceki_asama']}'),
                   ],
                 ),
               ),
@@ -1033,7 +1952,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                 decoration: const InputDecoration(
                   labelText: 'Red Sebebi *',
                   border: OutlineInputBorder(),
-                  hintText: 'Kalite problemini aÃ§Ä±klayÄ±n...',
+                  hintText: 'Kalite problemini açıklayın...',
                 ),
                 maxLines: 3,
               ),
@@ -1050,7 +1969,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Red edilen Ã¼rÃ¼nler tekrar iÅŸleme alÄ±nacaktÄ±r.',
+                        'Reddedilen ürünler tekrar işleme alınacaktır.',
                         style:
                             TextStyle(color: Colors.red.shade700, fontSize: 13),
                       ),
@@ -1064,7 +1983,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Ä°ptal'),
+            child: const Text('İptal'),
           ),
           ElevatedButton.icon(
             onPressed: () async {
@@ -1079,14 +1998,29 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
               }
 
               try {
-                await supabase.from(DbTables.kaliteKontrolAtamalari).update({
-                  'durum': 'reddedildi',
-                  'red_sebebi': sebebController.text.trim(),
-                }).eq('id', kontrol['id']);
+                final redSebebi = sebebController.text.trim();
+                await _workflowTransitionService.applyTransition(
+                  tableName: DbTables.kaliteKontrolAtamalari,
+                  recordId: kontrol['id'],
+                  firmaId: TenantManager.instance.requireFirmaId,
+                  fromStatus: kontrol['durum']?.toString(),
+                  toStatus: 'reddedildi',
+                  idempotencyKey: 'kalite:${kontrol['id']}:red',
+                  extraFields: {
+                    'red_sebebi': redSebebi,
+                    'updated_at': DateTime.now().toIso8601String(),
+                  },
+                );
+
+                await _kaliteRedReworkAtamasiOlustur(
+                  kontrol: kontrol,
+                  model: model,
+                  redSebebi: redSebebi,
+                );
 
                 if (!context.mounted) return;
                 Navigator.pop(context);
-                context.showErrorSnackBar('âŒ Kalite kontrolÃ¼ reddedildi');
+                context.showErrorSnackBar('❌ Kalite kontrolü reddedildi');
                 await _verileriYukle();
               } catch (e) {
                 if (!context.mounted) return;
@@ -1107,6 +2041,11 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
 
   void _showDetayDialog(Map<String, dynamic> kontrol) {
     final model = kontrol[DbTables.trikoTakip] as Map<String, dynamic>;
+    final kontrolAdedi =
+        _toInt(kontrol['kontrol_edilecek_adet']) > 0
+            ? _toInt(kontrol['kontrol_edilecek_adet'])
+            : _toInt(model['adet']);
+    final kayitliBeden = _parseBedenDetayi(kontrol['beden_detaylari']);
 
     showDialog(
       context: context,
@@ -1116,7 +2055,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
           children: [
             Icon(Icons.verified, color: Colors.teal.shade600),
             const SizedBox(width: 12),
-            const Text('Kalite Kontrol DetayÄ±'),
+            const Text('Kalite Kontrol Detayı'),
           ],
         ),
         content: SingleChildScrollView(
@@ -1140,7 +2079,16 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     _buildDetaySatiri('Marka', model['marka']),
                     _buildDetaySatiri('Item No', model['item_no']),
                     _buildDetaySatiri('Renk', model['renk']),
-                    _buildDetaySatiri('Toplam Adet', model['adet']?.toString()),
+                    FutureBuilder<int>(
+                      future: _getModelToplamAdet(model['id']?.toString()),
+                      builder: (context, snapshot) {
+                        final modelToplam = snapshot.data ?? _toInt(model['adet']);
+                        return _buildDetaySatiri(
+                          'Toplam Adet',
+                          modelToplam > 0 ? '$modelToplam' : '-',
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -1159,10 +2107,17 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     _buildDetaySatiri(
-                        'Ã–nceki AÅŸama', kontrol['onceki_asama']),
+                      'Önceki Aşama', kontrol['onceki_asama']),
                     _buildDetaySatiri('Durum', kontrol['durum']),
-                    _buildDetaySatiri('Kontrol Edilecek',
-                        '${kontrol['kontrol_edilecek_adet'] ?? model['adet'] ?? '-'} adet'),
+                    _buildDetaySatiri(
+                      'Dokumadan Çıkan',
+                      kontrolAdedi > 0 ? '$kontrolAdedi adet' : '-',
+                    ),
+                    if (kayitliBeden.isNotEmpty)
+                      _buildDetaySatiri(
+                        'Beden Dağılımı',
+                        _bedenDagilimiMetni(kayitliBeden),
+                      ),
                     if (kontrol['atama_tarihi'] != null)
                       _buildDetaySatiri(
                           'Talep Tarihi',
@@ -1171,8 +2126,32 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                   ],
                 ),
               ),
+              if (kayitliBeden.isEmpty) ...[
+                const SizedBox(height: 12),
+                FutureBuilder<Map<String, int>>(
+                  future: _kontrolBedenDagilimiGetir(
+                    kontrol: kontrol,
+                    model: model,
+                    kontrolAdedi: kontrolAdedi,
+                  ),
+                  builder: (context, snapshot) {
+                    final bedenler = snapshot.data ?? const <String, int>{};
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const SizedBox(
+                        height: 38,
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    if (bedenler.isEmpty) return const SizedBox.shrink();
+                    return _buildBedenDagilimiKutusu(
+                      bedenler,
+                      color: Colors.teal,
+                    );
+                  },
+                ),
+              ],
               if (kontrol['notlar'] != null &&
-                  kontrol['notlar'].toString().isNotEmpty) ...[
+                  _temizNotMetni(kontrol['notlar']?.toString()).isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1187,7 +2166,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                       const Text('Notlar',
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      Text(kontrol['notlar']),
+                      Text(_temizNotMetni(kontrol['notlar']?.toString())),
                     ],
                   ),
                 ),
@@ -1293,7 +2272,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Ã–nceki AÅŸama:',
+                const Text('Önceki Aşama:',
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Wrap(
@@ -1301,7 +2280,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                   runSpacing: 8,
                   children: [
                     ChoiceChip(
-                      label: const Text('TÃ¼mÃ¼'),
+                      label: const Text('Tümü'),
                       selected: seciliAsama == null,
                       onSelected: (selected) {
                         setDialogState(() => seciliAsama = null);

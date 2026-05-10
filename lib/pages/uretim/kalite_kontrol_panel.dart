@@ -5,8 +5,11 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:uretim_takip/config/app_routes.dart';
+import 'package:uretim_takip/services/beden_service.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/workflow_transition_service.dart';
+import 'dart:convert';
 
 part 'kalite_kontrol_panel_widgets.dart';
 
@@ -20,6 +23,9 @@ class KaliteKontrolPanel extends StatefulWidget {
 class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
     with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
+  final BedenService _bedenService = BedenService();
+  final WorkflowTransitionService _workflowTransitionService =
+      WorkflowTransitionService();
   late TabController _tabController;
 
   List<Map<String, dynamic>> bekleyenler = [];
@@ -96,6 +102,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
       final response = await supabase
           .from(DbTables.kaliteKontrolAtamalari)
           .select('*')
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .order('created_at', ascending: false);
 
       debugPrint('📋 Kalite kontrol sorgu sonucu: ${response.length} kayıt');
@@ -112,6 +119,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
                 .from(DbTables.trikoTakip)
                 .select('id, marka, item_no, renk, adet, termin_tarihi')
                 .eq('id', modelId)
+              .eq('firma_id', TenantManager.instance.requireFirmaId)
                 .maybeSingle();
 
             if (modelResponse != null) {

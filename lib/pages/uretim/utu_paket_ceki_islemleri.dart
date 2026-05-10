@@ -308,7 +308,8 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
         await supabase
             .from(DbTables.cekiListesi)
             .update(updateData)
-            .eq('id', kayit['id']);
+            .eq('id', kayit['id'])
+            .eq('firma_id', TenantManager.instance.requireFirmaId);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -420,7 +421,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
               takipNoController.text.isNotEmpty ? takipNoController.text : null,
           'alici_bilgisi':
               aliciController.text.isNotEmpty ? aliciController.text : null,
-        }).eq('id', kayit['id']);
+        }).eq('id', kayit['id']).eq('firma_id', TenantManager.instance.requireFirmaId);
         debugPrint('✅ Çeki listesi güncellendi');
 
         // ===== 2. MODEL DETAY'DA YÜKLEME KAYDI EKLE =====
@@ -539,7 +540,11 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
         // Rate limiting için küçük bir delay ekle
         await Future.delayed(const Duration(milliseconds: 300));
 
-        await supabase.from(DbTables.cekiListesi).delete().eq('id', kayit['id']);
+        await supabase
+          .from(DbTables.cekiListesi)
+          .delete()
+          .eq('id', kayit['id'])
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -613,7 +618,11 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
         }
 
         // Tek bir sorgu ile tümünü sil (Rate limiting'den kaçınmak için)
-        await supabase.from(DbTables.cekiListesi).delete().inFilter('id', ids);
+        await supabase
+            .from(DbTables.cekiListesi)
+            .delete()
+            .inFilter('id', ids)
+            .eq('firma_id', TenantManager.instance.requireFirmaId);
 
         if (mounted) {
           context.showSuccessSnackBar('✅ ${ids.length} adet çeki kaydı silindi');
@@ -635,12 +644,64 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
     // Tamamlanan paketlemelerden model seçtir
     final tamamlananModeller = <Map<String, dynamic>>[];
 
+    int toInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse(value.toString()) ?? 0;
+    }
+
+    String modelIdFromKayit(Map<String, dynamic> kayit) {
+      return (kayit['model_id'] ?? '').toString();
+    }
+
+    int modelIcinMevcutCekiToplami(String modelId) {
+      return cekiListesi
+          .where((k) => (k['model_id'] ?? '').toString() == modelId)
+          .fold<int>(0, (toplam, k) => toplam + toInt(k['adet']));
+    }
+
+    int tamamlananLimitHesapla(Map<String, dynamic>? model) {
+      if (model == null) return 0;
+      final modelId = (model['id'] ?? '').toString();
+      if (modelId.isEmpty) return 0;
+
+      int fromPaketTamamlanan = paketTamamlananlar
+          .where((a) => modelIdFromKayit(a) == modelId)
+          .fold<int>(
+              0,
+              (toplam, a) =>
+                  toplam +
+                  toInt(a['tamamlanan_adet'] ?? a['adet'] ?? a['talep_edilen_adet']));
+
+      int fromUtuTamamlanan = utuTamamlananlar
+          .where((a) => modelIdFromKayit(a) == modelId)
+          .fold<int>(
+              0,
+              (toplam, a) =>
+                  toplam +
+                  toInt(a['tamamlanan_adet'] ??
+                      a['kabul_edilen_adet'] ??
+                      a['adet'] ??
+                      a['talep_edilen_adet']));
+
+      if (fromPaketTamamlanan > 0) return fromPaketTamamlanan;
+      if (fromUtuTamamlanan > 0) return fromUtuTamamlanan;
+
+      final atama = model['atama'] as Map<String, dynamic>?;
+      return toInt(atama?['tamamlanan_adet'] ??
+          atama?['kabul_edilen_adet'] ??
+          atama?['adet'] ??
+          model['adet']);
+    }
+
     // Tüm modellerden benzersiz olanları al
     for (var atama in [
       ...paketBekleyenler,
       ...paketOnaylananlar,
       ...paketUretimde,
-      ...paketTamamlananlar
+      ...paketTamamlananlar,
+      ...utuTamamlananlar,
     ]) {
       final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
       if (model != null) {
@@ -663,10 +724,11 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
     final koliAdetiController = TextEditingController(text: '1');
     final adetPerKoliController = TextEditingController(text: '10');
     final notController = TextEditingController();
-    
+
     // Mix koli için beden listesi: {beden: adet}
     final Map<String, int> bedenAdetleri = {};
     bool isMixKoli = false;
+    String? seciliBedenKodu;
 
     final sonuc = await showDialog<bool>(
       context: context,
@@ -678,8 +740,26 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
             final bedenlerRaw = seciliModel!['bedenler'];
             if (bedenlerRaw is Map) {
               bedenler = bedenlerRaw.keys.map((e) => e.toString()).toList();
+            } else if (bedenlerRaw is List) {
+              bedenler = bedenlerRaw.map((e) => e.toString()).toList();
             }
             if (bedenler.isEmpty) bedenler = ['Genel'];
+          }
+
+          final secilebilirBedenler = bedenler
+              .where((b) => b.toString().trim().toUpperCase() != 'GENEL')
+              .map((b) => b.toString().trim())
+              .where((b) => b.isNotEmpty)
+              .toList();
+
+          if (secilebilirBedenler.isEmpty) {
+            secilebilirBedenler.add('GENEL');
+          }
+
+          if (!isMixKoli &&
+              (seciliBedenKodu == null ||
+                  !secilebilirBedenler.contains(seciliBedenKodu))) {
+            seciliBedenKodu = secilebilirBedenler.first;
           }
 
           // Toplam adet hesapla
@@ -691,6 +771,22 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
             final perKoli = int.tryParse(adetPerKoliController.text) ?? 10;
             toplamAdet = koli * perKoli;
           }
+
+          final modelId = seciliModel?['id']?.toString();
+          final tamamlananLimit = seciliModel == null
+              ? 0
+              : tamamlananLimitHesapla(seciliModel);
+          final mevcutCekiToplami = (modelId == null || modelId.isEmpty)
+              ? 0
+              : modelIcinMevcutCekiToplami(modelId);
+          final planlananEklenecekAdet = isMixKoli
+              ? (int.tryParse(koliAdetiController.text) ?? 1) * toplamAdet
+              : toplamAdet;
+          final toplamSonrasi = mevcutCekiToplami + planlananEklenecekAdet;
+          final limitAsildi = seciliModel != null &&
+              tamamlananLimit > 0 &&
+              toplamSonrasi > tamamlananLimit;
+          final kalanHak = (tamamlananLimit - mevcutCekiToplami);
 
           return AlertDialog(
             title: Row(
@@ -727,6 +823,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                           seciliModel = value;
                           bedenAdetleri.clear();
                           isMixKoli = false;
+                          seciliBedenKodu = null;
                         });
                       },
                     ),
@@ -903,9 +1000,30 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
+                        onChanged: (_) => setDialogState(() {}),
                       ),
                     ] else if (!isMixKoli && seciliModel != null) ...[
                       // Normal mod - tek beden
+                      DropdownButtonFormField<String>(
+                        initialValue: seciliBedenKodu,
+                        decoration: const InputDecoration(
+                          labelText: 'Beden Seç',
+                          prefixIcon: Icon(Icons.straighten),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: secilebilirBedenler
+                            .map((b) => DropdownMenuItem(
+                                  value: b,
+                                  child: Text(b),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            seciliBedenKodu = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
@@ -969,6 +1087,61 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                     ),
                     const SizedBox(height: 12),
 
+                    if (seciliModel != null && tamamlananLimit > 0) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: limitAsildi ? Colors.red[50] : Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: limitAsildi ? Colors.red[300]! : Colors.green[300]!,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Tamamlanan Limit',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: limitAsildi ? Colors.red[700] : Colors.green[700],
+                                  ),
+                                ),
+                                Text(
+                                  '$tamamlananLimit adet',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: limitAsildi ? Colors.red[700] : Colors.green[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text('Mevcut çeki toplamı: $mevcutCekiToplami adet'),
+                            Text('Bu işlemle eklenecek: $planlananEklenecekAdet adet'),
+                            Text(
+                              'Kalan hak: ${kalanHak < 0 ? 0 : kalanHak} adet',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            if (limitAsildi) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Uyarı: Çeki toplamı tamamlanan adedi aşamaz.',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red[700],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     TextField(
                       controller: notController,
                       decoration: const InputDecoration(
@@ -990,7 +1163,9 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
               ElevatedButton.icon(
                 onPressed: seciliModel == null || 
                            (isMixKoli && bedenAdetleri.isEmpty) ||
-                           (!isMixKoli && toplamAdet == 0)
+                           (!isMixKoli &&
+                         (toplamAdet == 0 || seciliBedenKodu == null)) ||
+                       limitAsildi
                     ? null
                     : () => Navigator.pop(context, true),
                 icon: const Icon(Icons.add),
@@ -1006,6 +1181,24 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
 
     if (sonuc == true && seciliModel != null) {
       try {
+        final modelId = (seciliModel!['id'] ?? '').toString();
+        final tamamlananLimit = tamamlananLimitHesapla(seciliModel);
+        final mevcutCekiToplami =
+            modelId.isEmpty ? 0 : modelIcinMevcutCekiToplami(modelId);
+
+        final planlananEklenecekAdet = isMixKoli
+            ? (int.tryParse(koliAdetiController.text) ?? 1) *
+                bedenAdetleri.values.fold(0, (a, b) => a + b)
+            : (int.tryParse(koliAdetiController.text) ?? 1) *
+                (int.tryParse(adetPerKoliController.text) ?? 10);
+
+        if (tamamlananLimit > 0 &&
+            (mevcutCekiToplami + planlananEklenecekAdet) > tamamlananLimit) {
+          _hataGoster(
+              'Uyarı: Çeki toplamı tamamlanan adedi aşamaz. (Limit: $tamamlananLimit, Mevcut: $mevcutCekiToplami, Yeni: $planlananEklenecekAdet)');
+          return;
+        }
+
         if (isMixKoli && bedenAdetleri.isNotEmpty) {
           // Mix koli - JSON olarak kaydet
           final koliSayisi = int.tryParse(koliAdetiController.text) ?? 1;
@@ -1022,6 +1215,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                 .toList(),
             'paketleme_tarihi': DateTime.now().toIso8601String(),
             'gonderim_durumu': 'bekliyor',
+            'firma_id': TenantManager.instance.requireFirmaId,
             'notlar': notController.text.isNotEmpty ? notController.text : null,
           });
         } else {
@@ -1031,12 +1225,13 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
           
           await supabase.from(DbTables.cekiListesi).insert({
             'model_id': seciliModel!['id'],
-            'beden_kodu': null,
+            'beden_kodu': seciliBedenKodu,
             'koli_adedi': koliSayisi,
             'adet': koliSayisi * adetPerKoli,
             'adet_per_koli': adetPerKoli,
             'paketleme_tarihi': DateTime.now().toIso8601String(),
             'gonderim_durumu': 'bekliyor',
+            'firma_id': TenantManager.instance.requireFirmaId,
             'notlar': notController.text.isNotEmpty ? notController.text : null,
           });
         }

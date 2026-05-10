@@ -346,10 +346,22 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey[600])),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+          SizedBox(
+            width: 120,
+            child: Text(label, style: TextStyle(color: Colors.grey[600])),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              softWrap: true,
+              overflow: TextOverflow.visible,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );
@@ -763,11 +775,15 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
                       children: [
                         Text(
                           model?['marka'] ?? 'Bilinmiyor',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                         Text(
                           '${model?['item_no'] ?? '-'} • ${model?['renk'] ?? '-'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style:
                               TextStyle(color: Colors.grey[600], fontSize: 13),
                         ),

@@ -8,6 +8,7 @@ import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/dashboard_event_bus.dart';
 import 'package:uretim_takip/utils/app_exceptions.dart';
+import 'package:uretim_takip/services/workflow_transition_service.dart';
 
 part 'utu_paket_ceki.dart';
 part 'utu_paket_aksiyonlar.dart';
@@ -58,6 +59,8 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   List<String> markalar = [];
 
   final supabase = Supabase.instance.client;
+  final WorkflowTransitionService _workflowTransitionService =
+      WorkflowTransitionService();
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
 
   // Supabase Realtime Subscriptions
@@ -68,6 +71,105 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   final TextEditingController _aramaController = TextEditingController();
   final currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
   final dateFormat = DateFormat('dd.MM.yyyy');
+
+  String? _missingColumnName(Object error) {
+    if (error is! PostgrestException) return null;
+    final message =
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+
+    final withTable = RegExp(
+      r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    if (withTable != null) return withTable.group(1);
+
+    final plain = RegExp(
+      r'column\s+"?([a-z0-9_]+)"?\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    return plain?.group(1);
+  }
+
+  String _durumAnahtari(dynamic value) {
+    final raw = (value ?? '').toString().trim().toLowerCase();
+    if (raw.isEmpty) return '';
+
+    return raw
+        .replaceAll('ı', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll(' ', '_');
+  }
+
+  bool _durumBekleyenMi(dynamic value) {
+    final d = _durumAnahtari(value);
+    return d.isEmpty || d == 'bekleyen' || d == 'beklemede' || d == 'atandi';
+  }
+
+  bool _durumOnaylananMi(dynamic value) {
+    final d = _durumAnahtari(value);
+    return d == 'onaylandi' || d == 'kabul_edildi';
+  }
+
+  bool _durumIslemdeMi(dynamic value) {
+    final d = _durumAnahtari(value);
+    return d == 'devam_ediyor' || d == 'uretimde' || d == 'baslatildi';
+  }
+
+  bool _durumTamamlananMi(dynamic value) {
+    final d = _durumAnahtari(value);
+    return d == 'tamamlandi' ||
+        d == 'kismi_tamamlandi' ||
+        d == 'completed' ||
+        d == 'done' ||
+        d == 'bitirildi' ||
+        d == 'bitti';
+  }
+
+  Future<List<Map<String, dynamic>>> _atamaKayitlariniGetirEsnek({
+    required String tablo,
+    required List<String> kolonlar,
+  }) async {
+    final dislananKolonlar = <String>{};
+    var useFirmaFilter = true;
+    Object? sonHata;
+
+    for (var attempt = 0; attempt < 10; attempt++) {
+      try {
+        final aktifKolonlar =
+            kolonlar.where((alan) => !dislananKolonlar.contains(alan)).toList();
+        if (aktifKolonlar.isEmpty) return const <Map<String, dynamic>>[];
+
+        var query = supabase.from(tablo).select(aktifKolonlar.join(','));
+        if (useFirmaFilter) {
+          query = query.eq('firma_id', TenantManager.instance.requireFirmaId);
+        }
+
+        final response = await query.order('atama_tarihi', ascending: false);
+        return List<Map<String, dynamic>>.from(response);
+      } catch (e) {
+        sonHata = e;
+        final missingColumn = _missingColumnName(e);
+
+        if (missingColumn == 'firma_id' && useFirmaFilter) {
+          useFirmaFilter = false;
+          continue;
+        }
+
+        if (missingColumn != null &&
+            kolonlar.contains(missingColumn) &&
+            !dislananKolonlar.contains(missingColumn)) {
+          dislananKolonlar.add(missingColumn);
+          continue;
+        }
+
+        break;
+      }
+    }
+
+    throw Exception('$tablo kayıtları alınamadı: $sonHata');
+  }
 
   @override
   void initState() {
@@ -95,11 +197,14 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   // Gelişmiş raporlar için model hesaplamalarını güncelle
   Future<void> _guncelleGelismisRaporlar(String modelId) async {
     try {
+      final firmaId = TenantManager.instance.requireFirmaId;
+
       // Yükleme kayıtlarını topla
       final yukleme = await supabase
           .from(DbTables.yuklemeKayitlari)
           .select('adet')
-          .eq('model_id', modelId);
+          .eq('model_id', modelId)
+          .eq('firma_id', firmaId);
 
       int toplamYuklenen = 0;
       for (var kayit in yukleme) {
@@ -111,6 +216,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           .from(DbTables.trikoTakip)
           .select('toplam_adet, adet')
           .eq('id', modelId)
+          .eq('firma_id', firmaId)
           .single();
 
       final modelAdet =
@@ -121,7 +227,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       await supabase.from(DbTables.trikoTakip).update({
         'yuklenen_adet': toplamYuklenen,
         'kalan_adet': kalanAdet > 0 ? kalanAdet : 0,
-      }).eq('id', modelId);
+      }).eq('id', modelId).eq('firma_id', firmaId);
 
       debugPrint(
           '📊 Model raporları güncellendi - Yüklenen: $toplamYuklenen, Kalan: $kalanAdet');
@@ -233,7 +339,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
         final response = await supabase
             .from(DbTables.firmaKullanicilari)
             .select('role')
-            .eq('id', user.id)
+            .eq('user_id', user.id)
             .maybeSingle();
 
         if (response != null) {
@@ -302,43 +408,42 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     try {
       debugPrint('🔄 Ütü atamaları yükleniyor...');
 
-      final response = await supabase
-          .from(DbTables.utuAtamalari)
-          .select('''
-        id, model_id, atama_tarihi, durum, notlar, adet, onay_tarihi, red_sebebi,
-        talep_edilen_adet, kabul_edilen_adet, tamamlanan_adet, tamamlama_tarihi,
-        tedarikci_id, atanan_kullanici_id,
-        triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)
-      ''')
-          .eq('firma_id', TenantManager.instance.requireFirmaId)
-          .order('atama_tarihi', ascending: false);
-
-      final liste = List<Map<String, dynamic>>.from(response);
+      final liste = await _atamaKayitlariniGetirEsnek(
+        tablo: DbTables.utuAtamalari,
+        kolonlar: [
+          'id',
+          'model_id',
+          'atama_tarihi',
+          'durum',
+          'notlar',
+          'adet',
+          'onay_tarihi',
+          'red_sebebi',
+          'talep_edilen_adet',
+          'kabul_edilen_adet',
+          'tamamlanan_adet',
+          'tamamlama_tarihi',
+          'tedarikci_id',
+          'atanan_kullanici_id',
+          'triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)',
+        ],
+      );
 
       // Bekleyen: bekleyen, atandi, beklemede, null
       utuBekleyenler = liste
-          .where((a) =>
-              a['durum'] == 'bekleyen' ||
-              a['durum'] == 'atandi' ||
-              a['durum'] == 'beklemede' ||
-              a['durum'] == null)
+          .where((a) => _durumBekleyenMi(a['durum']))
           .toList();
 
       utuOnaylananlar = liste
-          .where(
-              (a) => a['durum'] == 'onaylandi' || a['durum'] == 'kabul_edildi')
+          .where((a) => _durumOnaylananMi(a['durum']))
           .toList();
 
       utuUretimde = liste
-          .where((a) =>
-              a['durum'] == 'devam_ediyor' ||
-              a['durum'] == 'uretimde' ||
-              a['durum'] == 'baslatildi' ||
-              a['durum'] == 'kismi_tamamlandi')
+          .where((a) => _durumIslemdeMi(a['durum']))
           .toList();
 
-      utuTamamlananlar =
-          liste.where((a) => a['durum'] == 'tamamlandi').toList();
+        utuTamamlananlar =
+          liste.where((a) => _durumTamamlananMi(a['durum'])).toList();
 
       debugPrint(
           '✅ Ütü yüklendi - Bekleyen: ${utuBekleyenler.length}, Onaylanan: ${utuOnaylananlar.length}, Üretimde: ${utuUretimde.length}, Tamamlanan: ${utuTamamlananlar.length}');
@@ -352,43 +457,40 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     try {
       debugPrint('🔄 Paketleme atamaları yükleniyor...');
 
-      final response = await supabase
-          .from(DbTables.paketlemeAtamalari)
-          .select('''
-        id, model_id, atama_tarihi, durum, notlar, adet, onay_tarihi, red_sebebi,
-        talep_edilen_adet, tamamlanan_adet, tamamlama_tarihi,
-        atanan_kullanici_id,
-        triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)
-      ''')
-          .eq('firma_id', TenantManager.instance.requireFirmaId)
-          .order('atama_tarihi', ascending: false);
-
-      final liste = List<Map<String, dynamic>>.from(response);
+      final liste = await _atamaKayitlariniGetirEsnek(
+        tablo: DbTables.paketlemeAtamalari,
+        kolonlar: [
+          'id',
+          'model_id',
+          'atama_tarihi',
+          'durum',
+          'notlar',
+          'adet',
+          'onay_tarihi',
+          'red_sebebi',
+          'talep_edilen_adet',
+          'tamamlanan_adet',
+          'tamamlama_tarihi',
+          'atanan_kullanici_id',
+          'triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)',
+        ],
+      );
 
       // Bekleyen: bekleyen, atandi, beklemede, null
       paketBekleyenler = liste
-          .where((a) =>
-              a['durum'] == 'bekleyen' ||
-              a['durum'] == 'atandi' ||
-              a['durum'] == 'beklemede' ||
-              a['durum'] == null)
+          .where((a) => _durumBekleyenMi(a['durum']))
           .toList();
 
       paketOnaylananlar = liste
-          .where(
-              (a) => a['durum'] == 'onaylandi' || a['durum'] == 'kabul_edildi')
+          .where((a) => _durumOnaylananMi(a['durum']))
           .toList();
 
       paketUretimde = liste
-          .where((a) =>
-              a['durum'] == 'devam_ediyor' ||
-              a['durum'] == 'uretimde' ||
-              a['durum'] == 'baslatildi' ||
-              a['durum'] == 'kismi_tamamlandi')
+          .where((a) => _durumIslemdeMi(a['durum']))
           .toList();
 
       paketTamamlananlar =
-          liste.where((a) => a['durum'] == 'tamamlandi').toList();
+          liste.where((a) => _durumTamamlananMi(a['durum'])).toList();
 
       debugPrint(
           '✅ Paketleme yüklendi - Bekleyen: ${paketBekleyenler.length}, Onaylanan: ${paketOnaylananlar.length}, Üretimde: ${paketUretimde.length}, Tamamlanan: ${paketTamamlananlar.length}');
@@ -402,24 +504,74 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     try {
       debugPrint('🔄 Çeki listesi yükleniyor...');
 
-      try {
-        final response = await supabase
-            .from(DbTables.cekiListesi)
-            .select('''
-          id, model_id, koli_no, koli_adedi, adet, paketleme_tarihi, 
-          gonderim_durumu, gonderim_tarihi, alici_bilgisi, kargo_firmasi, takip_no, notlar, created_at,
-          beden_kodu, adet_per_koli, is_mix_koli, mix_beden_detay,
-          triko_takip(id, marka, item_no, adet, bedenler, renk)
-        ''')
-            .eq('firma_id', TenantManager.instance.requireFirmaId)
-            .order('created_at', ascending: false);
-        cekiListesi = List<Map<String, dynamic>>.from(response);
-        debugPrint('✅ Çeki listesi yüklendi: ${cekiListesi.length} kayıt');
-      } catch (e) {
-        debugPrint('⚠️ Çeki tablosu hatası: $e');
-        // Tablo yoksa veya hata varsa boş liste
-        cekiListesi = [];
+      final tumAlanlar = <String>[
+        'id',
+        'model_id',
+        'koli_no',
+        'koli_adedi',
+        'adet',
+        'paketleme_tarihi',
+        'gonderim_durumu',
+        'gonderim_tarihi',
+        'alici_bilgisi',
+        'kargo_firmasi',
+        'takip_no',
+        'notlar',
+        'created_at',
+        'beden_kodu',
+        'adet_per_koli',
+        'is_mix_koli',
+        'mix_beden_detay',
+      ];
+
+      final dislananAlanlar = <String>{};
+      var useFirmaFilter = true;
+      Object? sonHata;
+
+      for (var attempt = 0; attempt < 10; attempt++) {
+        try {
+          final secimAlanlari = tumAlanlar
+              .where((alan) => !dislananAlanlar.contains(alan))
+              .toList();
+
+          if (secimAlanlari.isEmpty) {
+            cekiListesi = [];
+            return;
+          }
+
+          final selectFields =
+              '${secimAlanlari.join(',')},triko_takip(id, marka, item_no, adet, bedenler, renk)';
+
+          var query = supabase.from(DbTables.cekiListesi).select(selectFields);
+          if (useFirmaFilter) {
+            query = query.eq('firma_id', TenantManager.instance.requireFirmaId);
+          }
+
+          final response = await query.order('created_at', ascending: false);
+          cekiListesi = List<Map<String, dynamic>>.from(response);
+          debugPrint('✅ Çeki listesi yüklendi: ${cekiListesi.length} kayıt');
+          return;
+        } catch (e) {
+          sonHata = e;
+          final missingColumn = _missingColumnName(e);
+          if (missingColumn == 'firma_id' && useFirmaFilter) {
+            useFirmaFilter = false;
+            continue;
+          }
+
+          if (missingColumn != null &&
+              tumAlanlar.contains(missingColumn) &&
+              !dislananAlanlar.contains(missingColumn)) {
+            dislananAlanlar.add(missingColumn);
+            continue;
+          }
+
+          break;
+        }
       }
+
+      debugPrint('⚠️ Çeki tablosu hatası: $sonHata');
+      cekiListesi = [];
     } catch (e) {
       debugPrint('❌ Çeki listesi yüklenirken hata: $e');
       cekiListesi = [];

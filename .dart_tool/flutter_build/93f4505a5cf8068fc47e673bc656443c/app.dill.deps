@@ -1910,6 +1910,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/odeme_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/personel_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/platform_admin_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/sayfa_yetki_service.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/sevk_irsaliye_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/sevkiyat_atama_guard.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/sistem_ayarlari_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/supabase_service.dart
@@ -1918,6 +1919,8 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/tenant_manager.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/uretim_raporu_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_helper.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_role_service.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/workflow_state_machine.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/workflow_transition_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/yetki_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/theme/app_theme.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/utils/app_exceptions.dart

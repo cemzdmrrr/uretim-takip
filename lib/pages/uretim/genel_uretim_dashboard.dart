@@ -1004,18 +1004,24 @@ class _AsamaIstatistikServisi {
       final response =
           firmaId == null ? await query : await query.eq('firma_id', firmaId);
       final rows = List<Map<String, dynamic>>.from(response);
-      await _trikoTerminleriniEkle(rows);
+      await _trikoTerminleriniEkle(rows, firmaId);
       return rows;
     } catch (_) {
+      if (firmaId != null) {
+        // Tenant filtresi uygulanamayan tabloları izinsiz genis sorgu ile okumayiz.
+        return const <Map<String, dynamic>>[];
+      }
+
       final response = await supabase.from(tablo).select('durum, model_id');
       final rows = List<Map<String, dynamic>>.from(response);
-      await _trikoTerminleriniEkle(rows);
+      await _trikoTerminleriniEkle(rows, null);
       return rows;
     }
   }
 
   static Future<void> _trikoTerminleriniEkle(
     List<Map<String, dynamic>> rows,
+    String? firmaId,
   ) async {
     final modelIds = rows
         .map((row) => row['model_id'])
@@ -1025,10 +1031,16 @@ class _AsamaIstatistikServisi {
 
     if (modelIds.isEmpty) return;
 
-    final response = await Supabase.instance.client
+    var query = Supabase.instance.client
         .from(DbTables.trikoTakip)
         .select('id, termin_tarihi')
         .inFilter('id', modelIds);
+
+    if (firmaId != null) {
+      query = query.eq('firma_id', firmaId);
+    }
+
+    final response = await query;
 
     final modeller = {
       for (final model in List<Map<String, dynamic>>.from(response))
@@ -1330,7 +1342,7 @@ class _UretimAramaServisi {
       final response =
           firmaId == null ? await query : await query.eq('firma_id', firmaId);
       final rows = List<Map<String, dynamic>>.from(response);
-      await _trikoModelBilgileriniEkle(rows);
+      await _trikoModelBilgileriniEkle(rows, firmaId);
       return _sonuclariMaple(asama, rows, modelKey: DbTables.trikoTakip);
     } catch (e) {
       debugPrint('${asama.asamaAdi} arama sonuçları yüklenemedi: $e');
@@ -1340,6 +1352,7 @@ class _UretimAramaServisi {
 
   static Future<void> _trikoModelBilgileriniEkle(
     List<Map<String, dynamic>> rows,
+    String? firmaId,
   ) async {
     final modelIds = rows
         .map((row) => row['model_id'])
@@ -1349,10 +1362,16 @@ class _UretimAramaServisi {
 
     if (modelIds.isEmpty) return;
 
-    final response = await Supabase.instance.client
+    var query = Supabase.instance.client
         .from(DbTables.trikoTakip)
         .select('id, marka, item_no, renk')
         .inFilter('id', modelIds);
+
+    if (firmaId != null) {
+      query = query.eq('firma_id', firmaId);
+    }
+
+    final response = await query;
 
     final modeller = {
       for (final model in List<Map<String, dynamic>>.from(response))

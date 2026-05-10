@@ -5,7 +5,11 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
+import 'package:uretim_takip/services/sevk_irsaliye_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/workflow_state_machine.dart';
+import 'package:uretim_takip/services/workflow_transition_service.dart';
+import 'dart:convert';
 
 part 'sevkiyat_panel_widgets.dart';
 
@@ -19,6 +23,9 @@ class SevkiyatPanel extends StatefulWidget {
 
 class _SevkiyatPanelState extends State<SevkiyatPanel> with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
+  final SevkIrsaliyeService _sevkIrsaliyeService = SevkIrsaliyeService();
+  final WorkflowTransitionService _workflowTransitionService =
+      WorkflowTransitionService();
   late TabController _tabController;
   
   List<Map<String, dynamic>> bekleyenSevkler = [];      // Kalite kontrolden gelen, sevk bekleyen
@@ -93,7 +100,75 @@ class _SevkiyatPanelState extends State<SevkiyatPanel> with SingleTickerProvider
           }
         }
       } catch (e) {
-        sevkiyatTablosuVar = false;
+        // Legacy şema desteği: model_id relation yoksa modeli manuel zenginleştir.
+        try {
+          final legacyResponse = await supabase
+              .from(DbTables.sevkiyatKayitlari)
+              .select('*')
+              .eq('firma_id', TenantManager.instance.requireFirmaId)
+              .order('created_at', ascending: false);
+
+          for (final kayit in List<Map<String, dynamic>>.from(legacyResponse)) {
+            dynamic modelId = kayit['model_id'];
+            int kontrolAdet = 0;
+
+            if (kayit['kalite_kontrol_id'] != null) {
+              try {
+                final kalite = await supabase
+                    .from(DbTables.kaliteKontrolAtamalari)
+                    .select('model_id, kontrol_edilecek_adet')
+                    .eq('id', kayit['kalite_kontrol_id'])
+                    .maybeSingle();
+                if (kalite != null) {
+                  modelId ??= kalite['model_id'];
+                  kontrolAdet =
+                      (kalite['kontrol_edilecek_adet'] as num?)?.toInt() ?? 0;
+                }
+              } catch (_) {}
+            }
+
+            if (modelId == null) {
+              continue;
+            }
+
+            Map<String, dynamic>? model;
+            try {
+              model = await supabase
+                  .from(DbTables.trikoTakip)
+                  .select('id, marka, item_no, renk, adet, termin_tarihi')
+                  .eq('id', modelId)
+                  .maybeSingle();
+            } catch (_) {
+              model = null;
+            }
+
+            if (model == null) {
+              continue;
+            }
+
+            kayit[DbTables.trikoTakip] = model;
+            kayit['model_id'] = modelId;
+
+            final alinanAdet = (kayit['alinan_adet'] as num?)?.toInt() ?? 0;
+            final finalAdet = alinanAdet > 0
+                ? alinanAdet
+                : (kontrolAdet > 0
+                    ? kontrolAdet
+                    : (model['adet'] as num?)?.toInt() ?? 0);
+
+            kayit['adet'] = finalAdet;
+            kayit['talep_edilen_adet'] = finalAdet;
+            kayit['tamamlanan_adet'] =
+                (kayit['sevk_edilen_adet'] as num?)?.toInt() ?? 0;
+            zenginKayitlar.add(kayit);
+          }
+
+          if (zenginKayitlar.isEmpty) {
+            sevkiyatTablosuVar = false;
+          }
+        } catch (_) {
+          sevkiyatTablosuVar = false;
+        }
       }
       
       // Eğer sevkiyat_kayitlari tablosu yoksa veya boşsa, paketleme_atamalari kullan

@@ -719,17 +719,17 @@ class _KullaniciListesiPageState extends State<KullaniciListesiPage> {
         throw Exception('Kullanıcı oluşturulamadı');
       }
 
-      await _adminClient.from(DbTables.userRoles).upsert({
-        'user_id': user.id,
-        'role': _globalRoleForFirmaRole(sonuc.rol),
-      }, onConflict: 'user_id');
-
       await _adminClient.from(DbTables.firmaKullanicilari).upsert({
         'firma_id': firmaId,
         'user_id': user.id,
         'rol': sonuc.rol,
         'aktif': true,
       }, onConflict: 'firma_id,user_id');
+
+      await _senkronizeGlobalRolGuvenli(
+        userId: user.id,
+        firmaRol: sonuc.rol,
+      );
 
       if (!mounted) return;
       await _verileriYukle();
@@ -821,7 +821,7 @@ class _KullaniciListesiPageState extends State<KullaniciListesiPage> {
           .eq('id', kullanici['id'])
           .eq('firma_id', TenantManager.instance.requireFirmaId);
 
-      await _senkronizeGlobalRol(
+      await _senkronizeGlobalRolGuvenli(
         userId: kullanici['user_id'].toString(),
         firmaRol: secim,
       );
@@ -877,7 +877,7 @@ class _KullaniciListesiPageState extends State<KullaniciListesiPage> {
           .eq('id', kullanici['id'])
           .eq('firma_id', TenantManager.instance.requireFirmaId);
 
-      await _senkronizeGlobalRol(
+      await _senkronizeGlobalRolGuvenli(
         userId: kullanici['user_id'].toString(),
         firmaRol: (kullanici['rol'] ?? 'kullanici').toString(),
       );
@@ -939,7 +939,7 @@ class _KullaniciListesiPageState extends State<KullaniciListesiPage> {
           .eq('id', kullanici['id'])
           .eq('firma_id', TenantManager.instance.requireFirmaId);
 
-      await _senkronizeGlobalRol(
+      await _senkronizeGlobalRolGuvenli(
         userId: kullanici['user_id'].toString(),
         firmaRol: 'kullanici',
       );
@@ -986,10 +986,44 @@ class _KullaniciListesiPageState extends State<KullaniciListesiPage> {
       hedefRol = _globalRoleForFirmaRole(firmaRol);
     }
 
-    await _adminClient.from(DbTables.userRoles).upsert({
+    final payload = {
       'user_id': userId,
       'role': hedefRol,
-    }, onConflict: 'user_id');
+      'aktif': true,
+    };
+
+    try {
+      await _adminClient
+          .from(DbTables.userRoles)
+          .upsert(payload, onConflict: 'user_id');
+      return;
+    } catch (_) {
+      final mevcut = await _adminClient
+          .from(DbTables.userRoles)
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+
+      final kayitlar = List<Map<String, dynamic>>.from(mevcut);
+      if (kayitlar.isNotEmpty) {
+        await _adminClient
+            .from(DbTables.userRoles)
+            .update({'role': hedefRol, 'aktif': true}).eq('id', kayitlar.first['id']);
+      } else {
+        await _adminClient.from(DbTables.userRoles).insert(payload);
+      }
+    }
+  }
+
+  Future<void> _senkronizeGlobalRolGuvenli({
+    required String userId,
+    required String firmaRol,
+  }) async {
+    try {
+      await _senkronizeGlobalRol(userId: userId, firmaRol: firmaRol);
+    } catch (e) {
+      debugPrint('⚠️ Global rol senkronizasyonu atlandı: $e');
+    }
   }
 
   List<DropdownMenuItem<String>> _rolMenuItems({String? currentRole}) {

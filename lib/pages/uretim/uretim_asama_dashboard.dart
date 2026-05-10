@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/app_routes.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:uretim_takip/services/dashboard_event_bus.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/beden_service.dart';
@@ -14,6 +15,7 @@ import 'package:uretim_takip/models/beden_models.dart';
 import 'package:uretim_takip/services/user_role_service.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
 import 'package:uretim_takip/services/sayfa_yetki_service.dart';
+import 'package:uretim_takip/services/workflow_transition_service.dart';
 
 part 'uretim_asama_dashboard_dialog.dart';
 part 'uretim_asama_rapor.dart';
@@ -68,6 +70,8 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
   List<String> markalar = [];
 
   final supabase = Supabase.instance.client;
+  final WorkflowTransitionService _workflowTransitionService =
+      WorkflowTransitionService();
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
   final TextEditingController _aramaController = TextEditingController();
 
@@ -192,8 +196,6 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
 
   bool get _eskiAtamaSemasi => {
         DbTables.nakisAtamalari,
-        DbTables.yikamaAtamalari,
-        DbTables.ilikDugmeAtamalari,
       }.contains(widget.atamaTablosu);
 
   bool get _eskiAtamaAciklamaKolonuVar =>
@@ -202,23 +204,25 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
   String get _siralamayaEsasTarihKolonu =>
       _eskiAtamaSemasi ? 'created_at' : 'atama_tarihi';
 
-  String get _atamaSelectFields {
+  List<String> get _atamaSelectColumns {
     if (_eskiAtamaSemasi) {
-      return '''
-        id,
-        model_id,
-        created_at,
-        durum,
-        ${_eskiAtamaAciklamaKolonuVar ? 'aciklama,' : ''}
-        adet,
-        talep_edilen_adet,
-        tamamlanan_adet,
-        kabul_tarihi,
-        teslim_tarihi,
-        son_guncelleme_tarihi,
-        tedarikci_id,
-        atanan_kullanici_id
-      ''';
+      return [
+        'id',
+        'model_id',
+        'created_at',
+        'durum',
+        if (_eskiAtamaAciklamaKolonuVar) 'aciklama',
+        'adet',
+        'talep_edilen_adet',
+        'tamamlanan_adet',
+        'beden_detaylari',
+        'beden_dagilimi',
+        'kabul_tarihi',
+        'teslim_tarihi',
+        'son_guncelleme_tarihi',
+        'tedarikci_id',
+        'atanan_kullanici_id',
+      ];
     }
 
     final tabloTedarikciIdVar = ![
@@ -231,23 +235,122 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
       DbTables.kaliteKontrolAtamalari
     ].contains(widget.atamaTablosu);
 
-    return '''
-      id,
-      model_id,
-      atama_tarihi,
-      durum,
-      onay_tarihi,
-      red_sebebi,
-      tamamlama_tarihi,
-      notlar,
-      adet,
-      talep_edilen_adet,
-      ${tabloEkstraAlanlarVar ? 'kabul_edilen_adet,' : ''}
-      tamamlanan_adet,
-      ${tabloEkstraAlanlarVar ? 'uretim_baslangic_tarihi,' : ''}
-      ${tabloTedarikciIdVar ? 'tedarikci_id,' : ''}
-      atanan_kullanici_id
-    ''';
+    return [
+      'id',
+      'model_id',
+      'atama_tarihi',
+      'durum',
+      'onay_tarihi',
+      'red_sebebi',
+      'tamamlama_tarihi',
+      'notlar',
+      'adet',
+      'talep_edilen_adet',
+      if (tabloEkstraAlanlarVar) 'kabul_edilen_adet',
+      'tamamlanan_adet',
+      'beden_detaylari',
+      'beden_dagilimi',
+      if (tabloEkstraAlanlarVar) 'uretim_baslangic_tarihi',
+      if (tabloTedarikciIdVar) 'tedarikci_id',
+      'atanan_kullanici_id',
+    ];
+  }
+
+  String _atamaSelectFields({Set<String> excludedColumns = const {}}) {
+    final columns = _atamaSelectColumns
+        .where((column) => !excludedColumns.contains(column))
+        .toList();
+    return columns.join(',');
+  }
+
+  String? _missingColumnName(Object error) {
+    if (error is! PostgrestException) return null;
+    final message =
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+
+    final withTable = RegExp(
+      r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    if (withTable != null) return withTable.group(1);
+
+    final plain = RegExp(
+      r'column\s+"?([a-z0-9_]+)"?\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    return plain?.group(1);
+  }
+
+  Future<List<dynamic>> _atamaKayitlariniGetir({
+    required bool tabloTedarikciIdVar,
+  }) async {
+    final excludedColumns = <String>{};
+    var useTedarikciIdFilter = tabloTedarikciIdVar;
+
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final selectFields =
+          _atamaSelectFields(excludedColumns: excludedColumns);
+
+      try {
+        if (currentUserRole == 'admin') {
+          return await supabase
+              .from(widget.atamaTablosu)
+              .select(selectFields)
+              .order(_siralamayaEsasTarihKolonu, ascending: false);
+        }
+
+        int? kullaniciTedarikciId;
+        if (useTedarikciIdFilter) {
+          try {
+            final userEmail = supabase.auth.currentUser?.email;
+            if (userEmail != null) {
+              final tedarikciResponse = await supabase
+                  .from(DbTables.tedarikciler)
+                  .select('id')
+                  .eq('email', userEmail)
+                  .limit(1);
+
+              if (tedarikciResponse.isNotEmpty) {
+                kullaniciTedarikciId = tedarikciResponse[0]['id'];
+              }
+            }
+          } catch (e) {
+            debugPrint('Tedarikci ID bulunamadı: $e');
+          }
+        }
+
+        if (useTedarikciIdFilter && kullaniciTedarikciId != null) {
+          return await supabase
+              .from(widget.atamaTablosu)
+              .select(selectFields)
+              .or(
+                  'atanan_kullanici_id.eq.$currentUserId,tedarikci_id.eq.$kullaniciTedarikciId')
+              .order(_siralamayaEsasTarihKolonu, ascending: false);
+        }
+
+        return await supabase
+            .from(widget.atamaTablosu)
+            .select(selectFields)
+            .eq('atanan_kullanici_id', currentUserId!)
+            .order(_siralamayaEsasTarihKolonu, ascending: false);
+      } catch (e) {
+        final missingColumn = _missingColumnName(e);
+        if (missingColumn == null) rethrow;
+
+        if (missingColumn == 'tedarikci_id' && useTedarikciIdFilter) {
+          useTedarikciIdFilter = false;
+          continue;
+        }
+
+        if (_atamaSelectColumns.contains(missingColumn) &&
+            !excludedColumns.contains(missingColumn)) {
+          excludedColumns.add(missingColumn);
+          continue;
+        }
+
+        rethrow;
+      }
+    }
+
+    return const [];
   }
 
   Future<void> _kullaniciKontrolEt() async {
@@ -333,58 +436,14 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
 
     setState(() => yukleniyor = true);
     try {
-      List<dynamic> response;
-
       // Bazı tablolarda tedarikci_id yok (paketleme, kalite_kontrol vb.)
       final tabloTedarikciIdVar = !_eskiAtamaSemasi &&
           ![DbTables.paketlemeAtamalari, DbTables.kaliteKontrolAtamalari]
               .contains(widget.atamaTablosu);
 
-      if (currentUserRole == 'admin') {
-        // Admin için tüm atamalar
-        response = await supabase
-            .from(widget.atamaTablosu)
-            .select(_atamaSelectFields)
-            .order(_siralamayaEsasTarihKolonu, ascending: false);
-      } else {
-        // Normal kullanıcı için - önce tedarikci_id'sini bul
-        int? kullaniciTedarikciId;
-
-        if (tabloTedarikciIdVar) {
-          try {
-            final userEmail = supabase.auth.currentUser?.email;
-            if (userEmail != null) {
-              final tedarikciResponse = await supabase
-                  .from(DbTables.tedarikciler)
-                  .select('id')
-                  .eq('email', userEmail)
-                  .limit(1);
-
-              if (tedarikciResponse.isNotEmpty) {
-                kullaniciTedarikciId = tedarikciResponse[0]['id'];
-              }
-            }
-          } catch (e) {
-            debugPrint('Tedarikci ID bulunamadı: $e');
-          }
-        }
-
-        if (tabloTedarikciIdVar && kullaniciTedarikciId != null) {
-          // Tedarikci olarak atananları getir
-          response = await supabase
-              .from(widget.atamaTablosu)
-              .select(_atamaSelectFields)
-              .or('atanan_kullanici_id.eq.$currentUserId,tedarikci_id.eq.$kullaniciTedarikciId')
-              .order(_siralamayaEsasTarihKolonu, ascending: false);
-        } else {
-          // Sadece atanan_kullanici_id ile eşleşenler
-          response = await supabase
-              .from(widget.atamaTablosu)
-              .select(_atamaSelectFields)
-              .eq('atanan_kullanici_id', currentUserId!)
-              .order(_siralamayaEsasTarihKolonu, ascending: false);
-        }
-      }
+      final response = await _atamaKayitlariniGetir(
+        tabloTedarikciIdVar: tabloTedarikciIdVar,
+      );
 
       // Durumlara göre ayır
       final tumModeller = List<Map<String, dynamic>>.from(response);

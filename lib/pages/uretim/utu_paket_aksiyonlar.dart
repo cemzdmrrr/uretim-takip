@@ -5,13 +5,42 @@ part of 'utu_paket_dashboard.dart';
 extension _AksiyonlarExt on _UtuPaketDashboardState {
   // ============ AKSİYONLAR ============
 
+  String _temizNotMetni(dynamic raw) {
+    var metin = (raw ?? '').toString().trim();
+    if (metin.isEmpty) return '';
+
+    final alt = metin.toLowerCase();
+    if (alt == 'null' || alt == 'undefined' || alt == '[]' || alt == '{}') {
+      return '';
+    }
+
+    metin = metin
+        .replaceAll(
+          RegExp(r'\[idemp:[^\]]+\]', caseSensitive: false),
+          '',
+        )
+        .trim();
+    metin = metin.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    if (metin.isEmpty || metin == '-' || metin == '--') return '';
+    return metin;
+  }
+
   Future<void> _onayla(Map<String, dynamic> atama, String tip) async {
     try {
       final tablo = tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
-      await supabase.from(tablo).update({
-        'durum': 'onaylandi',
-        'onay_tarihi': DateTime.now().toIso8601String(),
-      }).eq('id', atama['id']);
+      await _workflowTransitionService.applyTransition(
+        tableName: tablo,
+        recordId: atama['id'],
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: atama['durum']?.toString(),
+        toStatus: 'onaylandi',
+        idempotencyKey: '$tablo:${atama['id']}:onayla',
+        extraFields: {
+          'onay_tarihi': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -58,10 +87,18 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
     if (sonuc == true) {
       try {
         final tablo = tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
-        await supabase.from(tablo).update({
-          'durum': 'reddedildi',
-          'red_sebebi': sebepController.text,
-        }).eq('id', atama['id']);
+        await _workflowTransitionService.applyTransition(
+          tableName: tablo,
+          recordId: atama['id'],
+          firmaId: TenantManager.instance.requireFirmaId,
+          fromStatus: atama['durum']?.toString(),
+          toStatus: 'reddedildi',
+          idempotencyKey: '$tablo:${atama['id']}:reddet',
+          extraFields: {
+            'red_sebebi': sebepController.text,
+            'updated_at': DateTime.now().toIso8601String(),
+          },
+        );
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -86,9 +123,17 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
 
     try {
       final tablo = tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
-      await supabase.from(tablo).update({
-        'durum': 'devam_ediyor',
-      }).eq('id', atama['id']);
+      await _workflowTransitionService.applyTransition(
+        tableName: tablo,
+        recordId: atama['id'],
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: atama['durum']?.toString(),
+        toStatus: 'devam_ediyor',
+        idempotencyKey: '$tablo:${atama['id']}:basla',
+        extraFields: {
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -106,6 +151,7 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
 
   void _atamaDetayGoster(Map<String, dynamic> atama, String tip) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
+    final notMetni = _temizNotMetni(atama['notlar']);
 
     showModalBottomSheet(
       context: context,
@@ -154,9 +200,7 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
                     'Tamamlama',
                     dateFormat
                         .format(DateTime.parse(atama['tamamlama_tarihi']))),
-              if (atama['notlar'] != null &&
-                  atama['notlar'].toString().isNotEmpty)
-                _buildDetayRow('Notlar', atama['notlar']),
+              if (notMetni.isNotEmpty) _buildDetayRow('Notlar', notMetni),
               if (atama['red_sebebi'] != null &&
                   atama['red_sebebi'].toString().isNotEmpty)
                 _buildDetayRow('Red Sebebi', atama['red_sebebi']),

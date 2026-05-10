@@ -82,6 +82,8 @@ class DbTables {
   static const sevkiyatKayitlari = 'sevkiyat_kayitlari';
   static const sevkiyatDetaylari = 'sevkiyat_detaylari';
   static const sevkTalepleri = 'sevk_talepleri';
+  static const sevkIrsaliyeleri = 'sevk_irsaliyeleri';
+  static const sevkIrsaliyeKalemleri = 'sevk_irsaliye_kalemleri';
   static const cekiListesi = 'ceki_listesi';
   static const yuklemeKayitlari = 'yukleme_kayitlari';
 
