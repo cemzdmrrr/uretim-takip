@@ -9,6 +9,22 @@ class BedenService {
   final _client = Supabase.instance.client;
   String get _firmaId => TenantManager.instance.requireFirmaId;
 
+  String? _missingColumnName(Object error) {
+    if (error is! PostgrestException) return null;
+    final message =
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+
+    final withTable = RegExp(
+      r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    if (withTable != null) return withTable.group(1);
+
+    final plain = RegExp(
+      r'column\s+"?([a-z0-9_]+)"?\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    return plain?.group(1);
+  }
+
   // ==========================================
   // BEDEN TANIMLARI
   // ==========================================
@@ -161,17 +177,35 @@ class BedenService {
         for (final entry in bedenVerileri.entries) {
           final bedenKodu = entry.key;
           final veriler = entry.value;
-          
-          await _client.from(tabloAdi).upsert({
+
+          final payload = <String, dynamic>{
             'firma_id': _firmaId,
             'atama_id': atamaId,
             if (modelId != null) 'model_id': modelId,
             'beden_kodu': bedenKodu,
             'hedef_adet': veriler['hedef_adet'] ?? 0,
             'uretilen_adet': veriler['uretilen_adet'] ?? 0,
+            'kabul_edilen_adet': veriler['kabul_edilen_adet'] ?? 0,
             'fire_adet': veriler['fire_adet'] ?? 0,
             'guncelleme_tarihi': DateTime.now().toIso8601String(),
-          }, onConflict: 'atama_id,beden_kodu');
+          };
+
+          try {
+            await _client
+                .from(tabloAdi)
+                .upsert(payload, onConflict: 'atama_id,beden_kodu');
+          } catch (e) {
+            final missing = _missingColumnName(e);
+            if (missing == 'kabul_edilen_adet' &&
+                payload.containsKey('kabul_edilen_adet')) {
+              payload.remove('kabul_edilen_adet');
+              await _client
+                  .from(tabloAdi)
+                  .upsert(payload, onConflict: 'atama_id,beden_kodu');
+            } else {
+              rethrow;
+            }
+          }
         }
         debugPrint('BedenService: $asama için ${bedenVerileri.length} beden güncellendi (yeni format)');
       } 

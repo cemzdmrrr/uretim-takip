@@ -1188,7 +1188,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       kontrol['beden_detaylari'] ?? kontrol['beden_dagilimi'],
     );
     if (kayitli.isNotEmpty) {
-      return _toplamaUyarliBedenMap(kayitli, kontrolAdedi);
+      return _siraliBedenMap(kayitli);
     }
 
     final kaynakAtamaBeden = await _kaynakAtamadanBedenDagilimiGetir(
@@ -1196,7 +1196,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       kontrolAdedi: kontrolAdedi,
     );
     if (kaynakAtamaBeden.isNotEmpty) {
-      return kaynakAtamaBeden;
+      return _siraliBedenMap(kaynakAtamaBeden);
     }
 
     final modelId = (kontrol['model_id'] ?? model['id'])?.toString();
@@ -1211,7 +1211,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       asamaKodu: oncekiAsamaKodu,
     );
     if (oncekiAsamaGerceklesen.isNotEmpty) {
-      return _toplamaUyarliBedenMap(oncekiAsamaGerceklesen, kontrolAdedi);
+      return _siraliBedenMap(oncekiAsamaGerceklesen);
     }
 
     final rpcSonrakiAsama = _rpcSonrakiAsamaKodu(oncekiAsamaKodu);
@@ -1222,7 +1222,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
           rpcSonrakiAsama,
         );
         if (oncekiAsama.isNotEmpty) {
-          return _toplamaUyarliBedenMap(oncekiAsama, kontrolAdedi);
+          return _siraliBedenMap(oncekiAsama);
         }
       } catch (_) {}
     }

@@ -89,7 +89,6 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
       final iplikTed = (k['iplik_tedarikcisi'] ?? '').toString().toLowerCase();
       final asama = (k['asama_adi'] ?? '').toString().toLowerCase();
       final tedarikci = (k['tedarikci_adi'] ?? '').toString().toLowerCase();
-      final diger = (k['diger_asamalar'] ?? '').toString().toLowerCase();
       final durum = (k['durum'] ?? '').toString().toLowerCase();
       return model.contains(q) ||
           marka.contains(q) ||
@@ -98,7 +97,6 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
           iplikTed.contains(q) ||
           asama.contains(q) ||
           tedarikci.contains(q) ||
-          diger.contains(q) ||
           durum.contains(q);
     }).toList();
   }
@@ -170,6 +168,11 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
                   ((model?['toplam_adet'] ?? model?['adet'] ?? 0) as num?)
                           ?.toInt() ??
                       0,
+                'model_tamamlanan_adet':
+                  ((model?['yuklenen_adet'] ?? model?['tamamlanan_adet'] ?? 0)
+                        as num?)
+                      ?.toInt() ??
+                    0,
               'tedarikci_adi':
                   tedarikciIndex[tedarikciId?.toString() ?? ''] ?? '-',
               'tedarikci_gunluk_kapasite': _getPlanKapasitesi(
@@ -201,21 +204,9 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
         }
       }
 
-      final modelAsamaOzet = <String, Map<String, dynamic>>{};
-      for (final satir in latest.values) {
-        final modelId = satir['model_id']?.toString();
-        final asamaKodu = satir['asama_kodu']?.toString();
-        if (modelId == null || modelId.isEmpty || asamaKodu == null) continue;
-        final ozet = modelAsamaOzet.putIfAbsent(modelId, () => {});
-        ozet['${asamaKodu}_durum'] = (satir['durum'] ?? '-').toString();
-        ozet['${asamaKodu}_tedarikci'] = (satir['tedarikci_adi'] ?? '-').toString();
-      }
-
       final kayitlar = latest.values.map((satir) {
         final modelId = satir['model_id']?.toString() ?? '';
         final model = modelIndex[modelId];
-        final ozet = modelAsamaOzet[modelId] ?? const <String, dynamic>{};
-        final asamaKodu = satir['asama_kodu']?.toString();
         return {
           ...satir,
           'model_renk': _modelRenk(model),
@@ -226,9 +217,6 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
           'iplik_tedarikcisi':
               (model?['iplik_tedarikci'] ?? model?['iplik_tedarikcisi'] ?? '-')
                   .toString(),
-          'dokuma_durum': (ozet['dokuma_durum'] ?? '-').toString(),
-          'dokuma_tedarikci': (ozet['dokuma_tedarikci'] ?? '-').toString(),
-          'diger_asamalar': _digerAsamalarMetni(ozet, aktifAsamaKodu: asamaKodu),
           'final_tarihi': _cozFinalTarihi(model),
         };
       }).toList()
@@ -346,18 +334,6 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
     return model?['final_tarihi'] ?? model?['final_tarih'] ?? model?['teslim_tarihi'];
   }
 
-  String _digerAsamalarMetni(Map<String, dynamic> ozet, {String? aktifAsamaKodu}) {
-    final parcalar = <String>[];
-    for (final asama in _asamalar) {
-      final kod = asama['kod'] ?? '';
-      if (kod.isEmpty || kod == 'dokuma' || kod == aktifAsamaKodu) continue;
-      final durum = (ozet['${kod}_durum'] ?? '-').toString();
-      parcalar.add('${asama['ad']}: $durum');
-    }
-    if (parcalar.isEmpty) return '-';
-    return parcalar.join(' | ');
-  }
-
   int _asamaSira(String asamaKodu) {
     final idx = _asamalar.indexWhere((a) => a['kod'] == asamaKodu);
     return idx >= 0 ? idx : 999;
@@ -374,6 +350,13 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
     final s = value.toString().trim().replaceAll(',', '.');
     if (s.isEmpty) return null;
     return double.tryParse(s);
+  }
+
+  int _toInt(dynamic value) {
+    if (value is num) return value.toInt();
+    final s = value?.toString().trim() ?? '';
+    if (s.isEmpty) return 0;
+    return int.tryParse(s) ?? 0;
   }
 
   String _formatDecimal(num value) {
@@ -1181,32 +1164,38 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
         asamaKayitlari[kod] = s;
       }
 
-      // Model satiri sadece ilk asama (dokuma) planlandiktan sonra gorunsun.
-      if (!asamaKayitlari.containsKey('dokuma')) {
-        continue;
-      }
+      final dokumaKaydi = asamaKayitlari['dokuma'];
+      final konfeksiyonKaydi = asamaKayitlari['konfeksiyon'];
+      final utuPaketFirmaKaydi = asamaKayitlari['paketleme'] ?? asamaKayitlari['utu'];
+      final utuTarihKaydi = asamaKayitlari['utu'] ?? asamaKayitlari['paketleme'];
 
-      String? sonrakiAsama;
-      for (final asama in _asamalar) {
-        final kod = asama['kod']!;
-        if (!asamaKayitlari.containsKey(kod)) {
-          sonrakiAsama = kod;
-          break;
-        }
+      final toplamAdet = _toInt(dokuma['model_adet']);
+      var tamamlananAdet = _toInt(dokuma['model_tamamlanan_adet']);
+      if (tamamlananAdet < 0) tamamlananAdet = 0;
+      if (toplamAdet > 0 && tamamlananAdet > toplamAdet) {
+        tamamlananAdet = toplamAdet;
       }
-
-      final ozet = _asamalar.map((a) {
-        final kod = a['kod']!;
-        final kayit = asamaKayitlari[kod];
-        final durum = (kayit?['durum'] ?? '-').toString();
-        return '${a['ad']}: $durum';
-      }).join(' | ');
+      final kalanAdet = toplamAdet > tamamlananAdet
+          ? toplamAdet - tamamlananAdet
+          : 0;
 
       modelRows.add({
         ...dokuma,
         'asama_kayitlari': asamaKayitlari,
-        'asama_ozet': ozet,
-        'sonraki_asama_kodu': sonrakiAsama,
+        'tamamlanan_adet': tamamlananAdet,
+        'kalan_adet': kalanAdet,
+        'dokuma_firma': (dokumaKaydi?['tedarikci_adi'] ?? '-').toString(),
+        'dokuma_baslangic_tarihi': dokumaKaydi?['uretim_baslangic_tarihi'],
+        'dokuma_bitis_tarihi': dokumaKaydi?['planlanan_bitis_tarihi'],
+        'konfeksiyon_firma':
+            (konfeksiyonKaydi?['tedarikci_adi'] ?? '-').toString(),
+        'konfeksiyon_baslangic_tarihi':
+            konfeksiyonKaydi?['uretim_baslangic_tarihi'],
+        'konfeksiyon_bitis_tarihi': konfeksiyonKaydi?['planlanan_bitis_tarihi'],
+        'utu_paket_firma':
+            (utuPaketFirmaKaydi?['tedarikci_adi'] ?? '-').toString(),
+        'utu_baslangic_tarihi': utuTarihKaydi?['uretim_baslangic_tarihi'],
+        'utu_bitis_tarihi': utuTarihKaydi?['planlanan_bitis_tarihi'],
       });
     }
 
@@ -1216,11 +1205,87 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
     return modelRows;
   }
 
+  Future<void> _showAsamaSecimDialog({
+    required String modelId,
+    required Map<String, dynamic> asamaKayitlari,
+  }) async {
+    final secim = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Üretim Aşamaları'),
+        content: SizedBox(
+          width: 420,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: _asamalar.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (ctx, i) {
+              final asama = _asamalar[i];
+              final kod = asama['kod']!;
+              final ad = asama['ad']!;
+              final mevcut = asamaKayitlari[kod];
+              final planli = mevcut != null;
+              final durum = planli && mevcut is Map
+                  ? (mevcut['durum'] ?? '-').toString()
+                  : null;
+
+              return ListTile(
+                dense: true,
+                enabled: !planli,
+                leading: Icon(
+                  planli ? Icons.check_circle : Icons.radio_button_unchecked,
+                  color: planli
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFF2563EB),
+                ),
+                title: Text(ad),
+                subtitle: Text(
+                  planli
+                      ? 'Mevcut plan var (${durum ?? '-'})'
+                      : 'Bu aşamayı planla',
+                ),
+                trailing: planli
+                    ? const Text(
+                        'Planlandı',
+                        style: TextStyle(
+                          color: Color(0xFF166534),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      )
+                    : const Icon(Icons.chevron_right),
+                onTap: planli ? null : () => Navigator.pop(dialogContext, kod),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+
+    if (secim == null || !mounted) return;
+
+    await _showPlanDialog(
+      modelId: modelId,
+      asamaKodu: secim,
+      lockModel: true,
+      lockAsama: true,
+    );
+  }
+
   Widget _buildAsamaButtons(Map<String, dynamic> modelRow,
       {bool compact = false}) {
     final asamaKayitlariRaw = modelRow['asama_kayitlari'];
-    final asamaKayitlari =
-        asamaKayitlariRaw is Map ? asamaKayitlariRaw : const <String, dynamic>{};
+    final asamaKayitlari = asamaKayitlariRaw is Map
+        ? Map<String, dynamic>.from(
+            asamaKayitlariRaw.map((k, v) => MapEntry(k.toString(), v)),
+          )
+        : <String, dynamic>{};
     final modelId = modelRow['model_id']?.toString();
 
     final mevcutAsamalar = _asamalar
@@ -1280,22 +1345,12 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
             ),
           )
         else
-          PopupMenuButton<String>(
-            tooltip: 'Sonraki üretim aşaması seç',
-            onSelected: (kod) => _showPlanDialog(
+          InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => _showAsamaSecimDialog(
               modelId: modelId,
-              asamaKodu: kod,
-              lockModel: true,
-              lockAsama: true,
+              asamaKayitlari: asamaKayitlari,
             ),
-            itemBuilder: (ctx) => secilebilirAsamalar
-                .map(
-                  (a) => PopupMenuItem<String>(
-                    value: a['kod'],
-                    child: Text('${a['ad']} planla'),
-                  ),
-                )
-                .toList(),
             child: Container(
               padding: EdgeInsets.symmetric(
                 horizontal: compact ? 10 : 12,
@@ -1567,20 +1622,22 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text('Marka: ${k['model_marka'] ?? '-'}'),
-                    Text('Model: ${k['model_kodu'] ?? '-'}'),
+                    Text('Model adı: ${k['model_kodu'] ?? '-'}'),
                     Text('Renk: ${k['model_renk'] ?? '-'}'),
                     Text('Karışım: ${k['model_karisim'] ?? '-'}'),
                     Text('Adet: ${(k['model_adet'] ?? 0).toString()}'),
                     Text('Termin: ${_formatDate(k['termin_tarihi'])}'),
-                    Text('Kaşe Durumu: ${k['kase_durumu'] ?? '-'}'),
-                    Text('İplik Tedarikçisi: ${k['iplik_tedarikcisi'] ?? '-'}'),
-                    Text('Dokuma: ${k['dokuma_durum'] ?? '-'}'),
-                    Text('Dokuma Tedarikçisi: ${k['dokuma_tedarikci'] ?? '-'}'),
-                    Text('Başlangıç: ${_formatDate(k['uretim_baslangic_tarihi'])}'),
-                    Text('Bitiş: ${_formatDate(k['planlanan_bitis_tarihi'])}'),
-                    Text('Diğer Aşamalar: ${k['diger_asamalar'] ?? '-'}'),
-                    Text('Final Tarihi: ${_formatDate(k['final_tarihi'])}'),
+                    Text('Tamamlanan adet: ${(k['tamamlanan_adet'] ?? 0).toString()}'),
+                    Text('Kalan adet: ${(k['kalan_adet'] ?? 0).toString()}'),
+                    Text('Dokumayı yapan firma: ${k['dokuma_firma'] ?? '-'}'),
+                    Text('Dokuma başlama tarihi: ${_formatDate(k['dokuma_baslangic_tarihi'])}'),
+                    Text('Dokuma bitiş tarihi: ${_formatDate(k['dokuma_bitis_tarihi'])}'),
+                    Text('Konfeksiyon yapan firma: ${k['konfeksiyon_firma'] ?? '-'}'),
+                    Text('Konfeksiyon başlama tarihi: ${_formatDate(k['konfeksiyon_baslangic_tarihi'])}'),
+                    Text('Konfeksiyon bitiş tarihi: ${_formatDate(k['konfeksiyon_bitis_tarihi'])}'),
+                    Text('Ütü paket yapan firma: ${k['utu_paket_firma'] ?? '-'}'),
+                    Text('Ütü başlama tarihi: ${_formatDate(k['utu_baslangic_tarihi'])}'),
+                    Text('Ütü bitiş tarihi: ${_formatDate(k['utu_bitis_tarihi'])}'),
                     const SizedBox(height: 8),
                     const Text(
                       'Aşamalar',
@@ -1588,28 +1645,6 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
                     ),
                     const SizedBox(height: 6),
                     _buildAsamaButtons(k),
-                    Builder(builder: (_) {
-                      final bas = _parseDate(k['uretim_baslangic_tarihi']);
-                      final bit = _parseDate(k['planlanan_bitis_tarihi']);
-                      if (bas == null || bit == null) {
-                        return const SizedBox.shrink();
-                      }
-                      final toplam = (k['model_adet'] as num?)?.toInt() ?? 0;
-                      final gereken = _gerekenGunlukAdet(toplam, bas, bit);
-                      final kapasite = _parseDouble(k['tedarikci_gunluk_kapasite']);
-                      final kapasiteText = kapasite == null
-                          ? '-'
-                          : '${_formatDecimal(kapasite)} adet/gün';
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Plan Gereksinimi: ${_formatDecimal(gereken)} adet/gün',
-                          ),
-                          Text('Kapasite: $kapasiteText'),
-                        ],
-                      );
-                    }),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -1661,44 +1696,27 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
               columnSpacing: 20,
               horizontalMargin: 16,
               columns: const [
-                DataColumn(label: Text('Marka')),
-                DataColumn(label: Text('Model')),
+                DataColumn(label: Text('Model Adı')),
                 DataColumn(label: Text('Renk')),
                 DataColumn(label: Text('Karışım')),
                 DataColumn(label: Text('Adet')),
                 DataColumn(label: Text('Termin')),
-                DataColumn(label: Text('Kaşe Durumu')),
-                DataColumn(label: Text('İplik Tedarikçisi')),
-                DataColumn(label: Text('Dokuma')),
-                DataColumn(label: Text('Dokuma Tedarikçisi')),
-                DataColumn(label: Text('Başlangıç')),
-                DataColumn(label: Text('Bitiş')),
-                DataColumn(label: Text('Diğer Aşamalar')),
-                DataColumn(label: Text('Final Tarihi')),
+                DataColumn(label: Text('Tamamlanan Adet')),
+                DataColumn(label: Text('Kalan Adet')),
+                DataColumn(label: Text('Dokumayı Yapan Firma')),
+                DataColumn(label: Text('Dokuma Başlama')),
+                DataColumn(label: Text('Dokuma Bitiş')),
+                DataColumn(label: Text('Konfeksiyon Yapan Firma')),
+                DataColumn(label: Text('Konfeksiyon Başlama')),
+                DataColumn(label: Text('Konfeksiyon Bitiş')),
+                DataColumn(label: Text('Ütü Paket Yapan Firma')),
+                DataColumn(label: Text('Ütü Başlama')),
+                DataColumn(label: Text('Ütü Bitiş')),
                 DataColumn(label: Text('Aşamalar')),
-                DataColumn(label: Text('Günlük Plan/Kapasite')),
-                DataColumn(label: Text('Durum')),
                 DataColumn(label: Text('İşlem')),
               ],
               rows: kayitlar.map((k) {
-                final durum = (k['durum'] ?? 'planlandi').toString();
-                final renk = _durumColor(durum);
-                final bas = _parseDate(k['uretim_baslangic_tarihi']);
-                final bit = _parseDate(k['planlanan_bitis_tarihi']);
-                final toplam = (k['model_adet'] as num?)?.toInt() ?? 0;
-                final gereken =
-                    bas == null || bit == null ? null : _gerekenGunlukAdet(toplam, bas, bit);
-                final kapasite = _parseDouble(k['tedarikci_gunluk_kapasite']);
-                final yetersiz = gereken != null && kapasite != null && kapasite < gereken;
                 return DataRow(cells: [
-                  DataCell(SizedBox(
-                    width: 120,
-                    child: Text(
-                      (k['model_marka'] ?? '-').toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  )),
                   DataCell(SizedBox(
                     width: 160,
                     child: Text(
@@ -1726,68 +1744,41 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
                   )),
                   DataCell(Text(((k['model_adet'] ?? 0) as num).toInt().toString())),
                   DataCell(Text(_formatDate(k['termin_tarihi']))),
-                  DataCell(Text((k['kase_durumu'] ?? '-').toString())),
+                  DataCell(Text(((k['tamamlanan_adet'] ?? 0) as num).toInt().toString())),
+                  DataCell(Text(((k['kalan_adet'] ?? 0) as num).toInt().toString())),
                   DataCell(SizedBox(
                     width: 140,
                     child: Text(
-                      (k['iplik_tedarikcisi'] ?? '-').toString(),
+                      (k['dokuma_firma'] ?? '-').toString(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   )),
-                  DataCell(Text((k['dokuma_durum'] ?? '-').toString())),
+                  DataCell(Text(_formatDate(k['dokuma_baslangic_tarihi']))),
+                  DataCell(Text(_formatDate(k['dokuma_bitis_tarihi']))),
                   DataCell(SizedBox(
                     width: 160,
                     child: Text(
-                      (k['dokuma_tedarikci'] ?? '-').toString(),
+                      (k['konfeksiyon_firma'] ?? '-').toString(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   )),
-                  DataCell(Text(_formatDate(k['uretim_baslangic_tarihi']))),
-                  DataCell(Text(_formatDate(k['planlanan_bitis_tarihi']))),
+                  DataCell(Text(_formatDate(k['konfeksiyon_baslangic_tarihi']))),
+                  DataCell(Text(_formatDate(k['konfeksiyon_bitis_tarihi']))),
                   DataCell(SizedBox(
-                    width: 260,
+                    width: 170,
                     child: Text(
-                      (k['diger_asamalar'] ?? '-').toString(),
-                      maxLines: 2,
+                      (k['utu_paket_firma'] ?? '-').toString(),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   )),
-                  DataCell(Text(_formatDate(k['final_tarihi']))),
+                  DataCell(Text(_formatDate(k['utu_baslangic_tarihi']))),
+                  DataCell(Text(_formatDate(k['utu_bitis_tarihi']))),
                   DataCell(SizedBox(
                     width: 360,
                     child: _buildAsamaButtons(k, compact: true),
-                  )),
-                  DataCell(SizedBox(
-                    width: 180,
-                    child: Text(
-                      gereken == null
-                          ? '-'
-                          : '${_formatDecimal(gereken)} / ${kapasite == null ? '-' : _formatDecimal(kapasite)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: yetersiz
-                            ? const Color(0xFFB91C1C)
-                            : const Color(0xFF0F172A),
-                      ),
-                    ),
-                  )),
-                  DataCell(Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: renk.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      durum,
-                      style: TextStyle(
-                        color: renk,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
-                    ),
                   )),
                   DataCell(Row(
                     mainAxisSize: MainAxisSize.min,

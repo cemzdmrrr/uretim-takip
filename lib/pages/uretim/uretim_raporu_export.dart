@@ -36,6 +36,7 @@ extension _ExportExt on _UretimRaporuPageState {
         'utu_firma': 'Ütü Paket Yapan Firma',
         'utu_baslangic': 'Ütü Başlama Tarihi',
         'utu_bitis': 'Ütü Bitiş Tarihi',
+        'utu_fire_kaynak': 'Ütü Fire Kaynak',
       };
 
       await ExcelHelper.exportToExcel(
@@ -195,6 +196,29 @@ extension _ExportExt on _UretimRaporuPageState {
     String _asamaBitis(String key) =>
         _formatTarih(asamalar[key]?['planlanan_bitis_tarihi']);
 
+    String _utuFireKaynak() {
+      final utuAsama = asamalar['utu'];
+      if (utuAsama == null || utuAsama.isEmpty) return '';
+
+      final ozet = utuAsama['fire_kaynak_ozet']?.toString().trim() ?? '';
+      if (ozet.isNotEmpty) return ozet;
+
+      final notlar = utuAsama['notlar']?.toString() ?? '';
+      for (final line in notlar.split('\n')) {
+        final trimmed = line.trim();
+        if (trimmed.toUpperCase().startsWith('[FIRE_KAYNAK]')) {
+          return trimmed
+              .replaceFirst(
+                RegExp(r'^\[FIRE_KAYNAK\]\s*', caseSensitive: false),
+                '',
+              )
+              .trim();
+        }
+      }
+
+      return '';
+    }
+
     return {
       'model_adi': model['model_adi'] ?? model['item_no'] ?? '',
       'ana_renk': _anaRenkDeger(model),
@@ -212,6 +236,7 @@ extension _ExportExt on _UretimRaporuPageState {
       'utu_firma': _asamaFirma('utu'),
       'utu_baslangic': _asamaBaslangic('utu'),
       'utu_bitis': _asamaBitis('utu'),
+      'utu_fire_kaynak': _utuFireKaynak(),
     };
   }
 

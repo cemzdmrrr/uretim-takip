@@ -40,7 +40,7 @@ class UretimRaporuService {
     'utu': {
       'tablo': DbTables.utuAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, notlar',
     },
     'ilik_dugme': {
       'tablo': DbTables.ilikDugmeAtamalari,
@@ -89,13 +89,29 @@ class UretimRaporuService {
       final asamaVerileri = <String, List<Map<String, dynamic>>>{};
 
       final futures = _asamaTablolari.entries.map((entry) async {
+        final selectFields = entry.value['select']!;
         try {
           final data = await _supabase
               .from(entry.value['tablo']!)
-              .select(entry.value['select']!)
+              .select(selectFields)
               .eq('firma_id', _firmaId);
           return MapEntry(entry.key, List<Map<String, dynamic>>.from(data));
         } catch (e) {
+          if (entry.key == 'utu' && selectFields.contains('notlar')) {
+            final missingColumn = _missingColumnName(e);
+            if (missingColumn == 'notlar') {
+              try {
+                final fallbackSelect = selectFields
+                    .replaceAll(', notlar', '')
+                    .replaceAll('notlar, ', '');
+                final data = await _supabase
+                    .from(entry.value['tablo']!)
+                    .select(fallbackSelect)
+                    .eq('firma_id', _firmaId);
+                return MapEntry(entry.key, List<Map<String, dynamic>>.from(data));
+              } catch (_) {}
+            }
+          }
           AppLogger.debug('${entry.key} tablosu yüklenemedi: $e');
           return MapEntry(entry.key, <Map<String, dynamic>>[]);
         }
@@ -198,6 +214,20 @@ class UretimRaporuService {
       // Eksik aşamalara boş map ekle
       for (final asamaKey in asamaSirasi) {
         asamaDurumlari.putIfAbsent(asamaKey, () => {});
+      }
+
+      // Ütü notlarından fire kaynak aşama dağılımını rapor kullanımına hazırla.
+      final utuAsama = asamaDurumlari['utu'];
+      if (utuAsama != null && utuAsama.isNotEmpty) {
+        final fireKaynakDagilimi =
+            _fireKaynakDagilimiFromNotlar(utuAsama['notlar']?.toString());
+        if (fireKaynakDagilimi.isNotEmpty) {
+          asamaDurumlari['utu'] = {
+            ...utuAsama,
+            'fire_kaynak_dagilimi': fireKaynakDagilimi,
+            'fire_kaynak_ozet': _fireKaynakOzetMetni(fireKaynakDagilimi),
+          };
+        }
       }
 
       final mevcutAsama = _mevcutAsamayiBelirle(asamaDurumlari);
@@ -441,6 +471,7 @@ class UretimRaporuService {
         modeller.fold(0, (sum, m) => sum + ((m['adet'] ?? 0) as int));
     int toplamFire = 0;
     int gecikenSiparis = 0;
+    final Map<String, int> utuFireKaynakDagilimi = {};
     final now = DateTime.now();
 
     final Map<String, Map<String, int>> fireAnaliz = {
@@ -487,6 +518,20 @@ class UretimRaporuService {
           fireAnaliz[asamaKey]!['fire'] = fireAnaliz[asamaKey]!['fire']! + fire;
           fireAnaliz[asamaKey]!['toplam'] =
               fireAnaliz[asamaKey]!['toplam']! + talep;
+        }
+      }
+
+      final utuAsama = asamalar['utu'];
+      if (utuAsama != null && utuAsama.isNotEmpty) {
+        final kaynakRaw = utuAsama['fire_kaynak_dagilimi'];
+        if (kaynakRaw is Map) {
+          for (final entry in kaynakRaw.entries) {
+            final key = entry.key.toString();
+            final value = _intDeger(entry.value);
+            if (key.isEmpty || value <= 0) continue;
+            utuFireKaynakDagilimi[key] =
+                (utuFireKaynakDagilimi[key] ?? 0) + value;
+          }
         }
       }
 
@@ -610,6 +655,7 @@ class UretimRaporuService {
       'asama_sayilari': asamaSayilari,
       'geciken_siparis': gecikenSiparis,
       'fire_analiz': fireAnaliz,
+      'utu_fire_kaynak_dagilimi': utuFireKaynakDagilimi,
       'tedarikci_istatistik': tedarikciIstatistik,
       // KPI
       'verimlilik_orani': verimlilikOrani,
@@ -618,6 +664,83 @@ class UretimRaporuService {
       'tamamlanma_orani': tamamlanmaOrani,
       'ortalama_uretim_suresi': ortalamaUretimSuresi,
     };
+  }
+
+  String? _missingColumnName(Object error) {
+    if (error is! PostgrestException) return null;
+    final message =
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+
+    final withTable = RegExp(
+      r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    if (withTable != null) return withTable.group(1);
+
+    final plain = RegExp(
+      r'column\s+"?([a-z0-9_]+)"?\s+does\s+not\s+exist',
+    ).firstMatch(message);
+    return plain?.group(1);
+  }
+
+  Map<String, int> _fireKaynakDagilimiFromNotlar(String? notlar) {
+    final text = (notlar ?? '').trim();
+    if (text.isEmpty) return const <String, int>{};
+
+    String payload = '';
+    for (final line in text.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.toUpperCase().startsWith('[FIRE_KAYNAK]')) {
+        payload = trimmed.replaceFirst(
+          RegExp(r'^\[FIRE_KAYNAK\]\s*', caseSensitive: false),
+          '',
+        );
+        break;
+      }
+    }
+    if (payload.isEmpty) return const <String, int>{};
+
+    final result = <String, int>{};
+    for (final parca in payload.split('|')) {
+      final item = parca.trim();
+      if (item.isEmpty) continue;
+
+      final match = RegExp(
+        r':\s*(\d+)\s*->.*\(([a-z_]+)\)\s*$',
+        caseSensitive: false,
+      ).firstMatch(item);
+      if (match == null) continue;
+
+      final adet = int.tryParse(match.group(1) ?? '') ?? 0;
+      final asamaKodu = (match.group(2) ?? '').trim().toLowerCase();
+      if (adet <= 0 || asamaKodu.isEmpty) continue;
+
+      result[asamaKodu] = (result[asamaKodu] ?? 0) + adet;
+    }
+
+    return result;
+  }
+
+  String _fireKaynakOzetMetni(Map<String, int> dagilim) {
+    if (dagilim.isEmpty) return '';
+
+    const etiketler = <String, String>{
+      'dokuma': 'Dokuma',
+      'orgu': 'Örgü',
+      'konfeksiyon': 'Konfeksiyon',
+      'yikama': 'Yıkama',
+      'nakis': 'Nakış',
+      'ilik_dugme': 'İlik Düğme',
+      'utu': 'Ütü',
+      'paketleme': 'Paketleme',
+      'diger': 'Diğer',
+    };
+
+    final entries = dagilim.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return entries
+        .map((e) => '${etiketler[e.key] ?? e.key}: ${e.value}')
+        .join(' | ');
   }
 }
 

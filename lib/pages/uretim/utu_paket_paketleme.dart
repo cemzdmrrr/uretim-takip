@@ -327,6 +327,19 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
   Future<void> _utuBedenliBitirDialogu(Map<String, dynamic> atama) async {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
 
+    const fireKaynakAsamaEtiketleri = <String, String>{
+      'dokuma': 'Dokuma',
+      'orgu': 'Örgü',
+      'konfeksiyon': 'Konfeksiyon',
+      'yikama': 'Yıkama',
+      'nakis': 'Nakış',
+      'ilik_dugme': 'İlik Düğme',
+      'utu': 'Ütü',
+      'paketleme': 'Paketleme',
+      'diger': 'Diğer',
+    };
+    final fireKaynakAsamaKodlari = fireKaynakAsamaEtiketleri.keys.toList();
+
     int talepAdet = _toInt(
       atama['talep_edilen_adet'] ?? atama['adet'] ?? model?['adet'],
     );
@@ -351,11 +364,13 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
 
     final tamamControllers = <String, TextEditingController>{};
     final fireControllers = <String, TextEditingController>{};
+    final fireKaynakAsamaByBeden = <String, String?>{};
 
     for (final entry in hedefBedenDagilimi.entries) {
       tamamControllers[entry.key] =
           TextEditingController(text: entry.value.toString());
       fireControllers[entry.key] = TextEditingController(text: '0');
+      fireKaynakAsamaByBeden[entry.key] = 'utu';
     }
 
     final notController = TextEditingController();
@@ -575,6 +590,95 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Fire Kaynak Aşaması',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 6),
+                          ...hedefBedenDagilimi.keys.where((beden) {
+                            final fire = _toInt(fireControllers[beden]?.text);
+                            return fire > 0;
+                          }).map((beden) {
+                            final fire = _toInt(fireControllers[beden]?.text);
+                            final mevcutSecim = fireKaynakAsamaByBeden[beden];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 84,
+                                    child: Text(
+                                      '$beden ($fire)',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      value: (mevcutSecim != null &&
+                                              fireKaynakAsamaKodlari
+                                                  .contains(mevcutSecim))
+                                          ? mevcutSecim
+                                          : null,
+                                      isExpanded: true,
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 10,
+                                        ),
+                                        border: OutlineInputBorder(),
+                                        hintText: 'Aşama seçin',
+                                      ),
+                                      items: fireKaynakAsamaKodlari
+                                          .map(
+                                            (kod) => DropdownMenuItem<String>(
+                                              value: kod,
+                                              child: Text(
+                                                fireKaynakAsamaEtiketleri[kod] ??
+                                                    kod,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (value) {
+                                        fireKaynakAsamaByBeden[beden] = value;
+                                        setDialogState(() {});
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          if (!hedefBedenDagilimi.keys.any((beden) =>
+                              _toInt(fireControllers[beden]?.text) > 0))
+                            Text(
+                              'Fire girişi yaptığınızda kaynak aşama seçimi açılır.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange[900],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: notController,
                       decoration: const InputDecoration(
@@ -610,6 +714,25 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                       const SnackBar(
                         content: Text(
                           'Beden satırlarında Tamam + Fire değeri hedef adedi aşamaz.',
+                        ),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final fireAsamaEksik = hedefBedenDagilimi.keys.any((beden) {
+                    final fire = _toInt(fireControllers[beden]?.text);
+                    if (fire <= 0) return false;
+                    final secim = fireKaynakAsamaByBeden[beden]?.trim() ?? '';
+                    return secim.isEmpty;
+                  });
+
+                  if (fireAsamaEksik) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Fire girilen her beden için kaynak aşama seçmelisiniz.',
                         ),
                         backgroundColor: Colors.red,
                       ),
@@ -683,9 +806,21 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
 
         final fireNotu =
             fireBeden.isNotEmpty ? '[FIRE] ${_bedenMapMetni(fireBeden)}' : '';
+        final fireAsamaSatirlari = <String>[];
+        for (final entry in fireBeden.entries) {
+          final asamaKodu = fireKaynakAsamaByBeden[entry.key]?.trim();
+          if (asamaKodu == null || asamaKodu.isEmpty) continue;
+          final asamaEtiketi = fireKaynakAsamaEtiketleri[asamaKodu] ?? asamaKodu;
+          fireAsamaSatirlari
+              .add('${entry.key}:${entry.value}->$asamaEtiketi($asamaKodu)');
+        }
+        final fireAsamaNotu = fireAsamaSatirlari.isNotEmpty
+            ? '[FIRE_KAYNAK] ${fireAsamaSatirlari.join(' | ')}'
+            : '';
         final notParcalari = <String>[
           if (notController.text.trim().isNotEmpty) notController.text.trim(),
           if (fireNotu.isNotEmpty) fireNotu,
+          if (fireAsamaNotu.isNotEmpty) fireAsamaNotu,
         ];
         final notMetni = notParcalari.join('\n');
 

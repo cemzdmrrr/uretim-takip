@@ -16,6 +16,7 @@ import 'package:uretim_takip/pages/tedarikci/tedarikci_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/kasa_banka_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/kasa_banka_hareket_listesi_page.dart';
+import 'package:uretim_takip/pages/muhasebe/sevk_irsaliye_listesi_page.dart';
 import 'package:uretim_takip/pages/ayarlar/dosyalar_page.dart';
 import 'package:uretim_takip/pages/uretim/dokuma_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/konfeksiyon_dashboard.dart';
@@ -1427,6 +1428,19 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 context,
                 MaterialPageRoute(
                     builder: (_) => const KasaBankaHareketListesiPage()))
+          });
+        }
+        if (_sayfaErisimVar('sevk_irsaliyeleri') ||
+            _sayfaErisimVar('faturalar') ||
+            _sayfaErisimVar('sevkiyat')) {
+          finansItems.add({
+            'text': 'Sevk İrsaliyeleri',
+            'icon': Icons.receipt_long,
+            'color': fc,
+            'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const SevkIrsaliyeListesiPage()))
           });
         }
       }

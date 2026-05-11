@@ -118,6 +118,7 @@ class _BedenUretimTamamlaDialogGenericState
   final WorkflowTransitionService _workflowTransitionService =
       WorkflowTransitionService();
   List<ModelBedenDagilimi> hedefler = [];
+  final Map<String, BedenUretimTakip> _mevcutTakipByBeden = {};
   Map<String, TextEditingController> uretilenControllers = {};
   Map<String, TextEditingController> fireControllers = {};
   final notlarController = TextEditingController();
@@ -264,20 +265,69 @@ class _BedenUretimTamamlaDialogGenericState
             widget.model['adet'] ??
             0,
       );
+      var hedeflerBedenTakipten = false;
 
-      // Öncelik: atamaya kaydedilmiş beden detayları
-      final atamaBedenleri = _parseBedenDetayi(
-        widget.atama['beden_detaylari'] ?? widget.atama['beden_dagilimi'],
-      );
-      if (atamaBedenleri.isNotEmpty) {
-        hedefler = atamaBedenleri.entries
+      // Mevcut beden takip kayıtlarını öncelikli olarak kullan.
+      List<BedenUretimTakip> mevcutUretim = [];
+      if (widget.atamaId is int) {
+        try {
+          mevcutUretim = await _bedenService.getAsamaBedenTakip(
+            widget.asamaAdi,
+            widget.atamaId as int,
+          );
+        } catch (e) {
+          debugPrint('Beden takip tablosu okunamadı: $e');
+        }
+      }
+
+      _mevcutTakipByBeden
+        ..clear()
+        ..addEntries(
+          mevcutUretim
+              .where((u) => u.bedenKodu.trim().isNotEmpty)
+              .map((u) => MapEntry(u.bedenKodu.toUpperCase(), u)),
+        );
+
+      if (_mevcutTakipByBeden.isNotEmpty) {
+        final fromTakip = _mevcutTakipByBeden.entries
+            .where((e) =>
+                e.value.hedefAdet > 0 ||
+                e.value.kabulEdilenAdet > 0 ||
+                e.value.uretilenAdet > 0 ||
+                e.value.fireAdet > 0)
             .map((e) => ModelBedenDagilimi(
                   id: 0,
                   modelId: widget.modelId,
                   bedenKodu: e.key,
-                  siparisAdedi: e.value,
+                  siparisAdedi: e.value.hedefAdet > 0
+                      ? e.value.hedefAdet
+                      : (e.value.kabulEdilenAdet > 0
+                          ? e.value.kabulEdilenAdet
+                          : e.value.uretilenAdet),
                 ))
             .toList();
+
+        if (fromTakip.isNotEmpty) {
+          hedefler = fromTakip;
+          hedeflerBedenTakipten = true;
+        }
+      }
+
+      // Öncelik: atamaya kaydedilmiş beden detayları
+      if (hedefler.isEmpty) {
+        final atamaBedenleri = _parseBedenDetayi(
+          widget.atama['beden_detaylari'] ?? widget.atama['beden_dagilimi'],
+        );
+        if (atamaBedenleri.isNotEmpty) {
+          hedefler = atamaBedenleri.entries
+              .map((e) => ModelBedenDagilimi(
+                    id: 0,
+                    modelId: widget.modelId,
+                    bedenKodu: e.key,
+                    siparisAdedi: e.value,
+                  ))
+              .toList();
+        }
       }
 
       // ⭐ ÖNEMLİ: Dokuma hariç tüm aşamalar için önceki aşamadan fire düşülmüş adetleri al
@@ -379,7 +429,7 @@ class _BedenUretimTamamlaDialogGenericState
       }
 
       // Hedef toplam (kabul edilen adet) ile beden dağılımını hizala.
-      if (hedefler.isNotEmpty && hedefToplam > 0) {
+      if (!hedeflerBedenTakipten && hedefler.isNotEmpty && hedefToplam > 0) {
         hedefler = _hedefleriToplamaUyarla(hedefler, hedefToplam);
       }
 
@@ -397,32 +447,17 @@ class _BedenUretimTamamlaDialogGenericState
         ];
       }
 
-      // Beden takip tablosu adı
-      final bedenTakipTablosu = '${widget.asamaAdi}_beden_takip';
-
-      // Mevcut üretim verilerini getir (tablo varsa)
-      List<BedenUretimTakip> mevcutUretim = [];
-      if (widget.atamaId is int) {
-        try {
-          mevcutUretim = await _bedenService.getAsamaBedenTakip(
-              widget.asamaAdi, widget.atamaId as int);
-        } catch (e) {
-          debugPrint('Beden takip tablosu okunamadı ($bedenTakipTablosu): $e');
-        }
-      }
-
       // Controller'ları oluştur
       for (final hedef in hedefler) {
-        final mevcut = mevcutUretim.firstWhere(
-          (u) => u.bedenKodu == hedef.bedenKodu,
-          orElse: () => BedenUretimTakip(
-            id: 0,
-            atamaId: widget.atamaId is int ? widget.atamaId as int : 0,
-            modelId: widget.modelId,
-            bedenKodu: hedef.bedenKodu,
-            hedefAdet: hedef.siparisAdedi,
-          ),
-        );
+        final mevcut =
+            _mevcutTakipByBeden[hedef.bedenKodu.toUpperCase()] ??
+                BedenUretimTakip(
+                  id: 0,
+                  atamaId: widget.atamaId is int ? widget.atamaId as int : 0,
+                  modelId: widget.modelId,
+                  bedenKodu: hedef.bedenKodu,
+                  hedefAdet: hedef.siparisAdedi,
+                );
         uretilenControllers[hedef.bedenKodu] = TextEditingController(
           text: mevcut.uretilenAdet > 0 ? mevcut.uretilenAdet.toString() : '',
         );
@@ -430,6 +465,7 @@ class _BedenUretimTamamlaDialogGenericState
           text: mevcut.fireAdet > 0 ? mevcut.fireAdet.toString() : '',
         );
       }
+
     } catch (e) {
       debugPrint('Beden verileri yüklenemedi: $e');
     }
@@ -533,18 +569,57 @@ class _BedenUretimTamamlaDialogGenericState
         firedenDus = onay;
       }
 
+      final oncekiTamamlananToplam = _toInt(widget.atama['tamamlanan_adet']);
+      final oncekiFireToplam = _toInt(widget.atama['fire_adet']);
+      var buKayitNetToplam = firedenDus
+          ? (toplamUretilen - toplamFire).clamp(0, 999999999).toInt()
+          : toplamUretilen;
+      var yeniTamamlananToplam = oncekiTamamlananToplam + buKayitNetToplam;
+      final yeniFireToplam = oncekiFireToplam + toplamFire;
+
+      final Map<String, int> sonrakiAsamaBedenDetayi = {};
+      int kalanToplam = 0;
+      var kalanToplamHesaplandi = false;
+
       // Beden bazlı verileri kaydet (eğer gerçek beden tablosu varsa)
       if (bedenTablosuVar && widget.atamaId is int) {
         final Map<String, Map<String, int>> bedenVerileri = {};
         for (final hedef in hedefler) {
+          final bedenKodu = hedef.bedenKodu;
+          final uretilen =
+              int.tryParse(uretilenControllers[bedenKodu]?.text ?? '') ?? 0;
+          final fire = int.tryParse(fireControllers[bedenKodu]?.text ?? '') ?? 0;
+          final net = firedenDus
+              ? (uretilen - fire).clamp(0, 999999999).toInt()
+              : uretilen;
+          final oncekiKabul =
+              _mevcutTakipByBeden[bedenKodu.toUpperCase()]?.kabulEdilenAdet ??
+                  0;
+          final yeniKabul = oncekiKabul + net;
+          final yeniHedef = kismiKayit
+              ? (hedef.siparisAdedi - net).clamp(0, 999999999).toInt()
+              : hedef.siparisAdedi;
+
           bedenVerileri[hedef.bedenKodu] = {
-            'hedef_adet': hedef.siparisAdedi,
-            'uretilen_adet': int.tryParse(
-                    uretilenControllers[hedef.bedenKodu]?.text ?? '') ??
-                0,
-            'fire_adet':
-                int.tryParse(fireControllers[hedef.bedenKodu]?.text ?? '') ?? 0,
+            'hedef_adet': yeniHedef,
+            'uretilen_adet': kismiKayit ? 0 : uretilen,
+            'fire_adet': kismiKayit ? 0 : fire,
+            'kabul_edilen_adet': yeniKabul,
           };
+
+          if (yeniKabul > 0) {
+            sonrakiAsamaBedenDetayi[bedenKodu] = yeniKabul;
+          }
+          kalanToplam += yeniHedef;
+        }
+        kalanToplamHesaplandi = true;
+
+        if (sonrakiAsamaBedenDetayi.isNotEmpty) {
+          yeniTamamlananToplam = sonrakiAsamaBedenDetayi.values
+              .fold<int>(0, (sum, val) => sum + val);
+          buKayitNetToplam = (yeniTamamlananToplam - oncekiTamamlananToplam)
+              .clamp(0, 999999999)
+              .toInt();
         }
 
         try {
@@ -560,17 +635,21 @@ class _BedenUretimTamamlaDialogGenericState
       }
 
       // Durum belirleme
-      final String yeniDurum;
-      if (kismiKayit) {
-        yeniDurum = 'kismi_tamamlandi';
-      } else {
-        yeniDurum = 'tamamlandi';
-      }
+      final int kabulToplam = _toInt(
+        widget.atama['kabul_edilen_adet'] ??
+            widget.atama['talep_edilen_adet'] ??
+            widget.atama['adet'] ??
+            widget.model['adet'] ??
+            0,
+      );
+      final int netAdet = yeniTamamlananToplam;
+      final bool tumuTamamlandi =
+          (kabulToplam > 0 && yeniTamamlananToplam >= kabulToplam) ||
+            (kalanToplamHesaplandi && kalanToplam <= 0);
 
-        // Sonraki aşamaya geçecek net adet (fire düşülürse)
-        final int netAdet = firedenDus
-          ? ((toplamUretilen - toplamFire) < 0 ? 0 : toplamUretilen - toplamFire)
-          : toplamUretilen;
+      final String yeniDurum = (!kismiKayit || tumuTamamlandi)
+          ? 'tamamlandi'
+          : 'kismi_tamamlandi';
 
       final now = DateTime.now().toIso8601String();
         final mevcutNot = ((_eskiAtamaSemasi
@@ -594,7 +673,7 @@ class _BedenUretimTamamlaDialogGenericState
       // Atama tablosunu güncelle
       final Map<String, dynamic> updateData = _eskiAtamaSemasi
           ? <String, dynamic>{
-              'tamamlanan_adet': toplamUretilen,
+            'tamamlanan_adet': yeniTamamlananToplam,
               'teslim_tarihi': yeniDurum == 'tamamlandi' ? now : null,
               'updated_at': now,
               'son_guncelleme_tarihi': now,
@@ -602,7 +681,7 @@ class _BedenUretimTamamlaDialogGenericState
                 'aciklama': yeniNot,
             }
           : {
-              'tamamlanan_adet': toplamUretilen,
+              'tamamlanan_adet': yeniTamamlananToplam,
               'tamamlama_tarihi': yeniDurum == 'tamamlandi' ? now : null,
               'updated_at': now,
               if (yeniNot != null) 'notlar': yeniNot,
@@ -622,14 +701,15 @@ class _BedenUretimTamamlaDialogGenericState
       try {
         await widget.supabase
             .from(widget.atamaTablosu)
-            .update({'fire_adet': toplamFire})
+            .update({'fire_adet': yeniFireToplam})
             .eq('id', widget.atamaId)
             .eq('firma_id', firmaId);
       } catch (_) {
         try {
           await widget.supabase
               .from(widget.atamaTablosu)
-              .update({'fire_adet': toplamFire}).eq('id', widget.atamaId);
+              .update({'fire_adet': yeniFireToplam})
+              .eq('id', widget.atamaId);
         } catch (e) {
           debugPrint('fire_adet sütunu yok, atlandı: $e');
         }
@@ -641,8 +721,10 @@ class _BedenUretimTamamlaDialogGenericState
         final updatedAtama = {
           ...widget.atama,
           'tamamlanan_adet': netAdet,
-          'fire_adet': toplamFire,
+          'fire_adet': yeniFireToplam,
           'kismi': kismiKayit,
+          if (sonrakiAsamaBedenDetayi.isNotEmpty)
+            'beden_detaylari': sonrakiAsamaBedenDetayi,
           'idempotency_key':
               '${widget.atamaTablosu}:${widget.atamaId}:downstream',
           'kaynak_atama_id': widget.atamaId,
@@ -671,7 +753,7 @@ class _BedenUretimTamamlaDialogGenericState
 
         String mesaj = yeniDurum == 'tamamlandi'
             ? '✅ ${widget.asamaDisplayName} tamamlandı!'
-            : '✅ Kısmi kayıt yapıldı: $toplamUretilen adet, sonraki aşamaya $netAdet adet gönderildi';
+          : '✅ Kısmi kayıt yapıldı: bu kayıt $buKayitNetToplam adet, toplam tamamlanan $netAdet adet';
 
         if (toplamFire > 0) {
           mesaj += ' (Fire: $toplamFire${firedenDus ? ", Net: $netAdet" : ""})';

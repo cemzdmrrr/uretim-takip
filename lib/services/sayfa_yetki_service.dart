@@ -141,6 +141,11 @@ class SayfaRegistry {
         ikon: Icons.swap_horiz_rounded,
         kategori: katFinans),
     SayfaTanimi(
+      kod: 'sevk_irsaliyeleri',
+      etiket: 'Sevk İrsaliyeleri',
+      ikon: Icons.receipt_long_rounded,
+      kategori: katFinans),
+    SayfaTanimi(
         kod: 'dosya_yonetimi',
         etiket: 'Dosya Yönetimi',
         ikon: Icons.folder_rounded,

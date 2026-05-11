@@ -625,7 +625,6 @@ extension _WidgetsExt on _SevkiyatPanelState {
   Future<Map<String, int>> _kaliteKaynakliBedenDagilimiGetir({
     required Map<String, dynamic> sevk,
     required String modelId,
-    required int toplamAdet,
   }) async {
     final kaliteId = sevk['kalite_kontrol_id'];
     if (kaliteId == null) return const <String, int>{};
@@ -646,7 +645,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
         final kayitli = _parseBedenDetayi(kalite['beden_detaylari']);
         if (kayitli.isNotEmpty) {
-          return _oransalBedenDagitimi(kayitli, toplamAdet);
+          return _siraliBedenMap(kayitli);
         }
 
         final oncekiAsamaKodu = _normalizeAsamaKodu(
@@ -657,7 +656,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
           asamaKodu: oncekiAsamaKodu,
         );
         if (oncekiAsama.isNotEmpty) {
-          return _oransalBedenDagitimi(oncekiAsama, toplamAdet);
+          return _siraliBedenMap(oncekiAsama);
         }
 
         return const <String, int>{};
@@ -704,7 +703,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
       sevk['beden_detaylari'] ?? sevk['beden_dagilimi'],
     );
     if (kayitli.isNotEmpty) {
-      return _oransalBedenDagitimi(kayitli, toplamAdet);
+      return _siraliBedenMap(kayitli);
     }
 
     final modelId = sevk['model_id']?.toString();
@@ -713,10 +712,9 @@ extension _WidgetsExt on _SevkiyatPanelState {
     final kaliteDagilimi = await _kaliteKaynakliBedenDagilimiGetir(
       sevk: sevk,
       modelId: modelId,
-      toplamAdet: toplamAdet,
     );
     if (kaliteDagilimi.isNotEmpty) {
-      return _oransalBedenDagitimi(kaliteDagilimi, toplamAdet);
+      return _siraliBedenMap(kaliteDagilimi);
     }
 
     final oncekiAsamaDagilimi = await _asamaBedenGerceklesenAdetleriGetir(
@@ -724,7 +722,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
       asamaKodu: sevk['onceki_asama']?.toString(),
     );
     if (oncekiAsamaDagilimi.isNotEmpty) {
-      return _oransalBedenDagitimi(oncekiAsamaDagilimi, toplamAdet);
+      return _siraliBedenMap(oncekiAsamaDagilimi);
     }
 
     try {
@@ -811,11 +809,15 @@ extension _WidgetsExt on _SevkiyatPanelState {
     final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final mevcutAdetRaw =
       sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
-    final toplamMevcutAdet = (mevcutAdetRaw as num?)?.toInt() ??
+    var toplamMevcutAdet = (mevcutAdetRaw as num?)?.toInt() ??
       int.tryParse('$mevcutAdetRaw') ??
       0;
     final mevcutBedenAdetleri =
         await _varsayilanSevkBedenDagilimi(sevk, toplamMevcutAdet);
+    final bedenToplam = _toplamBedenAdedi(mevcutBedenAdetleri);
+    if (bedenToplam > 0) {
+      toplamMevcutAdet = bedenToplam;
+    }
     if (!mounted) return;
 
     final izinliAsamalar = _izinliHedefAsamalar(sevk);

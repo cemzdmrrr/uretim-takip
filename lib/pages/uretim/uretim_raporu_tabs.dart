@@ -621,6 +621,20 @@ extension _TabsRaporExt on _UretimRaporuPageState {
       },
     };
 
+    final utuFireKaynakDagilimi = <String, int>{};
+    final rawUtuFireKaynak = _ozet['utu_fire_kaynak_dagilimi'];
+    if (rawUtuFireKaynak is Map) {
+      for (final entry in rawUtuFireKaynak.entries) {
+        final key = entry.key.toString();
+        final value = entry.value is num
+            ? (entry.value as num).toInt()
+            : int.tryParse(entry.value?.toString() ?? '') ?? 0;
+        if (key.isNotEmpty && value > 0) {
+          utuFireKaynakDagilimi[key] = value;
+        }
+      }
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 500;
@@ -732,6 +746,61 @@ extension _TabsRaporExt on _UretimRaporuPageState {
                   );
                 },
               ),
+              if (utuFireKaynakDagilimi.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Text(
+                  'Ütü Fire Kaynak Aşaması',
+                  style: TextStyle(
+                      fontSize: isMobile ? 16 : 18,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                _buildPanel(
+                  child: Column(
+                    children: (utuFireKaynakDagilimi.entries.toList()
+                          ..sort((a, b) => b.value.compareTo(a.value)))
+                        .map((entry) {
+                      final asamaInfo = _getAsamaBilgisi(entry.key);
+                      final asamaEtiket =
+                          (asamaInfo['label'] ?? entry.key).toString();
+                      final asamaRenk = (asamaInfo['color'] as Color?) ??
+                          Colors.blueGrey;
+                      return ListTile(
+                        dense: true,
+                        leading: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: asamaRenk.withValues(alpha: 0.15),
+                          child: Icon(
+                            (asamaInfo['icon'] as IconData?) ??
+                                Icons.account_tree,
+                            size: 18,
+                            color: asamaRenk,
+                          ),
+                        ),
+                        title: Text(
+                          asamaEtiket,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${entry.value} adet',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Text(
                 'En Çok Fire Veren Modeller',
