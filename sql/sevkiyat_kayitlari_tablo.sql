@@ -1,105 +1,287 @@
--- Sevkiyat Kayıtları Tablosu Güncellemesi
--- Bu tablo sevkiyat personelinin yaptığı tüm sevkiyat işlemlerini kaydeder
+-- Sevkiyat tablolari guvenli migration
+-- Not: Bu script veri silmez; mevcut tabloya eksik kolonlari ekler.
 
--- Mevcut tabloyu temizle (varsa)
-DROP TABLE IF EXISTS sevkiyat_kayitlari CASCADE;
-
--- Yeni sevkiyat_kayitlari tablosu
-CREATE TABLE IF NOT EXISTS sevkiyat_kayitlari (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Model bilgisi
-    model_id UUID NOT NULL REFERENCES triko_takip(id) ON DELETE CASCADE,
-    
-    -- Kalite kontrol kaynağı (hangi kalite kontrolden geldi)
-    kalite_kontrol_id UUID REFERENCES kalite_kontrol_atamalari(id) ON DELETE SET NULL,
-    
-    -- Sevkiyat personeli
-    sevkiyat_personeli_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    
-    -- Adet bilgileri
-    alinan_adet INTEGER NOT NULL DEFAULT 0,           -- Kalite kontrolden alınan adet
-    sevk_edilen_adet INTEGER NOT NULL DEFAULT 0,      -- Hedef atölyeye gönderilen adet
-    kalan_adet INTEGER NOT NULL DEFAULT 0,            -- Henüz sevk edilmemiş adet
-    
-    -- Hedef bilgisi
-    hedef_asama VARCHAR(50),                          -- nakis, yikama, konfeksiyon, utu, ilik_dugme, paketleme, depo
-    hedef_tedarikci_id INTEGER REFERENCES tedarikciler(id) ON DELETE SET NULL,
-    
-    -- Durum
-    durum VARCHAR(30) NOT NULL DEFAULT 'beklemede' CHECK (durum IN ('beklemede', 'kismen_sevk', 'tamamlandi', 'iptal')),
-    
-    -- Tarihler
-    alis_tarihi TIMESTAMPTZ DEFAULT NOW(),
-    sevk_tarihi TIMESTAMPTZ,
-    tamamlanma_tarihi TIMESTAMPTZ,
-    
-    -- Notlar
-    notlar TEXT,
-    
-    -- Metadata
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.sevkiyat_kayitlari (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
 
--- Sevkiyat detayları tablosu (her sevk işlemi için ayrı kayıt)
-CREATE TABLE IF NOT EXISTS sevkiyat_detaylari (
+ALTER TABLE public.sevkiyat_kayitlari
+    ADD COLUMN IF NOT EXISTS model_id UUID,
+    ADD COLUMN IF NOT EXISTS kalite_kontrol_id INTEGER,
+    ADD COLUMN IF NOT EXISTS sevkiyat_personeli_id UUID,
+    ADD COLUMN IF NOT EXISTS alinan_adet INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS sevk_edilen_adet INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS kalan_adet INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS hedef_asama VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS hedef_tedarikci_id BIGINT,
+    ADD COLUMN IF NOT EXISTS durum VARCHAR(30) NOT NULL DEFAULT 'beklemede',
+    ADD COLUMN IF NOT EXISTS alis_tarihi TIMESTAMPTZ DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS sevk_tarihi TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS tamamlanma_tarihi TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS notlar TEXT,
+    ADD COLUMN IF NOT EXISTS beden_detaylari JSONB,
+    ADD COLUMN IF NOT EXISTS firma_id UUID,
+    ADD COLUMN IF NOT EXISTS idempotency_key TEXT,
+    ADD COLUMN IF NOT EXISTS kaynak_atama_tablosu TEXT,
+    ADD COLUMN IF NOT EXISTS kaynak_atama_id BIGINT,
+    ADD COLUMN IF NOT EXISTS onceki_asama TEXT,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_kayitlari_model_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_kayitlari
+                ADD CONSTRAINT sevkiyat_kayitlari_model_id_fkey
+                FOREIGN KEY (model_id) REFERENCES public.triko_takip(id) ON DELETE CASCADE;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_kayitlari_model_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_kayitlari_kalite_kontrol_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_kayitlari
+                ADD CONSTRAINT sevkiyat_kayitlari_kalite_kontrol_id_fkey
+                FOREIGN KEY (kalite_kontrol_id) REFERENCES public.kalite_kontrol_atamalari(id) ON DELETE SET NULL;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_kayitlari_kalite_kontrol_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_kayitlari_sevkiyat_personeli_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_kayitlari
+                ADD CONSTRAINT sevkiyat_kayitlari_sevkiyat_personeli_id_fkey
+                FOREIGN KEY (sevkiyat_personeli_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_kayitlari_sevkiyat_personeli_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_kayitlari_firma_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_kayitlari
+                ADD CONSTRAINT sevkiyat_kayitlari_firma_id_fkey
+                FOREIGN KEY (firma_id) REFERENCES public.firmalar(id);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_kayitlari_firma_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_kayitlari_hedef_tedarikci_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_kayitlari
+                ADD CONSTRAINT sevkiyat_kayitlari_hedef_tedarikci_id_fkey
+                FOREIGN KEY (hedef_tedarikci_id) REFERENCES public.tedarikciler(id) ON DELETE SET NULL;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_kayitlari_hedef_tedarikci_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.sevkiyat_detaylari (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    sevkiyat_id UUID NOT NULL REFERENCES sevkiyat_kayitlari(id) ON DELETE CASCADE,
-    
-    -- Sevk bilgileri
-    sevk_adet INTEGER NOT NULL CHECK (sevk_adet > 0),
+    sevkiyat_id UUID NOT NULL,
+    sevk_adet INTEGER NOT NULL,
     hedef_asama VARCHAR(50) NOT NULL,
-    hedef_tedarikci_id INTEGER REFERENCES tedarikciler(id) ON DELETE SET NULL,
-    hedef_atama_id UUID,                              -- Hedef tabloda oluşturulan atama ID'si
-    
-    -- Personel
-    sevk_eden_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    
-    -- Tarih ve notlar
+    hedef_tedarikci_id INTEGER,
+    hedef_atama_id BIGINT,
+    sevk_eden_id UUID,
     sevk_tarihi TIMESTAMPTZ DEFAULT NOW(),
     notlar TEXT,
-    
+    beden_detaylari JSONB,
+    irsaliye_id UUID,
+    irsaliye_no TEXT,
+    firma_id UUID,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexler
-CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_model_id ON sevkiyat_kayitlari(model_id);
-CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_durum ON sevkiyat_kayitlari(durum);
-CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_personel ON sevkiyat_kayitlari(sevkiyat_personeli_id);
-CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_kalite ON sevkiyat_kayitlari(kalite_kontrol_id);
+ALTER TABLE public.sevkiyat_detaylari
+    ADD COLUMN IF NOT EXISTS sevkiyat_id UUID,
+    ADD COLUMN IF NOT EXISTS sevk_adet INTEGER,
+    ADD COLUMN IF NOT EXISTS hedef_asama VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS hedef_tedarikci_id INTEGER,
+    ADD COLUMN IF NOT EXISTS hedef_atama_id BIGINT,
+    ADD COLUMN IF NOT EXISTS sevk_eden_id UUID,
+    ADD COLUMN IF NOT EXISTS sevk_tarihi TIMESTAMPTZ DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS notlar TEXT,
+    ADD COLUMN IF NOT EXISTS beden_detaylari JSONB,
+    ADD COLUMN IF NOT EXISTS irsaliye_id UUID,
+    ADD COLUMN IF NOT EXISTS irsaliye_no TEXT,
+    ADD COLUMN IF NOT EXISTS firma_id UUID,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
-CREATE INDEX IF NOT EXISTS idx_sevkiyat_detaylari_sevkiyat ON sevkiyat_detaylari(sevkiyat_id);
-CREATE INDEX IF NOT EXISTS idx_sevkiyat_detaylari_hedef ON sevkiyat_detaylari(hedef_asama);
+DO $$
+BEGIN
+    BEGIN
+        ALTER TABLE public.sevkiyat_detaylari
+            ALTER COLUMN sevk_adet SET NOT NULL;
+    EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'sevkiyat_detaylari.sevk_adet NOT NULL atanamadi: %', SQLERRM;
+    END;
+END $$;
 
--- RLS Politikaları
-ALTER TABLE sevkiyat_kayitlari ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sevkiyat_detaylari ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_detaylari_sevkiyat_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_detaylari
+                ADD CONSTRAINT sevkiyat_detaylari_sevkiyat_id_fkey
+                FOREIGN KEY (sevkiyat_id) REFERENCES public.sevkiyat_kayitlari(id) ON DELETE CASCADE;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_detaylari_sevkiyat_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
 
--- Herkes okuyabilir
-CREATE POLICY "sevkiyat_kayitlari_select" ON sevkiyat_kayitlari
-    FOR SELECT USING (true);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_detaylari_sevk_eden_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_detaylari
+                ADD CONSTRAINT sevkiyat_detaylari_sevk_eden_id_fkey
+                FOREIGN KEY (sevk_eden_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_detaylari_sevk_eden_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
 
-CREATE POLICY "sevkiyat_detaylari_select" ON sevkiyat_detaylari
-    FOR SELECT USING (true);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_detaylari_firma_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_detaylari
+                ADD CONSTRAINT sevkiyat_detaylari_firma_id_fkey
+                FOREIGN KEY (firma_id) REFERENCES public.firmalar(id);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_detaylari_firma_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
 
--- Authenticated kullanıcılar ekleyebilir/güncelleyebilir
-CREATE POLICY "sevkiyat_kayitlari_insert" ON sevkiyat_kayitlari
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_detaylari_hedef_tedarikci_id_fkey'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_detaylari
+                ADD CONSTRAINT sevkiyat_detaylari_hedef_tedarikci_id_fkey
+                FOREIGN KEY (hedef_tedarikci_id) REFERENCES public.tedarikciler(id) ON DELETE SET NULL;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_detaylari_hedef_tedarikci_id_fkey eklenemedi: %', SQLERRM;
+        END;
+    END IF;
+END $$;
 
-CREATE POLICY "sevkiyat_kayitlari_update" ON sevkiyat_kayitlari
-    FOR UPDATE USING (auth.uid() IS NOT NULL);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sevkiyat_kayitlari_durum_check'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.sevkiyat_kayitlari
+                ADD CONSTRAINT sevkiyat_kayitlari_durum_check
+                CHECK (durum IN ('beklemede', 'kismen_sevk', 'sevk_ediliyor', 'tamamlandi', 'iptal'));
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'sevkiyat_kayitlari_durum_check eklenemedi: %', SQLERRM;
+        END;
+    END IF;
+END $$;
 
-CREATE POLICY "sevkiyat_detaylari_insert" ON sevkiyat_detaylari
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_model_id
+    ON public.sevkiyat_kayitlari(model_id);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_durum
+    ON public.sevkiyat_kayitlari(durum);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_personel
+    ON public.sevkiyat_kayitlari(sevkiyat_personeli_id);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_kalite
+    ON public.sevkiyat_kayitlari(kalite_kontrol_id);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_firma
+    ON public.sevkiyat_kayitlari(firma_id);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_kayitlari_idempotency
+    ON public.sevkiyat_kayitlari(idempotency_key);
 
-CREATE POLICY "sevkiyat_detaylari_update" ON sevkiyat_detaylari
-    FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_detaylari_sevkiyat
+    ON public.sevkiyat_detaylari(sevkiyat_id);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_detaylari_hedef
+    ON public.sevkiyat_detaylari(hedef_asama);
+CREATE INDEX IF NOT EXISTS idx_sevkiyat_detaylari_firma
+    ON public.sevkiyat_detaylari(firma_id);
 
--- Yorumlar
-COMMENT ON TABLE sevkiyat_kayitlari IS 'Kalite kontrolden geçen ürünlerin sevkiyat bekleyen kayıtları';
-COMMENT ON TABLE sevkiyat_detaylari IS 'Her sevk işleminin detay kaydı';
-COMMENT ON COLUMN sevkiyat_kayitlari.alinan_adet IS 'Kalite kontrolden alınan toplam adet';
-COMMENT ON COLUMN sevkiyat_kayitlari.sevk_edilen_adet IS 'Toplam sevk edilen adet';
-COMMENT ON COLUMN sevkiyat_kayitlari.kalan_adet IS 'Henüz sevk edilmemiş adet';
+ALTER TABLE public.sevkiyat_kayitlari ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sevkiyat_detaylari ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public' AND tablename = 'sevkiyat_kayitlari' AND policyname = 'sevkiyat_kayitlari_select'
+    ) THEN
+        CREATE POLICY sevkiyat_kayitlari_select ON public.sevkiyat_kayitlari
+            FOR SELECT USING (true);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public' AND tablename = 'sevkiyat_kayitlari' AND policyname = 'sevkiyat_kayitlari_insert'
+    ) THEN
+        CREATE POLICY sevkiyat_kayitlari_insert ON public.sevkiyat_kayitlari
+            FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public' AND tablename = 'sevkiyat_kayitlari' AND policyname = 'sevkiyat_kayitlari_update'
+    ) THEN
+        CREATE POLICY sevkiyat_kayitlari_update ON public.sevkiyat_kayitlari
+            FOR UPDATE USING (auth.uid() IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public' AND tablename = 'sevkiyat_detaylari' AND policyname = 'sevkiyat_detaylari_select'
+    ) THEN
+        CREATE POLICY sevkiyat_detaylari_select ON public.sevkiyat_detaylari
+            FOR SELECT USING (true);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public' AND tablename = 'sevkiyat_detaylari' AND policyname = 'sevkiyat_detaylari_insert'
+    ) THEN
+        CREATE POLICY sevkiyat_detaylari_insert ON public.sevkiyat_detaylari
+            FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public' AND tablename = 'sevkiyat_detaylari' AND policyname = 'sevkiyat_detaylari_update'
+    ) THEN
+        CREATE POLICY sevkiyat_detaylari_update ON public.sevkiyat_detaylari
+            FOR UPDATE USING (auth.uid() IS NOT NULL);
+    END IF;
+END $$;
+
+COMMENT ON TABLE public.sevkiyat_kayitlari IS 'Kalite kontrolden gecen urunlerin sevkiyat bekleyen kayitlari';
+COMMENT ON TABLE public.sevkiyat_detaylari IS 'Her sevk isleminin detay kaydi';

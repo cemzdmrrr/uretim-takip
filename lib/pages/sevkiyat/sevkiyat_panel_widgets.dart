@@ -410,6 +410,12 @@ extension _WidgetsExt on _SevkiyatPanelState {
     final message =
         '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
 
+    // PGRST204: Could not find the 'column_name' column of 'table' in the schema cache
+    final pgrst204 = RegExp(
+      r"could not find the '([a-z0-9_]+)' column",
+    ).firstMatch(message);
+    if (pgrst204 != null) return pgrst204.group(1);
+
     final withTable = RegExp(
       r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
     ).firstMatch(message);
@@ -695,6 +701,14 @@ extension _WidgetsExt on _SevkiyatPanelState {
     return bedenler.entries.map((entry) => '${entry.key}:${entry.value}').join(' | ');
   }
 
+  String _bedenEtiketi(Map<String, int> bedenler) {
+    if (bedenler.isEmpty) return '';
+    final body = bedenler.entries
+        .map((entry) => '${entry.key}:${entry.value}')
+        .join('|');
+    return '[BEDEN:$body]';
+  }
+
   Future<Map<String, int>> _varsayilanSevkBedenDagilimi(
     Map<String, dynamic> sevk,
     int toplamAdet,
@@ -725,28 +739,9 @@ extension _WidgetsExt on _SevkiyatPanelState {
       return _siraliBedenMap(oncekiAsamaDagilimi);
     }
 
-    try {
-      final response = await supabase
-          .from(DbTables.modelBedenDagilimi)
-          .select('beden_kodu, siparis_adedi')
-          .eq('firma_id', TenantManager.instance.requireFirmaId)
-          .eq('model_id', modelId);
-
-      final dagilim = <String, int>{};
-      for (final row in List<Map<String, dynamic>>.from(response)) {
-        final beden = (row['beden_kodu'] ?? '').toString().trim().toUpperCase();
-        final adet = (row['siparis_adedi'] as num?)?.toInt() ??
-            int.tryParse('${row['siparis_adedi']}') ??
-            0;
-        if (beden.isNotEmpty && adet > 0) {
-          dagilim[beden] = adet;
-        }
-      }
-
-      if (dagilim.isNotEmpty) {
-        return _oransalBedenDagitimi(dagilim, toplamAdet);
-      }
-    } catch (_) {}
+    // Sevkiyatta model_beden_dagilimi oransal fallback'i yanlis dagilim
+    // uretebiliyor (toplami beden sayisina bolme etkisi). Burada sadece
+    // gercek kaynak dagilimlari kullanilir; yoksa beden dagilimi bos doner.
 
     return const <String, int>{};
   }
@@ -805,7 +800,35 @@ extension _WidgetsExt on _SevkiyatPanelState {
     throw Exception('sevkiyat_detaylari insert başarısız: $sonHata');
   }
 
+  Future<void> _esnekAtamaInsert({
+    required String tablo,
+    required Map<String, dynamic> values,
+  }) async {
+    final data = Map<String, dynamic>.from(values);
+    Object? sonHata;
+
+    for (var attempt = 0; attempt < 6; attempt++) {
+      try {
+        await supabase.from(tablo).insert(data);
+        return;
+      } catch (e) {
+        sonHata = e;
+        final missing = _missingColumnName(e);
+        if (missing != null && data.containsKey(missing)) {
+          data.remove(missing);
+          continue;
+        }
+        break;
+      }
+    }
+
+    throw Exception('$tablo insert başarısız: $sonHata');
+  }
+
   Future<void> _showSevkDialog(Map<String, dynamic> sevk) async {
+    // Her diyalog açılışında benzersiz anahtar — kısmi sevkler ayrı satır oluşturur,
+    // ağ hatası sonrası aynı diyalogdan tekrar deneme idempotent kalır.
+    final sevkSessionKey = DateTime.now().millisecondsSinceEpoch.toString();
     final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final mevcutAdetRaw =
       sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
@@ -1281,6 +1304,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
                         tedarikciId: secilenTedarikci?['id'],
                         bedenDetaylari:
                             seciliBedenler.isEmpty ? null : seciliBedenler,
+                        sessionKey: sevkSessionKey,
                       );
                       if (context.mounted) {
                         Navigator.pop(context);
@@ -1306,6 +1330,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
     String? notlar,
     int? tedarikciId,
     Map<String, int>? bedenDetaylari,
+    String? sessionKey,
   }) async {
     try {
       final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
@@ -1314,6 +1339,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
           ? _siraliBedenMap(Map<String, int>.from(bedenDetaylari)
             ..removeWhere((_, value) => value <= 0))
           : _oransalBedenDagitimi(mevcutBedenDetayi, adet);
+      final bedenTag = _bedenEtiketi(sevkBedenDetayi);
       final hedefAsamaInfo = hedefAsamalar.firstWhere(
         (a) => a['key'] == hedefAsama,
         orElse: () => {'name': hedefAsama},
@@ -1345,8 +1371,10 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
       final kaynakAsamaKodu =
           _kaynakAsamaKodu(sevk) ?? (oncekiAsama ?? 'sevkiyat');
+      // sessionKey: her diyalog açılışında benzersiz → kısmi sevkler ayrı satır oluşturur
+      final _sevkSession = sessionKey ?? DateTime.now().millisecondsSinceEpoch.toString();
       final sevkIslemKey =
-          'sevk:${kaynakTablo}:${sevk['id']}:$hedefAsama:$adet';
+          'sevk:${kaynakTablo}:${sevk['id']}:$hedefAsama:$_sevkSession';
 
       final irsaliye = await _sevkIrsaliyeService.olusturVeOnayla(
         firmaId: firmaId,
@@ -1424,6 +1452,9 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
         // 2. Sevkiyat detayı kaydet
         try {
+          final detayNot =
+              '${(notlar ?? '').trim()}${bedenTag.isNotEmpty ? ' $bedenTag' : ''}'
+                  .trim();
           await _esnekSevkiyatDetayInsert({
             'sevkiyat_id': sevk['id'],
             'sevk_adet': adet,
@@ -1433,7 +1464,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
             'sevk_tarihi': DateTime.now().toIso8601String(),
             'irsaliye_id': irsaliye['id'],
             'irsaliye_no': irsaliyeNo,
-            'notlar': notlar,
+            'notlar': detayNot.isEmpty ? null : detayNot,
             if (sevkBedenDetayi.isNotEmpty)
               'beden_detaylari': sevkBedenDetayi,
             'firma_id': firmaId,
@@ -1466,7 +1497,10 @@ extension _WidgetsExt on _SevkiyatPanelState {
       // 3. Hedef aşamaya atama yap
       final hedefTabloAdi = _getTabloAdi(hedefAsama);
       if (hedefTabloAdi != null) {
-        final hedefAtamaKey = 'sevk:${sevk['id']}:$hedefAsama';
+        // irsaliye ID'si: aynı sevk operasyonunun tekrarında aynı irsaliye döner
+        // → aynı hedefAtamaKey → yeni satır açılmaz (idempotent retry koruması)
+        // Farklı diyalog açılışı → farklı sessionKey → farklı irsaliye → farklı key → yeni satır
+        final hedefAtamaKey = 'sevk:irsaliye:${irsaliye['id']}:$hedefAsama';
         final hedefEtiket = '[IDEMP:$hedefAtamaKey]';
 
         // Atama verisi hazırla
@@ -1480,7 +1514,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
               'bekleyen', // ÖNEMLİ: Önce bekleyen durumunda gelsin, sonra onaylansın
           'atama_tarihi': DateTime.now().toIso8601String(),
           'notlar':
-              'Sevkiyattan geldi - ${model['marka']} ${model['item_no']} - $adet adet $hedefEtiket',
+              'Sevkiyattan geldi - ${model['marka']} ${model['item_no']} - $adet adet $hedefEtiket${bedenTag.isNotEmpty ? ' $bedenTag' : ''}',
           'idempotency_key': hedefAtamaKey,
           if (sevkBedenDetayi.isNotEmpty) 'beden_detaylari': sevkBedenDetayi,
         };
@@ -1491,25 +1525,56 @@ extension _WidgetsExt on _SevkiyatPanelState {
         }
 
         Map<String, dynamic>? mevcutAtama;
+        var hedefAtamaBedenKolonuVar = true;
         try {
           mevcutAtama = await supabase
               .from(hedefTabloAdi)
-              .select('id, adet, talep_edilen_adet, notlar')
+              .select('id, adet, talep_edilen_adet, notlar, beden_detaylari')
               .eq('firma_id', firmaId)
               .eq('idempotency_key', hedefAtamaKey)
               .maybeSingle();
-        } catch (_) {
-          // idempotency_key kolonu eski şemada olmayabilir.
+        } catch (e) {
+          final missing = _missingColumnName(e);
+          if (missing == 'beden_detaylari') {
+            hedefAtamaBedenKolonuVar = false;
+            try {
+              mevcutAtama = await supabase
+                  .from(hedefTabloAdi)
+                  .select('id, adet, talep_edilen_adet, notlar')
+                  .eq('firma_id', firmaId)
+                  .eq('idempotency_key', hedefAtamaKey)
+                  .maybeSingle();
+            } catch (_) {
+              // idempotency_key kolonu eski şemada da olmayabilir.
+            }
+          }
         }
 
         if (mevcutAtama == null) {
-          final adaylar = await supabase
-              .from(hedefTabloAdi)
-              .select('id, adet, talep_edilen_adet, notlar')
-              .eq('firma_id', firmaId)
-              .eq('model_id', sevk['model_id'])
-              .order('created_at', ascending: false)
-              .limit(10);
+          List<dynamic> adaylar;
+          try {
+            adaylar = await supabase
+                .from(hedefTabloAdi)
+                .select('id, adet, talep_edilen_adet, notlar, beden_detaylari')
+                .eq('firma_id', firmaId)
+                .eq('model_id', sevk['model_id'])
+                .order('created_at', ascending: false)
+                .limit(10);
+          } catch (e) {
+            final missing = _missingColumnName(e);
+            if (missing == 'beden_detaylari') {
+              hedefAtamaBedenKolonuVar = false;
+              adaylar = await supabase
+                  .from(hedefTabloAdi)
+                  .select('id, adet, talep_edilen_adet, notlar')
+                  .eq('firma_id', firmaId)
+                  .eq('model_id', sevk['model_id'])
+                  .order('created_at', ascending: false)
+                  .limit(10);
+            } else {
+              rethrow;
+            }
+          }
 
           for (final aday in List<Map<String, dynamic>>.from(adaylar)) {
             if ((aday['notlar'] ?? '').toString().contains(hedefEtiket)) {
@@ -1524,25 +1589,45 @@ extension _WidgetsExt on _SevkiyatPanelState {
               (mevcutAtama['talep_edilen_adet'] as int?) ??
               0;
           final yeniAdet = mevcutAdet + adet;
-          await supabase
-              .from(hedefTabloAdi)
-              .update({
-                'adet': yeniAdet,
-                'talep_edilen_adet': yeniAdet,
-                'updated_at': DateTime.now().toIso8601String(),
-              })
-              .eq('id', mevcutAtama['id'])
-              .eq('firma_id', firmaId);
+          final mevcutBedenDetayi = hedefAtamaBedenKolonuVar
+              ? _parseBedenDetayi(mevcutAtama['beden_detaylari'])
+              : const <String, int>{};
+          final birlesikBedenDetayi = <String, int>{...mevcutBedenDetayi};
+          for (final entry in sevkBedenDetayi.entries) {
+            birlesikBedenDetayi[entry.key] =
+                (birlesikBedenDetayi[entry.key] ?? 0) + entry.value;
+          }
+
+          final updateData = <String, dynamic>{
+            'adet': yeniAdet,
+            'talep_edilen_adet': yeniAdet,
+            'updated_at': DateTime.now().toIso8601String(),
+            if (hedefAtamaBedenKolonuVar && birlesikBedenDetayi.isNotEmpty)
+              'beden_detaylari': _siraliBedenMap(birlesikBedenDetayi),
+          };
+
+          try {
+            await supabase
+                .from(hedefTabloAdi)
+                .update(updateData)
+                .eq('id', mevcutAtama['id'])
+                .eq('firma_id', firmaId);
+          } catch (e) {
+            if (_missingColumnName(e) == 'beden_detaylari') {
+              final fallback = Map<String, dynamic>.from(updateData)
+                ..remove('beden_detaylari');
+              await supabase
+                  .from(hedefTabloAdi)
+                  .update(fallback)
+                  .eq('id', mevcutAtama['id'])
+                  .eq('firma_id', firmaId);
+            } else {
+              rethrow;
+            }
+          }
           debugPrint('✅ $hedefTabloAdi mevcut atama güncellendi (idempotent).');
         } else {
-          try {
-            await supabase.from(hedefTabloAdi).insert(atamaData);
-          } catch (_) {
-            final fallback = Map<String, dynamic>.from(atamaData)
-              ..remove('idempotency_key')
-              ..remove('beden_detaylari');
-            await supabase.from(hedefTabloAdi).insert(fallback);
-          }
+          await _esnekAtamaInsert(tablo: hedefTabloAdi, values: atamaData);
           debugPrint(
               '✅ $hedefTabloAdi tablosuna yeni atama oluşturuldu (tedarikci_id: $tedarikciId)');
         }

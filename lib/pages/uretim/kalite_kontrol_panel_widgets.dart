@@ -1308,6 +1308,12 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     final message =
         '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
 
+    // PGRST204: Could not find the 'column_name' column of 'table' in the schema cache
+    final pgrst204 = RegExp(
+      r"could not find the '([a-z0-9_]+)' column",
+    ).firstMatch(message);
+    if (pgrst204 != null) return pgrst204.group(1);
+
     final withTable = RegExp(
       r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
     ).firstMatch(message);

@@ -801,12 +801,136 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       atama['beden_detaylari'] ?? atama['beden_dagilimi'],
     );
     if (kayitli.isNotEmpty) {
-      return _toplamaUyarliBedenMap(kayitli, kabulEdilenAdet);
+      // Kayitli beden dagilimini orijinal haliyle koru; sevkiyat/kaynak dagilim
+      // ile birebir uyum burada daha dogru bir sonuc verir.
+      return _siraliBedenMap(kayitli);
     }
 
     final modelDagilim = _parseBedenDetayi(model['bedenler']);
     if (modelDagilim.isNotEmpty) {
       return _toplamaUyarliBedenMap(modelDagilim, kabulEdilenAdet);
+    }
+
+    return const <String, int>{};
+  }
+
+  String? _sevkiyatIdempotencyKeyGetir(Map<String, dynamic> atama) {
+    final explicit = (atama['idempotency_key'] ?? '').toString().trim();
+    if (explicit.startsWith('sevk:')) {
+      return explicit;
+    }
+
+    final notlar =
+        '${atama['notlar'] ?? ''}\n${atama['aciklama'] ?? ''}'.toString();
+    final match = RegExp(r'\[IDEMP:([^\]]+)\]', caseSensitive: false)
+        .firstMatch(notlar);
+    final parsed = (match?.group(1) ?? '').trim();
+    if (parsed.startsWith('sevk:')) {
+      return parsed;
+    }
+
+    return null;
+  }
+
+  String _normalizeAsamaKoduYerel(String? value) {
+    return (value ?? '')
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll('/', ' ')
+        .replaceAll('-', ' ')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '_');
+  }
+
+  Future<Map<String, int>> _sevkiyattanBedenDagilimiGetir(
+      Map<String, dynamic> atama) async {
+    final key = _sevkiyatIdempotencyKeyGetir(atama);
+    if (key == null || key.isEmpty) return const <String, int>{};
+
+    final parts = key.split(':');
+    if (parts.length < 3) return const <String, int>{};
+
+    final sevkiyatId = parts[1].trim();
+    if (sevkiyatId.isEmpty) return const <String, int>{};
+
+    final hedefAsama = _normalizeAsamaKoduYerel(parts.sublist(2).join(':'));
+    var useFirmaFilter = true;
+    var bedenKolonuVar = true;
+
+    Map<String, int> notlardanBedenDetayi(dynamic rawNot) {
+      final text = (rawNot ?? '').toString();
+      if (text.isEmpty) return const <String, int>{};
+
+      final match = RegExp(r'\[BEDEN:([^\]]+)\]', caseSensitive: false)
+          .firstMatch(text);
+      if (match == null) return const <String, int>{};
+
+      final result = <String, int>{};
+      final body = (match.group(1) ?? '').trim();
+      if (body.isEmpty) return const <String, int>{};
+
+      for (final parca in body.split('|')) {
+        final kv = parca.split(':');
+        if (kv.length < 2) continue;
+        final beden = kv.first.trim().toUpperCase();
+        final adet = int.tryParse(kv.sublist(1).join(':').trim()) ?? 0;
+        if (beden.isNotEmpty && adet > 0) {
+          result[beden] = (result[beden] ?? 0) + adet;
+        }
+      }
+
+      return _siraliBedenMap(result);
+    }
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        var query = supabase
+            .from(DbTables.sevkiyatDetaylari)
+            .select(
+                bedenKolonuVar ? 'beden_detaylari, hedef_asama, notlar' : 'hedef_asama, notlar')
+            .eq('sevkiyat_id', sevkiyatId);
+
+        if (useFirmaFilter) {
+          query = query.eq('firma_id', TenantManager.instance.requireFirmaId);
+        }
+
+        final rows = await query;
+        final toplam = <String, int>{};
+
+        for (final row in List<Map<String, dynamic>>.from(rows)) {
+            final rowHedef =
+              _normalizeAsamaKoduYerel(row['hedef_asama']?.toString());
+          if (hedefAsama.isNotEmpty && rowHedef != hedefAsama) continue;
+
+          final bedenler = bedenKolonuVar
+              ? _parseBedenDetayi(row['beden_detaylari'])
+              : notlardanBedenDetayi(row['notlar']);
+          for (final entry in bedenler.entries) {
+            toplam[entry.key] = (toplam[entry.key] ?? 0) + entry.value;
+          }
+        }
+
+        if (toplam.isNotEmpty) {
+          return _siraliBedenMap(toplam);
+        }
+        return const <String, int>{};
+      } catch (e) {
+        final missing = _missingColumnName(e);
+        if (missing == 'firma_id' && useFirmaFilter) {
+          useFirmaFilter = false;
+          continue;
+        }
+        if (missing == 'beden_detaylari' && bedenKolonuVar) {
+          bedenKolonuVar = false;
+          continue;
+        }
+        break;
+      }
     }
 
     return const <String, int>{};
@@ -923,8 +1047,10 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           ),
         ),
 
-        // Geri Al butonu - tamamlanmış veya reddedilmiş işler için
-        if (durum == 'tamamlandi' || durum == 'reddedildi')
+        // Geri Al butonu - tamamlanmış, kısmi tamamlanmış veya reddedilmiş işler için
+        if (durum == 'tamamlandi' ||
+            durum == 'kismi_tamamlandi' ||
+            durum == 'reddedildi')
           OutlinedButton.icon(
             onPressed: () => _showGeriAlDialog(atama),
             icon: const Icon(Icons.undo, size: 18),
@@ -965,7 +1091,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           ),
 
         // Üretime Al butonu - onaylanmış işler için
-        if (durum == 'onaylandi')
+        if (durum == 'onaylandi' || durum == 'kabul_edildi')
           ElevatedButton.icon(
             onPressed: () => _showUretimeAlDialog(atama),
             icon: const Icon(Icons.play_arrow, size: 18),
@@ -997,10 +1123,91 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
   // Sil Dialog'u
 
+  Future<void> _kismiKayitBedenTakibiniSifirla(
+      Map<String, dynamic> atama) async {
+    final atamaId = atama['id'];
+    if (atamaId == null) return;
+
+    final tabloAdi = '${widget.asamaAdi}_beden_takip';
+    final firmaId = TenantManager.instance.requireFirmaId;
+
+    List<Map<String, dynamic>> satirlar = const <Map<String, dynamic>>[];
+    try {
+      final response = await supabase
+          .from(tabloAdi)
+          .select('*')
+          .eq('atama_id', atamaId)
+          .eq('firma_id', firmaId);
+      satirlar = List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (_missingColumnName(e) == 'firma_id') {
+        try {
+          final response =
+              await supabase.from(tabloAdi).select('*').eq('atama_id', atamaId);
+          satirlar = List<Map<String, dynamic>>.from(response);
+        } catch (_) {
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+
+    if (satirlar.isEmpty) return;
+
+    final now = DateTime.now().toIso8601String();
+
+    for (final satir in satirlar) {
+      final satirId = satir['id'];
+      if (satirId == null) continue;
+
+      final hedefAdet = _atamaInt(satir['hedef_adet']);
+      final kabulAdet = _atamaInt(satir['kabul_edilen_adet']);
+      final updateData = <String, dynamic>{
+        if (satir.containsKey('hedef_adet'))
+          'hedef_adet': (hedefAdet + kabulAdet).clamp(0, 999999999).toInt(),
+        if (satir.containsKey('kabul_edilen_adet')) 'kabul_edilen_adet': 0,
+        if (satir.containsKey('uretilen_adet')) 'uretilen_adet': 0,
+        if (satir.containsKey('fire_adet')) 'fire_adet': 0,
+        if (satir.containsKey('guncelleme_tarihi')) 'guncelleme_tarihi': now,
+        if (satir.containsKey('updated_at')) 'updated_at': now,
+      };
+
+      if (updateData.isEmpty) continue;
+
+      try {
+        await supabase
+            .from(tabloAdi)
+            .update(updateData)
+            .eq('id', satirId)
+            .eq('atama_id', atamaId)
+            .eq('firma_id', firmaId);
+      } catch (e) {
+        final fallback = Map<String, dynamic>.from(updateData);
+        final missing = _missingColumnName(e);
+        if (missing != null && fallback.containsKey(missing)) {
+          fallback.remove(missing);
+        }
+        if (fallback.isEmpty) continue;
+
+        try {
+          await supabase
+              .from(tabloAdi)
+              .update(fallback)
+              .eq('id', satirId)
+              .eq('atama_id', atamaId);
+        } catch (_) {
+          // Eski şemalarda bazı kolonlar olmayabilir; best-effort ilerle.
+        }
+      }
+    }
+  }
+
   // Geri Al Dialog'u
   void _showGeriAlDialog(Map<String, dynamic> atama) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final mevcutDurum = atama['durum'] as String?;
+    final kismiKayitGeriAl = mevcutDurum == 'kismi_tamamlandi';
 
     String hedefDurum = 'onaylandi'; // Varsayılan olarak onaylandı durumuna al
     if (mevcutDurum == 'reddedildi') {
@@ -1018,9 +1225,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
             Text('${model['marka']} - ${model['item_no']}'),
             const SizedBox(height: 16),
             Text(
-              mevcutDurum == 'tamamlandi'
-                  ? 'Tamamlanmış atamayı "Onaylandı" durumuna geri almak istiyor musunuz?'
-                  : 'Reddedilmiş atamayı "Beklemede" durumuna geri almak istiyor musunuz?',
+              kismiKayitGeriAl
+                  ? 'Kısmi kaydı geri alıp atamayı "Onaylandı" durumuna döndürmek istiyor musunuz?'
+                  : (mevcutDurum == 'tamamlandi'
+                      ? 'Tamamlanmış atamayı "Onaylandı" durumuna geri almak istiyor musunuz?'
+                      : 'Reddedilmiş atamayı "Beklemede" durumuna geri almak istiyor musunuz?'),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1037,10 +1246,16 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           ElevatedButton(
             onPressed: () async {
               try {
+                if (kismiKayitGeriAl) {
+                  await _kismiKayitBedenTakibiniSifirla(atama);
+                }
+
                 final updateData = _eskiAtamaSemasi
                     ? {
                         'durum': hedefDurum,
                         'teslim_tarihi': null,
+                        if (kismiKayitGeriAl) 'tamamlanan_adet': 0,
+                        if (kismiKayitGeriAl) 'fire_adet': 0,
                         'updated_at': DateTime.now().toIso8601String(),
                         'son_guncelleme_tarihi':
                             DateTime.now().toIso8601String(),
@@ -1048,12 +1263,30 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                     : {
                         'durum': hedefDurum,
                         'tamamlama_tarihi': null,
+                        if (kismiKayitGeriAl) 'tamamlanan_adet': 0,
+                        if (kismiKayitGeriAl) 'fire_adet': 0,
+                        if (kismiKayitGeriAl) 'uretim_baslangic_tarihi': null,
                         'updated_at': DateTime.now().toIso8601String(),
                       };
-                await supabase
-                    .from(widget.atamaTablosu)
-                    .update(updateData)
-                    .eq('id', atama['id']);
+
+                final esnekUpdate = Map<String, dynamic>.from(updateData);
+                while (true) {
+                  try {
+                    await supabase
+                        .from(widget.atamaTablosu)
+                        .update(esnekUpdate)
+                        .eq('id', atama['id']);
+                    break;
+                  } catch (e) {
+                    final missing = _missingColumnName(e);
+                    if (missing != null && esnekUpdate.containsKey(missing)) {
+                      esnekUpdate.remove(missing);
+                      if (esnekUpdate.isEmpty) break;
+                      continue;
+                    }
+                    rethrow;
+                  }
+                }
 
                 if (!context.mounted) return;
                 Navigator.pop(context);
@@ -1062,8 +1295,9 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content:
-                          Text('↩️ Atama "$hedefDurum" durumuna geri alındı'),
+                      content: Text(kismiKayitGeriAl
+                          ? '↩️ Kısmi kayıt geri alındı, atama "$hedefDurum" durumuna döndü'
+                          : '↩️ Atama "$hedefDurum" durumuna geri alındı'),
                       backgroundColor: Colors.blue,
                     ),
                   );
@@ -1085,13 +1319,63 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
   }
 
   // Kabul Et Dialog'u
-  void _showKabulDialog(Map<String, dynamic> atama) {
+  Future<void> _showKabulDialog(Map<String, dynamic> atama) async {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
-    final talepEdilenAdet = _atamaInt(
+    final bazTalepEdilenAdet = _atamaInt(
       atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet'] ?? 0,
     );
-    final talepBedenDagilimi =
-        _kabulBedenDagilimiGetir(atama, model, talepEdilenAdet);
+    final kayitliBedenDagilimi =
+        _kabulBedenDagilimiGetir(atama, model, bazTalepEdilenAdet);
+    var talepBedenDagilimi = await _sevkiyattanBedenDagilimiGetir(atama);
+    if (talepBedenDagilimi.isEmpty) {
+      talepBedenDagilimi = kayitliBedenDagilimi;
+    }
+
+    final sevkiyatDagilimiBulundu = talepBedenDagilimi.isNotEmpty;
+    final dagilimFarkli = sevkiyatDagilimiBulundu &&
+        (talepBedenDagilimi.length != kayitliBedenDagilimi.length ||
+            talepBedenDagilimi.entries.any(
+              (e) => kayitliBedenDagilimi[e.key] != e.value,
+            ));
+
+    if (dagilimFarkli) {
+      final senkronToplam = _toplamBedenAdedi(talepBedenDagilimi);
+      var updateData = <String, dynamic>{
+        'beden_detaylari': talepBedenDagilimi,
+        'talep_edilen_adet': senkronToplam,
+        'adet': senkronToplam,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      try {
+        await supabase
+            .from(widget.atamaTablosu)
+            .update(updateData)
+            .eq('id', atama['id'])
+            .eq('firma_id', TenantManager.instance.requireFirmaId);
+      } catch (e) {
+        final fallback = Map<String, dynamic>.from(updateData);
+        final missing = _missingColumnName(e);
+        if (missing != null && fallback.containsKey(missing)) {
+          fallback.remove(missing);
+        }
+
+        if (fallback.isNotEmpty) {
+          try {
+            await supabase
+                .from(widget.atamaTablosu)
+                .update(fallback)
+                .eq('id', atama['id']);
+          } catch (_) {
+            // Eski şema veya izin kısıtı olabilir; modal yine doğru dagilimi gosterir.
+          }
+        }
+      }
+    }
+
+    final talepEdilenAdet = talepBedenDagilimi.isNotEmpty
+        ? _toplamBedenAdedi(talepBedenDagilimi)
+        : bazTalepEdilenAdet;
     final talepBedenMetni = _bedenDagilimiMetni(talepBedenDagilimi);
     final adetController = TextEditingController(
       text: talepEdilenAdet.toString(),
@@ -1373,7 +1657,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               },
               child: const Text('Reddet'),
             ),
-          ] else if (durum == 'onaylandi') ...[
+          ] else if (durum == 'onaylandi' || durum == 'kabul_edildi') ...[
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
@@ -1724,18 +2008,33 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         }
       }
 
+      final bedenDetaylariSevk = _parseBedenDetayi(
+        atama['beden_detaylari'] ?? atama['beden_dagilimi'],
+      );
+
       if (mevcutKayit != null) {
         final sevkEdilenAdet = (mevcutKayit['sevk_edilen_adet'] as int?) ?? 0;
-        await supabase
-            .from(DbTables.sevkiyatKayitlari)
-            .update({
-              'alinan_adet': adet,
-              'kalan_adet': (adet - sevkEdilenAdet).clamp(0, 999999999),
-              'notlar': yeniNot,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', mevcutKayit['id'])
-            .eq('firma_id', firmaId);
+        final updateData = <String, dynamic>{
+          'alinan_adet': adet,
+          'kalan_adet': (adet - sevkEdilenAdet).clamp(0, 999999999),
+          'notlar': yeniNot,
+          'updated_at': DateTime.now().toIso8601String(),
+          if (bedenDetaylariSevk.isNotEmpty) 'beden_detaylari': bedenDetaylariSevk,
+        };
+        try {
+          await supabase
+              .from(DbTables.sevkiyatKayitlari)
+              .update(updateData)
+              .eq('id', mevcutKayit['id'])
+              .eq('firma_id', firmaId);
+        } catch (_) {
+          // beden_detaylari kolonu yoksa onsuz güncelle
+          await supabase
+              .from(DbTables.sevkiyatKayitlari)
+              .update(updateData..remove('beden_detaylari'))
+              .eq('id', mevcutKayit['id'])
+              .eq('firma_id', firmaId);
+        }
         debugPrint('✅ Mevcut sevkiyat kaydı güncellendi (idempotent).');
       } else {
         final insertData = <String, dynamic>{
@@ -1750,6 +2049,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           'kaynak_atama_tablosu': kaynakAtamaTablosu,
           if (kaynakAtamaId != null) 'kaynak_atama_id': kaynakAtamaId,
           'idempotency_key': idempotencyKey,
+          if (bedenDetaylariSevk.isNotEmpty) 'beden_detaylari': bedenDetaylariSevk,
         };
 
         try {
@@ -1758,7 +2058,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           final fallback = Map<String, dynamic>.from(insertData)
             ..remove('kaynak_atama_tablosu')
             ..remove('kaynak_atama_id')
-            ..remove('idempotency_key');
+            ..remove('idempotency_key')
+            ..remove('beden_detaylari');
           await supabase.from(DbTables.sevkiyatKayitlari).insert(fallback);
         }
 
@@ -1844,6 +2145,13 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
   void _showUretimeAlDialog(Map<String, dynamic> atama) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     DateTime planlananBitisTarihi = DateTime.now().add(const Duration(days: 7));
+    final idempotencySeed = (atama['updated_at'] ??
+            atama['son_guncelleme_tarihi'] ??
+            atama['tamamlama_tarihi'] ??
+            atama['teslim_tarihi'] ??
+            atama['created_at'] ??
+            '')
+        .toString();
 
     showDialog(
       context: context,
@@ -1900,7 +2208,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                       final picked = await showDatePicker(
                         context: context,
                         initialDate: planlananBitisTarihi,
-                        firstDate: DateTime.now(),
+                        firstDate: DateTime(2020, 1, 1),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                         locale: const Locale('tr', 'TR'),
                       );
@@ -1977,7 +2285,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                       fromStatus: atama['durum']?.toString(),
                       toStatus: 'uretimde',
                       idempotencyKey:
-                          '${widget.atamaTablosu}:${atama['id']}:uretime_al',
+                          '${widget.atamaTablosu}:${atama['id']}:uretime_al:$idempotencySeed',
                       extraFields: {
                       'uretim_baslangic_tarihi':
                           DateTime.now().toIso8601String(),

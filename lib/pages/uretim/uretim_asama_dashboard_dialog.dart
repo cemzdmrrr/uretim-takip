@@ -578,6 +578,7 @@ class _BedenUretimTamamlaDialogGenericState
       final yeniFireToplam = oncekiFireToplam + toplamFire;
 
       final Map<String, int> sonrakiAsamaBedenDetayi = {};
+      final Map<String, int> buKayitBedenDetayi = {}; // sadece bu kaydın fark adedi
       int kalanToplam = 0;
       var kalanToplamHesaplandi = false;
 
@@ -609,6 +610,9 @@ class _BedenUretimTamamlaDialogGenericState
 
           if (yeniKabul > 0) {
             sonrakiAsamaBedenDetayi[bedenKodu] = yeniKabul;
+          }
+          if (net > 0) {
+            buKayitBedenDetayi[bedenKodu] = net;
           }
           kalanToplam += yeniHedef;
         }
@@ -667,8 +671,8 @@ class _BedenUretimTamamlaDialogGenericState
           : (mevcutNot.isEmpty ? null : mevcutNot);
 
       final firmaId = TenantManager.instance.requireFirmaId;
-      final transitionKey =
-          '${widget.atamaTablosu}:${widget.atamaId}:$yeniDurum:beden_takip';
+        final transitionKey =
+          '${widget.atamaTablosu}:${widget.atamaId}:$yeniDurum:beden_takip:$yeniTamamlananToplam';
 
       // Atama tablosunu güncelle
       final Map<String, dynamic> updateData = _eskiAtamaSemasi
@@ -715,18 +719,21 @@ class _BedenUretimTamamlaDialogGenericState
         }
       }
 
-      // Sonraki aşamaya gönder (kısmi veya tam tamamlandığında)
-      if (netAdet > 0) {
-        // Güncellenmiş atama verisi - net adet kullan
+      // Sonraki aşamaya sadece bu kaydın net adedini gönder.
+      final int downstreamAdet = buKayitNetToplam;
+      if (downstreamAdet > 0) {
+        final downstreamKey =
+            '${widget.atamaTablosu}:${widget.atamaId}:downstream:$netAdet';
+
+        // Güncellenmiş atama verisi - bu kaydın net adedi kullanılır.
         final updatedAtama = {
           ...widget.atama,
-          'tamamlanan_adet': netAdet,
+          'tamamlanan_adet': downstreamAdet,
           'fire_adet': yeniFireToplam,
           'kismi': kismiKayit,
-          if (sonrakiAsamaBedenDetayi.isNotEmpty)
-            'beden_detaylari': sonrakiAsamaBedenDetayi,
-          'idempotency_key':
-              '${widget.atamaTablosu}:${widget.atamaId}:downstream',
+          if (buKayitBedenDetayi.isNotEmpty)
+            'beden_detaylari': buKayitBedenDetayi,
+          'idempotency_key': downstreamKey,
           'kaynak_atama_id': widget.atamaId,
           'kaynak_atama_tablosu': widget.atamaTablosu,
           'onceki_asama': widget.asamaDisplayName,
@@ -735,15 +742,16 @@ class _BedenUretimTamamlaDialogGenericState
         // Konfeksiyon tamamlandığında kalite kontrole gönder (sevkiyata değil!)
         if (widget.asamaAdi == 'konfeksiyon') {
           await widget.onKaliteKontrolOlustur(updatedAtama,
-              tamamlananAdet: netAdet);
+              tamamlananAdet: downstreamAdet);
         } else if (widget.asamaAdi == 'yikama' ||
             widget.asamaAdi == 'kalite_kontrol') {
           // Yıkama ve kalite kontrolden sevkiyata gönder
-          await widget.onSevkiyatOlustur(updatedAtama, tamamlananAdet: netAdet);
+          await widget.onSevkiyatOlustur(updatedAtama,
+              tamamlananAdet: downstreamAdet);
         } else {
           // Diğer aşamalardan kalite kontrole gönder
           await widget.onKaliteKontrolOlustur(updatedAtama,
-              tamamlananAdet: netAdet);
+              tamamlananAdet: downstreamAdet);
         }
       }
 
