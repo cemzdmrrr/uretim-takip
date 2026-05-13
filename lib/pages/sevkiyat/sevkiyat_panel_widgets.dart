@@ -302,6 +302,222 @@ extension _WidgetsExt on _SevkiyatPanelState {
     );
   }
 
+  void _showSevkiyatRaporDialog() {
+    final tumSevkler = [
+      ...bekleyenSevkler,
+      ...devamEdenSevkler,
+      ...tamamlananSevkler,
+    ];
+    final bekleyenAdet = bekleyenSevkler.fold<int>(
+      0,
+      (sum, item) => sum + _sevkiyatRaporAdet(item),
+    );
+    final devamAdet = devamEdenSevkler.fold<int>(
+      0,
+      (sum, item) => sum + _sevkiyatRaporAdet(item),
+    );
+    final tamamlananAdet = tamamlananSevkler.fold<int>(
+      0,
+      (sum, item) => sum + _sevkiyatTamamlananAdet(item),
+    );
+    final toplamAdet = tumSevkler.fold<int>(
+      0,
+      (sum, item) => sum + _sevkiyatRaporAdet(item),
+    );
+    final sevkOrani =
+        toplamAdet > 0 ? (tamamlananAdet / toplamAdet) * 100 : 0.0;
+    final hedefDagilimi = <String, int>{};
+    final kaynakDagilimi = <String, int>{};
+    for (final item in tumSevkler) {
+      final hedef = (item['hedef_asama'] ?? 'Belirsiz').toString();
+      final kaynak = (_kaynakAsamaKodu(item) ?? 'Belirsiz').toString();
+      hedefDagilimi[hedef] =
+          (hedefDagilimi[hedef] ?? 0) + _sevkiyatRaporAdet(item);
+      kaynakDagilimi[kaynak] =
+          (kaynakDagilimi[kaynak] ?? 0) + _sevkiyatRaporAdet(item);
+    }
+    final riskliIsler = tumSevkler.where((item) {
+      final model = item[DbTables.trikoTakip] as Map<String, dynamic>?;
+      final termin =
+          DateTime.tryParse(model?['termin_tarihi']?.toString() ?? '');
+      if (termin == null) return false;
+      final durum = (item['durum'] ?? '').toString();
+      if (durum == 'tamamlandi' || durum == 'sevk_edildi') return false;
+      return termin.difference(DateTime.now()).inDays <= 7;
+    }).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.analytics_outlined, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Sevkiyat ERP Raporu'),
+          ],
+        ),
+        content: SizedBox(
+          width: 760,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildSevkiyatRaporKpi('Sevk Emri', '${tumSevkler.length}',
+                        Icons.assignment_outlined, Colors.indigo),
+                    _buildSevkiyatRaporKpi('Toplam Adet', '$toplamAdet',
+                        Icons.inventory_2_outlined, const Color(0xFF2563EB)),
+                    _buildSevkiyatRaporKpi('Bekleyen', '$bekleyenAdet',
+                        Icons.pending_actions, const Color(0xFFD97706)),
+                    _buildSevkiyatRaporKpi('Yolda/İşlemde', '$devamAdet',
+                        Icons.local_shipping, const Color(0xFF7C3AED)),
+                    _buildSevkiyatRaporKpi('Tamamlanan', '$tamamlananAdet',
+                        Icons.task_alt, const Color(0xFF059669)),
+                    _buildSevkiyatRaporKpi(
+                        'Sevk Oranı',
+                        '%${sevkOrani.toStringAsFixed(1)}',
+                        Icons.trending_up,
+                        const Color(0xFF0F766E)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _buildSevkiyatRaporBlok(
+                  baslik: 'Hedef Aşama Dağılımı',
+                  satirlar: hedefDagilimi.entries.isEmpty
+                      ? [const MapEntry('Kayıt', '-')]
+                      : hedefDagilimi.entries
+                          .map((entry) =>
+                              MapEntry(entry.key, '${entry.value} adet'))
+                          .toList(),
+                ),
+                const SizedBox(height: 12),
+                _buildSevkiyatRaporBlok(
+                  baslik: 'Kaynak Dağılımı',
+                  satirlar: kaynakDagilimi.entries.isEmpty
+                      ? [const MapEntry('Kayıt', '-')]
+                      : kaynakDagilimi.entries
+                          .map((entry) =>
+                              MapEntry(entry.key, '${entry.value} adet'))
+                          .toList(),
+                ),
+                const SizedBox(height: 12),
+                _buildSevkiyatRaporBlok(
+                  baslik: 'Termin Riski',
+                  satirlar: [
+                    MapEntry('7 gün içinde/geciken sevk',
+                        '${riskliIsler.length} iş'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _sevkiyatRaporAdet(Map<String, dynamic> item) {
+    final model = item[DbTables.trikoTakip] as Map<String, dynamic>?;
+    return _sevkiyatInt(item['adet']) > 0
+        ? _sevkiyatInt(item['adet'])
+        : _sevkiyatInt(item['talep_edilen_adet']) > 0
+            ? _sevkiyatInt(item['talep_edilen_adet'])
+            : _sevkiyatInt(item['alinan_adet']) > 0
+                ? _sevkiyatInt(item['alinan_adet'])
+                : _sevkiyatInt(model?['adet']);
+  }
+
+  int _sevkiyatTamamlananAdet(Map<String, dynamic> item) {
+    final sevkEdilen = _sevkiyatInt(item['sevk_edilen_adet']);
+    if (sevkEdilen > 0) return sevkEdilen;
+    final tamamlanan = _sevkiyatInt(item['tamamlanan_adet']);
+    return tamamlanan > 0 ? tamamlanan : _sevkiyatRaporAdet(item);
+  }
+
+  int _sevkiyatInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  Widget _buildSevkiyatRaporKpi(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return SizedBox(
+      width: 150,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 8),
+            Text(value,
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(label,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSevkiyatRaporBlok({
+    required String baslik,
+    required List<MapEntry<String, String>> satirlar,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(baslik, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const Divider(height: 18),
+          ...satirlar.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(entry.key,
+                        style: const TextStyle(color: Color(0xFF475569))),
+                  ),
+                  Text(entry.value,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _normalizeAsamaKodu(String? value) {
     final raw = (value ?? '')
         .toLowerCase()
@@ -335,7 +551,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
       return _normalizeAsamaKodu(onceki);
     }
 
-    final kaynakTablo = sevk['kaynak_tablo']?.toString();
+    final kaynakTablo =
+        (sevk['kaynak_tablo'] ?? sevk['kaynak_atama_tablosu'])?.toString();
     if (kaynakTablo == null) return null;
     if (kaynakTablo == DbTables.dokumaAtamalari) return 'dokuma';
     if (kaynakTablo == DbTables.nakisAtamalari) return 'nakis';
@@ -408,7 +625,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
   String? _missingColumnName(Object error) {
     if (error is! PostgrestException) return null;
     final message =
-        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
 
     // PGRST204: Could not find the 'column_name' column of 'table' in the schema cache
     final pgrst204 = RegExp(
@@ -518,7 +736,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
     Map<String, int> kaynak,
     int hedefToplam,
   ) {
-    final temiz = kaynak.map((key, value) => MapEntry(key, value < 0 ? 0 : value))
+    final temiz = kaynak
+        .map((key, value) => MapEntry(key, value < 0 ? 0 : value))
       ..removeWhere((_, value) => value <= 0);
     if (temiz.isEmpty) return const <String, int>{};
     if (hedefToplam <= 0) return _siraliBedenMap(temiz);
@@ -537,8 +756,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
     }
 
     var dagitilacak = hedefToplam - _toplamBedenAdedi(tabanlar);
-    kalanlar.sort((a, b) =>
-        (b['kalan'] as double).compareTo(a['kalan'] as double));
+    kalanlar
+        .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
 
     for (var i = 0; i < dagitilacak; i++) {
       final beden = kalanlar[i % kalanlar.length]['beden'] as String;
@@ -654,17 +873,6 @@ extension _WidgetsExt on _SevkiyatPanelState {
           return _siraliBedenMap(kayitli);
         }
 
-        final oncekiAsamaKodu = _normalizeAsamaKodu(
-          kalite['onceki_asama']?.toString(),
-        );
-        final oncekiAsama = await _asamaBedenGerceklesenAdetleriGetir(
-          modelId: modelId,
-          asamaKodu: oncekiAsamaKodu,
-        );
-        if (oncekiAsama.isNotEmpty) {
-          return _siraliBedenMap(oncekiAsama);
-        }
-
         return const <String, int>{};
       } catch (e) {
         final missingColumn = _missingColumnName(e);
@@ -698,7 +906,9 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
   String _bedenDagilimiMetni(Map<String, int> bedenler) {
     if (bedenler.isEmpty) return '-';
-    return bedenler.entries.map((entry) => '${entry.key}:${entry.value}').join(' | ');
+    return bedenler.entries
+        .map((entry) => '${entry.key}:${entry.value}')
+        .join(' | ');
   }
 
   String _bedenEtiketi(Map<String, int> bedenler) {
@@ -731,14 +941,6 @@ extension _WidgetsExt on _SevkiyatPanelState {
       return _siraliBedenMap(kaliteDagilimi);
     }
 
-    final oncekiAsamaDagilimi = await _asamaBedenGerceklesenAdetleriGetir(
-      modelId: modelId,
-      asamaKodu: sevk['onceki_asama']?.toString(),
-    );
-    if (oncekiAsamaDagilimi.isNotEmpty) {
-      return _siraliBedenMap(oncekiAsamaDagilimi);
-    }
-
     // Sevkiyatta model_beden_dagilimi oransal fallback'i yanlis dagilim
     // uretebiliyor (toplami beden sayisina bolme etkisi). Burada sadece
     // gercek kaynak dagilimlari kullanilir; yoksa beden dagilimi bos doner.
@@ -768,8 +970,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
       try {
         await supabase
             .from(DbTables.sevkiyatKayitlari)
-            .update({'updated_at': DateTime.now().toIso8601String()})
-            .eq('id', sevkiyatId);
+            .update({'updated_at': DateTime.now().toIso8601String()}).eq(
+                'id', sevkiyatId);
       } catch (_) {}
     }
   }
@@ -831,10 +1033,9 @@ extension _WidgetsExt on _SevkiyatPanelState {
     final sevkSessionKey = DateTime.now().millisecondsSinceEpoch.toString();
     final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final mevcutAdetRaw =
-      sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
-    var toplamMevcutAdet = (mevcutAdetRaw as num?)?.toInt() ??
-      int.tryParse('$mevcutAdetRaw') ??
-      0;
+        sevk['adet'] ?? sevk['talep_edilen_adet'] ?? model['adet'] ?? 0;
+    var toplamMevcutAdet =
+        (mevcutAdetRaw as num?)?.toInt() ?? int.tryParse('$mevcutAdetRaw') ?? 0;
     final mevcutBedenAdetleri =
         await _varsayilanSevkBedenDagilimi(sevk, toplamMevcutAdet);
     final bedenToplam = _toplamBedenAdedi(mevcutBedenAdetleri);
@@ -958,7 +1159,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
                                     ),
                                     onChanged: (_) {
                                       var toplam = 0;
-                                      for (final ctrl in bedenControllers.values) {
+                                      for (final ctrl
+                                          in bedenControllers.values) {
                                         toplam +=
                                             int.tryParse(ctrl.text.trim()) ?? 0;
                                       }
@@ -1244,9 +1446,9 @@ extension _WidgetsExt on _SevkiyatPanelState {
                         for (final entry in mevcutBedenAdetleri.entries) {
                           final beden = entry.key;
                           final maxAdet = entry.value;
-                          final girilen =
-                              int.tryParse(bedenControllers[beden]!.text.trim()) ??
-                                  0;
+                          final girilen = int.tryParse(
+                                  bedenControllers[beden]!.text.trim()) ??
+                              0;
 
                           if (girilen < 0) {
                             context.showErrorSnackBar(
@@ -1334,11 +1536,11 @@ extension _WidgetsExt on _SevkiyatPanelState {
   }) async {
     try {
       final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
-      final mevcutBedenDetayi = _parseBedenDetayi(sevk['beden_detaylari']);
-      final sevkBedenDetayi = bedenDetaylari != null && bedenDetaylari.isNotEmpty
-          ? _siraliBedenMap(Map<String, int>.from(bedenDetaylari)
-            ..removeWhere((_, value) => value <= 0))
-          : _oransalBedenDagitimi(mevcutBedenDetayi, adet);
+      final sevkBedenDetayi =
+          bedenDetaylari != null && bedenDetaylari.isNotEmpty
+              ? _siraliBedenMap(Map<String, int>.from(bedenDetaylari)
+                ..removeWhere((_, value) => value <= 0))
+              : const <String, int>{};
       final bedenTag = _bedenEtiketi(sevkBedenDetayi);
       final hedefAsamaInfo = hedefAsamalar.firstWhere(
         (a) => a['key'] == hedefAsama,
@@ -1372,7 +1574,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
       final kaynakAsamaKodu =
           _kaynakAsamaKodu(sevk) ?? (oncekiAsama ?? 'sevkiyat');
       // sessionKey: her diyalog açılışında benzersiz → kısmi sevkler ayrı satır oluşturur
-      final _sevkSession = sessionKey ?? DateTime.now().millisecondsSinceEpoch.toString();
+      final _sevkSession =
+          sessionKey ?? DateTime.now().millisecondsSinceEpoch.toString();
       final sevkIslemKey =
           'sevk:${kaynakTablo}:${sevk['id']}:$hedefAsama:$_sevkSession';
 
@@ -1395,13 +1598,14 @@ extension _WidgetsExt on _SevkiyatPanelState {
           '📦 Sevk işlemi - Kaynak tablo: $kaynakTablo, Önceki aşama: $oncekiAsama');
 
       final mevcutNot = (sevk['notlar'] ?? '').toString().trim();
-        final sevkNotuTemel = notlar != null && notlar.isNotEmpty
+      final sevkNotuTemel = notlar != null && notlar.isNotEmpty
           ? '[SEVK] $hedefAsama aşamasına $adet adet gönderildi. $notlar'
           : '[SEVK] $hedefAsama aşamasına $adet adet gönderildi.';
-        final sevkNotu = irsaliyeNo.isNotEmpty
+      final sevkNotu = irsaliyeNo.isNotEmpty
           ? '$sevkNotuTemel (Irsaliye: $irsaliyeNo)'
           : sevkNotuTemel;
-      final birlesikNot = mevcutNot.isEmpty ? sevkNotu : '$mevcutNot\n$sevkNotu';
+      final birlesikNot =
+          mevcutNot.isEmpty ? sevkNotu : '$mevcutNot\n$sevkNotu';
 
       if (kaynakTablo == DbTables.sevkiyatKayitlari) {
         // sevkiyat_kayitlari tablosunu güncelle
@@ -1416,8 +1620,10 @@ extension _WidgetsExt on _SevkiyatPanelState {
         final yeniDurum = ilkSevkHareketi
             ? 'sevk_ediliyor'
             : (kalanAdet <= 0 ? 'tamamlandi' : 'sevk_ediliyor');
+        final mevcutSevkBedenDetayi =
+            _parseBedenDetayi(sevk['beden_detaylari']);
         final kalanBedenDetayi = _kalanBedenDagilimi(
-          mevcutBedenDetayi,
+          mevcutSevkBedenDetayi,
           sevkBedenDetayi,
         );
 
@@ -1435,14 +1641,15 @@ extension _WidgetsExt on _SevkiyatPanelState {
             if (tedarikciId != null) 'hedef_tedarikci_id': tedarikciId,
             'sevkiyat_personeli_id': currentUser?.id,
             'sevk_tarihi': DateTime.now().toIso8601String(),
-            'tamamlanma_tarihi':
-                yeniDurum == 'tamamlandi' ? DateTime.now().toIso8601String() : null,
+            'tamamlanma_tarihi': yeniDurum == 'tamamlandi'
+                ? DateTime.now().toIso8601String()
+                : null,
             'updated_at': DateTime.now().toIso8601String(),
             'notlar': birlesikNot,
           },
         );
 
-        if (mevcutBedenDetayi.isNotEmpty || sevkBedenDetayi.isNotEmpty) {
+        if (mevcutSevkBedenDetayi.isNotEmpty || sevkBedenDetayi.isNotEmpty) {
           await _opsiyonelBedenDetayiGuncelle(
             sevkiyatId: sevk['id'],
             firmaId: firmaId,
@@ -1465,8 +1672,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
             'irsaliye_id': irsaliye['id'],
             'irsaliye_no': irsaliyeNo,
             'notlar': detayNot.isEmpty ? null : detayNot,
-            if (sevkBedenDetayi.isNotEmpty)
-              'beden_detaylari': sevkBedenDetayi,
+            if (sevkBedenDetayi.isNotEmpty) 'beden_detaylari': sevkBedenDetayi,
             'firma_id': firmaId,
           });
           debugPrint('✅ Sevkiyat detayı kaydedildi');
@@ -1696,7 +1902,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
                   : DbTables.paketlemeAtamalari))
           .toString();
 
-        final hedefTablo = sevk['alinan_adet'] != null
+      final hedefTablo = sevk['alinan_adet'] != null
           ? DbTables.sevkiyatKayitlari
           : kaynakTablo;
 

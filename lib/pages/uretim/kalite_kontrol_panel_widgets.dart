@@ -129,6 +129,11 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                           aktif: aktifFiltreVar,
                         ),
                         _buildErpAksiyonButonu(
+                          icon: Icons.analytics_outlined,
+                          tooltip: 'Rapor',
+                          onPressed: _showKaliteRaporDialog,
+                        ),
+                        _buildErpAksiyonButonu(
                           icon: Icons.refresh,
                           tooltip: 'Yenile',
                           onPressed: _verileriYukle,
@@ -217,6 +222,194 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showKaliteRaporDialog() {
+    final tumKayitlar = [
+      ...bekleyenler,
+      ...kontrolEdiliyor,
+      ...tamamlananlar,
+    ];
+    final toplamAdet = tumKayitlar.fold<int>(
+      0,
+      (sum, item) => sum + _kaliteRaporAdet(item),
+    );
+    final kabulAdet = tamamlananlar
+        .where((item) => _kaliteDurum(item) == 'onay')
+        .fold<int>(0, (sum, item) => sum + _kaliteRaporAdet(item));
+    final redAdet = tamamlananlar
+        .where((item) => _kaliteDurum(item) == 'red')
+        .fold<int>(0, (sum, item) => sum + _kaliteRaporAdet(item));
+    final kontroldeAdet = kontrolEdiliyor.fold<int>(
+      0,
+      (sum, item) => sum + _kaliteRaporAdet(item),
+    );
+    final bekleyenAdet = bekleyenler.fold<int>(
+      0,
+      (sum, item) => sum + _kaliteRaporAdet(item),
+    );
+    final sonucAdet = kabulAdet + redAdet;
+    final kabulOrani = sonucAdet > 0 ? (kabulAdet / sonucAdet) * 100 : 0.0;
+    final redOrani = sonucAdet > 0 ? (redAdet / sonucAdet) * 100 : 0.0;
+    final asamaDagilimi = <String, int>{};
+    for (final item in tumKayitlar) {
+      final asama = (item['onceki_asama'] ?? 'Belirsiz').toString();
+      asamaDagilimi[asama] = (asamaDagilimi[asama] ?? 0) + 1;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.analytics_outlined, color: Color(0xFF0F766E)),
+            SizedBox(width: 8),
+            Text('Kalite ERP Raporu'),
+          ],
+        ),
+        content: SizedBox(
+          width: 720,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildRaporKpi('İş Emri', '${tumKayitlar.length}',
+                        Icons.assignment_outlined, const Color(0xFF0F766E)),
+                    _buildRaporKpi('Kontrol Adedi', '$toplamAdet',
+                        Icons.fact_check_outlined, const Color(0xFF2563EB)),
+                    _buildRaporKpi('Bekleyen', '$bekleyenAdet',
+                        Icons.pending_actions, const Color(0xFFD97706)),
+                    _buildRaporKpi('Kontrolde', '$kontroldeAdet', Icons.search,
+                        const Color(0xFF7C3AED)),
+                    _buildRaporKpi('Kabul', '$kabulAdet',
+                        Icons.verified_outlined, const Color(0xFF059669)),
+                    _buildRaporKpi('Red', '$redAdet', Icons.cancel_outlined,
+                        const Color(0xFFDC2626)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _buildRaporBlok(
+                  baslik: 'Kalite Sonuçları',
+                  satirlar: [
+                    MapEntry(
+                        'Kabul Oranı', '%${kabulOrani.toStringAsFixed(1)}'),
+                    MapEntry('Red Oranı', '%${redOrani.toStringAsFixed(1)}'),
+                    MapEntry('Sonuçlanan Adet', '$sonucAdet'),
+                    MapEntry('Açık Kontrol Adedi',
+                        '${bekleyenAdet + kontroldeAdet}'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildRaporBlok(
+                  baslik: 'Kaynak Aşama Dağılımı',
+                  satirlar: asamaDagilimi.entries.isEmpty
+                      ? [const MapEntry('Kayıt', '-')]
+                      : asamaDagilimi.entries
+                          .map((entry) =>
+                              MapEntry(entry.key, '${entry.value} iş'))
+                          .toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _kaliteRaporAdet(Map<String, dynamic> item) {
+    final model = item[DbTables.trikoTakip] as Map<String, dynamic>?;
+    return _toInt(item['kontrol_edilecek_adet']) > 0
+        ? _toInt(item['kontrol_edilecek_adet'])
+        : _toInt(item['kabul_edilen_adet']) > 0
+            ? _toInt(item['kabul_edilen_adet'])
+            : _toInt(model?['adet']);
+  }
+
+  String _kaliteDurum(Map<String, dynamic> item) {
+    final durum = (item['durum'] ?? '').toString();
+    if (durum == 'reddedildi' || durum == 'kalite_red') return 'red';
+    if (durum == 'tamamlandi' ||
+        durum == 'onaylandi' ||
+        durum == 'kalite_onay') {
+      return 'onay';
+    }
+    return 'acik';
+  }
+
+  Widget _buildRaporKpi(
+      String label, String value, IconData icon, Color color) {
+    return SizedBox(
+      width: 150,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 8),
+            Text(value,
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(label,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRaporBlok({
+    required String baslik,
+    required List<MapEntry<String, String>> satirlar,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(baslik, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const Divider(height: 18),
+          ...satirlar.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(entry.key,
+                        style: const TextStyle(color: Color(0xFF475569))),
+                  ),
+                  Text(entry.value,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -846,7 +1039,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       case 'nakis':
         return 'konfeksiyon';
       case 'konfeksiyon':
-        return 'yikama';
+        return 'sevkiyat';
       case 'yikama':
         return 'utu';
       case 'utu':
@@ -1007,7 +1200,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     Map<String, int> kaynak,
     int hedefToplam,
   ) {
-    final temiz = kaynak.map((key, value) => MapEntry(key, value < 0 ? 0 : value))
+    final temiz = kaynak
+        .map((key, value) => MapEntry(key, value < 0 ? 0 : value))
       ..removeWhere((_, value) => value <= 0);
     if (temiz.isEmpty) return const <String, int>{};
 
@@ -1031,8 +1225,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     }
 
     var dagitilacak = hedefToplam - _toplamBedenAdedi(tabanDegerler);
-    kalanlar.sort((a, b) =>
-        (b['kalan'] as double).compareTo(a['kalan'] as double));
+    kalanlar
+        .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
 
     for (var i = 0; i < dagitilacak; i++) {
       final beden = kalanlar[i % kalanlar.length]['beden'] as String;
@@ -1217,7 +1411,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     final rpcSonrakiAsama = _rpcSonrakiAsamaKodu(oncekiAsamaKodu);
     if (rpcSonrakiAsama != null) {
       try {
-        final oncekiAsama = await _bedenService.getOncekiAsamaGerceklesenAdetler(
+        final oncekiAsama =
+            await _bedenService.getOncekiAsamaGerceklesenAdetler(
           modelId,
           rpcSonrakiAsama,
         );
@@ -1306,7 +1501,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
   String? _missingColumnName(Object error) {
     if (error is! PostgrestException) return null;
     final message =
-        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
 
     // PGRST204: Could not find the 'column_name' column of 'table' in the schema cache
     final pgrst204 = RegExp(
@@ -1405,8 +1601,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
 
     for (var attempt = 0; attempt < 6; attempt++) {
       try {
-        var query =
-            supabase.from(hedefTablo).update(data).eq('id', kayitId);
+        var query = supabase.from(hedefTablo).update(data).eq('id', kayitId);
         if (useFirmaFilter) {
           query = query.eq('firma_id', firmaId);
         }
@@ -1467,9 +1662,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
           continue;
         }
 
-        final kaldirilacak =
-            siraliOpsiyonelAlanlar.firstWhere((alan) => data.containsKey(alan),
-                orElse: () => '');
+        final kaldirilacak = siraliOpsiyonelAlanlar
+            .firstWhere((alan) => data.containsKey(alan), orElse: () => '');
         if (kaldirilacak.isNotEmpty) {
           data.remove(kaldirilacak);
           continue;
@@ -1656,7 +1850,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     required Map<String, dynamic> model,
     required String redSebebi,
   }) async {
-    final kaynakAsama = _normalizeAsamaKodu(kontrol['onceki_asama']?.toString());
+    final kaynakAsama =
+        _normalizeAsamaKodu(kontrol['onceki_asama']?.toString());
     final hedefTablo = _asamaTablosu(kaynakAsama);
     if (hedefTablo == null) {
       debugPrint('⚠️ Rework için hedef tablo bulunamadı: $kaynakAsama');
@@ -1891,7 +2086,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 context.showSuccessSnackBar(
-                  '✅ Kalite kontrolü onaylandı - Sevkiyat bekleme listesine alındı (Hedef: $hedefAsamaDisplay)');
+                    '✅ Kalite kontrolü onaylandı - Sevkiyat bekleme listesine alındı (Hedef: $hedefAsamaDisplay)');
                 await _verileriYukle();
               } catch (e) {
                 if (!context.mounted) return;
@@ -2047,10 +2242,9 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
 
   void _showDetayDialog(Map<String, dynamic> kontrol) {
     final model = kontrol[DbTables.trikoTakip] as Map<String, dynamic>;
-    final kontrolAdedi =
-        _toInt(kontrol['kontrol_edilecek_adet']) > 0
-            ? _toInt(kontrol['kontrol_edilecek_adet'])
-            : _toInt(model['adet']);
+    final kontrolAdedi = _toInt(kontrol['kontrol_edilecek_adet']) > 0
+        ? _toInt(kontrol['kontrol_edilecek_adet'])
+        : _toInt(model['adet']);
     final kayitliBeden = _parseBedenDetayi(kontrol['beden_detaylari']);
 
     showDialog(
@@ -2088,7 +2282,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     FutureBuilder<int>(
                       future: _getModelToplamAdet(model['id']?.toString()),
                       builder: (context, snapshot) {
-                        final modelToplam = snapshot.data ?? _toInt(model['adet']);
+                        final modelToplam =
+                            snapshot.data ?? _toInt(model['adet']);
                         return _buildDetaySatiri(
                           'Toplam Adet',
                           modelToplam > 0 ? '$modelToplam' : '-',
@@ -2112,8 +2307,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     const Text('Kontrol Bilgileri',
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    _buildDetaySatiri(
-                      'Önceki Aşama', kontrol['onceki_asama']),
+                    _buildDetaySatiri('Önceki Aşama', kontrol['onceki_asama']),
                     _buildDetaySatiri('Durum', kontrol['durum']),
                     _buildDetaySatiri(
                       'Dokumadan Çıkan',

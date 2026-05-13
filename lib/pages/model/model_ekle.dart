@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/dal_form_config.dart';
@@ -17,12 +17,13 @@ class ModelEkle extends StatefulWidget {
   State<ModelEkle> createState() => _ModelEkleState();
 }
 
-class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMixin {
+class _ModelEkleState extends State<ModelEkle>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   late TabController _tabController;
   late String _aktifDal;
-  
+
   bool _isLoading = false;
 
   // Seçilen aksesuarlar listesi
@@ -58,13 +59,16 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
   final _ilikDugmeFiyatController = TextEditingController();
   final _fermuarFiyatController = TextEditingController();
   final _aksesuarFiyatController = TextEditingController();
-  final _genelAksesuarFiyatController = TextEditingController(); // Yeni - Genel Aksesuar için
-  final _genelGiderFiyatController = TextEditingController(); // Genel Gider için
+  final _genelAksesuarFiyatController =
+      TextEditingController(); // Yeni - Genel Aksesuar için
+  final _genelGiderFiyatController =
+      TextEditingController(); // Genel Gider için
   final _karMarjiController = TextEditingController(); // Başlangıçta boş
   final _pesinFiyatController = TextEditingController();
-  
+
   // Vade seçenekleri
-  final _vadeOraniController = TextEditingController(); // Vade oranı manuel giriş
+  final _vadeOraniController =
+      TextEditingController(); // Vade oranı manuel giriş
   int _selectedVade = 0; // 0=Peşin, 1-6=Vade ayları
 
   // Dropdown'lar yerine manuel giriş controller'ları
@@ -88,17 +92,30 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
 
   // Beden dağılımı - Dinamik liste
   final List<Map<String, dynamic>> _bedenler = [
-    {'beden': 'S', 'adet': 0, 'bedenController': TextEditingController(text: 'S'), 'adetController': TextEditingController()},
-    {'beden': 'M', 'adet': 0, 'bedenController': TextEditingController(text: 'M'), 'adetController': TextEditingController()},
-    {'beden': 'L', 'adet': 0, 'bedenController': TextEditingController(text: 'L'), 'adetController': TextEditingController()},
+    {
+      'beden': 'S',
+      'adet': 0,
+      'bedenController': TextEditingController(text: 'S'),
+      'adetController': TextEditingController()
+    },
+    {
+      'beden': 'M',
+      'adet': 0,
+      'bedenController': TextEditingController(text: 'M'),
+      'adetController': TextEditingController()
+    },
+    {
+      'beden': 'L',
+      'adet': 0,
+      'bedenController': TextEditingController(text: 'L'),
+      'adetController': TextEditingController()
+    },
   ];
-
-
 
   @override
   void dispose() {
     _tabController.dispose();
-    
+
     _markaController.dispose();
     _itemNoController.dispose();
     _modelAdiController.dispose();
@@ -115,7 +132,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
     _teknikGramajController.dispose();
     _ozelTalimatlarController.dispose();
     _genelNotlarController.dispose();
-    
+
     // Yeni manuel giriş controller'ları
     _sezonController.dispose();
     _urunKategorisiController.dispose();
@@ -130,7 +147,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
     _makineTipiController.dispose();
     _orguSikligiController.dispose();
     _durumController.dispose();
-    
+
     // Fiyatlandırma controller'ları
     _iplikKgFiyatiController.dispose();
     _iplikMaliyetiController.dispose();
@@ -148,13 +165,13 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
     _karMarjiController.dispose();
     _pesinFiyatController.dispose();
     _vadeOraniController.dispose();
-    
+
     // Beden controller'larını dispose et
     for (var beden in _bedenler) {
       beden['bedenController']?.dispose();
       beden['adetController']?.dispose();
     }
-    
+
     super.dispose();
   }
 
@@ -174,7 +191,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
     super.initState();
     _aktifDal = DalFormConfig.birincilDal;
     _tabController = TabController(length: 3, vsync: this);
-    
+
     // Fiyat hesaplama listener'ları
     _iplikKgFiyatiController.addListener(_calculateIplikMaliyeti);
     _gramajController.addListener(_calculateIplikMaliyeti);
@@ -182,8 +199,6 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
     _makinaDkFiyatiController.addListener(_calculateOrguFiyati);
     _addCalculationListeners();
   }
-
-
 
   void _addCalculationListeners() {
     // Otomatik hesaplama için listener'lar ekle
@@ -201,7 +216,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
       _karMarjiController, // Kar marjı değişikliklerini dinle
       _vadeOraniController, // Vade oranı değişikliklerini dinle
     ];
-    
+
     for (var controller in controllers) {
       controller.addListener(() => _calculateTotalCost());
     }
@@ -210,7 +225,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
   void _calculateIplikMaliyeti() {
     final kgFiyat = _parseDouble(_iplikKgFiyatiController.text) ?? 0.0;
     final gramaj = _parseDouble(_gramajController.text) ?? 0.0;
-    final maliyet = (kgFiyat * gramaj) ; // kg'den gram'a çevir
+    final maliyet = (kgFiyat * gramaj); // kg'den gram'a çevir
     _iplikMaliyetiController.text = maliyet.toStringAsFixed(2);
     _calculateTotalCost();
   }
@@ -240,17 +255,17 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
   double _calculateFinalPrice() {
     // Kırmızı renkli alanları topla (Excel'e göre)
     double redSum = 0.0;
-    
+
     // İplik maliyeti (otomatik hesaplanan)
     final kgFiyat = _parseDouble(_iplikKgFiyatiController.text) ?? 0.0;
     final gramaj = _parseDouble(_gramajController.text) ?? 0.0;
-    final iplikMaliyeti = (kgFiyat * gramaj) ;
+    final iplikMaliyeti = (kgFiyat * gramaj);
     redSum += iplikMaliyeti;
-    
+
     // Örgü fiyatı (otomatik hesaplanan: makine süresi × dk fiyatı)
     final orguFiyati = _parseDouble(_orguFiyatController.text) ?? 0.0;
     redSum += orguFiyati;
-    
+
     // Kırmızı manuel girişler - hepsini topla
     redSum += _parseDouble(_dikimFiyatController.text) ?? 0.0;
     redSum += _parseDouble(_utuFiyatController.text) ?? 0.0;
@@ -260,14 +275,15 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
     redSum += _parseDouble(_aksesuarFiyatController.text) ?? 0.0;
     redSum += _parseDouble(_genelAksesuarFiyatController.text) ?? 0.0;
     redSum += _parseDouble(_genelGiderFiyatController.text) ?? 0.0;
-    
+
     // Yeşil renkli kar marjı çarpımı (manuel yazılır)
     final karMarjiYuzde = _parseDouble(_karMarjiController.text) ?? 0.0;
-    final double karMarjiCarpan = 1 + (karMarjiYuzde / 100); // %0 -> 1.00, %30 -> 1.30
-    
+    final double karMarjiCarpan =
+        1 + (karMarjiYuzde / 100); // %0 -> 1.00, %30 -> 1.30
+
     // Final hesaplama: Kırmızıları topla, yeşil ile çarp
     double finalPrice = redSum * karMarjiCarpan;
-    
+
     // Vade hesaplaması - Sadece vade seçildiyse ve vade oranı girilmişse
     if (_selectedVade > 0) {
       final vadeOrani = _parseDouble(_vadeOraniController.text) ?? 0.0;
@@ -275,8 +291,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
         finalPrice = finalPrice * (1 + vadeOrani / 100); // %10 -> 1.10 çarpanı
       }
     }
-    
-    
+
     setState(() {}); // UI'yi güncelle
     return finalPrice;
   }
@@ -284,17 +299,17 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
   double _getCurrentTotalCost() {
     // Kar marjı olmadan toplam maliyeti hesapla
     double redSum = 0.0;
-    
+
     // İplik maliyeti (otomatik hesaplanan)
     final kgFiyat = _parseDouble(_iplikKgFiyatiController.text) ?? 0.0;
     final gramaj = _parseDouble(_gramajController.text) ?? 0.0;
     final iplikMaliyeti = (kgFiyat * gramaj);
     redSum += iplikMaliyeti;
-    
+
     // Örgü fiyatı (otomatik hesaplanan: makine süresi × dk fiyatı)
     final orguFiyati = _parseDouble(_orguFiyatController.text) ?? 0.0;
     redSum += orguFiyati;
-    
+
     // Kırmızı manuel girişler - hepsini topla
     redSum += _parseDouble(_dikimFiyatController.text) ?? 0.0;
     redSum += _parseDouble(_utuFiyatController.text) ?? 0.0;
@@ -304,7 +319,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
     redSum += _parseDouble(_aksesuarFiyatController.text) ?? 0.0;
     redSum += _parseDouble(_genelAksesuarFiyatController.text) ?? 0.0;
     redSum += _parseDouble(_genelGiderFiyatController.text) ?? 0.0;
-    
+
     return redSum;
   }
 
@@ -317,7 +332,8 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
       // Beden dağılımını JSON formatına çevir
       final bedenDagilimi = <String, dynamic>{};
       for (var beden in _bedenler) {
-        final bedenController = beden['bedenController'] as TextEditingController;
+        final bedenController =
+            beden['bedenController'] as TextEditingController;
         final adetController = beden['adetController'] as TextEditingController;
         if (bedenController.text.isNotEmpty && adetController.text.isNotEmpty) {
           final adet = int.tryParse(adetController.text) ?? 0;
@@ -360,7 +376,9 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
         'teknik_gramaj': _teknikGramajController.text,
         'siparis_tarihi': _siparisTarihi?.toIso8601String(),
         'termin_tarihi': _terminTarihi?.toIso8601String(),
-        'durum': _durumController.text.isNotEmpty ? _durumController.text : 'Beklemede',
+        'durum': _durumController.text.isNotEmpty
+            ? _durumController.text
+            : 'Beklemede',
         'ozel_talimatlar': _ozelTalimatlarController.text,
         'genel_notlar': _genelNotlarController.text,
         // Fiyatlandırma verileri
@@ -375,7 +393,8 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
         'ilik_dugme_fiyat': _parseDouble(_ilikDugmeFiyatController.text),
         'fermuar_fiyat': _parseDouble(_fermuarFiyatController.text),
         'aksesuar_fiyat': _parseDouble(_aksesuarFiyatController.text),
-        'genel_aksesuar_fiyat': _parseDouble(_genelAksesuarFiyatController.text),
+        'genel_aksesuar_fiyat':
+            _parseDouble(_genelAksesuarFiyatController.text),
         'genel_gider_fiyat': _parseDouble(_genelGiderFiyatController.text),
         'kar_marji': _parseDouble(_karMarjiController.text),
         'pesin_fiyat': _parseDouble(_pesinFiyatController.text),
@@ -387,9 +406,13 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
       modelData['firma_id'] = TenantManager.instance.requireFirmaId;
 
       // Model kaydet ve ID al
-      final response = await _supabase.from(DbTables.trikoTakip).insert(modelData).select('id').single();
+      final response = await _supabase
+          .from(DbTables.trikoTakip)
+          .insert(modelData)
+          .select('id')
+          .single();
       final modelId = response['id'].toString();
-      
+
       // Beden dağılımını ayrı tabloya kaydet
       if (bedenDagilimi.isNotEmpty) {
         try {
@@ -401,7 +424,8 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
               'firma_id': TenantManager.instance.requireFirmaId,
             });
           }
-          debugPrint('Beden dağılımı kaydedildi: ${bedenDagilimi.length} beden');
+          debugPrint(
+              'Beden dağılımı kaydedildi: ${bedenDagilimi.length} beden');
         } catch (e) {
           debugPrint('Beden dağılımı kayıt hatası (tablo yoksa normal): $e');
         }
@@ -411,7 +435,7 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
       if (_selectedAksesuarlar.isNotEmpty) {
         for (final item in _selectedAksesuarlar) {
           final aksesuar = item['aksesuar'] as Map<String, dynamic>;
-          final adetPerModel = item['adet_per_model'] as int;
+          final adetPerModel = _aksesuarAdetDegeri(item['adet_per_model']);
           try {
             // Tüm kolonlarla dene (miktar, adet_per_model varsa)
             await _supabase.from(DbTables.modelAksesuar).insert({
@@ -423,7 +447,8 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
             });
             debugPrint('✅ Aksesuar kaydedildi: ${aksesuar['ad']}');
           } catch (e) {
-            debugPrint('⚠️ Ek kolonlar başarısız, sadece zorunlu kolonlarla deneniyor: $e');
+            debugPrint(
+                '⚠️ Ek kolonlar başarısız, sadece zorunlu kolonlarla deneniyor: $e');
             try {
               // Yalnız zorunlu kolonlarla dene
               await _supabase.from(DbTables.modelAksesuar).insert({
@@ -431,13 +456,15 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
                 'aksesuar_id': aksesuar['id'].toString(),
                 'firma_id': TenantManager.instance.requireFirmaId,
               });
-              debugPrint('✅ Aksesuar kaydedildi (zorunlu kolonlarla): ${aksesuar['ad']}');
+              debugPrint(
+                  '✅ Aksesuar kaydedildi (zorunlu kolonlarla): ${aksesuar['ad']}');
             } catch (e2) {
               debugPrint('❌ Model aksesuar kayıt hatası: $e2');
             }
           }
         }
-        debugPrint('Model aksesuarları işlendi: ${_selectedAksesuarlar.length} aksesuar');
+        debugPrint(
+            'Model aksesuarları işlendi: ${_selectedAksesuarlar.length} aksesuar');
       }
 
       if (mounted) {
@@ -505,5 +532,4 @@ class _ModelEkleState extends State<ModelEkle> with SingleTickerProviderStateMix
             ),
     );
   }
-
 }

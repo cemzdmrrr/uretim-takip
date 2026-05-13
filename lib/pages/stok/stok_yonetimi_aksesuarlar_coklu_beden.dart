@@ -42,12 +42,31 @@ class _StokYonetimiAksesuarlarCokluBedenState
   DateTime? _sarfBaslangic;
   DateTime? _sarfBitis;
   String? _sarfTedarikciFiltre; // seçili tedarikçi adı
-  String? _sarfModelFiltre;    // seçili model label
+  String? _sarfModelFiltre; // seçili model label
 
   static const Color _primaryColor = Color(0xFF2563EB);
   static const Color _successColor = Color(0xFF059669);
   static const Color _warningColor = Color(0xFFD97706);
   static const Color _dangerColor = Color(0xFFDC2626);
+
+  double _adetPerModelDegeri(dynamic value) {
+    if (value is num) return value.toDouble();
+    final text = (value?.toString() ?? '').trim();
+    if (text.isEmpty) return 1.0;
+    return double.tryParse(text.replaceAll(',', '.')) ?? 1.0;
+  }
+
+  String _formatMiktar(num value) {
+    final doubleValue = value.toDouble();
+    if (doubleValue == doubleValue.roundToDouble()) {
+      return doubleValue.toStringAsFixed(0);
+    }
+    return doubleValue
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
   static const Color _surfaceColor = Color(0xFFF8FAFC);
 
   @override
@@ -75,7 +94,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
 
       final data = await supabase
           .from(DbTables.aksesuarStokHareketleri)
-          .select('*, aksesuar_bedenler(id, beden, aksesuar_id, aksesuarlar(ad, sku, renk)), triko_takip(id, item_no, marka, model_adi)')
+          .select(
+              '*, aksesuar_bedenler(id, beden, aksesuar_id, aksesuarlar(ad, sku, renk)), triko_takip(id, item_no, marka, model_adi)')
           .eq('firma_id', firmaId)
           .eq('hareket_tipi', 'cikis')
           .order('created_at', ascending: false);
@@ -178,8 +198,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
         final modelAdi = model['model_adi']?.toString() ?? 'Bilinmeyen Model';
         final int modelAdet =
             (model['toplam_adet'] ?? model['adet'] ?? 0) as int;
-        final int adetPerModel =
-            (ma['adet_per_model'] ?? ma['miktar'] ?? 1) as int;
+        final double adetPerModel =
+            _adetPerModelDegeri(ma['adet_per_model'] ?? ma['miktar']);
         final String durum = model['durum']?.toString() ?? '';
         final Map<String, dynamic> modelBedenler =
             (model['bedenler'] as Map<String, dynamic>?) ?? {};
@@ -190,7 +210,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
           'model_adi': modelAdi,
           'model_adet': modelAdet,
           'adet_per_model': adetPerModel,
-          'gereken_adet': modelAdet * adetPerModel,
+          'gereken_adet': (modelAdet * adetPerModel).ceil(),
           'durum': durum,
           'bedenler': modelBedenler,
         });
@@ -211,8 +231,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
 
         final aksesuarId = bedenId != null ? bedenAksesuarMap[bedenId] : null;
         if (aksesuarId != null && aksesuarId.isNotEmpty) {
-          sarfToplamMap[aksesuarId] =
-              (sarfToplamMap[aksesuarId] ?? 0) + miktar;
+          sarfToplamMap[aksesuarId] = (sarfToplamMap[aksesuarId] ?? 0) + miktar;
         }
       }
 
@@ -286,9 +305,9 @@ class _StokYonetimiAksesuarlarCokluBedenState
       int toplam = 0;
       for (var k in kullanimlar) {
         final modelBedenler = k['bedenler'] as Map<String, dynamic>? ?? {};
-        final adetPerModel = k['adet_per_model'] as int? ?? 1;
+        final adetPerModel = _adetPerModelDegeri(k['adet_per_model']);
         final bedenAdet = (modelBedenler[bedenAdi] as num?)?.toInt() ?? 0;
-        toplam += bedenAdet * adetPerModel;
+        toplam += (bedenAdet * adetPerModel).ceil();
       }
       return toplam;
     }
@@ -655,7 +674,9 @@ class _StokYonetimiAksesuarlarCokluBedenState
                           Expanded(
                             child: _buildMiniInfo(
                               stokYeterli ? 'Fazla' : 'Eksik',
-                              stokYeterli ? '${totalStock - kalanTalep}' : '$eksikAdet',
+                              stokYeterli
+                                  ? '${totalStock - kalanTalep}'
+                                  : '$eksikAdet',
                               stokYeterli ? Colors.green : Colors.red,
                             ),
                           ),
@@ -759,7 +780,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
                                   ),
                                 ),
                                 Text(
-                                  '${k['model_adet']} adet × ${k['adet_per_model']}/model',
+                                  '${k['model_adet']} adet × ${_formatMiktar(k['adet_per_model'] as num? ?? 1)}/model',
                                   style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey.shade700),
@@ -801,7 +822,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
                             .map((beden) {
                           final bedenAdi = beden['beden']?.toString() ?? '';
                           final stok = (beden['stok_miktari'] as int? ?? 0);
-                            final bedenTalep = _getKalanBedenTalep(aksesuar, beden);
+                          final bedenTalep =
+                              _getKalanBedenTalep(aksesuar, beden);
                           final bedenYeterli =
                               bedenTalep == 0 || stok >= bedenTalep;
                           final bedenEksik =
@@ -1268,15 +1290,25 @@ class _StokYonetimiAksesuarlarCokluBedenState
     if (_sarfArama.isNotEmpty) {
       final q = _sarfArama.toLowerCase();
       liste = liste.where((k) {
-        final aksAd = (k['aksesuar_bedenler']?['aksesuarlar']?['ad'] ?? '').toString().toLowerCase();
-        final aksSku = (k['aksesuar_bedenler']?['aksesuarlar']?['sku'] ?? '').toString().toLowerCase();
-        final beden = (k['aksesuar_bedenler']?['beden'] ?? '').toString().toLowerCase();
-        final modelMarka = (k['triko_takip']?['marka'] ?? '').toString().toLowerCase();
-        final modelItemNo = (k['triko_takip']?['item_no'] ?? '').toString().toLowerCase();
+        final aksAd = (k['aksesuar_bedenler']?['aksesuarlar']?['ad'] ?? '')
+            .toString()
+            .toLowerCase();
+        final aksSku = (k['aksesuar_bedenler']?['aksesuarlar']?['sku'] ?? '')
+            .toString()
+            .toLowerCase();
+        final beden =
+            (k['aksesuar_bedenler']?['beden'] ?? '').toString().toLowerCase();
+        final modelMarka =
+            (k['triko_takip']?['marka'] ?? '').toString().toLowerCase();
+        final modelItemNo =
+            (k['triko_takip']?['item_no'] ?? '').toString().toLowerCase();
         final tedAdi = (k['tedarikci_adi'] ?? '').toString().toLowerCase();
-        return aksAd.contains(q) || aksSku.contains(q) || beden.contains(q)
-            || modelMarka.contains(q) || modelItemNo.contains(q)
-            || tedAdi.contains(q);
+        return aksAd.contains(q) ||
+            aksSku.contains(q) ||
+            beden.contains(q) ||
+            modelMarka.contains(q) ||
+            modelItemNo.contains(q) ||
+            tedAdi.contains(q);
       }).toList();
     }
 
@@ -1328,28 +1360,57 @@ class _StokYonetimiAksesuarlarCokluBedenState
       final sheet = excel[sheetName];
       excel.setDefaultSheet(sheetName);
 
-      final headers = ['Tarih', 'Aksesuar', 'SKU', 'Renk', 'Beden', 'Model', 'Tedarikçi', 'Adet', 'Açıklama'];
+      final headers = [
+        'Tarih',
+        'Aksesuar',
+        'SKU',
+        'Renk',
+        'Beden',
+        'Model',
+        'Tedarikçi',
+        'Adet',
+        'Açıklama'
+      ];
       for (int i = 0; i < headers.length; i++) {
-        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0)).value = headers[i];
+        sheet
+            .cell(xl.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+            .value = headers[i];
       }
 
       for (int r = 0; r < kayitlar.length; r++) {
         final k = kayitlar[r];
-        final aksAd = k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ?? '';
-        final aksSku = k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ?? '';
-        final aksRenk = k['aksesuar_bedenler']?['aksesuarlar']?['renk']?.toString() ?? '';
+        final aksAd =
+            k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ?? '';
+        final aksSku =
+            k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ?? '';
+        final aksRenk =
+            k['aksesuar_bedenler']?['aksesuarlar']?['renk']?.toString() ?? '';
         final beden = k['aksesuar_bedenler']?['beden']?.toString() ?? '';
         final modelMarka = k['triko_takip']?['marka']?.toString() ?? '';
         final modelItemNo = k['triko_takip']?['item_no']?.toString() ?? '';
-        final modelLabel = [modelMarka, modelItemNo].where((s) => s.isNotEmpty).join(' - ');
+        final modelLabel =
+            [modelMarka, modelItemNo].where((s) => s.isNotEmpty).join(' - ');
         final tedLabel = k['tedarikci_adi']?.toString() ?? '';
         final miktar = (k['miktar'] as int?) ?? 0;
         final aciklama = k['aciklama']?.toString() ?? '';
         final tarih = _formatTarih(k['created_at']?.toString());
 
-        final rowData = [tarih, aksAd, aksSku, aksRenk, beden, modelLabel, tedLabel, miktar.toString(), aciklama];
+        final rowData = [
+          tarih,
+          aksAd,
+          aksSku,
+          aksRenk,
+          beden,
+          modelLabel,
+          tedLabel,
+          miktar.toString(),
+          aciklama
+        ];
         for (int c = 0; c < rowData.length; c++) {
-          sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r + 1)).value = rowData[c];
+          sheet
+              .cell(xl.CellIndex.indexByColumnRow(
+                  columnIndex: c, rowIndex: r + 1))
+              .value = rowData[c];
         }
       }
 
@@ -1359,7 +1420,9 @@ class _StokYonetimiAksesuarlarCokluBedenState
       final tarihStr = DateTime.now().toLocal();
       final dosyaAdi =
           'sarf_raporu_${tarihStr.year}${tarihStr.month.toString().padLeft(2, '0')}${tarihStr.day.toString().padLeft(2, '0')}.xlsx';
-      downloadFileWeb(bytes, dosyaAdi, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      downloadFileWeb(bytes, dosyaAdi,
+          mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
       if (mounted) context.showSuccessSnackBar('Excel indirildi: $dosyaAdi');
     } catch (e) {
@@ -1614,7 +1677,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
 
   Widget _buildSarfRaporuTab() {
     final kayitlar = _filtreliSarfKayitlari;
-    final toplamAdet = kayitlar.fold<int>(0, (s, k) => s + ((k['miktar'] as int?) ?? 0));
+    final toplamAdet =
+        kayitlar.fold<int>(0, (s, k) => s + ((k['miktar'] as int?) ?? 0));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1649,8 +1713,10 @@ class _StokYonetimiAksesuarlarCokluBedenState
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A))),
-                      Text('Yapılan tüm sarf işlemlerinin kayıt ve geçmiş raporu',
-                          style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                      Text(
+                          'Yapılan tüm sarf işlemlerinin kayıt ve geçmiş raporu',
+                          style: TextStyle(
+                              color: Color(0xFF64748B), fontSize: 12)),
                     ],
                   ),
                 ),
@@ -1674,8 +1740,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
 
           // Özet
           LayoutBuilder(builder: (ctx, cs) {
-            final kart1 = _buildOzetKutusu(
-                'Toplam Sarf', '${kayitlar.length} kayıt', Icons.receipt_long, _warningColor);
+            final kart1 = _buildOzetKutusu('Toplam Sarf',
+                '${kayitlar.length} kayıt', Icons.receipt_long, _warningColor);
             final kart2 = _buildOzetKutusu(
                 'Toplam Adet', '$toplamAdet', Icons.numbers, _dangerColor);
             if (cs.maxWidth < 480) {
@@ -1774,8 +1840,11 @@ class _StokYonetimiAksesuarlarCokluBedenState
                       ),
                     ),
                   ),
-                  if (_sarfBaslangic != null || _sarfBitis != null || _sarfArama.isNotEmpty ||
-                      _sarfTedarikciFiltre != null || _sarfModelFiltre != null)
+                  if (_sarfBaslangic != null ||
+                      _sarfBitis != null ||
+                      _sarfArama.isNotEmpty ||
+                      _sarfTedarikciFiltre != null ||
+                      _sarfModelFiltre != null)
                     TextButton.icon(
                       onPressed: () => setState(() {
                         _sarfBaslangic = null;
@@ -1793,7 +1862,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
                         .map((k) => k['tedarikci_adi']?.toString() ?? '')
                         .where((s) => s.isNotEmpty)
                         .toSet()
-                        .toList()..sort();
+                        .toList()
+                      ..sort();
                     if (tedList.isEmpty) return const SizedBox.shrink();
                     return SizedBox(
                       width: dar ? cs.maxWidth : 200,
@@ -1806,20 +1876,33 @@ class _StokYonetimiAksesuarlarCokluBedenState
                           isDense: true,
                         ),
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü')),
-                          ...tedList.map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis))),
+                          const DropdownMenuItem(
+                              value: null, child: Text('Tümü')),
+                          ...tedList.map((t) => DropdownMenuItem(
+                              value: t,
+                              child: Text(t, overflow: TextOverflow.ellipsis))),
                         ],
-                        onChanged: (v) => setState(() => _sarfTedarikciFiltre = v),
+                        onChanged: (v) =>
+                            setState(() => _sarfTedarikciFiltre = v),
                       ),
                     );
                   }),
                   // Model dropdown
                   Builder(builder: (_) {
-                    final modelList = _sarfKayitlari.map((k) {
-                      final marka = k['triko_takip']?['marka']?.toString() ?? '';
-                      final itemNo = k['triko_takip']?['item_no']?.toString() ?? '';
-                      return [marka, itemNo].where((s) => s.isNotEmpty).join(' - ');
-                    }).where((s) => s.isNotEmpty).toSet().toList()..sort();
+                    final modelList = _sarfKayitlari
+                        .map((k) {
+                          final marka =
+                              k['triko_takip']?['marka']?.toString() ?? '';
+                          final itemNo =
+                              k['triko_takip']?['item_no']?.toString() ?? '';
+                          return [marka, itemNo]
+                              .where((s) => s.isNotEmpty)
+                              .join(' - ');
+                        })
+                        .where((s) => s.isNotEmpty)
+                        .toSet()
+                        .toList()
+                      ..sort();
                     if (modelList.isEmpty) return const SizedBox.shrink();
                     return SizedBox(
                       width: dar ? cs.maxWidth : 220,
@@ -1832,8 +1915,11 @@ class _StokYonetimiAksesuarlarCokluBedenState
                           isDense: true,
                         ),
                         items: [
-                          const DropdownMenuItem(value: null, child: Text('Tümü')),
-                          ...modelList.map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))),
+                          const DropdownMenuItem(
+                              value: null, child: Text('Tümü')),
+                          ...modelList.map((m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m, overflow: TextOverflow.ellipsis))),
                         ],
                         onChanged: (v) => setState(() => _sarfModelFiltre = v),
                       ),
@@ -1890,15 +1976,18 @@ class _StokYonetimiAksesuarlarCokluBedenState
   Widget _buildSarfKartListesi(List<Map<String, dynamic>> kayitlar) {
     return Column(
       children: kayitlar.map((k) {
-        final aksAd = k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ?? '-';
-        final aksSku = k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ?? '-';
+        final aksAd =
+            k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ?? '-';
+        final aksSku =
+            k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ?? '-';
         final beden = k['aksesuar_bedenler']?['beden']?.toString() ?? '-';
         final miktar = (k['miktar'] as int?) ?? 0;
         final aciklama = k['aciklama']?.toString() ?? '';
         final tarih = _formatTarih(k['created_at']?.toString());
         final modelMarka = k['triko_takip']?['marka']?.toString() ?? '';
         final modelItemNo = k['triko_takip']?['item_no']?.toString() ?? '';
-        final modelLabel = [modelMarka, modelItemNo].where((s) => s.isNotEmpty).join(' - ');
+        final modelLabel =
+            [modelMarka, modelItemNo].where((s) => s.isNotEmpty).join(' - ');
         final tedLabel = k['tedarikci_adi']?.toString() ?? '';
 
         return Container(
@@ -1917,16 +2006,21 @@ class _StokYonetimiAksesuarlarCokluBedenState
                 children: [
                   Expanded(
                     child: Text(aksAd,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: _dangerColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text('$miktar adet',
-                        style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w800, fontSize: 13)),
+                        style: TextStyle(
+                            color: _dangerColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13)),
                   ),
                 ],
               ),
@@ -1950,8 +2044,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
               // Tarih
               _sarfInfoRow(Icons.access_time, tarih),
               // Açıklama
-              if (aciklama.isNotEmpty)
-                _sarfInfoRow(Icons.notes, aciklama),
+              if (aciklama.isNotEmpty) _sarfInfoRow(Icons.notes, aciklama),
               const SizedBox(height: 6),
               Align(
                 alignment: Alignment.centerRight,
@@ -1971,7 +2064,9 @@ class _StokYonetimiAksesuarlarCokluBedenState
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -2022,15 +2117,22 @@ class _StokYonetimiAksesuarlarCokluBedenState
               DataColumn(label: Text('İşlem')),
             ],
             rows: kayitlar.map((k) {
-              final aksAd = k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ?? '-';
-              final aksSku = k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ?? '-';
+              final aksAd =
+                  k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ??
+                      '-';
+              final aksSku =
+                  k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ??
+                      '-';
               final beden = k['aksesuar_bedenler']?['beden']?.toString() ?? '-';
               final miktar = (k['miktar'] as int?) ?? 0;
               final aciklama = k['aciklama']?.toString() ?? '';
               final tarih = _formatTarih(k['created_at']?.toString());
               final modelMarka = k['triko_takip']?['marka']?.toString() ?? '';
-              final modelItemNo = k['triko_takip']?['item_no']?.toString() ?? '';
-              final modelLabel = [modelMarka, modelItemNo].where((s) => s.isNotEmpty).join(' - ');
+              final modelItemNo =
+                  k['triko_takip']?['item_no']?.toString() ?? '';
+              final modelLabel = [modelMarka, modelItemNo]
+                  .where((s) => s.isNotEmpty)
+                  .join(' - ');
               final tedLabel = k['tedarikci_adi']?.toString() ?? '-';
 
               return DataRow(cells: [
@@ -2044,13 +2146,17 @@ class _StokYonetimiAksesuarlarCokluBedenState
                 )),
                 DataCell(Text(aksSku)),
                 DataCell(Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: _primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(beden,
-                      style: TextStyle(color: _primaryColor, fontWeight: FontWeight.w700, fontSize: 12)),
+                      style: TextStyle(
+                          color: _primaryColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12)),
                 )),
                 DataCell(SizedBox(
                   width: 130,
@@ -2059,7 +2165,8 @@ class _StokYonetimiAksesuarlarCokluBedenState
                       : Text(modelLabel,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600)),
                 )),
                 DataCell(SizedBox(
                   width: 120,
@@ -2069,20 +2176,23 @@ class _StokYonetimiAksesuarlarCokluBedenState
                       style: const TextStyle(fontSize: 12)),
                 )),
                 DataCell(Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: _dangerColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text('$miktar',
-                      style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w800)),
+                      style: TextStyle(
+                          color: _dangerColor, fontWeight: FontWeight.w800)),
                 )),
                 DataCell(SizedBox(
                   width: 140,
                   child: Text(aciklama,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF64748B))),
                 )),
                 DataCell(_buildSarfIslemButonlari(k)),
               ]);
@@ -2108,8 +2218,12 @@ class _StokYonetimiAksesuarlarCokluBedenState
               unselectedLabelColor: const Color(0xFF64748B),
               indicatorColor: _primaryColor,
               tabs: const [
-                Tab(icon: Icon(Icons.inventory_2_outlined, size: 18), text: 'Aksesuar Stok'),
-                Tab(icon: Icon(Icons.output_rounded, size: 18), text: 'Sarf Raporu'),
+                Tab(
+                    icon: Icon(Icons.inventory_2_outlined, size: 18),
+                    text: 'Aksesuar Stok'),
+                Tab(
+                    icon: Icon(Icons.output_rounded, size: 18),
+                    text: 'Sarf Raporu'),
               ],
             ),
           ),

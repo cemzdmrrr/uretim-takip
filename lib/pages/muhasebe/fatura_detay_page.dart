@@ -31,6 +31,30 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
   List<FaturaKalemiModel> _faturaKalemleri = [];
   bool _yukleniyor = false;
 
+  double get _gosterilecekAraToplam {
+    if (_faturaKalemleri.isEmpty) return _fatura.araToplamTutar;
+    return _faturaKalemleri.fold<double>(
+      0,
+      (sum, kalem) => sum + kalem.kdvHaricTutar,
+    );
+  }
+
+  double get _gosterilecekKdvTutari {
+    if (_faturaKalemleri.isEmpty) return _fatura.kdvTutari;
+    return _faturaKalemleri.fold<double>(
+      0,
+      (sum, kalem) => sum + kalem.gosterilecekKdvTutar,
+    );
+  }
+
+  double get _gosterilecekToplamTutar {
+    if (_faturaKalemleri.isEmpty) return _fatura.toplamTutar;
+    return _faturaKalemleri.fold<double>(
+      0,
+      (sum, kalem) => sum + kalem.gosterilecekSatirTutar,
+    );
+  }
+
   @override
   void initState() {
     super.initState();

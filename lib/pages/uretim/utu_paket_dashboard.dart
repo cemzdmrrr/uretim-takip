@@ -75,7 +75,13 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   String? _missingColumnName(Object error) {
     if (error is! PostgrestException) return null;
     final message =
-        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
+
+    final pgrst204 = RegExp(
+      r"could not find the '([a-z0-9_]+)' column",
+    ).firstMatch(message);
+    if (pgrst204 != null) return pgrst204.group(1);
 
     final withTable = RegExp(
       r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
@@ -224,10 +230,14 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       final kalanAdet = modelAdet.toInt() - toplamYuklenen;
 
       // triko_takip tablosunu güncelle
-      await supabase.from(DbTables.trikoTakip).update({
-        'yuklenen_adet': toplamYuklenen,
-        'kalan_adet': kalanAdet > 0 ? kalanAdet : 0,
-      }).eq('id', modelId).eq('firma_id', firmaId);
+      await supabase
+          .from(DbTables.trikoTakip)
+          .update({
+            'yuklenen_adet': toplamYuklenen,
+            'kalan_adet': kalanAdet > 0 ? kalanAdet : 0,
+          })
+          .eq('id', modelId)
+          .eq('firma_id', firmaId);
 
       debugPrint(
           '📊 Model raporları güncellendi - Yüklenen: $toplamYuklenen, Kalan: $kalanAdet');
@@ -419,6 +429,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           'adet',
           'onay_tarihi',
           'red_sebebi',
+          'beden_detaylari',
           'talep_edilen_adet',
           'kabul_edilen_adet',
           'tamamlanan_adet',
@@ -430,19 +441,15 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       );
 
       // Bekleyen: bekleyen, atandi, beklemede, null
-      utuBekleyenler = liste
-          .where((a) => _durumBekleyenMi(a['durum']))
-          .toList();
+      utuBekleyenler =
+          liste.where((a) => _durumBekleyenMi(a['durum'])).toList();
 
-      utuOnaylananlar = liste
-          .where((a) => _durumOnaylananMi(a['durum']))
-          .toList();
+      utuOnaylananlar =
+          liste.where((a) => _durumOnaylananMi(a['durum'])).toList();
 
-      utuUretimde = liste
-          .where((a) => _durumIslemdeMi(a['durum']))
-          .toList();
+      utuUretimde = liste.where((a) => _durumIslemdeMi(a['durum'])).toList();
 
-        utuTamamlananlar =
+      utuTamamlananlar =
           liste.where((a) => _durumTamamlananMi(a['durum'])).toList();
 
       debugPrint(
@@ -468,6 +475,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           'adet',
           'onay_tarihi',
           'red_sebebi',
+          'beden_detaylari',
           'talep_edilen_adet',
           'tamamlanan_adet',
           'tamamlama_tarihi',
@@ -477,17 +485,13 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       );
 
       // Bekleyen: bekleyen, atandi, beklemede, null
-      paketBekleyenler = liste
-          .where((a) => _durumBekleyenMi(a['durum']))
-          .toList();
+      paketBekleyenler =
+          liste.where((a) => _durumBekleyenMi(a['durum'])).toList();
 
-      paketOnaylananlar = liste
-          .where((a) => _durumOnaylananMi(a['durum']))
-          .toList();
+      paketOnaylananlar =
+          liste.where((a) => _durumOnaylananMi(a['durum'])).toList();
 
-      paketUretimde = liste
-          .where((a) => _durumIslemdeMi(a['durum']))
-          .toList();
+      paketUretimde = liste.where((a) => _durumIslemdeMi(a['durum'])).toList();
 
       paketTamamlananlar =
           liste.where((a) => _durumTamamlananMi(a['durum'])).toList();

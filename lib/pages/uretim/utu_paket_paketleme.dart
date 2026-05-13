@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'utu_paket_dashboard.dart';
 
 /// Paketleme işlemleri (başla, tamamla, mix koli) for _UtuPaketDashboardState.
@@ -115,7 +115,13 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
   String? _missingColumnName(Object error) {
     if (error is! PostgrestException) return null;
     final message =
-        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
+
+    final pgrst204 = RegExp(
+      r"could not find the '([a-z0-9_]+)' column",
+    ).firstMatch(message);
+    if (pgrst204 != null) return pgrst204.group(1);
 
     final withTable = RegExp(
       r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
@@ -235,10 +241,11 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
       final result = <String, int>{};
       for (final item in raw) {
         if (item is! Map) continue;
-        final beden = (item['beden_kodu'] ?? item['beden'] ?? item['size'] ?? '')
-            .toString()
-            .trim()
-            .toUpperCase();
+        final beden =
+            (item['beden_kodu'] ?? item['beden'] ?? item['size'] ?? '')
+                .toString()
+                .trim()
+                .toUpperCase();
         final adet = _toInt(item['adet'] ?? item['miktar'] ?? item['quantity']);
         if (beden.isNotEmpty && adet > 0) {
           result[beden] = (result[beden] ?? 0) + adet;
@@ -283,6 +290,22 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
     return const <String, int>{};
   }
 
+  Map<String, int> _notlardanBedenDagilimi(dynamic raw) {
+    final text = (raw ?? '').toString();
+    if (text.trim().isEmpty) return const <String, int>{};
+
+    final match =
+        RegExp(r'\[BEDEN:([^\]]+)\]', caseSensitive: false).firstMatch(text);
+    if (match == null) return const <String, int>{};
+    return _parseBedenDagilimi(match.group(1));
+  }
+
+  bool _sevkiyatKaynakliAtamaMi(Map<String, dynamic> atama) {
+    final notlar = (atama['notlar'] ?? '').toString().toLowerCase();
+    return notlar.contains('sevkiyattan geldi') ||
+        notlar.contains('sevk:irsaliye:');
+  }
+
   Map<String, int> _toplamaUyarliBedenMap(
     Map<String, int> kaynak,
     int hedefToplam,
@@ -306,7 +329,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
       kalanlar.add({'beden': entry.key, 'kalan': oransal - base});
     }
 
-    var dagit = hedefToplam - taban.values.fold<int>(0, (s, v) => s + v);
+    final dagit = hedefToplam - taban.values.fold<int>(0, (s, v) => s + v);
     kalanlar
         .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
 
@@ -344,9 +367,19 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
       atama['talep_edilen_adet'] ?? atama['adet'] ?? model?['adet'],
     );
 
-    var hedefBedenDagilimi = _parseBedenDagilimi(
-      atama['beden_detaylari'] ?? atama['beden_dagilimi'] ?? model?['bedenler'],
+    final atamaBedenDagilimi = _parseBedenDagilimi(
+      atama['beden_detaylari'] ?? atama['beden_dagilimi'],
     );
+    final notBedenDagilimi = _notlardanBedenDagilimi(atama['notlar']);
+    final sevkiyatKaynakli = _sevkiyatKaynakliAtamaMi(atama);
+
+    var hedefBedenDagilimi = atamaBedenDagilimi.isNotEmpty
+        ? atamaBedenDagilimi
+        : notBedenDagilimi.isNotEmpty
+            ? notBedenDagilimi
+            : sevkiyatKaynakli
+                ? <String, int>{'GENEL': talepAdet}
+                : _parseBedenDagilimi(model?['bedenler']);
 
     if (talepAdet <= 0 && hedefBedenDagilimi.isNotEmpty) {
       talepAdet = hedefBedenDagilimi.values.fold<int>(0, (s, v) => s + v);
@@ -441,8 +474,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                       ),
                       decoration: BoxDecoration(
                         color: Colors.grey[200],
-                        borderRadius:
-                            const BorderRadius.vertical(top: Radius.circular(8)),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(8)),
                       ),
                       child: const Row(
                         children: [
@@ -499,8 +532,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 6),
                         decoration: BoxDecoration(
-                          border:
-                              Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                          border: Border(
+                              bottom: BorderSide(color: Colors.grey[200]!)),
                         ),
                         child: Row(
                           children: [
@@ -629,7 +662,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: DropdownButtonFormField<String>(
-                                      value: (mevcutSecim != null &&
+                                      initialValue: (mevcutSecim != null &&
                                               fireKaynakAsamaKodlari
                                                   .contains(mevcutSecim))
                                           ? mevcutSecim
@@ -649,7 +682,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                                             (kod) => DropdownMenuItem<String>(
                                               value: kod,
                                               child: Text(
-                                                fireKaynakAsamaEtiketleri[kod] ??
+                                                fireKaynakAsamaEtiketleri[
+                                                        kod] ??
                                                     kod,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -752,7 +786,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                   if ((toplamTamam + toplamFire) <= 0) {
                     ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(
-                        content: Text('En az bir beden için adet girmelisiniz.'),
+                        content:
+                            Text('En az bir beden için adet girmelisiniz.'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -762,7 +797,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                   if ((toplamTamam + toplamFire) > talepAdet) {
                     ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(
-                        content: Text('Toplam Tamam + Fire, talep adedini aşamaz.'),
+                        content:
+                            Text('Toplam Tamam + Fire, talep adedini aşamaz.'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -810,7 +846,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
         for (final entry in fireBeden.entries) {
           final asamaKodu = fireKaynakAsamaByBeden[entry.key]?.trim();
           if (asamaKodu == null || asamaKodu.isEmpty) continue;
-          final asamaEtiketi = fireKaynakAsamaEtiketleri[asamaKodu] ?? asamaKodu;
+          final asamaEtiketi =
+              fireKaynakAsamaEtiketleri[asamaKodu] ?? asamaKodu;
           fireAsamaSatirlari
               .add('${entry.key}:${entry.value}->$asamaEtiketi($asamaKodu)');
         }
@@ -871,7 +908,11 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
         }
 
         if (toplamTamamlanan > 0) {
-          await _paketlemeyeOtomatikAta(atama, toplamTamamlanan);
+          await _paketlemeyeOtomatikAta(
+            atama,
+            toplamTamamlanan,
+            tamamlananBeden,
+          );
         }
 
         if (mounted) {
@@ -904,10 +945,14 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
 
   // ===== ÜTÜ TAMAMLANINCA PAKETLEMEYİ OTOMATİK AT =====
   Future<void> _paketlemeyeOtomatikAta(
-      Map<String, dynamic> utuAtama, int tamamlananAdet) async {
+    Map<String, dynamic> utuAtama,
+    int tamamlananAdet,
+    Map<String, int> tamamlananBeden,
+  ) async {
     try {
       final firmaId = TenantManager.instance.requireFirmaId;
       var useFirmaFilter = true;
+      var paketlemeBedenKolonuVar = true;
 
       // Aynı model için paketleme ataması var mı kontrol et
       List<dynamic> mevcutPaketlemeList = const [];
@@ -915,17 +960,24 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
         try {
           var query = supabase
               .from(DbTables.paketlemeAtamalari)
-              .select('id, adet, durum')
+              .select(paketlemeBedenKolonuVar
+                  ? 'id, adet, durum, beden_detaylari'
+                  : 'id, adet, durum')
               .eq('model_id', utuAtama['model_id'])
               .neq('durum', 'tamamlandi');
           if (useFirmaFilter) {
             query = query.eq('firma_id', firmaId);
           }
 
-          mevcutPaketlemeList = await query.order('id', ascending: false).limit(1);
+          mevcutPaketlemeList =
+              await query.order('id', ascending: false).limit(1);
           break;
         } catch (e) {
           final missingColumn = _missingColumnName(e);
+          if (missingColumn == 'beden_detaylari' && paketlemeBedenKolonuVar) {
+            paketlemeBedenKolonuVar = false;
+            continue;
+          }
           if (missingColumn == 'firma_id' && useFirmaFilter) {
             useFirmaFilter = false;
             continue;
@@ -942,22 +994,37 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
       if (mevcutPaketleme != null) {
         // Mevcut paketleme atamasının adetini artır
         final yeniAdet = (mevcutPaketleme['adet'] ?? 0) + tamamlananAdet;
+        final mevcutBeden = paketlemeBedenKolonuVar
+            ? _parseBedenDagilimi(mevcutPaketleme['beden_detaylari'])
+            : const <String, int>{};
+        final birlesikBeden = <String, int>{...mevcutBeden};
+        for (final entry in tamamlananBeden.entries) {
+          birlesikBeden[entry.key] =
+              (birlesikBeden[entry.key] ?? 0) + entry.value;
+        }
         final updateData = {
           'adet': yeniAdet,
           'talep_edilen_adet': yeniAdet,
           'updated_at': DateTime.now().toIso8601String(),
+          if (paketlemeBedenKolonuVar && birlesikBeden.isNotEmpty)
+            'beden_detaylari': birlesikBeden,
         };
 
         try {
-          await supabase.from(DbTables.paketlemeAtamalari).update(updateData)
-            .eq('id', mevcutPaketleme['id']).eq('firma_id', firmaId);
+          await supabase
+              .from(DbTables.paketlemeAtamalari)
+              .update(updateData)
+              .eq('id', mevcutPaketleme['id'])
+              .eq('firma_id', firmaId);
         } catch (e) {
           final missingColumn = _missingColumnName(e);
           if (missingColumn != null && updateData.containsKey(missingColumn)) {
             updateData.remove(missingColumn);
           }
-          await supabase.from(DbTables.paketlemeAtamalari).update(updateData)
-            .eq('id', mevcutPaketleme['id']);
+          await supabase
+              .from(DbTables.paketlemeAtamalari)
+              .update(updateData)
+              .eq('id', mevcutPaketleme['id']);
         }
 
         debugPrint('Mevcut paketleme atamasına $tamamlananAdet adet eklendi');
@@ -973,6 +1040,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           'durum': 'bekleyen',
           'onceki_asama': 'utu',
           'atama_tarihi': DateTime.now().toIso8601String(),
+          if (tamamlananBeden.isNotEmpty) 'beden_detaylari': tamamlananBeden,
           'firma_id': firmaId,
         });
 
@@ -1026,7 +1094,9 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             }
           });
         }
-      } catch (e) { AppLogger.debug('Veri isleme hatasi: $e'); }
+      } catch (e) {
+        AppLogger.debug('Veri isleme hatasi: $e');
+      }
     }
 
     // Eğer beden bilgisi yoksa varsayılan ekle
@@ -1370,7 +1440,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             extraFields: {
               'tamamlanan_adet': toplamAdet,
               'tamamlama_tarihi': DateTime.now().toIso8601String(),
-              'notlar': notController.text.isNotEmpty ? notController.text : null,
+              'notlar':
+                  notController.text.isNotEmpty ? notController.text : null,
               'updated_at': DateTime.now().toIso8601String(),
             },
           );
@@ -1386,7 +1457,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             extraFields: {
               'tamamlanan_adet': toplamAdet,
               'tamamlama_tarihi': DateTime.now().toIso8601String(),
-              'notlar': notController.text.isNotEmpty ? notController.text : null,
+              'notlar':
+                  notController.text.isNotEmpty ? notController.text : null,
               'updated_at': DateTime.now().toIso8601String(),
             },
           );
@@ -1412,7 +1484,8 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             extraFields: {
               'tamamlanan_adet': toplamAdet,
               'tamamlama_tarihi': DateTime.now().toIso8601String(),
-              'notlar': notController.text.isNotEmpty ? notController.text : null,
+              'notlar':
+                  notController.text.isNotEmpty ? notController.text : null,
               'updated_at': DateTime.now().toIso8601String(),
             },
           );

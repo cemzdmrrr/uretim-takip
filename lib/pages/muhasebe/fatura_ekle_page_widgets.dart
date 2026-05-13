@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'fatura_ekle_page.dart';
 
 /// Fatura ekle - widget builder metotlari
@@ -15,7 +15,7 @@ extension _WidgetExt on _FaturaEklePageState {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             Row(
               children: [
                 // Fatura No
@@ -36,7 +36,7 @@ extension _WidgetExt on _FaturaEklePageState {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Fatura Türü
                 Expanded(
                   flex: 2,
@@ -47,10 +47,14 @@ extension _WidgetExt on _FaturaEklePageState {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'satis', child: Text('Satış Faturası')),
-                      DropdownMenuItem(value: 'alis', child: Text('Alış Faturası')),
-                      DropdownMenuItem(value: 'iade', child: Text('İade Faturası')),
-                      DropdownMenuItem(value: 'proforma', child: Text('Proforma Fatura')),
+                      DropdownMenuItem(
+                          value: 'satis', child: Text('Satış Faturası')),
+                      DropdownMenuItem(
+                          value: 'alis', child: Text('Alış Faturası')),
+                      DropdownMenuItem(
+                          value: 'iade', child: Text('İade Faturası')),
+                      DropdownMenuItem(
+                          value: 'proforma', child: Text('Proforma Fatura')),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -62,7 +66,7 @@ extension _WidgetExt on _FaturaEklePageState {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Durum
                 Expanded(
                   flex: 1,
@@ -74,8 +78,10 @@ extension _WidgetExt on _FaturaEklePageState {
                     ),
                     items: const [
                       DropdownMenuItem(value: 'taslak', child: Text('Taslak')),
-                      DropdownMenuItem(value: 'onaylandi', child: Text('Onaylandı')),
-                      DropdownMenuItem(value: 'gonderildi', child: Text('Gönderildi')),
+                      DropdownMenuItem(
+                          value: 'onaylandi', child: Text('Onaylandı')),
+                      DropdownMenuItem(
+                          value: 'gonderildi', child: Text('Gönderildi')),
                       DropdownMenuItem(value: 'iptal', child: Text('İptal')),
                     ],
                     onChanged: (value) {
@@ -88,7 +94,7 @@ extension _WidgetExt on _FaturaEklePageState {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             Row(
               children: [
                 // Fatura Tarihi
@@ -118,14 +124,15 @@ extension _WidgetExt on _FaturaEklePageState {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Vade Tarihi
                 Expanded(
                   child: InkWell(
                     onTap: () async {
                       final tarih = await showDatePicker(
                         context: context,
-                        initialDate: _vadeTarihi ?? _faturaTarihi.add(const Duration(days: 30)),
+                        initialDate: _vadeTarihi ??
+                            _faturaTarihi.add(const Duration(days: 30)),
                         firstDate: _faturaTarihi,
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
@@ -149,7 +156,7 @@ extension _WidgetExt on _FaturaEklePageState {
                             : const Icon(Icons.calendar_today),
                       ),
                       child: Text(
-                        _vadeTarihi != null 
+                        _vadeTarihi != null
                             ? _dateFormat.format(_vadeTarihi!)
                             : 'Seçiniz',
                       ),
@@ -157,7 +164,7 @@ extension _WidgetExt on _FaturaEklePageState {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Kur
                 Expanded(
                   child: Row(
@@ -190,7 +197,8 @@ extension _WidgetExt on _FaturaEklePageState {
                               labelText: 'Kur Oranı',
                               border: OutlineInputBorder(),
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
                           ),
                         ),
                     ],
@@ -199,7 +207,7 @@ extension _WidgetExt on _FaturaEklePageState {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Açıklama
             TextFormField(
               controller: _aciklamaController,
@@ -223,11 +231,13 @@ extension _WidgetExt on _FaturaEklePageState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _secilenFaturaTuru == 'alis' ? 'Tedarikçi Bilgileri' : 'Nakit Satış',
+              _secilenFaturaTuru == 'alis'
+                  ? 'Tedarikçi Bilgileri'
+                  : 'Nakit Satış',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             // Tedarikçi seçimi (sadece alış faturası için)
             if (_secilenFaturaTuru == 'alis')
               DropdownButtonFormField<TedarikciModel>(
@@ -239,15 +249,18 @@ extension _WidgetExt on _FaturaEklePageState {
                 items: _tedarikciler.map((tedarikci) {
                   return DropdownMenuItem(
                     value: tedarikci,
-                    child: Text('${tedarikci.ad} ${tedarikci.soyad ?? ''} - ${tedarikci.sirket ?? ''}'),
+                    child: Text(
+                        '${tedarikci.ad} ${tedarikci.soyad ?? ''} - ${tedarikci.sirket ?? ''}'),
                   );
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
                     _secilenTedarikci = value;
                     if (value != null) {
-                      _faturaAdresController.text = ''; // Adres alanı kaldırıldı
-                      _vergiDairesiController.text = ''; // Vergi dairesi alanı kaldırıldı
+                      _faturaAdresController.text =
+                          ''; // Adres alanı kaldırıldı
+                      _vergiDairesiController.text =
+                          ''; // Vergi dairesi alanı kaldırıldı
                       _vergiNoController.text = value.vergiNo ?? '';
                     }
                   });
@@ -259,9 +272,9 @@ extension _WidgetExt on _FaturaEklePageState {
                   return null;
                 },
               ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Adres
             TextFormField(
               controller: _faturaAdresController,
@@ -278,7 +291,7 @@ extension _WidgetExt on _FaturaEklePageState {
               },
             ),
             const SizedBox(height: 16),
-            
+
             Row(
               children: [
                 // Vergi Dairesi
@@ -292,7 +305,7 @@ extension _WidgetExt on _FaturaEklePageState {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Vergi No
                 Expanded(
                   child: TextFormField(
@@ -337,7 +350,6 @@ extension _WidgetExt on _FaturaEklePageState {
               ],
             ),
             const SizedBox(height: 16),
-            
             if (_faturaKalemleri.isEmpty)
               Container(
                 width: double.infinity,
@@ -348,7 +360,8 @@ extension _WidgetExt on _FaturaEklePageState {
                 ),
                 child: const Column(
                   children: [
-                    Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey),
+                    Icon(Icons.inventory_2_outlined,
+                        size: 48, color: Colors.grey),
                     SizedBox(height: 16),
                     Text(
                       'Henüz kalem eklenmedi',
@@ -378,9 +391,11 @@ extension _WidgetExt on _FaturaEklePageState {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (kalem.urunKodu != null && kalem.urunKodu!.isNotEmpty)
+                          if (kalem.urunKodu != null &&
+                              kalem.urunKodu!.isNotEmpty)
                             Text('Kod: ${kalem.urunKodu}'),
-                          Text('${kalem.miktar} ${kalem.birim} x ${_currencyFormat.format(kalem.birimFiyat)}'),
+                          Text(
+                              '${kalem.miktar} ${kalem.birim} x ${_currencyFormat.format(kalem.birimFiyat)}'),
                           Text('KDV: %${kalem.kdvOrani}'),
                         ],
                       ),
@@ -388,7 +403,9 @@ extension _WidgetExt on _FaturaEklePageState {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            _currencyFormat.format(kalem.miktar * kalem.birimFiyat * (1 + kalem.kdvOrani / 100)),
+                            _currencyFormat.format(kalem.miktar *
+                                kalem.birimFiyat *
+                                (1 + kalem.kdvOrani / 100)),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -449,31 +466,30 @@ extension _WidgetExt on _FaturaEklePageState {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Ara Toplam:', style: TextStyle(fontSize: 16)),
                 Text(
                   _currencyFormat.format(_araToplamTutar),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('KDV Tutarı:', style: TextStyle(fontSize: 16)),
                 Text(
                   _currencyFormat.format(_kdvTutari),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const Divider(),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -498,7 +514,6 @@ extension _WidgetExt on _FaturaEklePageState {
   }
 }
 
-
 // Fatura kalemi ekleme/düzenleme dialog'u
 class _FaturaKalemiEkleDialog extends StatefulWidget {
   final Function(FaturaKalemiModel) onKalemEklendi;
@@ -510,7 +525,8 @@ class _FaturaKalemiEkleDialog extends StatefulWidget {
   });
 
   @override
-  State<_FaturaKalemiEkleDialog> createState() => _FaturaKalemiEkleDialogState();
+  State<_FaturaKalemiEkleDialog> createState() =>
+      _FaturaKalemiEkleDialogState();
 }
 
 class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
@@ -521,15 +537,16 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
   final _miktarController = TextEditingController(text: '1');
   final _birimFiyatController = TextEditingController(text: '0');
   final _kdvOraniController = TextEditingController(text: '20');
-  
+
   String _secilenBirim = 'adet';
-  
-  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
+
+  final NumberFormat _currencyFormat =
+      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
 
   @override
   void initState() {
     super.initState();
-    
+
     if (widget.duzenlenecekKalem != null) {
       final kalem = widget.duzenlenecekKalem!;
       _urunKoduController.text = kalem.urunKodu ?? '';
@@ -558,18 +575,29 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
       return;
     }
 
+    final miktar = parseLocalizedDecimal(_miktarController.text)!;
+    final birimFiyat = parseLocalizedDecimal(_birimFiyatController.text)!;
+    final kdvOrani = parseLocalizedDecimal(_kdvOraniController.text)!;
+    final kdvHaricTutar =
+        FaturaKalemiModel.hesaplaKdvHaricTutar(miktar, birimFiyat, 0);
+    final kdvTutar = FaturaKalemiModel.hesaplaKdvTutar(kdvHaricTutar, kdvOrani);
+    final satirTutar =
+        FaturaKalemiModel.hesaplaSatirTutar(miktar, birimFiyat, 0, kdvOrani);
+
     final kalem = FaturaKalemiModel(
       kalemId: widget.duzenlenecekKalem?.kalemId,
       faturaId: 0, // Fatura kaydedilirken atanacak
-      urunKodu: _urunKoduController.text.isEmpty ? null : _urunKoduController.text,
+      urunKodu:
+          _urunKoduController.text.isEmpty ? null : _urunKoduController.text,
       urunAdi: _urunAdiController.text,
-      aciklama: _aciklamaController.text.isEmpty ? null : _aciklamaController.text,
-      miktar: double.parse(_miktarController.text),
+      aciklama:
+          _aciklamaController.text.isEmpty ? null : _aciklamaController.text,
+      miktar: miktar,
       birim: _secilenBirim,
-      birimFiyat: double.parse(_birimFiyatController.text),
-      kdvOrani: double.parse(_kdvOraniController.text),
-      kdvTutar: 0, // Otomatik hesaplanacak
-      satirTutar: 0, // Otomatik hesaplanacak
+      birimFiyat: birimFiyat,
+      kdvOrani: kdvOrani,
+      kdvTutar: kdvTutar,
+      satirTutar: satirTutar,
       siraNo: 1, // Otomatik atanacak
       olusturmaTarihi: DateTime.now(),
     );
@@ -580,13 +608,13 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
 
   double _hesaplaToplamTutar() {
     try {
-      final miktar = double.parse(_miktarController.text);
-      final birimFiyat = double.parse(_birimFiyatController.text);
-      final kdvOrani = double.parse(_kdvOraniController.text);
-      
+      final miktar = parseLocalizedDecimal(_miktarController.text) ?? 0;
+      final birimFiyat = parseLocalizedDecimal(_birimFiyatController.text) ?? 0;
+      final kdvOrani = parseLocalizedDecimal(_kdvOraniController.text) ?? 0;
+
       final araToplam = miktar * birimFiyat;
       final kdvTutari = araToplam * kdvOrani / 100;
-      
+
       return araToplam + kdvTutari;
     } catch (e) {
       return 0;
@@ -596,7 +624,9 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.duzenlenecekKalem != null ? 'Kalemi Düzenle' : 'Yeni Kalem Ekle'),
+      title: Text(widget.duzenlenecekKalem != null
+          ? 'Kalemi Düzenle'
+          : 'Yeni Kalem Ekle'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -612,7 +642,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Ürün adı
               TextFormField(
                 controller: _urunAdiController,
@@ -628,7 +658,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Açıklama
               TextFormField(
                 controller: _aciklamaController,
@@ -639,7 +669,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                 maxLines: 2,
               ),
               const SizedBox(height: 16),
-              
+
               Row(
                 children: [
                   // Miktar
@@ -650,12 +680,14 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                         labelText: 'Miktar *',
                         border: OutlineInputBorder(),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Miktar gerekli';
                         }
-                        if (double.tryParse(value) == null || double.parse(value) <= 0) {
+                        final miktar = parseLocalizedDecimal(value);
+                        if (miktar == null || miktar <= 0) {
                           return 'Geçerli miktar girin';
                         }
                         return null;
@@ -664,7 +696,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  
+
                   // Birim
                   Expanded(
                     child: DropdownButtonFormField<String>(
@@ -691,7 +723,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              
+
               Row(
                 children: [
                   // Birim fiyat
@@ -703,12 +735,14 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                         border: OutlineInputBorder(),
                         suffixText: '₺',
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Birim fiyat gerekli';
                         }
-                        if (double.tryParse(value) == null || double.parse(value) < 0) {
+                        final birimFiyat = parseLocalizedDecimal(value);
+                        if (birimFiyat == null || birimFiyat < 0) {
                           return 'Geçerli fiyat girin';
                         }
                         return null;
@@ -717,7 +751,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  
+
                   // KDV oranı
                   Expanded(
                     child: TextFormField(
@@ -727,12 +761,14 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                         border: OutlineInputBorder(),
                         suffixText: '%',
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'KDV oranı gerekli';
                         }
-                        if (double.tryParse(value) == null || double.parse(value) < 0) {
+                        final kdvOrani = parseLocalizedDecimal(value);
+                        if (kdvOrani == null || kdvOrani < 0) {
                           return 'Geçerli oran girin';
                         }
                         return null;
@@ -743,7 +779,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              
+
               // Toplam tutar gösterimi
               Container(
                 width: double.infinity,

@@ -125,13 +125,14 @@ extension _DialoglarExt on _UtuPaketDashboardState {
           final int toplamModel = filtreliModeller.length;
           int toplamAdet = 0;
           int tamamlananAdet = 0;
+          int fireAdet = 0;
           final Map<String, int> markaBasinaModel = {};
           final Map<String, int> markaBasinaAdet = {};
 
           for (var atama in filtreliModeller) {
             final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
             if (model != null) {
-              final adet = ((model['adet'] ?? model['toplam_adet'] ?? 0) as num).toInt();
+              final adet = _utuRaporAdet(atama, model);
               toplamAdet += adet;
 
               final marka = model['marka']?.toString() ?? 'Bilinmeyen';
@@ -140,13 +141,20 @@ extension _DialoglarExt on _UtuPaketDashboardState {
             }
 
             tamamlananAdet += ((atama['tamamlanan_adet'] ?? 0) as num).toInt();
+            fireAdet += ((atama['fire_adet'] ?? 0) as num).toInt();
           }
 
-          final bekleyenAdet = toplamAdet - tamamlananAdet;
-          final tamamlanmaOrani = toplamAdet > 0 ? ((tamamlananAdet / toplamAdet) * 100) : 0.0;
+          final bekleyenAdet = (toplamAdet - tamamlananAdet - fireAdet)
+              .clamp(0, 1 << 31)
+              .toInt();
+          final tamamlanmaOrani =
+              toplamAdet > 0 ? ((tamamlananAdet / toplamAdet) * 100) : 0.0;
 
           // Durum dağılımı - Ütü
-          final toplamUtu = utuBekleyenler.length + utuOnaylananlar.length + utuUretimde.length + utuTamamlananlar.length;
+          final toplamUtu = utuBekleyenler.length +
+              utuOnaylananlar.length +
+              utuUretimde.length +
+              utuTamamlananlar.length;
           final Map<String, int> utuDurumlari = {
             'Bekleyen': utuBekleyenler.length,
             'Onaylanan': utuOnaylananlar.length,
@@ -155,7 +163,10 @@ extension _DialoglarExt on _UtuPaketDashboardState {
           };
 
           // Durum dağılımı - Paketleme
-          final toplamPaket = paketBekleyenler.length + paketOnaylananlar.length + paketUretimde.length + paketTamamlananlar.length;
+          final toplamPaket = paketBekleyenler.length +
+              paketOnaylananlar.length +
+              paketUretimde.length +
+              paketTamamlananlar.length;
           final Map<String, int> paketDurumlari = {
             'Bekleyen': paketBekleyenler.length,
             'Onaylanan': paketOnaylananlar.length,
@@ -164,15 +175,19 @@ extension _DialoglarExt on _UtuPaketDashboardState {
           };
 
           // Çeki istatistikleri
-          final bekleyenCeki = cekiListesi.where((c) => c['gonderim_durumu'] != 'gonderildi').length;
-          final gonderilenCeki = cekiListesi.where((c) => c['gonderim_durumu'] == 'gonderildi').length;
+          final bekleyenCeki = cekiListesi
+              .where((c) => c['gonderim_durumu'] != 'gonderildi')
+              .length;
+          final gonderilenCeki = cekiListesi
+              .where((c) => c['gonderim_durumu'] == 'gonderildi')
+              .length;
 
           return AlertDialog(
             title: Row(
               children: [
                 Icon(Icons.analytics, color: Colors.amber[700]),
                 const SizedBox(width: 8),
-                const Text('Ütü Paket Raporu'),
+                const Text('Ütü/Paket ERP Raporu'),
               ],
             ),
             content: SizedBox(
@@ -190,7 +205,8 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('🔍 Filtreler', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text('🔍 Filtreler',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
                             Row(
                               children: [
@@ -199,15 +215,19 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                                     decoration: const InputDecoration(
                                       labelText: 'Marka',
                                       border: OutlineInputBorder(),
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
                                     ),
                                     initialValue: filtreliMarka,
                                     isExpanded: true,
                                     items: [
-                                      const DropdownMenuItem(value: null, child: Text('Tümü')),
-                                      ...markalar.map((m) => DropdownMenuItem(value: m, child: Text(m))),
+                                      const DropdownMenuItem(
+                                          value: null, child: Text('Tümü')),
+                                      ...markalar.map((m) => DropdownMenuItem(
+                                          value: m, child: Text(m))),
                                     ],
-                                    onChanged: (v) => setDialogState(() => filtreliMarka = v),
+                                    onChanged: (v) =>
+                                        setDialogState(() => filtreliMarka = v),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -216,9 +236,11 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                                     decoration: const InputDecoration(
                                       labelText: 'Model Ara',
                                       border: OutlineInputBorder(),
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
                                     ),
-                                    onChanged: (v) => setDialogState(() => filtreliModel = v.isEmpty ? null : v),
+                                    onChanged: (v) => setDialogState(() =>
+                                        filtreliModel = v.isEmpty ? null : v),
                                   ),
                                 ),
                               ],
@@ -237,13 +259,17 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('📊 Genel Özet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            const Text('📊 Genel Özet',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
                             const Divider(),
                             _buildRaporRow('Toplam Model', toplamModel),
                             _buildRaporRow('Toplam Sipariş Adedi', toplamAdet),
                             _buildRaporRow('Tamamlanan Adet', tamamlananAdet),
+                            _buildRaporRow('Fire Adet', fireAdet),
                             _buildRaporRow('Bekleyen Adet', bekleyenAdet),
-                            _buildRaporSatiri('Tamamlanma Oranı', '%${tamamlanmaOrani.toStringAsFixed(1)}'),
+                            _buildRaporSatiri('Tamamlanma Oranı',
+                                '%${tamamlanmaOrani.toStringAsFixed(1)}'),
                           ],
                         ),
                       ),
@@ -258,9 +284,12 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('🔥 Ütü Durum Dağılımı', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            const Text('🔥 Ütü Durum Dağılımı',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
                             const Divider(),
-                            ...utuDurumlari.entries.map((e) => _buildRaporRow(e.key, e.value)),
+                            ...utuDurumlari.entries
+                                .map((e) => _buildRaporRow(e.key, e.value)),
                             const Divider(),
                             _buildRaporRow('Toplam', toplamUtu),
                           ],
@@ -277,9 +306,12 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('📦 Paketleme Durum Dağılımı', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            const Text('📦 Paketleme Durum Dağılımı',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
                             const Divider(),
-                            ...paketDurumlari.entries.map((e) => _buildRaporRow(e.key, e.value)),
+                            ...paketDurumlari.entries
+                                .map((e) => _buildRaporRow(e.key, e.value)),
                             const Divider(),
                             _buildRaporRow('Toplam', toplamPaket),
                           ],
@@ -296,7 +328,9 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('📋 Çeki Listesi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            const Text('📋 Çeki Listesi',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
                             const Divider(),
                             _buildRaporRow('Toplam Kayıt', cekiListesi.length),
                             _buildRaporRow('Bekleyen Gönderi', bekleyenCeki),
@@ -316,10 +350,14 @@ extension _DialoglarExt on _UtuPaketDashboardState {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('🏷️ Marka Dağılımı', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              const Text('🏷️ Marka Dağılımı',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16)),
                               const Divider(),
-                              ...markaBasinaModel.entries.map((e) => 
-                                _buildRaporSatiri(e.key, '${e.value} model (${markaBasinaAdet[e.key] ?? 0} adet)')),
+                              ...markaBasinaModel.entries.map((e) =>
+                                  _buildRaporSatiri(e.key,
+                                      '${e.value} model (${markaBasinaAdet[e.key] ?? 0} adet)')),
                             ],
                           ),
                         ),
@@ -329,7 +367,9 @@ extension _DialoglarExt on _UtuPaketDashboardState {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Kapat')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Kapat')),
             ],
           );
         },
@@ -348,6 +388,25 @@ extension _DialoglarExt on _UtuPaketDashboardState {
         ],
       ),
     );
+  }
+
+  int _utuRaporAdet(
+    Map<String, dynamic> atama,
+    Map<String, dynamic> model,
+  ) {
+    final talep = _utuInt(atama['talep_edilen_adet']);
+    if (talep > 0) return talep;
+    final kabul = _utuInt(atama['kabul_edilen_adet']);
+    if (kabul > 0) return kabul;
+    final adet = _utuInt(atama['adet']);
+    if (adet > 0) return adet;
+    return _utuInt(model['adet'] ?? model['toplam_adet']);
+  }
+
+  int _utuInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Widget _buildRaporSatiri(String baslik, String deger) {

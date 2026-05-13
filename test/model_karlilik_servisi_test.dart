@@ -49,6 +49,33 @@ void main() {
       expect(ozet.hedefAltinda, isTrue);
     });
 
+    test('kesirli aksesuar kullanım miktarını birim maliyete ekler', () {
+      const servis = ModelKarlilikServisi();
+
+      final sonuc = servis.hesapla(
+        model: {
+          'toplam_adet': 1000,
+          'pesin_fiyat': 10,
+          'kar_marji': 0,
+        },
+        uretimKayitlari: const [],
+        modelAksesuarlari: [
+          {
+            'adet_per_model': 0.025,
+            'aksesuarlar': {'birim_fiyat': 40.0},
+          },
+        ],
+      );
+
+      expect(sonuc.planBirimMaliyet, 1.0);
+      expect(
+        sonuc.kalemler
+            .firstWhere((kalem) => kalem.kod == 'genel_aksesuar')
+            .planBirim,
+        1.0,
+      );
+    });
+
     test('tamamlanan adet en ileri üretim aşamasından alınır', () {
       final ozet = const ModelKarlilikServisi().hesapla(
         model: {

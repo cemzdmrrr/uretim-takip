@@ -2,6 +2,19 @@ part of 'model_ekle.dart';
 
 /// Aksesuarlar tab extension for _ModelEkleState.
 extension _AksesuarlarTabExt on _ModelEkleState {
+  double _aksesuarAdetDegeri(dynamic value) {
+    if (value is num) return value.toDouble();
+    return _parseDouble(value?.toString() ?? '') ?? 1.0;
+  }
+
+  String _formatAksesuarAdet(double value) {
+    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+    return value
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
   Widget _buildAksesuarlarTab() {
     return Column(
       children: [
@@ -49,12 +62,14 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.category_outlined, size: 64, color: Colors.grey),
+                      Icon(Icons.category_outlined,
+                          size: 64, color: Colors.grey),
                       SizedBox(height: 16),
                       Text('Henüz aksesuar eklenmemiş',
                           style: TextStyle(color: Colors.grey)),
                       SizedBox(height: 8),
-                      Text('Mevcut aksesuarlardan seçebilir veya yeni aksesuar oluşturabilirsiniz.',
+                      Text(
+                          'Mevcut aksesuarlardan seçebilir veya yeni aksesuar oluşturabilirsiniz.',
                           style: TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
@@ -65,7 +80,8 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                   itemBuilder: (context, index) {
                     final item = _selectedAksesuarlar[index];
                     final aksesuar = item['aksesuar'] as Map<String, dynamic>;
-                    final int adetPerModel = item['adet_per_model'] as int;
+                    final double adetPerModel =
+                        _aksesuarAdetDegeri(item['adet_per_model']);
                     final double birimFiyat =
                         (aksesuar['birim_fiyat'] as num?)?.toDouble() ?? 0.0;
 
@@ -87,7 +103,7 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                               Text('SKU: ${aksesuar['sku']}',
                                   style: const TextStyle(fontSize: 12)),
                             Text(
-                              'Birim Fiyat: ₺${birimFiyat.toStringAsFixed(2)} | Model Başına: $adetPerModel adet',
+                              'Birim Fiyat: ₺${birimFiyat.toStringAsFixed(2)} | Model Başına: ${_formatAksesuarAdet(adetPerModel)} adet',
                               style: const TextStyle(fontSize: 12),
                             ),
                           ],
@@ -99,18 +115,23 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                             SizedBox(
                               width: 60,
                               child: TextFormField(
-                                initialValue: adetPerModel.toString(),
-                                keyboardType: TextInputType.number,
+                                initialValue: _formatAksesuarAdet(adetPerModel),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
                                 decoration: const InputDecoration(
                                   labelText: 'Adet',
                                   border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
                                   isDense: true,
                                 ),
                                 onChanged: (value) {
-                                  final newAdet = int.tryParse(value) ?? 1;
+                                  final newAdet = _parseDouble(value) ?? 1.0;
                                   setState(() {
-                                    _selectedAksesuarlar[index]['adet_per_model'] = newAdet < 1 ? 1 : newAdet;
+                                    _selectedAksesuarlar[index]
+                                            ['adet_per_model'] =
+                                        newAdet <= 0 ? 1.0 : newAdet;
                                   });
                                 },
                               ),
@@ -153,7 +174,8 @@ extension _AksesuarlarTabExt on _ModelEkleState {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Henüz aksesuar tanımlanmamış. Önce yeni aksesuar oluşturun.'),
+          content: Text(
+              'Henüz aksesuar tanımlanmamış. Önce yeni aksesuar oluşturun.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -164,9 +186,8 @@ extension _AksesuarlarTabExt on _ModelEkleState {
     final ekliIdler = _selectedAksesuarlar
         .map((e) => (e['aksesuar'] as Map<String, dynamic>)['id'])
         .toSet();
-    final filtrelenmis = tumAksesuarlar
-        .where((a) => !ekliIdler.contains(a['id']))
-        .toList();
+    final filtrelenmis =
+        tumAksesuarlar.where((a) => !ekliIdler.contains(a['id'])).toList();
 
     if (filtrelenmis.isEmpty) {
       if (!mounted) return;
@@ -180,7 +201,7 @@ extension _AksesuarlarTabExt on _ModelEkleState {
     }
 
     dynamic secilenAksesuar;
-    int adetPerModel = 1;
+    double adetPerModel = 1;
     List<Map<String, dynamic>> secilenBedenler = [];
 
     if (!mounted) return;
@@ -203,7 +224,9 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                       ),
                       isExpanded: true,
                       items: filtrelenmis.map<DropdownMenuItem>((aksesuar) {
-                        final fiyat = (aksesuar['birim_fiyat'] as num?)?.toDouble() ?? 0.0;
+                        final fiyat =
+                            (aksesuar['birim_fiyat'] as num?)?.toDouble() ??
+                                0.0;
                         return DropdownMenuItem(
                           value: aksesuar,
                           child: Row(
@@ -216,14 +239,17 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: Colors.blue.shade50,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
                                   '₺${fiyat.toStringAsFixed(2)}',
-                                  style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.blue.shade800),
                                 ),
                               ),
                             ],
@@ -244,7 +270,8 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                                 .eq('aksesuar_id', value['id'])
                                 .eq('durum', 'aktif');
                             setDialogState(() {
-                              secilenBedenler = List<Map<String, dynamic>>.from(bedenResponse);
+                              secilenBedenler = List<Map<String, dynamic>>.from(
+                                  bedenResponse);
                             });
                           } catch (e) {
                             debugPrint('Beden bilgisi getirilemedi: $e');
@@ -260,10 +287,11 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                         helperText: 'Her bir model için kaç adet kullanılacak?',
                       ),
                       initialValue: '1',
-                      keyboardType: TextInputType.number,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       onChanged: (value) {
                         setDialogState(() {
-                          adetPerModel = int.tryParse(value) ?? 1;
+                          adetPerModel = _parseDouble(value) ?? 1.0;
                         });
                       },
                     ),
@@ -279,12 +307,15 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (secilenAksesuar['sku'] != null)
-                              Text('SKU: ${secilenAksesuar['sku']}', style: const TextStyle(fontSize: 13)),
+                              Text('SKU: ${secilenAksesuar['sku']}',
+                                  style: const TextStyle(fontSize: 13)),
                             if (secilenAksesuar['marka'] != null)
-                              Text('Marka: ${secilenAksesuar['marka']}', style: const TextStyle(fontSize: 13)),
+                              Text('Marka: ${secilenAksesuar['marka']}',
+                                  style: const TextStyle(fontSize: 13)),
                             Text(
                               'Birim Fiyat: ₺${((secilenAksesuar['birim_fiyat'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -305,10 +336,13 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.straighten, size: 16, color: Colors.teal),
+                                Icon(Icons.straighten,
+                                    size: 16, color: Colors.teal),
                                 SizedBox(width: 6),
                                 Text('Beden Stok Durumu',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13)),
                               ],
                             ),
                             const SizedBox(height: 8),
@@ -316,16 +350,23 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                               final bedenAdi = b['beden']?.toString() ?? '';
                               final stok = (b['stok_miktari'] as int? ?? 0);
                               return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 2),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(bedenAdi, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                                    Text(bedenAdi,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12)),
                                     Text(
                                       '$stok adet',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: stok > 0 ? Colors.green.shade700 : Colors.red.shade700,
+                                        color: stok > 0
+                                            ? Colors.green.shade700
+                                            : Colors.red.shade700,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -351,8 +392,10 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                     ? () {
                         setState(() {
                           _selectedAksesuarlar.add({
-                            'aksesuar': Map<String, dynamic>.from(secilenAksesuar),
-                            'adet_per_model': adetPerModel < 1 ? 1 : adetPerModel,
+                            'aksesuar':
+                                Map<String, dynamic>.from(secilenAksesuar),
+                            'adet_per_model':
+                                adetPerModel <= 0 ? 1.0 : adetPerModel,
                           });
                         });
                         Navigator.pop(dialogContext);
@@ -379,7 +422,7 @@ extension _AksesuarlarTabExt on _ModelEkleState {
     final malzemeController = TextEditingController();
     final aciklamaController = TextEditingController();
     final minimumStokController = TextEditingController(text: '10');
-    int adetPerModel = 1;
+    double adetPerModel = 1;
     final List<Map<String, dynamic>> bedenListesi = [];
 
     showDialog(
@@ -482,7 +525,8 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                         Expanded(
                           child: TextField(
                             controller: birimFiyatController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
                             decoration: const InputDecoration(
                               labelText: 'Birim Fiyat (TL)',
                               border: OutlineInputBorder(),
@@ -518,16 +562,19 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                       children: [
                         const Text(
                           'Bedenler',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                         ElevatedButton.icon(
-                          onPressed: () => _showBedenEkleDialogInline(setDialogState, bedenListesi),
+                          onPressed: () => _showBedenEkleDialogInline(
+                              setDialogState, bedenListesi),
                           icon: const Icon(Icons.add, size: 18),
                           label: const Text('Yeni Beden Ekle'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                           ),
                         ),
                       ],
@@ -546,9 +593,13 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                             return Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: index % 2 == 0 ? Colors.white : Colors.grey.shade50,
+                                color: index % 2 == 0
+                                    ? Colors.white
+                                    : Colors.grey.shade50,
                                 border: index > 0
-                                    ? Border(top: BorderSide(color: Colors.grey.shade300))
+                                    ? Border(
+                                        top: BorderSide(
+                                            color: Colors.grey.shade300))
                                     : null,
                               ),
                               child: Row(
@@ -556,18 +607,22 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                                   Expanded(
                                     flex: 2,
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'Beden: ${beden['beden']}',
-                                          style: const TextStyle(fontWeight: FontWeight.w600),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600),
                                         ),
                                         Text(
                                           'Stok: ${beden['stok_miktari']} adet',
                                           style: TextStyle(
-                                            color: (beden['stok_miktari'] as int) > 0
-                                                ? Colors.green.shade700
-                                                : Colors.red.shade700,
+                                            color:
+                                                (beden['stok_miktari'] as int) >
+                                                        0
+                                                    ? Colors.green.shade700
+                                                    : Colors.red.shade700,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -575,13 +630,19 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
-                                    onPressed: () => _showBedenDuzenleDialogInline(
-                                        index, beden, setDialogState, bedenListesi),
+                                    icon: const Icon(Icons.edit,
+                                        color: Colors.blue, size: 20),
+                                    onPressed: () =>
+                                        _showBedenDuzenleDialogInline(
+                                            index,
+                                            beden,
+                                            setDialogState,
+                                            bedenListesi),
                                     tooltip: 'Düzenle',
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                    icon: const Icon(Icons.delete,
+                                        color: Colors.red, size: 20),
                                     onPressed: () {
                                       setDialogState(() {
                                         bedenListesi.removeAt(index);
@@ -600,7 +661,8 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                         padding: const EdgeInsets.only(top: 4, bottom: 4),
                         child: Text(
                           'Henüz beden eklenmemiş (opsiyonel)',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                          style: TextStyle(
+                              color: Colors.grey.shade600, fontSize: 12),
                         ),
                       ),
                     const SizedBox(height: 16),
@@ -613,9 +675,10 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                         helperText: 'Her bir model için kaç adet kullanılacak?',
                       ),
                       initialValue: '1',
-                      keyboardType: TextInputType.number,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       onChanged: (value) {
-                        adetPerModel = int.tryParse(value) ?? 1;
+                        adetPerModel = _parseDouble(value) ?? 1.0;
                       },
                     ),
                   ],
@@ -698,14 +761,16 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                           'firma_id': TenantManager.instance.requireFirmaId,
                         });
                       }
-                      debugPrint('Aksesuar bedenleri kaydedildi: ${bedenListesi.length} beden');
+                      debugPrint(
+                          'Aksesuar bedenleri kaydedildi: ${bedenListesi.length} beden');
                     }
 
                     // Modele ekle
                     setState(() {
                       _selectedAksesuarlar.add({
                         'aksesuar': Map<String, dynamic>.from(result),
-                        'adet_per_model': adetPerModel < 1 ? 1 : adetPerModel,
+                        'adet_per_model':
+                            adetPerModel <= 0 ? 1.0 : adetPerModel,
                       });
                     });
 
@@ -713,7 +778,8 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                       Navigator.pop(dialogContext);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Aksesuar oluşturuldu ve modele eklendi'),
+                          content:
+                              Text('Aksesuar oluşturuldu ve modele eklendi'),
                           backgroundColor: Colors.green,
                         ),
                       );
@@ -721,8 +787,10 @@ extension _AksesuarlarTabExt on _ModelEkleState {
                   } catch (e) {
                     if (dialogContext.mounted) {
                       String hataMesaji = '$e';
-                      if (hataMesaji.contains('aksesuarlar_sku_key') || hataMesaji.contains('duplicate key')) {
-                        hataMesaji = 'Bu SKU kodu zaten kullanılıyor. Lütfen farklı bir SKU girin veya "Mevcut Aksesuardan Seç" ile ekleyin.';
+                      if (hataMesaji.contains('aksesuarlar_sku_key') ||
+                          hataMesaji.contains('duplicate key')) {
+                        hataMesaji =
+                            'Bu SKU kodu zaten kullanılıyor. Lütfen farklı bir SKU girin veya "Mevcut Aksesuardan Seç" ile ekleyin.';
                       }
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         SnackBar(

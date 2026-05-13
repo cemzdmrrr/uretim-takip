@@ -8,6 +8,53 @@ class FaturaService {
   static final _supabase = Supabase.instance.client;
   static String get _firmaId => TenantManager.instance.requireFirmaId;
 
+  static double _doubleDeger(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  }
+
+  static void _kalemTutarlariniTamamla(Map<String, dynamic> kalemVerileri) {
+    final miktar = _doubleDeger(kalemVerileri['miktar']);
+    final birimFiyat = _doubleDeger(kalemVerileri['birim_fiyat']);
+    final iskontoOrani = _doubleDeger(
+      kalemVerileri['iskonto_orani'] ?? kalemVerileri['iskonto'],
+    );
+    final brutTutar = miktar * birimFiyat;
+    final iskontoTutar = _doubleDeger(kalemVerileri['iskonto_tutari']) > 0
+        ? _doubleDeger(kalemVerileri['iskonto_tutari'])
+        : (brutTutar * iskontoOrani) / 100;
+    final kdvHaricTutar = brutTutar - iskontoTutar;
+    final kdvOrani = _doubleDeger(kalemVerileri['kdv_orani']);
+    final kdvTutar = (kdvHaricTutar * kdvOrani) / 100;
+
+    kalemVerileri['iskonto_tutari'] = iskontoTutar;
+    kalemVerileri['kdv_tutari'] = kdvTutar;
+    kalemVerileri['toplam_tutar'] = kdvHaricTutar + kdvTutar;
+  }
+
+  static Map<String, dynamic> _kalemInsertData(
+    FaturaKalemiModel kalem,
+    int faturaId,
+  ) {
+    return {
+      'fatura_id': faturaId,
+      'firma_id': _firmaId,
+      'urun_kodu': kalem.urunKodu,
+      'urun_adi': kalem.urunAdi,
+      'aciklama': kalem.aciklama,
+      'miktar': kalem.miktar,
+      'birim': kalem.birim,
+      'birim_fiyat': kalem.birimFiyat,
+      'iskonto_orani': kalem.iskonto,
+      'iskonto_tutari': kalem.hesaplananIskontoTutar,
+      'kdv_orani': kalem.kdvOrani,
+      'kdv_tutari': kalem.hesaplananKdvTutar,
+      'toplam_tutar': kalem.kdvDahilTutar,
+      'model_id': kalem.modelId,
+      'olusturma_tarihi': DateTime.now().toIso8601String(),
+    };
+  }
+
   // Faturaları listele (sayfalama ve filtreleme ile)
   static Future<List<FaturaModel>> faturalariListele({
     String? aramaKelimesi,
@@ -218,6 +265,7 @@ class FaturaService {
       }
       kalemVerileri.remove('sira_no');
       kalemVerileri.remove('kalem_id');
+      _kalemTutarlariniTamamla(kalemVerileri);
 
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
@@ -235,6 +283,7 @@ class FaturaService {
   static Future<FaturaKalemiModel> faturaKalemiGuncelle(
       int kalemId, Map<String, dynamic> kalemVerileri) async {
     try {
+      _kalemTutarlariniTamamla(kalemVerileri);
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
           .update(kalemVerileri)
@@ -620,25 +669,8 @@ class FaturaService {
 
       // Sonra kalemleri ekle
       if (kalemler.isNotEmpty) {
-        final kalemData = kalemler.map((kalem) {
-          return {
-            'fatura_id': faturaId,
-            'firma_id': _firmaId,
-            'urun_kodu': kalem.urunKodu,
-            'urun_adi': kalem.urunAdi,
-            'aciklama': kalem.aciklama,
-            'miktar': kalem.miktar,
-            'birim': kalem.birim,
-            'birim_fiyat': kalem.birimFiyat,
-            'iskonto_orani': kalem.iskonto,
-            'iskonto_tutari': kalem.iskontoTutar,
-            'kdv_orani': kalem.kdvOrani,
-            'kdv_tutari': kalem.kdvTutar,
-            'toplam_tutar': kalem.satirTutar,
-            'model_id': kalem.modelId,
-            'olusturma_tarihi': DateTime.now().toIso8601String(),
-          };
-        }).toList();
+        final kalemData =
+            kalemler.map((kalem) => _kalemInsertData(kalem, faturaId)).toList();
 
         await _supabase.from(DbTables.faturaKalemleri).insert(kalemData);
       }
@@ -667,25 +699,9 @@ class FaturaService {
 
       // Yeni kalemleri ekle
       if (kalemler.isNotEmpty) {
-        final kalemData = kalemler.map((kalem) {
-          return {
-            'fatura_id': fatura.faturaId!,
-            'firma_id': _firmaId,
-            'urun_kodu': kalem.urunKodu,
-            'urun_adi': kalem.urunAdi,
-            'aciklama': kalem.aciklama,
-            'miktar': kalem.miktar,
-            'birim': kalem.birim,
-            'birim_fiyat': kalem.birimFiyat,
-            'iskonto_orani': kalem.iskonto,
-            'iskonto_tutari': kalem.iskontoTutar,
-            'kdv_orani': kalem.kdvOrani,
-            'kdv_tutari': kalem.kdvTutar,
-            'toplam_tutar': kalem.satirTutar,
-            'model_id': kalem.modelId,
-            'olusturma_tarihi': DateTime.now().toIso8601String(),
-          };
-        }).toList();
+        final kalemData = kalemler
+            .map((kalem) => _kalemInsertData(kalem, fatura.faturaId!))
+            .toList();
 
         await _supabase.from(DbTables.faturaKalemleri).insert(kalemData);
       }

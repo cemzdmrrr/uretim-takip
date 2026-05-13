@@ -359,7 +359,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         ? 0.0
         : (tamamlananAdet / kabulEdilenAdet).clamp(0.0, 1.0);
     final kabulBedenDagilimi =
-      _kabulBedenDagilimiGetir(atama, model, kabulEdilenAdet);
+        _kabulBedenDagilimiGetir(atama, model, kabulEdilenAdet);
     final notMetni = _gecerliNotMetni(atama);
     final durumRengi = _durumRengi(durum);
 
@@ -756,7 +756,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     Map<String, int> kaynak,
     int hedefToplam,
   ) {
-    final temiz = kaynak.map((key, value) => MapEntry(key, value < 0 ? 0 : value))
+    final temiz = kaynak
+        .map((key, value) => MapEntry(key, value < 0 ? 0 : value))
       ..removeWhere((_, value) => value <= 0);
     if (temiz.isEmpty) return const <String, int>{};
 
@@ -780,8 +781,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     }
 
     var dagitilacak = hedefToplam - _toplamBedenAdedi(tabanDegerler);
-    kalanlar.sort(
-        (a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
+    kalanlar
+        .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
 
     for (var i = 0; i < dagitilacak; i++) {
       final beden = kalanlar[i % kalanlar.length]['beden'] as String;
@@ -806,12 +807,26 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       return _siraliBedenMap(kayitli);
     }
 
+    if (_sevkiyatKaynakliAtamaMi(atama)) {
+      return const <String, int>{};
+    }
+
     final modelDagilim = _parseBedenDetayi(model['bedenler']);
     if (modelDagilim.isNotEmpty) {
       return _toplamaUyarliBedenMap(modelDagilim, kabulEdilenAdet);
     }
 
     return const <String, int>{};
+  }
+
+  bool _sevkiyatKaynakliAtamaMi(Map<String, dynamic> atama) {
+    if (_sevkiyatIdempotencyKeyGetir(atama) != null) {
+      return true;
+    }
+
+    final notlar =
+        '${atama['notlar'] ?? ''}\n${atama['aciklama'] ?? ''}'.toLowerCase();
+    return notlar.contains('sevkiyattan geldi') || notlar.contains('sevkiyat');
   }
 
   String? _sevkiyatIdempotencyKeyGetir(Map<String, dynamic> atama) {
@@ -822,8 +837,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
     final notlar =
         '${atama['notlar'] ?? ''}\n${atama['aciklama'] ?? ''}'.toString();
-    final match = RegExp(r'\[IDEMP:([^\]]+)\]', caseSensitive: false)
-        .firstMatch(notlar);
+    final match =
+        RegExp(r'\[IDEMP:([^\]]+)\]', caseSensitive: false).firstMatch(notlar);
     final parsed = (match?.group(1) ?? '').trim();
     if (parsed.startsWith('sevk:')) {
       return parsed;
@@ -849,25 +864,12 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
   Future<Map<String, int>> _sevkiyattanBedenDagilimiGetir(
       Map<String, dynamic> atama) async {
-    final key = _sevkiyatIdempotencyKeyGetir(atama);
-    if (key == null || key.isEmpty) return const <String, int>{};
-
-    final parts = key.split(':');
-    if (parts.length < 3) return const <String, int>{};
-
-    final sevkiyatId = parts[1].trim();
-    if (sevkiyatId.isEmpty) return const <String, int>{};
-
-    final hedefAsama = _normalizeAsamaKoduYerel(parts.sublist(2).join(':'));
-    var useFirmaFilter = true;
-    var bedenKolonuVar = true;
-
     Map<String, int> notlardanBedenDetayi(dynamic rawNot) {
       final text = (rawNot ?? '').toString();
       if (text.isEmpty) return const <String, int>{};
 
-      final match = RegExp(r'\[BEDEN:([^\]]+)\]', caseSensitive: false)
-          .firstMatch(text);
+      final match =
+          RegExp(r'\[BEDEN:([^\]]+)\]', caseSensitive: false).firstMatch(text);
       if (match == null) return const <String, int>{};
 
       final result = <String, int>{};
@@ -887,13 +889,43 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       return _siraliBedenMap(result);
     }
 
+    final atamaNotBeden = notlardanBedenDetayi(
+      '${atama['notlar'] ?? ''}\n${atama['aciklama'] ?? ''}',
+    );
+    if (atamaNotBeden.isNotEmpty) {
+      return atamaNotBeden;
+    }
+
+    final key = _sevkiyatIdempotencyKeyGetir(atama);
+    if (key == null || key.isEmpty) return const <String, int>{};
+
+    final parts = key.split(':');
+    if (parts.length < 3) return const <String, int>{};
+
+    final irsaliyeId = parts[1].trim() == 'irsaliye' && parts.length >= 4
+        ? parts[2].trim()
+        : '';
+    final sevkiyatId = irsaliyeId.isEmpty ? parts[1].trim() : '';
+    if (sevkiyatId.isEmpty && irsaliyeId.isEmpty) return const <String, int>{};
+
+    final hedefAsama = _normalizeAsamaKoduYerel(
+      irsaliyeId.isEmpty
+          ? parts.sublist(2).join(':')
+          : parts.sublist(3).join(':'),
+    );
+    var useFirmaFilter = true;
+    var bedenKolonuVar = true;
+
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        var query = supabase
-            .from(DbTables.sevkiyatDetaylari)
-            .select(
-                bedenKolonuVar ? 'beden_detaylari, hedef_asama, notlar' : 'hedef_asama, notlar')
-            .eq('sevkiyat_id', sevkiyatId);
+        var query = supabase.from(DbTables.sevkiyatDetaylari).select(
+            bedenKolonuVar
+                ? 'beden_detaylari, hedef_asama, notlar'
+                : 'hedef_asama, notlar');
+
+        query = irsaliyeId.isNotEmpty
+            ? query.eq('irsaliye_id', irsaliyeId)
+            : query.eq('sevkiyat_id', sevkiyatId);
 
         if (useFirmaFilter) {
           query = query.eq('firma_id', TenantManager.instance.requireFirmaId);
@@ -903,7 +935,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         final toplam = <String, int>{};
 
         for (final row in List<Map<String, dynamic>>.from(rows)) {
-            final rowHedef =
+          final rowHedef =
               _normalizeAsamaKoduYerel(row['hedef_asama']?.toString());
           if (hedefAsama.isNotEmpty && rowHedef != hedefAsama) continue;
 
@@ -1441,11 +1473,32 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                   throw Exception('Geçerli bir adet giriniz');
                 }
 
-                await supabase.from(widget.atamaTablosu).update({
+                final updateData = <String, dynamic>{
                   'kabul_edilen_adet': kabulAdet,
                   'durum': 'onaylandi',
                   'onay_tarihi': DateTime.now().toIso8601String(),
-                }).eq('id', atama['id']);
+                  if (talepBedenDagilimi.isNotEmpty)
+                    'beden_detaylari': talepBedenDagilimi,
+                };
+
+                try {
+                  await supabase
+                      .from(widget.atamaTablosu)
+                      .update(updateData)
+                      .eq('id', atama['id'])
+                      .eq('firma_id', TenantManager.instance.requireFirmaId);
+                } catch (e) {
+                  final fallback = Map<String, dynamic>.from(updateData);
+                  final missing = _missingColumnName(e);
+                  if (missing != null && fallback.containsKey(missing)) {
+                    fallback.remove(missing);
+                  }
+
+                  await supabase
+                      .from(widget.atamaTablosu)
+                      .update(fallback)
+                      .eq('id', atama['id']);
+                }
 
                 if (!context.mounted) return;
                 Navigator.pop(context);
@@ -1549,18 +1602,19 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
     // Adet bilgileri
     final talepAdet =
-      (atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet'])?.toString();
+        (atama['talep_edilen_adet'] ?? atama['adet'] ?? model['adet'])
+            ?.toString();
     final kabulAdetInt = _atamaInt(
       atama['kabul_edilen_adet'] ??
-        atama['talep_edilen_adet'] ??
-        atama['adet'] ??
-        model['adet'] ??
-        0,
+          atama['talep_edilen_adet'] ??
+          atama['adet'] ??
+          model['adet'] ??
+          0,
     );
     final kabulAdet = kabulAdetInt > 0 ? kabulAdetInt.toString() : null;
     final tamamlananAdet = atama['tamamlanan_adet']?.toString();
     final kabulBedenDagilimi =
-      _kabulBedenDagilimiGetir(atama, model, kabulAdetInt);
+        _kabulBedenDagilimiGetir(atama, model, kabulAdetInt);
     final notMetni = _gecerliNotMetni(atama);
 
     // Tarih yardımcısı
@@ -1631,8 +1685,10 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                 const Divider(height: 16),
                 _buildModelBilgisi('Notlar', notMetni),
               ],
-              if (atama['red_sebebi'] != null && atama['red_sebebi'].toString().isNotEmpty)
-                _buildModelBilgisi('Red Sebebi', atama['red_sebebi']?.toString(),
+              if (atama['red_sebebi'] != null &&
+                  atama['red_sebebi'].toString().isNotEmpty)
+                _buildModelBilgisi(
+                    'Red Sebebi', atama['red_sebebi']?.toString(),
                     textColor: Colors.red),
             ],
           ),
@@ -1739,7 +1795,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         debugPrint('⚠️ Model durumu güncellenemedi (triko_takip): $e');
       }
 
-      // Yıkama ve Kalite Kontrol aşamaları için direkt sevkiyat, diğerleri için kalite kontrol
+      // Konfeksiyon tamamlandiginda once kalite kontrole gider.
+      // Yikama ve kalite kontrolden sonra sevkiyat kaydi olusturulur.
       if (yeniDurum == 'tamamlandi') {
         final tamamlananAdet = atama['tamamlanan_adet'] ??
             atama['kabul_edilen_adet'] ??
@@ -1755,7 +1812,12 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           'onceki_asama': widget.asamaDisplayName,
         };
 
-        if (widget.asamaAdi == 'yikama' ||
+        if (widget.asamaAdi == 'konfeksiyon') {
+          await _kaliteKontrolAtamasiOlustur(
+            downstreamAtama,
+            tamamlananAdet: tamamlananAdet,
+          );
+        } else if (widget.asamaAdi == 'yikama' ||
             widget.asamaAdi == 'kalite_kontrol') {
           await _sevkiyatAtamasiOlustur(
             downstreamAtama,
@@ -1806,12 +1868,13 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       final firmaId = TenantManager.instance.requireFirmaId;
       final oncekiAsama =
           (atama['onceki_asama'] ?? widget.asamaDisplayName).toString();
-      final kaynakAtamaId = int.tryParse('${atama['kaynak_atama_id'] ?? atama['id'] ?? ''}');
+      final kaynakAtamaId =
+          int.tryParse('${atama['kaynak_atama_id'] ?? atama['id'] ?? ''}');
       final kaynakAtamaTablosu =
           (atama['kaynak_atama_tablosu'] ?? widget.atamaTablosu).toString();
-      final idempotencyKey =
-          (atama['idempotency_key'] ?? '${kaynakAtamaTablosu}:${kaynakAtamaId ?? atama['id']}:downstream')
-              .toString();
+      final idempotencyKey = (atama['idempotency_key'] ??
+              '${kaynakAtamaTablosu}:${kaynakAtamaId ?? atama['id']}:downstream')
+          .toString();
       final idempotencyTag = '[IDEMP:$idempotencyKey]';
       final yeniNot =
           '$oncekiAsama tamamlandi - ${modelResponse['marka']} ${modelResponse['item_no']} - $adet adet $idempotencyTag';
@@ -1926,7 +1989,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     }
   }
 
-  /// Yıkama veya Kalite Kontrol tamamlandığında direkt sevkiyat ataması oluştur
+  /// Yikama veya kalite kontrol tamamlandiginda sevkiyat kaydi olustur.
   Future<void> _sevkiyatAtamasiOlustur(Map<String, dynamic> atama,
       {int? tamamlananAdet}) async {
     try {
@@ -1952,12 +2015,13 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           0;
       final oncekiAsama = atama['onceki_asama'] ?? widget.asamaDisplayName;
       final firmaId = TenantManager.instance.requireFirmaId;
-      final kaynakAtamaId = int.tryParse('${atama['kaynak_atama_id'] ?? atama['id'] ?? ''}');
+      final kaynakAtamaId =
+          int.tryParse('${atama['kaynak_atama_id'] ?? atama['id'] ?? ''}');
       final kaynakAtamaTablosu =
           (atama['kaynak_atama_tablosu'] ?? widget.atamaTablosu).toString();
-      final idempotencyKey =
-          (atama['idempotency_key'] ?? '${kaynakAtamaTablosu}:${kaynakAtamaId ?? atama['id']}:downstream')
-              .toString();
+      final idempotencyKey = (atama['idempotency_key'] ??
+              '${kaynakAtamaTablosu}:${kaynakAtamaId ?? atama['id']}:downstream')
+          .toString();
       final idempotencyTag = '[IDEMP:$idempotencyKey]';
       final yeniNot =
           '$oncekiAsama tamamlandı - ${modelResponse['marka']} ${modelResponse['item_no']} $idempotencyTag';
@@ -2017,9 +2081,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         final updateData = <String, dynamic>{
           'alinan_adet': adet,
           'kalan_adet': (adet - sevkEdilenAdet).clamp(0, 999999999),
+          'onceki_asama': oncekiAsama,
           'notlar': yeniNot,
           'updated_at': DateTime.now().toIso8601String(),
-          if (bedenDetaylariSevk.isNotEmpty) 'beden_detaylari': bedenDetaylariSevk,
+          if (bedenDetaylariSevk.isNotEmpty)
+            'beden_detaylari': bedenDetaylariSevk,
         };
         try {
           await supabase
@@ -2046,10 +2112,12 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           'alis_tarihi': DateTime.now().toIso8601String(),
           'notlar': yeniNot,
           'firma_id': firmaId,
+          'onceki_asama': oncekiAsama,
           'kaynak_atama_tablosu': kaynakAtamaTablosu,
           if (kaynakAtamaId != null) 'kaynak_atama_id': kaynakAtamaId,
           'idempotency_key': idempotencyKey,
-          if (bedenDetaylariSevk.isNotEmpty) 'beden_detaylari': bedenDetaylariSevk,
+          if (bedenDetaylariSevk.isNotEmpty)
+            'beden_detaylari': bedenDetaylariSevk,
         };
 
         try {
@@ -2058,6 +2126,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
           final fallback = Map<String, dynamic>.from(insertData)
             ..remove('kaynak_atama_tablosu')
             ..remove('kaynak_atama_id')
+            ..remove('onceki_asama')
             ..remove('idempotency_key')
             ..remove('beden_detaylari');
           await supabase.from(DbTables.sevkiyatKayitlari).insert(fallback);
@@ -2130,13 +2199,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
             .eq('id', atama['id'])
             .eq('firma_id', TenantManager.instance.requireFirmaId);
       } catch (_) {
-        await supabase
-            .from(widget.atamaTablosu)
-            .update({
-              'red_sebebi': result,
-              'notlar': redNotu,
-              if (_eskiAtamaAciklamaKolonuVar) 'aciklama': redNotu,
-            }).eq('id', atama['id']);
+        await supabase.from(widget.atamaTablosu).update({
+          'red_sebebi': result,
+          'notlar': redNotu,
+          if (_eskiAtamaAciklamaKolonuVar) 'aciklama': redNotu,
+        }).eq('id', atama['id']);
       }
     }
   }
@@ -2287,11 +2354,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
                       idempotencyKey:
                           '${widget.atamaTablosu}:${atama['id']}:uretime_al:$idempotencySeed',
                       extraFields: {
-                      'uretim_baslangic_tarihi':
-                          DateTime.now().toIso8601String(),
-                      'planlanan_bitis_tarihi':
-                          planlananBitisTarihi.toIso8601String(),
-                      'updated_at': DateTime.now().toIso8601String(),
+                        'uretim_baslangic_tarihi':
+                            DateTime.now().toIso8601String(),
+                        'planlanan_bitis_tarihi':
+                            planlananBitisTarihi.toIso8601String(),
+                        'updated_at': DateTime.now().toIso8601String(),
                       },
                     );
 

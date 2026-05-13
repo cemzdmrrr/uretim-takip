@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'fatura_detay_page.dart';
 
 /// Fatura detay - widget builder metotlari
@@ -6,7 +6,7 @@ extension _WidgetExt on _FaturaDetayPageState {
   Widget _buildDurumKarti() {
     Color durumRengi;
     IconData durumIkonu;
-    
+
     switch (_fatura.durum) {
       case 'taslak':
         durumRengi = Colors.orange;
@@ -91,15 +91,17 @@ extension _WidgetExt on _FaturaDetayPageState {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
             _buildBilgiSatiri('Fatura No', _fatura.faturaNo),
-            _buildBilgiSatiri('Fatura Tarihi', _dateFormat.format(_fatura.faturaTarihi)),
+            _buildBilgiSatiri(
+                'Fatura Tarihi', _dateFormat.format(_fatura.faturaTarihi)),
             if (_fatura.vadeTarihi != null)
-              _buildBilgiSatiri('Vade Tarihi', _dateFormat.format(_fatura.vadeTarihi!)),
+              _buildBilgiSatiri(
+                  'Vade Tarihi', _dateFormat.format(_fatura.vadeTarihi!)),
             _buildBilgiSatiri('Kur', '${_fatura.kur} (${_fatura.kurOrani})'),
             if (_fatura.aciklama != null && _fatura.aciklama!.isNotEmpty)
               _buildBilgiSatiri('Açıklama', _fatura.aciklama!),
-            _buildBilgiSatiri('Oluşturma Tarihi', _dateTimeFormat.format(_fatura.olusturmaTarihi)),
+            _buildBilgiSatiri('Oluşturma Tarihi',
+                _dateTimeFormat.format(_fatura.olusturmaTarihi)),
             _buildBilgiSatiri('Oluşturan', _fatura.olusturanKullanici),
           ],
         ),
@@ -115,13 +117,15 @@ extension _WidgetExt on _FaturaDetayPageState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _fatura.faturaTuru == 'alis' ? 'Tedarikçi Bilgileri' : 'Müşteri Bilgileri',
+              _fatura.faturaTuru == 'alis'
+                  ? 'Tedarikçi Bilgileri'
+                  : 'Müşteri Bilgileri',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
             _buildBilgiSatiri('Fatura Adresi', _fatura.faturaAdres),
-            if (_fatura.vergiDairesi != null && _fatura.vergiDairesi!.isNotEmpty)
+            if (_fatura.vergiDairesi != null &&
+                _fatura.vergiDairesi!.isNotEmpty)
               _buildBilgiSatiri('Vergi Dairesi', _fatura.vergiDairesi!),
             if (_fatura.vergiNo != null && _fatura.vergiNo!.isNotEmpty)
               _buildBilgiSatiri('Vergi/TC No', _fatura.vergiNo!),
@@ -143,7 +147,6 @@ extension _WidgetExt on _FaturaDetayPageState {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
             if (_yukleniyor)
               const LoadingWidget()
             else if (_faturaKalemleri.isEmpty)
@@ -174,7 +177,7 @@ extension _WidgetExt on _FaturaDetayPageState {
                   rows: _faturaKalemleri.asMap().entries.map((entry) {
                     final index = entry.key;
                     final kalem = entry.value;
-                    
+
                     return DataRow(
                       cells: [
                         DataCell(Text('${index + 1}')),
@@ -188,9 +191,11 @@ extension _WidgetExt on _FaturaDetayPageState {
                               children: [
                                 Text(
                                   kalem.urunAdi,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
-                                if (kalem.aciklama != null && kalem.aciklama!.isNotEmpty)
+                                if (kalem.aciklama != null &&
+                                    kalem.aciklama!.isNotEmpty)
                                   Text(
                                     kalem.aciklama!,
                                     style: TextStyle(
@@ -204,12 +209,15 @@ extension _WidgetExt on _FaturaDetayPageState {
                         ),
                         DataCell(Text(kalem.miktar.toString())),
                         DataCell(Text(kalem.birim)),
-                        DataCell(Text(_currencyFormat.format(kalem.birimFiyat))),
+                        DataCell(
+                            Text(_currencyFormat.format(kalem.birimFiyat))),
                         DataCell(Text('${kalem.kdvOrani}%')),
-                        DataCell(Text(_currencyFormat.format(kalem.kdvTutar))),
+                        DataCell(Text(_currencyFormat
+                            .format(kalem.gosterilecekKdvTutar))),
                         DataCell(
                           Text(
-                            _currencyFormat.format(kalem.satirTutar),
+                            _currencyFormat
+                                .format(kalem.gosterilecekSatirTutar),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -236,31 +244,30 @@ extension _WidgetExt on _FaturaDetayPageState {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Ara Toplam:', style: TextStyle(fontSize: 16)),
                 Text(
-                  _currencyFormat.format(_fatura.araToplamTutar),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  _currencyFormat.format(_gosterilecekAraToplam),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('KDV Tutarı:', style: TextStyle(fontSize: 16)),
                 Text(
-                  _currencyFormat.format(_fatura.kdvTutari),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  _currencyFormat.format(_gosterilecekKdvTutari),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const Divider(thickness: 2),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -269,7 +276,7 @@ extension _WidgetExt on _FaturaDetayPageState {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  _currencyFormat.format(_fatura.toplamTutar),
+                  _currencyFormat.format(_gosterilecekToplamTutar),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -286,7 +293,7 @@ extension _WidgetExt on _FaturaDetayPageState {
 
   Widget _buildOdemeBilgileriKarti() {
     final kalanBorc = _fatura.toplamTutar - _fatura.odenenTutar;
-    
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -313,17 +320,19 @@ extension _WidgetExt on _FaturaDetayPageState {
               ],
             ),
             const SizedBox(height: 16),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Ödeme Durumu:', style: TextStyle(fontSize: 16)),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getOdemeDurumRengi(_fatura.odemeDurumu).withValues(alpha: 0.2),
+                    color: _getOdemeDurumRengi(_fatura.odemeDurumu)
+                        .withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _getOdemeDurumRengi(_fatura.odemeDurumu)),
+                    border: Border.all(
+                        color: _getOdemeDurumRengi(_fatura.odemeDurumu)),
                   ),
                   child: Text(
                     _getOdemeDurumMetin(_fatura.odemeDurumu),
@@ -336,19 +345,18 @@ extension _WidgetExt on _FaturaDetayPageState {
               ],
             ),
             const SizedBox(height: 8),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Ödenen Tutar:', style: TextStyle(fontSize: 16)),
                 Text(
                   _currencyFormat.format(_fatura.odenenTutar),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -487,12 +495,14 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
   final _odemeController = TextEditingController();
   final _aciklamaController = TextEditingController();
   final _referansController = TextEditingController();
-  
-  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
-  
+
+  final NumberFormat _currencyFormat =
+      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
+
   bool _yukleniyor = false;
-  double get _kalanBorc => widget.fatura.toplamTutar - widget.fatura.odenenTutar;
-  
+  double get _kalanBorc =>
+      widget.fatura.toplamTutar - widget.fatura.odenenTutar;
+
   // Kasa/Banka hesapları
   List<KasaBankaModel> _kasaBankaHesaplari = [];
   String? _secilenKasaBankaId;
@@ -550,7 +560,7 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
     try {
       final odemeTutari = double.parse(_odemeController.text);
       final yeniToplamOdeme = widget.fatura.odenenTutar + odemeTutari;
-      
+
       String yeniOdemeDurumu;
       if (yeniToplamOdeme >= widget.fatura.toplamTutar) {
         yeniOdemeDurumu = 'odendi';
@@ -566,14 +576,16 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
         _aciklamaController.text.isEmpty ? null : _aciklamaController.text,
         kasaBankaId: _secilenKasaBankaId,
         paraBirimi: _secilenParaBirimi,
-        referansNo: _referansController.text.isEmpty ? null : _referansController.text,
+        referansNo:
+            _referansController.text.isEmpty ? null : _referansController.text,
         islemTarihi: _secilenTarih,
       );
 
       widget.onOdemeEklendi(yeniToplamOdeme, yeniOdemeDurumu);
 
       if (mounted) {
-        context.showSuccessSnackBar('Ödeme başarıyla eklendi ve kasa/banka hareketine kaydedildi');
+        context.showSuccessSnackBar(
+            'Ödeme başarıyla eklendi ve kasa/banka hareketine kaydedildi');
         Navigator.pop(context);
       }
     } catch (e) {
@@ -633,7 +645,7 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
                   labelText: 'Kasa/Banka Hesabı *',
                   border: OutlineInputBorder(),
                 ),
-                hint: _kasaBankaYukleniyor 
+                hint: _kasaBankaYukleniyor
                     ? const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -657,7 +669,8 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
                   setState(() {
                     _secilenKasaBankaId = hesapId;
                     if (hesapId != null) {
-                      final hesap = _kasaBankaHesaplari.firstWhere((h) => h.id?.toString() == hesapId);
+                      final hesap = _kasaBankaHesaplari
+                          .firstWhere((h) => h.id?.toString() == hesapId);
                       _secilenParaBirimi = hesap.dovizTuru;
                     }
                   });
@@ -670,7 +683,7 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Ödeme tutarı
               TextFormField(
                 controller: _odemeController,
@@ -679,7 +692,8 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
                   border: const OutlineInputBorder(),
                   suffixText: _getParaBirimiSymbol(_secilenParaBirimi),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Ödeme tutarı gerekli';
@@ -735,7 +749,7 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Açıklama
               TextFormField(
                 controller: _aciklamaController,

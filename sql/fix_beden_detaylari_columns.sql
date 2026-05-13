@@ -1,40 +1,39 @@
--- Beden dagilimi verisinin kaybolmamasi icin eksik kolonlari ekler
--- Guvenli calisma: mevcutsa yeniden eklemez
+-- Beden dagilimi verisinin kaybolmamasi icin eksik kolonlari ekler.
+-- Guvenli calisma: tablo/kolon/index mevcutsa yeniden eklemez.
 
 DO $$
+DECLARE
+  tablo text;
+  tablolar text[] := ARRAY[
+    'dokuma_atamalari',
+    'nakis_atamalari',
+    'konfeksiyon_atamalari',
+    'yikama_atamalari',
+    'utu_atamalari',
+    'ilik_dugme_atamalari',
+    'kalite_kontrol_atamalari',
+    'paketleme_atamalari',
+    'sevkiyat_kayitlari',
+    'sevkiyat_detaylari'
+  ];
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'konfeksiyon_atamalari'
-  ) THEN
-    ALTER TABLE public.konfeksiyon_atamalari
-      ADD COLUMN IF NOT EXISTS beden_detaylari jsonb;
-  END IF;
+  FOREACH tablo IN ARRAY tablolar LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = tablo
+    ) THEN
+      EXECUTE format(
+        'ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS beden_detaylari jsonb',
+        tablo
+      );
 
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'sevkiyat_detaylari'
-  ) THEN
-    ALTER TABLE public.sevkiyat_detaylari
-      ADD COLUMN IF NOT EXISTS beden_detaylari jsonb;
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'konfeksiyon_atamalari'
-  ) THEN
-    CREATE INDEX IF NOT EXISTS idx_konfeksiyon_atamalari_beden_detaylari
-      ON public.konfeksiyon_atamalari USING gin (beden_detaylari);
-  END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'sevkiyat_detaylari'
-  ) THEN
-    CREATE INDEX IF NOT EXISTS idx_sevkiyat_detaylari_beden_detaylari
-      ON public.sevkiyat_detaylari USING gin (beden_detaylari);
-  END IF;
+      EXECUTE format(
+        'CREATE INDEX IF NOT EXISTS %I ON public.%I USING gin (beden_detaylari)',
+        'idx_' || tablo || '_beden_detaylari',
+        tablo
+      );
+    END IF;
+  END LOOP;
 END $$;

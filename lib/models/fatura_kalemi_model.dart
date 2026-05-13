@@ -53,14 +53,16 @@ class FaturaKalemiModel {
       birim: json['birim'] ?? 'adet',
       birimFiyat: (json['birim_fiyat'] ?? 0.0).toDouble(),
       iskonto: (json['iskonto_orani'] ?? json['iskonto'] ?? 0.0).toDouble(),
-      iskontoTutar: (json['iskonto_tutari'] ?? json['iskonto_tutar'] ?? 0.0).toDouble(),
+      iskontoTutar:
+          (json['iskonto_tutari'] ?? json['iskonto_tutar'] ?? 0.0).toDouble(),
       kdvOrani: (json['kdv_orani'] ?? 20.0).toDouble(),
       kdvTutar: (json['kdv_tutari'] ?? json['kdv_tutar'] ?? 0.0).toDouble(),
-      satirTutar: (json['toplam_tutar'] ?? json['satir_tutar'] ?? 0.0).toDouble(),
+      satirTutar:
+          (json['toplam_tutar'] ?? json['satir_tutar'] ?? 0.0).toDouble(),
       modelId: json['model_id']?.toInt(),
       stokId: json['stok_id']?.toInt(),
-      olusturmaTarihi: json['olusturma_tarihi'] != null 
-          ? DateTime.parse(json['olusturma_tarihi']) 
+      olusturmaTarihi: json['olusturma_tarihi'] != null
+          ? DateTime.parse(json['olusturma_tarihi'])
           : DateTime.now(),
       firmaId: json['firma_id'],
     );
@@ -69,6 +71,7 @@ class FaturaKalemiModel {
   // Model'i JSON'a çevirme (DB sütun adlarına uygun)
   Map<String, dynamic> toJson() {
     return {
+      if (kalemId != null) 'kalem_id': kalemId,
       'fatura_id': faturaId,
       if (urunKodu != null) 'urun_kodu': urunKodu,
       'urun_adi': urunAdi,
@@ -88,12 +91,23 @@ class FaturaKalemiModel {
   }
 
   // Hesaplama metodları
-  double get araToplamTutar => (miktar * birimFiyat) - iskontoTutar;
+  double get hesaplananIskontoTutar {
+    if (iskontoTutar > 0) return iskontoTutar;
+    return (miktar * birimFiyat * iskonto) / 100;
+  }
+
+  double get araToplamTutar => (miktar * birimFiyat) - hesaplananIskontoTutar;
   double get kdvHaricTutar => araToplamTutar;
-  double get kdvDahilTutar => araToplamTutar + kdvTutar;
+  double get hesaplananKdvTutar => hesaplaKdvTutar(kdvHaricTutar, kdvOrani);
+  double get kdvDahilTutar => kdvHaricTutar + hesaplananKdvTutar;
+  double get gosterilecekKdvTutar =>
+      kdvTutar > 0 ? kdvTutar : hesaplananKdvTutar;
+  double get gosterilecekSatirTutar =>
+      satirTutar > 0 ? satirTutar : kdvDahilTutar;
 
   // Fiyat hesaplama (KDV hariç)
-  static double hesaplaKdvHaricTutar(double miktar, double birimFiyat, double iskonto) {
+  static double hesaplaKdvHaricTutar(
+      double miktar, double birimFiyat, double iskonto) {
     final araToplamTutar = miktar * birimFiyat;
     final iskontoTutar = (araToplamTutar * iskonto) / 100;
     return araToplamTutar - iskontoTutar;
@@ -105,17 +119,19 @@ class FaturaKalemiModel {
   }
 
   // Toplam tutar hesaplama
-  static double hesaplaSatirTutar(double miktar, double birimFiyat, double iskonto, double kdvOrani) {
+  static double hesaplaSatirTutar(
+      double miktar, double birimFiyat, double iskonto, double kdvOrani) {
     final kdvHaricTutar = hesaplaKdvHaricTutar(miktar, birimFiyat, iskonto);
     final kdvTutar = hesaplaKdvTutar(kdvHaricTutar, kdvOrani);
     return kdvHaricTutar + kdvTutar;
   }
 
   // Formatlanmış değerler
-  String get formattedMiktar => miktar.toStringAsFixed(miktar == miktar.roundToDouble() ? 0 : 2);
+  String get formattedMiktar =>
+      miktar.toStringAsFixed(miktar == miktar.roundToDouble() ? 0 : 2);
   String get formattedBirimFiyat => birimFiyat.toStringAsFixed(2);
-  String get formattedSatirTutar => satirTutar.toStringAsFixed(2);
-  String get formattedKdvTutar => kdvTutar.toStringAsFixed(2);
+  String get formattedSatirTutar => gosterilecekSatirTutar.toStringAsFixed(2);
+  String get formattedKdvTutar => gosterilecekKdvTutar.toStringAsFixed(2);
 
   // Copy with metodu
   FaturaKalemiModel copyWith({

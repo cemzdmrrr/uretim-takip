@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,13 +7,13 @@ import 'package:uretim_takip/models/fatura_kalemi_model.dart';
 import 'package:uretim_takip/models/tedarikci_model.dart';
 import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/services/tedarikci_service.dart';
+import 'package:uretim_takip/utils/decimal_parser.dart';
 
 part 'fatura_ekle_page_widgets.dart';
 
-
 class FaturaEklePage extends StatefulWidget {
   final FaturaModel? duzenlenecekFatura;
-  
+
   const FaturaEklePage({super.key, this.duzenlenecekFatura});
 
   @override
@@ -28,13 +28,14 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
   final _vergiNoController = TextEditingController();
   final _aciklamaController = TextEditingController();
   final _kurOraniController = TextEditingController(text: '1.0000');
-  
+
   final DateFormat _dateFormat = DateFormat('dd.MM.yyyy');
-  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
-  
+  final NumberFormat _currencyFormat =
+      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
+
   bool _yukleniyor = false;
   bool _duzenlemeModu = false;
-  
+
   // Form alanları
   String _secilenFaturaTuru = 'satis';
   DateTime _faturaTarihi = DateTime.now();
@@ -42,11 +43,11 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
   String _secilenDurum = 'taslak';
   String _secilenOdemeDurumu = 'odenmedi';
   String _secilenKur = 'TRY';
-  
+
   // Tedarikçi
   List<TedarikciModel> _tedarikciler = [];
   TedarikciModel? _secilenTedarikci;
-  
+
   // Fatura kalemleri
   final List<FaturaKalemiModel> _faturaKalemleri = [];
   double _araToplamTutar = 0;
@@ -58,7 +59,7 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     super.initState();
     _duzenlemeModu = widget.duzenlenecekFatura != null;
     _verileriYukle();
-    
+
     if (_duzenlemeModu) {
       _formuDoldur();
     } else {
@@ -84,9 +85,9 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
 
     try {
       final tedarikcilerFuture = TedarikciService.tedarikcileriListele();
-      
+
       final results = await Future.wait([tedarikcilerFuture]);
-      
+
       setState(() {
         _tedarikciler = results[0];
       });
@@ -103,7 +104,7 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
 
   void _formuDoldur() {
     final fatura = widget.duzenlenecekFatura!;
-    
+
     setState(() {
       _faturaNoController.text = fatura.faturaNo;
       _secilenFaturaTuru = fatura.faturaTuru;
@@ -122,7 +123,8 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
 
   Future<void> _otomatikFaturaNoOlustur() async {
     try {
-      final faturaNo = await FaturaService.sonrakiFaturaNoOlustur(_secilenFaturaTuru);
+      final faturaNo =
+          await FaturaService.sonrakiFaturaNoOlustur(_secilenFaturaTuru);
       setState(() {
         _faturaNoController.text = faturaNo;
       });
@@ -173,12 +175,9 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     double toplamTutar = 0;
 
     for (final kalem in _faturaKalemleri) {
-      final kalemAraToplam = kalem.miktar * kalem.birimFiyat;
-      final kalemKdv = kalemAraToplam * kalem.kdvOrani / 100;
-      
-      araToplamTutar += kalemAraToplam;
-      kdvTutari += kalemKdv;
-      toplamTutar += kalemAraToplam + kalemKdv;
+      araToplamTutar += kalem.kdvHaricTutar;
+      kdvTutari += kalem.hesaplananKdvTutar;
+      toplamTutar += kalem.kdvDahilTutar;
     }
 
     setState(() {
@@ -204,28 +203,33 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
 
     try {
       final fatura = FaturaModel(
-        faturaId: _duzenlemeModu ? widget.duzenlenecekFatura!.faturaId : null,
-        faturaNo: _faturaNoController.text,
-        faturaTuru: _secilenFaturaTuru,
-        faturaTarihi: _faturaTarihi,
-        musteriId: null,
-        tedarikciId: _secilenTedarikci?.tedarikciId,
-        faturaAdres: _faturaAdresController.text,
-        vergiDairesi: _vergiDairesiController.text.isEmpty ? null : _vergiDairesiController.text,
-        vergiNo: _vergiNoController.text.isEmpty ? null : _vergiNoController.text,
-        araToplamTutar: _araToplamTutar,
-        kdvTutari: _kdvTutari,
-        toplamTutar: _toplamTutar,
-        durum: _secilenDurum,
-        aciklama: _aciklamaController.text.isEmpty ? null : _aciklamaController.text,
-        vadeTarihi: _vadeTarihi,
-        odemeDurumu: _secilenOdemeDurumu,
-        odenenTutar: 0,
-        kur: _secilenKur,
-        kurOrani: double.tryParse(_kurOraniController.text) ?? 1.0,
-        olusturmaTarihi: DateTime.now(),
-        olusturanKullanici: Supabase.instance.client.auth.currentUser?.id ?? 'bilinmeyen'
-      );
+          faturaId: _duzenlemeModu ? widget.duzenlenecekFatura!.faturaId : null,
+          faturaNo: _faturaNoController.text,
+          faturaTuru: _secilenFaturaTuru,
+          faturaTarihi: _faturaTarihi,
+          musteriId: null,
+          tedarikciId: _secilenTedarikci?.tedarikciId,
+          faturaAdres: _faturaAdresController.text,
+          vergiDairesi: _vergiDairesiController.text.isEmpty
+              ? null
+              : _vergiDairesiController.text,
+          vergiNo:
+              _vergiNoController.text.isEmpty ? null : _vergiNoController.text,
+          araToplamTutar: _araToplamTutar,
+          kdvTutari: _kdvTutari,
+          toplamTutar: _toplamTutar,
+          durum: _secilenDurum,
+          aciklama: _aciklamaController.text.isEmpty
+              ? null
+              : _aciklamaController.text,
+          vadeTarihi: _vadeTarihi,
+          odemeDurumu: _secilenOdemeDurumu,
+          odenenTutar: 0,
+          kur: _secilenKur,
+          kurOrani: parseLocalizedDecimal(_kurOraniController.text) ?? 1.0,
+          olusturmaTarihi: DateTime.now(),
+          olusturanKullanici:
+              Supabase.instance.client.auth.currentUser?.id ?? 'bilinmeyen');
 
       if (_duzenlemeModu) {
         await FaturaService.faturaGuncelle(fatura, _faturaKalemleri);
@@ -236,7 +240,8 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_duzenlemeModu ? 'Fatura güncellendi' : 'Fatura eklendi'),
+            content:
+                Text(_duzenlemeModu ? 'Fatura güncellendi' : 'Fatura eklendi'),
             backgroundColor: Colors.green,
           ),
         );
@@ -280,19 +285,19 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
                     // Temel bilgiler kartı
                     _buildTemelBilgilerKarti(),
                     const SizedBox(height: 16),
-                    
+
                     // Müşteri/Tedarikçi kartı
                     _buildMusteritedarikciKarti(),
                     const SizedBox(height: 16),
-                    
+
                     // Fatura kalemleri kartı
                     _buildFaturaKalemleriKarti(),
                     const SizedBox(height: 16),
-                    
+
                     // Toplam tutarlar kartı
                     _buildToplamTutarlarKarti(),
                     const SizedBox(height: 24),
-                    
+
                     // Kaydet butonu
                     SizedBox(
                       width: double.infinity,
@@ -309,7 +314,8 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
                                 ),
                               )
                             : const Icon(Icons.save),
@@ -322,5 +328,4 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
             ),
     );
   }
-
 }
