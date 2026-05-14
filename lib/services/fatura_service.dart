@@ -55,6 +55,30 @@ class FaturaService {
     };
   }
 
+  static Map<String, dynamic> _faturaTutarMapi(
+    List<FaturaKalemiModel> kalemler,
+  ) {
+    final araToplam = kalemler.fold<double>(
+      0,
+      (sum, kalem) => sum + kalem.kdvHaricTutar,
+    );
+    final kdvTutari = kalemler.fold<double>(
+      0,
+      (sum, kalem) => sum + kalem.gosterilecekKdvTutar,
+    );
+    final toplamTutar = kalemler.fold<double>(
+      0,
+      (sum, kalem) => sum + kalem.gosterilecekSatirTutar,
+    );
+
+    return {
+      'ara_toplam_tutar': araToplam,
+      'kdv_tutari': kdvTutari,
+      'toplam_tutar': toplamTutar,
+      'guncelleme_tarihi': DateTime.now().toIso8601String(),
+    };
+  }
+
   // Faturaları listele (sayfalama ve filtreleme ile)
   static Future<List<FaturaModel>> faturalariListele({
     String? aramaKelimesi,
@@ -254,6 +278,20 @@ class FaturaService {
     }
   }
 
+  static Future<void> faturaToplamlariniKalemlerdenGuncelle(
+      int faturaId) async {
+    try {
+      final kalemler = await faturaKalemleriniGetir(faturaId);
+      await _supabase
+          .from(DbTables.faturalar)
+          .update(_faturaTutarMapi(kalemler))
+          .eq('firma_id', _firmaId)
+          .eq('fatura_id', faturaId);
+    } catch (e) {
+      throw Exception('Fatura toplamları güncellenirken hata oluştu: $e');
+    }
+  }
+
   // Fatura kalemi ekle
   static Future<FaturaKalemiModel> faturaKalemiEkle(
       Map<String, dynamic> kalemVerileri) async {
@@ -283,6 +321,10 @@ class FaturaService {
   static Future<FaturaKalemiModel> faturaKalemiGuncelle(
       int kalemId, Map<String, dynamic> kalemVerileri) async {
     try {
+      kalemVerileri.remove('id');
+      kalemVerileri.remove('kalem_id');
+      kalemVerileri.remove('sira_no');
+      kalemVerileri.remove('olusturma_tarihi');
       _kalemTutarlariniTamamla(kalemVerileri);
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
@@ -300,7 +342,18 @@ class FaturaService {
   // Fatura kalemi sil
   static Future<void> faturaKalemiSil(int kalemId) async {
     try {
+      final kalem = await _supabase
+          .from(DbTables.faturaKalemleri)
+          .select('fatura_id')
+          .eq('id', kalemId)
+          .maybeSingle();
       await _supabase.from(DbTables.faturaKalemleri).delete().eq('id', kalemId);
+      final faturaId = kalem?['fatura_id'];
+      if (faturaId is int) {
+        await faturaToplamlariniKalemlerdenGuncelle(faturaId);
+      } else if (faturaId is num) {
+        await faturaToplamlariniKalemlerdenGuncelle(faturaId.toInt());
+      }
     } catch (e) {
       throw Exception('Fatura kalemi silinirken hata oluştu: $e');
     }

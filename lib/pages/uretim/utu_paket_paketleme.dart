@@ -1,4 +1,4 @@
-// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member, unused_element
 part of 'utu_paket_dashboard.dart';
 
 /// Paketleme işlemleri (başla, tamamla, mix koli) for _UtuPaketDashboardState.
@@ -908,10 +908,10 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
         }
 
         if (toplamTamamlanan > 0) {
-          await _paketlemeyeOtomatikAta(
+          await _utuTamamlamayiCekiListesineAktar(
             atama,
-            toplamTamamlanan,
             tamamlananBeden,
+            notController.text,
           );
         }
 
@@ -927,7 +927,10 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
               backgroundColor: Colors.green,
             ),
           );
-          _verileriYukle();
+          await _verileriYukle();
+          if (mounted) {
+            _tabController.animateTo(1);
+          }
         }
       } catch (e) {
         _hataGoster('Tamamlama hatası: $e');
@@ -941,6 +944,40 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
       c.dispose();
     }
     notController.dispose();
+  }
+
+  Future<void> _utuTamamlamayiCekiListesineAktar(
+    Map<String, dynamic> utuAtama,
+    Map<String, int> tamamlananBeden,
+    String kullaniciNotu,
+  ) async {
+    final aktarilacakBedenler = tamamlananBeden.isNotEmpty
+        ? tamamlananBeden
+        : <String, int>{
+            'GENEL': _toInt(utuAtama['tamamlanan_adet'] ??
+                utuAtama['talep_edilen_adet'] ??
+                utuAtama['adet']),
+          };
+    final temizNot = kullaniciNotu.trim();
+
+    for (final entry in aktarilacakBedenler.entries) {
+      if (entry.value <= 0) continue;
+
+      await _cekiKaydiEkleEsnek({
+        'model_id': utuAtama['model_id'],
+        'beden_kodu': entry.key,
+        'koli_adedi': 1,
+        'adet': entry.value,
+        'adet_per_koli': entry.value,
+        'paketleme_tarihi': DateTime.now().toIso8601String(),
+        'gonderim_durumu': 'bekliyor',
+        'firma_id': TenantManager.instance.requireFirmaId,
+        'notlar': [
+          '[AUTO-UTU] Ütü tamamlandı, çeki listesine aktarıldı.',
+          if (temizNot.isNotEmpty) temizNot,
+        ].join('\n'),
+      });
+    }
   }
 
   // ===== ÜTÜ TAMAMLANINCA PAKETLEMEYİ OTOMATİK AT =====

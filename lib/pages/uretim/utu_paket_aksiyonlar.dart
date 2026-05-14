@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'utu_paket_dashboard.dart';
 
 /// Temel aksiyonlar (onayla, reddet, başla) ve detay görünümü for _UtuPaketDashboardState.
@@ -28,7 +28,8 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
 
   Future<void> _onayla(Map<String, dynamic> atama, String tip) async {
     try {
-      final tablo = tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
+      final tablo =
+          tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
       await _workflowTransitionService.applyTransition(
         tableName: tablo,
         recordId: atama['id'],
@@ -37,6 +38,7 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
         toStatus: 'onaylandi',
         idempotencyKey: '$tablo:${atama['id']}:onayla',
         extraFields: {
+          'durum': 'onaylandi',
           'onay_tarihi': DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
         },
@@ -47,9 +49,17 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
           const SnackBar(
               content: Text('Atama onaylandı'), backgroundColor: Colors.green),
         );
-        // Onaylanan sekmesine otomatik geç
-        _tabController.animateTo(1);
-        _verileriYukle();
+        await _verileriYukle();
+        if (!mounted) return;
+
+        // Ana sekmeyi değiştirmeden durum filtresinde Onaylanan bölümüne geç.
+        setState(() {
+          if (tip == 'utu') {
+            utuDurumTab = 1;
+          } else {
+            paketDurumTab = 1;
+          }
+        });
       }
     } catch (e) {
       _hataGoster('Onaylama hatası: $e');
@@ -86,7 +96,8 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
 
     if (sonuc == true) {
       try {
-        final tablo = tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
+        final tablo =
+            tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
         await _workflowTransitionService.applyTransition(
           tableName: tablo,
           recordId: atama['id'],
@@ -122,7 +133,8 @@ extension _AksiyonlarExt on _UtuPaketDashboardState {
     }
 
     try {
-      final tablo = tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
+      final tablo =
+          tip == 'utu' ? DbTables.utuAtamalari : DbTables.paketlemeAtamalari;
       await _workflowTransitionService.applyTransition(
         tableName: tablo,
         recordId: atama['id'],

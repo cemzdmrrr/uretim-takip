@@ -173,6 +173,7 @@ extension _WidgetExt on _FaturaDetayPageState {
                     DataColumn(label: Text('KDV %')),
                     DataColumn(label: Text('KDV Tutarı')),
                     DataColumn(label: Text('Toplam')),
+                    DataColumn(label: Text('İşlem')),
                   ],
                   rows: _faturaKalemleri.asMap().entries.map((entry) {
                     final index = entry.key;
@@ -219,6 +220,24 @@ extension _WidgetExt on _FaturaDetayPageState {
                             _currencyFormat
                                 .format(kalem.gosterilecekSatirTutar),
                             style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                tooltip: 'Düzenle',
+                                onPressed: () => _faturaKalemiDuzenle(kalem),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.red),
+                                tooltip: 'Sil',
+                                onPressed: () => _faturaKalemiSil(kalem),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -802,5 +821,228 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
       default:
         return paraBirimi;
     }
+  }
+}
+
+class _FaturaDetayKalemiDialog extends StatefulWidget {
+  final FaturaKalemiModel kalem;
+
+  const _FaturaDetayKalemiDialog({required this.kalem});
+
+  @override
+  State<_FaturaDetayKalemiDialog> createState() =>
+      _FaturaDetayKalemiDialogState();
+}
+
+class _FaturaDetayKalemiDialogState extends State<_FaturaDetayKalemiDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _urunKoduController;
+  late final TextEditingController _urunAdiController;
+  late final TextEditingController _aciklamaController;
+  late final TextEditingController _miktarController;
+  late final TextEditingController _birimFiyatController;
+  late final TextEditingController _kdvOraniController;
+  late String _secilenBirim;
+
+  @override
+  void initState() {
+    super.initState();
+    final kalem = widget.kalem;
+    _urunKoduController = TextEditingController(text: kalem.urunKodu ?? '');
+    _urunAdiController = TextEditingController(text: kalem.urunAdi);
+    _aciklamaController = TextEditingController(text: kalem.aciklama ?? '');
+    _miktarController = TextEditingController(text: kalem.miktar.toString());
+    _birimFiyatController =
+        TextEditingController(text: kalem.birimFiyat.toString());
+    _kdvOraniController =
+        TextEditingController(text: kalem.kdvOrani.toString());
+    _secilenBirim = kalem.birim;
+  }
+
+  @override
+  void dispose() {
+    _urunKoduController.dispose();
+    _urunAdiController.dispose();
+    _aciklamaController.dispose();
+    _miktarController.dispose();
+    _birimFiyatController.dispose();
+    _kdvOraniController.dispose();
+    super.dispose();
+  }
+
+  void _kaydet() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final miktar = parseLocalizedDecimal(_miktarController.text)!;
+    final birimFiyat = parseLocalizedDecimal(_birimFiyatController.text)!;
+    final kdvOrani = parseLocalizedDecimal(_kdvOraniController.text)!;
+    final kdvHaricTutar =
+        FaturaKalemiModel.hesaplaKdvHaricTutar(miktar, birimFiyat, 0);
+    final kdvTutar = FaturaKalemiModel.hesaplaKdvTutar(kdvHaricTutar, kdvOrani);
+    final satirTutar =
+        FaturaKalemiModel.hesaplaSatirTutar(miktar, birimFiyat, 0, kdvOrani);
+
+    Navigator.pop(
+      context,
+      widget.kalem.copyWith(
+        urunKodu:
+            _urunKoduController.text.isEmpty ? null : _urunKoduController.text,
+        urunAdi: _urunAdiController.text,
+        aciklama:
+            _aciklamaController.text.isEmpty ? null : _aciklamaController.text,
+        miktar: miktar,
+        birim: _secilenBirim,
+        birimFiyat: birimFiyat,
+        kdvOrani: kdvOrani,
+        kdvTutar: kdvTutar,
+        satirTutar: satirTutar,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Fatura Kalemi Düzenle'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _urunKoduController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ürün Kodu',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _urunAdiController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ürün Adı *',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Ürün adı gerekli'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _aciklamaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Açıklama',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _miktarController,
+                        decoration: const InputDecoration(
+                          labelText: 'Miktar *',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        validator: (value) {
+                          final miktar = parseLocalizedDecimal(value ?? '');
+                          if (miktar == null || miktar <= 0) {
+                            return 'Geçerli miktar girin';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _secilenBirim,
+                        decoration: const InputDecoration(
+                          labelText: 'Birim',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'adet', child: Text('Adet')),
+                          DropdownMenuItem(value: 'kg', child: Text('Kg')),
+                          DropdownMenuItem(
+                              value: 'metre', child: Text('Metre')),
+                          DropdownMenuItem(
+                              value: 'litre', child: Text('Litre')),
+                          DropdownMenuItem(
+                              value: 'takım', child: Text('Takım')),
+                          DropdownMenuItem(value: 'top', child: Text('Top')),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _secilenBirim = value ?? 'adet'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _birimFiyatController,
+                        decoration: const InputDecoration(
+                          labelText: 'Birim Fiyat *',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        validator: (value) {
+                          final fiyat = parseLocalizedDecimal(value ?? '');
+                          if (fiyat == null || fiyat < 0) {
+                            return 'Geçerli fiyat girin';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _kdvOraniController,
+                        decoration: const InputDecoration(
+                          labelText: 'KDV Oranı *',
+                          border: OutlineInputBorder(),
+                          suffixText: '%',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        validator: (value) {
+                          final oran = parseLocalizedDecimal(value ?? '');
+                          if (oran == null || oran < 0) {
+                            return 'Geçerli oran girin';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        ElevatedButton(
+          onPressed: _kaydet,
+          child: const Text('Güncelle'),
+        ),
+      ],
+    );
   }
 }

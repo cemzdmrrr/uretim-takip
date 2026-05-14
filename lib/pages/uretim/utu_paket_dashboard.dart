@@ -717,42 +717,59 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
             child: Column(
               children: [
                 Container(
-                  color: Colors.amber[50],
-                  child: Row(
-                    children: [
-                      _buildDurumTab(
-                          'Bekleyen',
-                          utuBekleyenler.length + paketBekleyenler.length,
-                          0,
-                          durumTab,
-                          (i) => setState(() => utuDurumTab = i),
-                          Icons.hourglass_empty,
-                          Colors.orange),
-                      _buildDurumTab(
-                          'Onaylanan',
-                          utuOnaylananlar.length + paketOnaylananlar.length,
-                          1,
-                          durumTab,
-                          (i) => setState(() => utuDurumTab = i),
-                          Icons.check_circle,
-                          Colors.green),
-                      _buildDurumTab(
-                          'İşlemde',
-                          utuUretimde.length + paketUretimde.length,
-                          2,
-                          durumTab,
-                          (i) => setState(() => utuDurumTab = i),
-                          Icons.play_circle,
-                          Colors.blue),
-                      _buildDurumTab(
-                          'Tamamlanan',
-                          utuTamamlananlar.length + paketTamamlananlar.length,
-                          3,
-                          durumTab,
-                          (i) => setState(() => utuDurumTab = i),
-                          Icons.done_all,
-                          Colors.grey),
-                    ],
+                  width: double.infinity,
+                  color: const Color(0xFFF8FAFC),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1550),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFDDE5EE)),
+                        ),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildDurumTab(
+                                  'Bekleyen',
+                                  utuBekleyenler.length,
+                                  0,
+                                  durumTab,
+                                  (i) => setState(() => utuDurumTab = i),
+                                  Icons.hourglass_empty,
+                                  Colors.orange),
+                              _buildDurumTab(
+                                  'Onaylanan',
+                                  utuOnaylananlar.length,
+                                  1,
+                                  durumTab,
+                                  (i) => setState(() => utuDurumTab = i),
+                                  Icons.check_circle,
+                                  Colors.green),
+                              _buildDurumTab(
+                                  'İşlemde',
+                                  utuUretimde.length,
+                                  2,
+                                  durumTab,
+                                  (i) => setState(() => utuDurumTab = i),
+                                  Icons.play_circle,
+                                  Colors.blue),
+                              _buildDurumTab(
+                                  'Tamamlanan',
+                                  utuTamamlananlar.length,
+                                  3,
+                                  durumTab,
+                                  (i) => setState(() => utuDurumTab = i),
+                                  Icons.done_all,
+                                  Colors.grey),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -768,25 +785,16 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   }
 
   Widget _buildUtuPaketTabContent(int tabIndex) {
-    // Tüm ütü ve paketleme atamalarını birleştir
+    // Ütü Paket sekmesinde yalnızca ütü atamaları ilerler.
     List<Map<String, dynamic>> list = [];
     if (tabIndex == 0) {
-      list = [
-        ..._filtreleListe(utuBekleyenler),
-        ..._filtreleListe(paketBekleyenler)
-      ];
+      list = _filtreleListe(utuBekleyenler);
     } else if (tabIndex == 1) {
-      list = [
-        ..._filtreleListe(utuOnaylananlar),
-        ..._filtreleListe(paketOnaylananlar)
-      ];
+      list = _filtreleListe(utuOnaylananlar);
     } else if (tabIndex == 2) {
-      list = [..._filtreleListe(utuUretimde), ..._filtreleListe(paketUretimde)];
+      list = _filtreleListe(utuUretimde);
     } else if (tabIndex == 3) {
-      list = [
-        ..._filtreleListe(utuTamamlananlar),
-        ..._filtreleListe(paketTamamlananlar)
-      ];
+      list = _filtreleListe(utuTamamlananlar);
     }
 
     if (list.isEmpty) {
@@ -799,8 +807,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
             Text('Kayıt yok', style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 12),
             Text(
-              'Ütü: ${utuBekleyenler.length + utuOnaylananlar.length + utuUretimde.length + utuTamamlananlar.length} | '
-              'Paket: ${paketBekleyenler.length + paketOnaylananlar.length + paketUretimde.length + paketTamamlananlar.length}',
+              'Ütü: ${utuBekleyenler.length + utuOnaylananlar.length + utuUretimde.length + utuTamamlananlar.length}',
               style: TextStyle(fontSize: 12, color: Colors.grey[500]),
             ),
           ],
@@ -808,12 +815,11 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: list.length,
       itemBuilder: (context, i) {
         final atama = list[i];
-        final tip = atama.containsKey('tedarikci_id') ? 'utu' : 'paketleme';
-        return _buildAtamaKarti(atama, tip);
+        return _buildAtamaKarti(atama, 'utu');
       },
     );
   }
@@ -821,35 +827,39 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   Widget _buildDurumTab(String baslik, int sayi, int index, int secilenIndex,
       Function(int) onTap, IconData icon, Color renk) {
     final secili = index == secilenIndex;
-    return Expanded(
-      child: InkWell(
-        onTap: () => onTap(index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: secili ? renk : Colors.transparent,
-                width: 3,
-              ),
+    return InkWell(
+      onTap: () => onTap(index),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        decoration: BoxDecoration(
+          color: secili ? renk.withValues(alpha: 0.08) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            bottom: BorderSide(
+              color: secili ? renk : Colors.transparent,
+              width: 3,
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: secili ? renk : Colors.grey, size: 20),
-              const SizedBox(height: 4),
-              Text(
-                '$baslik ($sayi)',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: secili ? FontWeight.bold : FontWeight.normal,
-                  color: secili ? renk : Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                color: secili ? renk : const Color(0xFF64748B), size: 20),
+            const SizedBox(width: 8),
+            Text(
+              '$baslik ($sayi)',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: secili ? FontWeight.w800 : FontWeight.w700,
+                color: secili ? renk : const Color(0xFF64748B),
               ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );

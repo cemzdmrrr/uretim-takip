@@ -1,4 +1,4 @@
-// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member, unused_element, unused_local_variable, no_leading_underscores_for_local_identifiers, unnecessary_brace_in_string_interps
 part of 'sevkiyat_panel.dart';
 
 /// Sevkiyat panel - widget builders, dialoglar ve aksiyonlar
@@ -121,10 +121,6 @@ extension _WidgetsExt on _SevkiyatPanelState {
                 DateFormat('dd.MM.yyyy HH:mm')
                     .format(DateTime.parse(sevk['atama_tarihi'])),
               ),
-
-            if (sevk['hedef_asama'] != null)
-              _buildBilgiSatiri('Hedef Aşama', sevk['hedef_asama'],
-                  textColor: Colors.blue),
 
             if (sevk['notlar'] != null && sevk['notlar'].toString().isNotEmpty)
               _buildBilgiSatiri('Notlar', sevk['notlar']),
@@ -565,47 +561,16 @@ extension _WidgetsExt on _SevkiyatPanelState {
     return null;
   }
 
-  String? _siradakiHedefAsama(String? kaynakAsamaKodu) {
-    switch (kaynakAsamaKodu) {
-      case 'dokuma':
-        return 'nakis';
-      case 'nakis':
-        return 'konfeksiyon';
-      case 'konfeksiyon':
-        return 'yikama';
-      case 'yikama':
-        return 'utu';
-      case 'utu':
-        return 'ilik_dugme';
-      case 'ilik_dugme':
-      case 'paketleme':
-      case 'kalite_kontrol':
-        return 'depo';
-      default:
-        return null;
-    }
-  }
-
-  bool _hedefAsamaSerbestSecim(Map<String, dynamic> sevk) {
-    if (sevk['kalite_kontrol_id'] != null) return true;
-
-    final kaynakTablo = sevk['kaynak_tablo']?.toString();
-    if (kaynakTablo == DbTables.sevkiyatKayitlari) return true;
-
-    final kaynakAsama = _kaynakAsamaKodu(sevk);
-    return kaynakAsama == 'kalite_kontrol';
-  }
-
   List<Map<String, dynamic>> _izinliHedefAsamalar(Map<String, dynamic> sevk) {
-    if (_hedefAsamaSerbestSecim(sevk)) {
+    final kaynak = _kaynakAsamaKodu(sevk);
+    if (kaynak == null ||
+        kaynak == 'sevkiyat' ||
+        kaynak == 'kalite_kontrol' ||
+        kaynak == 'paketleme') {
       return hedefAsamalar;
     }
 
-    final kaynak = _kaynakAsamaKodu(sevk);
-    final siradaki = _siradakiHedefAsama(kaynak);
-    if (siradaki == null) return hedefAsamalar;
-
-    final filtreli = hedefAsamalar.where((a) => a['key'] == siradaki).toList();
+    final filtreli = hedefAsamalar.where((a) => a['key'] != kaynak).toList();
     return filtreli.isEmpty ? hedefAsamalar : filtreli;
   }
 
@@ -755,7 +720,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
       kalanlar.add({'beden': entry.key, 'kalan': oransal - taban});
     }
 
-    var dagitilacak = hedefToplam - _toplamBedenAdedi(tabanlar);
+    final dagitilacak = hedefToplam - _toplamBedenAdedi(tabanlar);
     kalanlar
         .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
 
@@ -1973,8 +1938,6 @@ extension _WidgetsExt on _SevkiyatPanelState {
                     _bedenDagilimiMetni(bedenDetayi),
                   ),
                 _buildDetaySatiri('Durum', sevk['durum']),
-                if (sevk['hedef_asama'] != null)
-                  _buildDetaySatiri('Hedef Aşama', sevk['hedef_asama']),
                 if (model['termin_tarihi'] != null)
                   _buildDetaySatiri(
                       'Termin',

@@ -146,7 +146,6 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
     );
   }
 
-
   // Çeki detay göster
   void _cekiDetayGoster(Map<String, dynamic> kayit) {
     final model = kayit[DbTables.trikoTakip] as Map<String, dynamic>?;
@@ -225,9 +224,12 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
                       _buildDetayRow('Beden', bedenKodu),
                       _buildDetayRow('Koli Başı Adet', adetPerKoli.toString()),
                     ],
-                    if (isMixKoli && mixBedenDetay != null && mixBedenDetay.isNotEmpty) ...[
+                    if (isMixKoli &&
+                        mixBedenDetay != null &&
+                        mixBedenDetay.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      _buildDetayRow('Beden', mixBedenDetay.map((b) => b['beden']).join(', ')),
+                      _buildDetayRow('Beden',
+                          mixBedenDetay.map((b) => b['beden']).join(', ')),
                       _buildDetayRow('Koli Başı Adet', adetPerKoli.toString()),
                       const SizedBox(height: 8),
                       Container(
@@ -252,7 +254,8 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
                             ),
                             const Divider(),
                             ...mixBedenDetay.map((b) => Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 2),
                                   child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -499,169 +502,174 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-            children: [
-              Icon(
-                isMixKoli ? Icons.shuffle : Icons.inventory_2,
-                size: 20,
-                color: isMixKoli ? Colors.purple[600] : Colors.amber[700],
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Row(
                   children: [
-                    Text(
-                      koliNo.toString(),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14),
+                    Icon(
+                      isMixKoli ? Icons.shuffle : Icons.inventory_2,
+                      size: 20,
+                      color: isMixKoli ? Colors.purple[600] : Colors.amber[700],
                     ),
                     const SizedBox(width: 8),
-                    if (isMixKoli)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.purple[100],
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'MİX',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.purple[700]),
-                        ),
-                      )
-                    else if (bedenKodu != '-')
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[100],
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          bedenKodu.toString(),
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue[700]),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Text(
+                            koliNo.toString(),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 14),
+                          ),
+                          const SizedBox(width: 8),
+                          if (isMixKoli)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.purple[100],
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'MİX',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.purple[700]),
+                              ),
+                            )
+                          else if (bedenKodu != '-')
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[100],
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                bedenKodu.toString(),
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[700]),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: gonderildi
+                            ? Colors.green.withValues(alpha: 0.2)
+                            : Colors.orange.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        gonderildi ? 'Gönderildi' : 'Bekliyor',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: gonderildi
+                              ? Colors.green[700]
+                              : Colors.orange[700],
                         ),
                       ),
+                    ),
                   ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: gonderildi
-                      ? Colors.green.withValues(alpha: 0.2)
-                      : Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _buildInfoBadge(
+                        Icons.inventory_2, '$koliAdedi koli', Colors.blue),
+                    _buildInfoBadge(Icons.format_list_numbered, '$adet adet',
+                        Colors.purple),
+                    if (adetPerKoli != '-' && !isMixKoli)
+                      _buildInfoBadge(
+                          Icons.all_inbox, '$adetPerKoli/koli', Colors.orange),
+                  ],
                 ),
-                child: Text(
-                  gonderildi ? 'Gönderildi' : 'Bekliyor',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: gonderildi ? Colors.green[700] : Colors.orange[700],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              _buildInfoBadge(
-                  Icons.inventory_2, '$koliAdedi koli', Colors.blue),
-              _buildInfoBadge(
-                  Icons.format_list_numbered, '$adet adet', Colors.purple),
-              if (adetPerKoli != '-' && !isMixKoli)
-                _buildInfoBadge(
-                    Icons.all_inbox, '$adetPerKoli/koli', Colors.orange),
-            ],
-          ),
-          // Mix Koli detayı
-          if (isMixKoli &&
-              mixBedenDetay != null &&
-              mixBedenDetay.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.purple.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.purple.withValues(alpha: 0.2)),
-              ),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: mixBedenDetay.map<Widget>((item) {
-                  final beden = item['beden'] ?? '-';
-                  final adetPer = item['adet'] ?? 0;
-                  return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                // Mix Koli detayı
+                if (isMixKoli &&
+                    mixBedenDetay != null &&
+                    mixBedenDetay.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
+                      color: Colors.purple.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: Colors.purple.withValues(alpha: 0.2)),
                     ),
-                    child: Text(
-                      '$beden: $adetPer',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.purple[700]),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-          // Kargo bilgisi
-          if (gonderildi &&
-              (kayit['kargo_firmasi'] != null ||
-                  kayit['takip_no'] != null)) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.local_shipping,
-                      size: 14, color: Colors.green[600]),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (kayit['kargo_firmasi'] != null)
-                          Text(
-                            '${kayit['kargo_firmasi']}',
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: mixBedenDetay.map<Widget>((item) {
+                        final beden = item['beden'] ?? '-';
+                        final adetPer = item['adet'] ?? 0;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                                color: Colors.purple.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            '$beden: $adetPer',
                             style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
-                                color: Colors.green[700]),
+                                color: Colors.purple[700]),
                           ),
-                        if (kayit['takip_no'] != null)
-                          Text(
-                            'Takip: ${kayit['takip_no']}',
-                            style: TextStyle(
-                                fontSize: 10, color: Colors.grey[600]),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+                // Kargo bilgisi
+                if (gonderildi &&
+                    (kayit['kargo_firmasi'] != null ||
+                        kayit['takip_no'] != null)) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.local_shipping,
+                            size: 14, color: Colors.green[600]),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (kayit['kargo_firmasi'] != null)
+                                Text(
+                                  '${kayit['kargo_firmasi']}',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.green[700]),
+                                ),
+                              if (kayit['takip_no'] != null)
+                                Text(
+                                  'Takip: ${kayit['takip_no']}',
+                                  style: TextStyle(
+                                      fontSize: 10, color: Colors.grey[600]),
+                                ),
+                            ],
                           ),
+                        ),
                       ],
                     ),
                   ),
                 ],
-              ),
-            ),
-          ],
               ],
             ),
           ),
@@ -708,139 +716,216 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
     );
   }
 
-
-
-
   Widget _buildAtamaKarti(Map<String, dynamic> atama, String tip) {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
-    final durum = atama['durum'] ?? 'bekleyen';
-    final adet =
-        atama['talep_edilen_adet'] ?? atama['adet'] ?? model?['adet'] ?? 0;
-    final tamamlananAdet = atama['tamamlanan_adet'] ?? 0;
+    final durum = (atama['durum'] ?? 'bekleyen').toString();
+    final talepEdilenAdet = _atamaInt(
+        atama['talep_edilen_adet'] ?? atama['adet'] ?? model?['adet']);
+    final kabulEdilenAdet = _atamaInt(
+      atama['kabul_edilen_adet'] ??
+          atama['talep_edilen_adet'] ??
+          atama['adet'] ??
+          model?['adet'],
+    );
+    final tamamlananAdet = _atamaInt(atama['tamamlanan_adet']);
+    final kalanAdet = (kabulEdilenAdet - tamamlananAdet).clamp(0, 999999999);
+    final ilerleme = kabulEdilenAdet <= 0
+        ? 0.0
+        : (tamamlananAdet / kabulEdilenAdet).clamp(0.0, 1.0);
+    final durumRengi = _utuPaketDurumRengi(durum);
+    final asamaRengi =
+        tip == 'utu' ? const Color(0xFFD97706) : const Color(0xFF7C2D12);
+    final asamaIconu = tip == 'utu' ? Icons.iron : Icons.inventory_2_outlined;
+    final notMetni = _temizNotMetni(atama['notlar'] ?? atama['aciklama']);
 
-    Color durumRengi;
-    switch (durum) {
-      case 'bekleyen':
-        durumRengi = Colors.orange;
-        break;
-      case 'onaylandi':
-        durumRengi = Colors.green;
-        break;
-      case 'devam_ediyor':
-      case 'uretimde':
-        durumRengi = Colors.blue;
-        break;
-      case 'tamamlandi':
-        durumRengi = Colors.grey;
-        break;
-      case 'reddedildi':
-        durumRengi = Colors.red;
-        break;
-      default:
-        durumRengi = Colors.grey;
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFDDE5EE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: InkWell(
         onTap: () => _atamaDetayGoster(atama, tip),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(8),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Üst satır: Marka, Model, Durum
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: (tip == 'utu' ? Colors.amber : Colors.brown)
-                          .withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      tip == 'utu' ? Icons.iron : Icons.inventory_2,
-                      color: tip == 'utu' ? Colors.amber[700] : Colors.brown,
-                      size: 24,
-                    ),
+              Container(
+                width: 5,
+                decoration: BoxDecoration(
+                  color: durumRengi,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    bottomLeft: Radius.circular(8),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          model?['marka'] ?? 'Bilinmiyor',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        Text(
-                          '${model?['item_no'] ?? '-'} • ${model?['renk'] ?? '-'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: asamaRengi.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child:
+                                Icon(asamaIconu, color: asamaRengi, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${model?['marka'] ?? 'Bilinmeyen Marka'} - ${model?['item_no'] ?? 'Bilinmeyen Model'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 4,
+                                  children: [
+                                    _buildUtuPaketKisaBilgi(
+                                      Icons.palette_outlined,
+                                      (model?['renk'] ?? '-').toString(),
+                                    ),
+                                    _buildUtuPaketKisaBilgi(
+                                      Icons.event_outlined,
+                                      _kisaTarih(model?['termin_tarihi']),
+                                    ),
+                                    if (atama['atama_tarihi'] != null)
+                                      _buildUtuPaketKisaBilgi(
+                                        Icons.assignment_ind_outlined,
+                                        _kisaTarihSaat(atama['atama_tarihi']),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          _buildUtuPaketDurumPili(durum),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          _buildUtuPaketMetric(
+                            'Sipariş',
+                            _adetMetni(talepEdilenAdet),
+                            Icons.inventory_2_outlined,
+                            const Color(0xFF2563EB),
+                          ),
+                          _buildUtuPaketMetric(
+                            'Kabul',
+                            _adetMetni(kabulEdilenAdet),
+                            Icons.verified_outlined,
+                            const Color(0xFF16A34A),
+                          ),
+                          _buildUtuPaketMetric(
+                            'Tamamlanan',
+                            _adetMetni(tamamlananAdet),
+                            Icons.task_alt,
+                            const Color(0xFF0F766E),
+                          ),
+                          _buildUtuPaketMetric(
+                            'Kalan',
+                            _adetMetni(kalanAdet),
+                            Icons.pending_actions,
+                            const Color(0xFFEA580C),
+                          ),
+                        ],
+                      ),
+                      if (kabulEdilenAdet > 0 &&
+                          (durum == 'onaylandi' ||
+                              durum == 'devam_ediyor' ||
+                              durum == 'uretimde')) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: LinearProgressIndicator(
+                                  minHeight: 8,
+                                  value: ilerleme,
+                                  backgroundColor: const Color(0xFFE2E8F0),
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(durumRengi),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '%${(ilerleme * 100).round()}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: durumRengi,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: durumRengi.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _durumMetni(durum),
-                      style: TextStyle(
-                          color: durumRengi,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(height: 20),
-              // Alt satır: Bilgiler ve aksiyonlar
-              Row(
-                children: [
-                  _buildInfoBadge(
-                      Icons.format_list_numbered, '$adet adet', Colors.purple),
-                  const SizedBox(width: 8),
-                  if (tamamlananAdet > 0)
-                    _buildInfoBadge(
-                        Icons.check, '$tamamlananAdet yapıldı', Colors.green),
-                  const Spacer(),
-                  // Aksiyon butonları - tüm kullanıcılar görür
-                  if (durum == 'bekleyen' || durum == 'atandi') ...[
-                    _buildActionButton(
-                        Icons.check, Colors.green, () => _onayla(atama, tip)),
-                    const SizedBox(width: 4),
-                    _buildActionButton(
-                        Icons.close, Colors.red, () => _reddet(atama, tip)),
-                  ],
-                  if (durum == 'onaylandi') ...[
-                    _buildActionButton(Icons.play_arrow, Colors.blue,
-                        () => _basla(atama, tip)),
-                  ],
-                  if (durum == 'devam_ediyor' || durum == 'uretimde') ...[
-                    // Paketleme için Mix Koli butonu
-                    if (tip == 'paketleme') ...[
-                      _buildActionButton(Icons.shuffle, Colors.purple,
-                          () => _mixKoliDialogu(atama)),
-                      const SizedBox(width: 4),
+                      if (notMetni.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Text(
+                            notMetni,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF475569),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _buildUtuPaketAksiyonButonlari(
+                          atama,
+                          tip,
+                          durum,
+                        ),
+                      ),
                     ],
-                    _buildActionButton(Icons.done, Colors.green,
-                        () => _tamamlaDialoguGoster(atama, tip)),
-                  ],
-                ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -849,21 +934,200 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          shape: BoxShape.circle,
+  Widget _buildUtuPaketKisaBilgi(IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF64748B)),
+        const SizedBox(width: 5),
+        Text(
+          value.isEmpty ? '-' : value,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF475569),
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        child: Icon(icon, size: 18, color: color),
+      ],
+    );
+  }
+
+  Widget _buildUtuPaketMetric(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 126),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
+  Widget _buildUtuPaketDurumPili(String? durum) {
+    final color = _utuPaketDurumRengi(durum);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        _durumMetni(durum ?? 'bekleyen'),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUtuPaketAksiyonButonlari(
+    Map<String, dynamic> atama,
+    String tip,
+    String durum,
+  ) {
+    final bekliyor = durum == 'bekleyen' || durum == 'atandi';
+    final islemde = durum == 'devam_ediyor' || durum == 'uretimde';
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => _atamaDetayGoster(atama, tip),
+          icon: const Icon(Icons.info_outline, size: 18),
+          label: const Text('Detay'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF2563EB),
+          ),
+        ),
+        if (bekliyor) ...[
+          ElevatedButton.icon(
+            onPressed: () => _onayla(atama, tip),
+            icon: const Icon(Icons.thumb_up, size: 18),
+            label: const Text('Kabul Et'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => _reddet(atama, tip),
+            icon: const Icon(Icons.thumb_down, size: 18),
+            label: const Text('Reddet'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+        if (durum == 'onaylandi')
+          ElevatedButton.icon(
+            onPressed: () => _basla(atama, tip),
+            icon: const Icon(Icons.play_arrow, size: 18),
+            label: const Text('Üretime Al'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF7C3AED),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        if (islemde)
+          ElevatedButton.icon(
+            onPressed: () => _utuBedenliBitirDialogu(atama),
+            icon: const Icon(Icons.check_circle, size: 18),
+            label: const Text('Ütü Tamamla'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF16A34A),
+              foregroundColor: Colors.white,
+            ),
+          ),
+      ],
+    );
+  }
+
+  int _atamaInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _adetMetni(int value) =>
+      NumberFormat.decimalPattern('tr_TR').format(value);
+
+  String _kisaTarih(dynamic value) {
+    if (value == null) return '-';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return '-';
+    return DateFormat('dd.MM.yyyy').format(parsed);
+  }
+
+  String _kisaTarihSaat(dynamic value) {
+    if (value == null) return '-';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return '-';
+    return DateFormat('dd.MM.yyyy HH:mm').format(parsed);
+  }
+
+  Color _utuPaketDurumRengi(String? durum) {
+    switch (durum) {
+      case 'atandi':
+      case 'bekleyen':
+      case 'beklemede':
+        return const Color(0xFFEA580C);
+      case 'onaylandi':
+        return const Color(0xFF16A34A);
+      case 'reddedildi':
+        return const Color(0xFFDC2626);
+      case 'devam_ediyor':
+      case 'uretimde':
+      case 'baslatildi':
+      case 'kismi_tamamlandi':
+        return const Color(0xFF2563EB);
+      case 'tamamlandi':
+        return const Color(0xFF7C3AED);
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
 
   String _durumMetni(String durum) {
     switch (durum) {

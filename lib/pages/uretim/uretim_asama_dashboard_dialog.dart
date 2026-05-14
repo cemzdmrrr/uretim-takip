@@ -835,13 +835,21 @@ class _BedenUretimTamamlaDialogGenericState
     final toplamFire = _toplamFire();
     final toplamKalan = toplamHedef - toplamUretilen - toplamFire;
     final oran = toplamHedef > 0 ? (toplamUretilen / toplamHedef * 100) : 0.0;
+    final ekran = MediaQuery.sizeOf(context);
+    final darEkran = ekran.width < 600;
 
     return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: darEkran ? 10 : 24,
+        vertical: darEkran ? 10 : 24,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 700,
+        width: darEkran ? ekran.width : 700,
         constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85),
+          maxWidth: 700,
+          maxHeight: ekran.height * (darEkran ? 0.94 : 0.85),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -862,11 +870,15 @@ class _BedenUretimTamamlaDialogGenericState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('${widget.asamaDisplayName} Üretim Girişi',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold)),
                         Text(widget.modelAdi,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.9),
                                 fontSize: 14)),
@@ -895,9 +907,11 @@ class _BedenUretimTamamlaDialogGenericState
                               padding: const EdgeInsets.all(16),
                               child: Column(
                                 children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceAround,
+                                  Wrap(
+                                    alignment: WrapAlignment.spaceAround,
+                                    runAlignment: WrapAlignment.center,
+                                    spacing: 10,
+                                    runSpacing: 10,
                                     children: [
                                       _buildOzetItem(
                                           'Hedef', toplamHedef, Colors.blue),
@@ -982,17 +996,18 @@ class _BedenUretimTamamlaDialogGenericState
                           const SizedBox(height: 12),
 
                           // Hızlı işlem
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              ElevatedButton.icon(
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: SizedBox(
+                              width: darEkran ? double.infinity : null,
+                              child: ElevatedButton.icon(
                                 icon: const Icon(Icons.done_all, size: 18),
                                 label: const Text('Hepsini Tamamla'),
                                 style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.green),
                                 onPressed: _hepsiniTamamla,
                               ),
-                            ],
+                            ),
                           ),
                           const SizedBox(height: 12),
 
@@ -1063,7 +1078,11 @@ class _BedenUretimTamamlaDialogGenericState
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Row(
+                                      Wrap(
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        spacing: 4,
+                                        runSpacing: 6,
                                         children: [
                                           Icon(Icons.shopping_cart,
                                               size: 16,
@@ -1074,7 +1093,6 @@ class _BedenUretimTamamlaDialogGenericState
                                                   fontSize: 12,
                                                   color: Colors.grey.shade600,
                                                   fontWeight: FontWeight.bold)),
-                                          const Spacer(),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 8, vertical: 2),
@@ -1143,7 +1161,11 @@ class _BedenUretimTamamlaDialogGenericState
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Row(
+                                      Wrap(
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        spacing: 4,
+                                        runSpacing: 6,
                                         children: [
                                           Icon(Icons.edit,
                                               size: 16,
@@ -1154,7 +1176,6 @@ class _BedenUretimTamamlaDialogGenericState
                                                   fontSize: 12,
                                                   color: widget.asamaRengi,
                                                   fontWeight: FontWeight.bold)),
-                                          const Spacer(),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 8, vertical: 2),
@@ -1203,8 +1224,12 @@ class _BedenUretimTamamlaDialogGenericState
                 borderRadius:
                     const BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                alignment:
+                    darEkran ? WrapAlignment.start : WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 10,
                 children: [
                   // Sol tarafta kısmi kaydet
                   TextButton.icon(
@@ -1251,15 +1276,19 @@ class _BedenUretimTamamlaDialogGenericState
     );
   }
 
-  Widget _buildOzetItem(String label, int value, Color color) {
-    return Column(
-      children: [
-        Text(label,
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        Text(value.toString(),
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-      ],
+  Widget _buildOzetItem(String label, int value, Color color,
+      {bool compact = false}) {
+    return SizedBox(
+      width: compact ? 72 : 96,
+      child: Column(
+        children: [
+          Text(label,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(value.toString(),
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
     );
   }
 
@@ -1270,6 +1299,102 @@ class _BedenUretimTamamlaDialogGenericState
         int.tryParse(fireControllers[hedef.bedenKodu]?.text ?? '') ?? 0;
     final kalan = hedef.siparisAdedi - uretilen - fire;
     final tamamlandi = kalan <= 0;
+    final darEkran = MediaQuery.sizeOf(context).width < 600;
+
+    if (darEkran) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: tamamlandi ? Colors.green.shade50 : Colors.grey.shade50,
+          border: Border.all(
+              color: tamamlandi ? Colors.green.shade300 : Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: tamamlandi ? Colors.green : widget.asamaRengi,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    hedef.bedenKodu,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Hedef: ${hedef.siparisAdedi} | Kalan: $kalan',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: tamamlandi ? Colors.green : Colors.orange.shade800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: uretilenControllers[hedef.bedenKodu],
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: 'Üretilen',
+                hintText: '0',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: widget.asamaRengi,
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: fireControllers[hedef.bedenKodu],
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: 'Fire',
+                hintText: '0',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                filled: true,
+                fillColor: fire > 0 ? Colors.red.shade50 : Colors.white,
+              ),
+              style: TextStyle(
+                fontSize: 14,
+                color: fire > 0 ? Colors.red : Colors.grey.shade700,
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),

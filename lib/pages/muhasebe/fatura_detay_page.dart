@@ -9,6 +9,7 @@ import 'package:uretim_takip/services/kasa_banka_service.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_ekle_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:uretim_takip/utils/decimal_parser.dart';
 
 part 'fatura_detay_page_widgets.dart';
 
@@ -81,6 +82,95 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
       setState(() {
         _yukleniyor = false;
       });
+    }
+  }
+
+  Future<void> _faturayiYenidenYukle() async {
+    final guncelFatura = await FaturaService.faturaGetir(_fatura.faturaId!);
+    final kalemler =
+        await FaturaService.faturaKalemleriniGetir(_fatura.faturaId!);
+    if (!mounted) return;
+    setState(() {
+      if (guncelFatura != null) {
+        _fatura = guncelFatura;
+      }
+      _faturaKalemleri = kalemler;
+    });
+  }
+
+  Future<void> _faturaKalemiDuzenle(FaturaKalemiModel kalem) async {
+    if (kalem.kalemId == null) {
+      context.showErrorSnackBar('Bu kalemin kayıt ID bilgisi yok');
+      return;
+    }
+
+    final guncelKalem = await showDialog<FaturaKalemiModel>(
+      context: context,
+      builder: (context) => _FaturaDetayKalemiDialog(kalem: kalem),
+    );
+    if (guncelKalem == null) return;
+
+    try {
+      setState(() => _yukleniyor = true);
+      await FaturaService.faturaKalemiGuncelle(
+        kalem.kalemId!,
+        guncelKalem.toJson(),
+      );
+      await FaturaService.faturaToplamlariniKalemlerdenGuncelle(
+          _fatura.faturaId!);
+      await _faturayiYenidenYukle();
+      if (mounted) {
+        context.showSuccessSnackBar('Fatura kalemi güncellendi');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Fatura kalemi güncellenirken hata: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _yukleniyor = false);
+    }
+  }
+
+  Future<void> _faturaKalemiSil(FaturaKalemiModel kalem) async {
+    if (kalem.kalemId == null) {
+      context.showErrorSnackBar('Bu kalemin kayıt ID bilgisi yok');
+      return;
+    }
+
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kalemi Sil'),
+        content: Text(
+            '${kalem.urunAdi} kalemini silmek istediğinizden emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Sil', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return;
+
+    try {
+      setState(() => _yukleniyor = true);
+      await FaturaService.faturaKalemiSil(kalem.kalemId!);
+      await _faturayiYenidenYukle();
+      if (mounted) {
+        context.showSuccessSnackBar('Fatura kalemi silindi');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Fatura kalemi silinirken hata: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _yukleniyor = false);
     }
   }
 

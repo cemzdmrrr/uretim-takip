@@ -20,42 +20,42 @@ class UretimRaporuService {
     'dokuma': {
       'tablo': DbTables.dokumaAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, updated_at, tamamlama_tarihi',
     },
     'nakis': {
       'tablo': DbTables.nakisAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, updated_at, tamamlama_tarihi',
     },
     'konfeksiyon': {
       'tablo': DbTables.konfeksiyonAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, updated_at, tamamlama_tarihi',
     },
     'yikama': {
       'tablo': DbTables.yikamaAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, updated_at, tamamlama_tarihi',
     },
     'utu': {
       'tablo': DbTables.utuAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, notlar',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, updated_at, tamamlama_tarihi, notlar',
     },
     'ilik_dugme': {
       'tablo': DbTables.ilikDugmeAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
+          'model_id, durum, tamamlanan_adet, fire_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, updated_at, tamamlama_tarihi',
     },
     'kalite_kontrol': {
       'tablo': DbTables.kaliteKontrolAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, kontrol_edilecek_adet, created_at',
+          'model_id, durum, tamamlanan_adet, kontrol_edilecek_adet, created_at, updated_at, tamamlama_tarihi',
     },
     'paketleme': {
       'tablo': DbTables.paketlemeAtamalari,
       'select':
-          'model_id, durum, tamamlanan_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at',
+          'model_id, durum, tamamlanan_adet, talep_edilen_adet, tedarikci_id, uretim_baslangic_tarihi, planlanan_bitis_tarihi, created_at, updated_at, tamamlama_tarihi',
     },
   };
 
@@ -108,7 +108,8 @@ class UretimRaporuService {
                     .from(entry.value['tablo']!)
                     .select(fallbackSelect)
                     .eq('firma_id', _firmaId);
-                return MapEntry(entry.key, List<Map<String, dynamic>>.from(data));
+                return MapEntry(
+                    entry.key, List<Map<String, dynamic>>.from(data));
               } catch (_) {}
             }
           }
@@ -179,16 +180,13 @@ class UretimRaporuService {
         if (modelId == null) continue;
 
         modelAsamaIndex.putIfAbsent(modelId, () => {});
-        // İlk gelen en güncel (sorgular desc sıralı değil, hepsini alıyoruz)
-        // En son created_at'ı seç
+        // En son güncellenen kaydı seç.
         final mevcut = modelAsamaIndex[modelId]![asamaKey];
         if (mevcut == null) {
           modelAsamaIndex[modelId]![asamaKey] = atama;
         } else {
-          final mevcutTarih =
-              DateTime.tryParse(mevcut['created_at']?.toString() ?? '');
-          final yeniTarih =
-              DateTime.tryParse(atama['created_at']?.toString() ?? '');
+          final mevcutTarih = _kayitZamani(mevcut);
+          final yeniTarih = _kayitZamani(atama);
           if (yeniTarih != null &&
               (mevcutTarih == null || yeniTarih.isAfter(mevcutTarih))) {
             modelAsamaIndex[modelId]![asamaKey] = atama;
@@ -230,7 +228,9 @@ class UretimRaporuService {
         }
       }
 
-      final mevcutAsama = _mevcutAsamayiBelirle(asamaDurumlari);
+      final mevcutAsama = model['tamamlandi'] == true
+          ? 'tamamlandi'
+          : _mevcutAsamayiBelirle(asamaDurumlari);
 
       // Tedarikçi bilgisini mevcut aşamadan al
       String tedarikciAdi = '';
@@ -246,7 +246,8 @@ class UretimRaporuService {
         if (asamaData != null && asamaData['tedarikci_id'] != null) {
           asamaDurumlari[asamaKey] = {
             ...asamaData,
-            'firma_adi': tedarikciIndex[asamaData['tedarikci_id'].toString()] ?? '',
+            'firma_adi':
+                tedarikciIndex[asamaData['tedarikci_id'].toString()] ?? '',
           };
         }
       }
@@ -311,6 +312,50 @@ class UretimRaporuService {
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  DateTime? _kayitZamani(Map<String, dynamic> kayit) {
+    for (final alan in const [
+      'updated_at',
+      'tamamlama_tarihi',
+      'onay_tarihi',
+      'created_at',
+    ]) {
+      final parsed = DateTime.tryParse(kayit[alan]?.toString() ?? '');
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }
+
+  String _durumAnahtari(dynamic value) {
+    return (value ?? '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll(' ', '_');
+  }
+
+  bool _acikAsamaDurumuMu(String durum) {
+    return {
+      'bekleyen',
+      'beklemede',
+      'atandi',
+      'onaylandi',
+      'kabul_edildi',
+      'baslandi',
+      'baslatildi',
+      'devam_ediyor',
+      'uretimde',
+      'isleniyor',
+      'kismi_tamamlandi',
+      'kontrol_bekliyor',
+    }.contains(durum);
+  }
+
   /// Tahmini tamamlanma tarihi - tamamlanmış modellerin aşama sürelerinden hesaplar
   void _tahminiTamamlanmaTarihiHesapla(List<Map<String, dynamic>> modeller) {
     // Tamamlanan modellerden aşama başına ortalama süre hesapla
@@ -357,41 +402,13 @@ class UretimRaporuService {
 
   /// Modelin mevcut üretim aşamasını belirler
   String _mevcutAsamayiBelirle(Map<String, Map<String, dynamic>> asamalar) {
-    String? aktifAsama;
-    bool tumAsamalarTamamlandi = true;
-    bool hicAsamaAtanmamis = true;
-
+    // Sadece gerçekten açık ataması olan aşamayı göster.
+    // Önceki aşama tamamlandı diye sıradaki boş aşamayı "mevcut aşama" sayma.
     for (int i = asamaSirasi.length - 1; i >= 0; i--) {
       final asamaKey = asamaSirasi[i];
       final asamaData = asamalar[asamaKey] ?? {};
-      final durum = asamaData['durum']?.toString() ?? '';
-
-      if (durum.isNotEmpty && durum != 'beklemede') {
-        hicAsamaAtanmamis = false;
-      }
-
-      if (durum == 'uretimde' ||
-          durum == 'isleniyor' ||
-          durum == 'atandi' ||
-          durum == 'onaylandi') {
-        aktifAsama = asamaKey;
-      }
-
-      if (durum != 'tamamlandi') {
-        tumAsamalarTamamlandi = false;
-      }
-    }
-
-    if (tumAsamalarTamamlandi) return 'tamamlandi';
-    if (hicAsamaAtanmamis) return 'beklemede';
-    if (aktifAsama != null) return aktifAsama;
-
-    for (var asamaKey in asamaSirasi) {
-      final asamaData = asamalar[asamaKey] ?? {};
-      final durum = asamaData['durum']?.toString() ?? '';
-      if (durum.isEmpty || durum == 'beklemede') {
-        return asamaKey;
-      }
+      final durum = _durumAnahtari(asamaData['durum']);
+      if (_acikAsamaDurumuMu(durum)) return asamaKey;
     }
 
     return 'beklemede';
@@ -669,7 +686,8 @@ class UretimRaporuService {
   String? _missingColumnName(Object error) {
     if (error is! PostgrestException) return null;
     final message =
-        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
 
     final withTable = RegExp(
       r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',

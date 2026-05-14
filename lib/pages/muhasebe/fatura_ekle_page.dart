@@ -84,12 +84,28 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     });
 
     try {
-      final tedarikcilerFuture = TedarikciService.tedarikcileriListele();
-
-      final results = await Future.wait([tedarikcilerFuture]);
+      final tedarikciler = await TedarikciService.tedarikcileriListele();
+      final kalemler =
+          _duzenlemeModu && widget.duzenlenecekFatura?.faturaId != null
+              ? await FaturaService.faturaKalemleriniGetir(
+                  widget.duzenlenecekFatura!.faturaId!,
+                )
+              : <FaturaKalemiModel>[];
 
       setState(() {
-        _tedarikciler = results[0];
+        _tedarikciler = tedarikciler;
+        if (_duzenlemeModu) {
+          final tedarikciId = widget.duzenlenecekFatura!.tedarikciId;
+          _secilenTedarikci = tedarikciId == null
+              ? null
+              : _tedarikciler
+                  .where((tedarikci) => tedarikci.tedarikciId == tedarikciId)
+                  .firstOrNull;
+          _faturaKalemleri
+            ..clear()
+            ..addAll(kalemler);
+          _tutarDegerleriniHesapla();
+        }
       });
     } catch (e) {
       if (mounted) {
@@ -170,6 +186,10 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
   }
 
   void _tuturlariHesapla() {
+    _tutarDegerleriniHesapla();
+  }
+
+  void _tutarDegerleriniHesapla() {
     double araToplamTutar = 0;
     double kdvTutari = 0;
     double toplamTutar = 0;
@@ -180,11 +200,9 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
       toplamTutar += kalem.kdvDahilTutar;
     }
 
-    setState(() {
-      _araToplamTutar = araToplamTutar;
-      _kdvTutari = kdvTutari;
-      _toplamTutar = toplamTutar;
-    });
+    _araToplamTutar = araToplamTutar;
+    _kdvTutari = kdvTutari;
+    _toplamTutar = toplamTutar;
   }
 
   Future<void> _faturaKaydet() async {

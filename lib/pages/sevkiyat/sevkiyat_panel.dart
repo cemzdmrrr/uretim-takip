@@ -299,8 +299,9 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
             onPressed: () async {
               await supabase.auth.signOut();
               if (!context.mounted) return;
-              if (mounted)
+              if (mounted) {
                 Navigator.pushReplacementNamed(context, AppRoutes.login);
+              }
             },
             tooltip: 'Çıkış',
           ),
