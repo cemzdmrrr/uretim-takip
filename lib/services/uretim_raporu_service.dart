@@ -62,6 +62,7 @@ class UretimRaporuService {
   /// Üretim aşama sırası
   static const asamaSirasi = [
     'dokuma',
+    'nakis',
     'konfeksiyon',
     'yikama',
     'utu',
@@ -231,6 +232,9 @@ class UretimRaporuService {
       final mevcutAsama = model['tamamlandi'] == true
           ? 'tamamlandi'
           : _mevcutAsamayiBelirle(asamaDurumlari);
+      final aktifAsamalar = model['tamamlandi'] == true
+          ? <String>[]
+          : _aktifAsamalariBelirle(asamaDurumlari);
 
       // Tedarikçi bilgisini mevcut aşamadan al
       String tedarikciAdi = '';
@@ -263,6 +267,7 @@ class UretimRaporuService {
         'toplam_adet': toplamAdet,
         'asamalar': asamaDurumlari,
         'mevcut_asama': mevcutAsama,
+        'aktif_asamalar': aktifAsamalar,
         'tedarikci_adi': tedarikciAdi,
         'gonderilen_adet': yuklenenAdet,
         'yuklenen_adet': yuklenenAdet,
@@ -414,6 +419,20 @@ class UretimRaporuService {
     return 'beklemede';
   }
 
+  List<String> _aktifAsamalariBelirle(
+    Map<String, Map<String, dynamic>> asamalar,
+  ) {
+    final aktifAsamalar = <String>[];
+    for (final asamaKey in asamaSirasi) {
+      final asamaData = asamalar[asamaKey] ?? {};
+      final durum = _durumAnahtari(asamaData['durum']);
+      if (_acikAsamaDurumuMu(durum)) {
+        aktifAsamalar.add(asamaKey);
+      }
+    }
+    return aktifAsamalar;
+  }
+
   /// Client-side filtreleme uygular
   static UretimRaporuFiltreSonuc filtrele({
     required List<Map<String, dynamic>> tumModeller,
@@ -451,8 +470,13 @@ class UretimRaporuService {
 
     // Aşama filtresi
     if (secilenAsama != 'Tümü') {
-      filtrelenmis =
-          filtrelenmis.where((m) => m['mevcut_asama'] == secilenAsama).toList();
+      filtrelenmis = filtrelenmis.where((m) {
+        final aktifAsamalar =
+            (m['aktif_asamalar'] as List?)?.map((e) => e.toString()).toSet() ??
+                <String>{};
+        return m['mevcut_asama'] == secilenAsama ||
+            aktifAsamalar.contains(secilenAsama);
+      }).toList();
     }
 
     // Arama filtresi
@@ -553,9 +577,20 @@ class UretimRaporuService {
       }
 
       // Aşama sayıları
-      final mevcutAsama = model['mevcut_asama'] as String? ?? 'beklemede';
-      if (asamaSayilari.containsKey(mevcutAsama)) {
-        asamaSayilari[mevcutAsama] = asamaSayilari[mevcutAsama]! + 1;
+      final aktifAsamalar = (model['aktif_asamalar'] as List?)
+              ?.map((e) => e.toString())
+              .where(asamaSayilari.containsKey)
+              .toSet() ??
+          <String>{};
+      if (aktifAsamalar.isNotEmpty) {
+        for (final asama in aktifAsamalar) {
+          asamaSayilari[asama] = asamaSayilari[asama]! + 1;
+        }
+      } else {
+        final mevcutAsama = model['mevcut_asama'] as String? ?? 'beklemede';
+        if (asamaSayilari.containsKey(mevcutAsama)) {
+          asamaSayilari[mevcutAsama] = asamaSayilari[mevcutAsama]! + 1;
+        }
       }
 
       // Termin kontrolü

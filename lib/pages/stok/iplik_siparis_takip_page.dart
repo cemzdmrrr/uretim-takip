@@ -638,50 +638,47 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: DataTable(
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-              columnSpacing: 20,
-              horizontalMargin: 16,
-              columns: const [
-                DataColumn(label: Text('Sipariş')),
-                DataColumn(label: Text('İplik / Renk')),
-                DataColumn(label: Text('Tedarikçi')),
-                DataColumn(label: Text('Termin')),
-                DataColumn(label: Text('Miktar')),
-                DataColumn(label: Text('Teslim')),
-                DataColumn(label: Text('Durum')),
-                DataColumn(label: Text('Kalite')),
-                DataColumn(label: Text('İşlem')),
-              ],
-              rows: data.map((siparis) {
-                final durum = _getDurumBilgi(siparis['takip_durumu']);
-                return DataRow(
-                  cells: [
-                    DataCell(_tableText(
-                        siparis['siparis_no']?.toString() ?? '-', 120, true)),
-                    DataCell(_tableText(
-                      '${siparis['iplik_adi'] ?? '-'} / ${_siparisRengi(siparis).isNotEmpty ? _siparisRengi(siparis) : '-'}',
-                      210,
-                      true,
-                    )),
-                    DataCell(_tableText(
-                        siparis['tedarikci_adi']?.toString() ?? '-',
-                        170,
-                        false)),
-                    DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
-                    DataCell(Text(
-                        '${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}')),
-                    DataCell(_buildTeslimHucre(siparis, width: 150)),
-                    DataCell(_durumEtiketi(durum.metin, durum.renk)),
-                    DataCell(_durumEtiketi(
-                        _kaliteMetni(siparis['kalite_durumu']),
-                        _kaliteRengi(siparis['kalite_durumu']))),
-                    DataCell(_buildAksiyonlar(siparis, compact: true)),
-                  ],
-                );
-              }).toList(),
-            ),
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+            columnSpacing: 20,
+            horizontalMargin: 16,
+            columns: const [
+              DataColumn(label: Text('Sipariş')),
+              DataColumn(label: Text('İplik / Renk')),
+              DataColumn(label: Text('Tedarikçi')),
+              DataColumn(label: Text('Termin')),
+              DataColumn(label: Text('Miktar')),
+              DataColumn(label: Text('Teslim')),
+              DataColumn(label: Text('Durum')),
+              DataColumn(label: Text('Kalite')),
+              DataColumn(label: Text('İşlem')),
+            ],
+            rows: data.map((siparis) {
+              final durum = _getDurumBilgi(siparis['takip_durumu']);
+              return DataRow(
+                cells: [
+                  DataCell(_tableText(
+                      siparis['siparis_no']?.toString() ?? '-', 120, true)),
+                  DataCell(_tableText(
+                    '${siparis['iplik_adi'] ?? '-'} / ${_siparisRengi(siparis).isNotEmpty ? _siparisRengi(siparis) : '-'}',
+                    210,
+                    true,
+                  )),
+                  DataCell(_tableText(
+                      siparis['tedarikci_adi']?.toString() ?? '-', 170, false)),
+                  DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
+                  DataCell(Text(
+                      '${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}')),
+                  DataCell(_buildTeslimHucre(siparis, width: 150)),
+                  DataCell(_durumEtiketi(durum.metin, durum.renk)),
+                  DataCell(_durumEtiketi(_kaliteMetni(siparis['kalite_durumu']),
+                      _kaliteRengi(siparis['kalite_durumu']))),
+                  DataCell(_buildAksiyonlar(siparis, compact: true)),
+                ],
+              );
+            }).toList(),
           ),
         ),
+      ),
     );
   }
 
@@ -1045,6 +1042,10 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           'p_aciklama': aciklama,
         },
       );
+      await _ayniIplikStoklariniBirlestir(
+        siparis: siparis,
+        lotNo: lotNo,
+      );
     } catch (rpcError) {
       debugPrint(
           'İplik teslimat RPC kullanılamadı, klasik teslimat deneniyor: $rpcError');
@@ -1106,14 +1107,13 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       stokData['toplam_deger'] = miktar * _num(siparis['birim_fiyat']);
     }
 
-    final stokResponse = await supabase
-        .from(DbTables.iplikStoklari)
-        .insert(stokData)
-        .select('id')
-        .single();
+    final stokId = await _stokSatiriKaydetVeyaGuncelle(
+      stokData: stokData,
+      miktar: miktar,
+    );
 
     await supabase.from(DbTables.iplikHareketleri).insert({
-      'iplik_id': stokResponse['id'],
+      'iplik_id': stokId,
       'hareket_tipi': 'giris',
       'miktar': miktar,
       'aciklama': aciklama?.isNotEmpty == true
@@ -1130,6 +1130,139 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       teslimatTarihi: teslimatTarihi,
       aciklama: aciklama,
     );
+  }
+
+  Future<dynamic> _stokSatiriKaydetVeyaGuncelle({
+    required Map<String, dynamic> stokData,
+    required double miktar,
+  }) async {
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final mevcutStok = await _ayniStokSatiriniBul(
+      firmaId: firmaId,
+      renk: stokData['renk'],
+      lotNo: stokData['lot_no'],
+    );
+
+    if (mevcutStok != null) {
+      final yeniMiktar = _num(mevcutStok['miktar']) + miktar;
+      final birimFiyat = _num(stokData['birim_fiyat']);
+      final updateData = <String, dynamic>{
+        'miktar': yeniMiktar,
+        'birim': stokData['birim'] ?? mevcutStok['birim'] ?? 'kg',
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      if (stokData['birim_fiyat'] != null) {
+        updateData['birim_fiyat'] = stokData['birim_fiyat'];
+        updateData['para_birimi'] =
+            stokData['para_birimi'] ?? mevcutStok['para_birimi'];
+        updateData['toplam_deger'] = yeniMiktar * birimFiyat;
+      }
+      if (stokData['tedarikci_id'] != null) {
+        updateData['tedarikci_id'] = stokData['tedarikci_id'];
+      }
+
+      await supabase
+          .from(DbTables.iplikStoklari)
+          .update(updateData)
+          .eq('id', mevcutStok['id'])
+          .eq('firma_id', firmaId);
+      return mevcutStok['id'];
+    }
+
+    final stokResponse = await supabase
+        .from(DbTables.iplikStoklari)
+        .insert(stokData)
+        .select('id')
+        .single();
+    return stokResponse['id'];
+  }
+
+  Future<Map<String, dynamic>?> _ayniStokSatiriniBul({
+    required String firmaId,
+    required dynamic renk,
+    required dynamic lotNo,
+  }) async {
+    final data = await supabase
+        .from(DbTables.iplikStoklari)
+        .select('id, ad, renk, lot_no, miktar, birim, birim_fiyat, para_birimi')
+        .eq('firma_id', firmaId)
+        .order('created_at');
+
+    for (final stok in List<Map<String, dynamic>>.from(data)) {
+      if (_ayniStokAnahtari(
+        stok,
+        renk: renk,
+        lotNo: lotNo,
+      )) {
+        return stok;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _ayniIplikStoklariniBirlestir({
+    required Map<String, dynamic> siparis,
+    required String? lotNo,
+  }) async {
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final data = await supabase
+        .from(DbTables.iplikStoklari)
+        .select(
+          'id, ad, renk, lot_no, miktar, birim, birim_fiyat, para_birimi, tedarikci_id, created_at',
+        )
+        .eq('firma_id', firmaId)
+        .order('created_at');
+    final ayniSatirlar = List<Map<String, dynamic>>.from(data)
+        .where(
+          (stok) => _ayniStokAnahtari(
+            stok,
+            renk: siparis['renk'],
+            lotNo: lotNo,
+          ),
+        )
+        .toList();
+
+    if (ayniSatirlar.length < 2) return;
+
+    final anaStok = ayniSatirlar.first;
+    final digerStoklar = ayniSatirlar.skip(1).toList();
+    final toplamMiktar = ayniSatirlar.fold<double>(
+      0,
+      (sum, stok) => sum + _num(stok['miktar']),
+    );
+    final degerliSatirlar =
+        ayniSatirlar.where((stok) => stok['birim_fiyat'] != null).toList();
+    final sonFiyatliSatir =
+        degerliSatirlar.isNotEmpty ? degerliSatirlar.last : anaStok;
+    final birimFiyat = sonFiyatliSatir['birim_fiyat'];
+    final paraBirimi = sonFiyatliSatir['para_birimi'] ?? anaStok['para_birimi'];
+
+    await supabase
+        .from(DbTables.iplikStoklari)
+        .update({
+          'miktar': toplamMiktar,
+          'birim': anaStok['birim'] ?? 'kg',
+          'birim_fiyat': birimFiyat,
+          'para_birimi': paraBirimi,
+          if (birimFiyat != null)
+            'toplam_deger': toplamMiktar * _num(birimFiyat),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', anaStok['id'])
+        .eq('firma_id', firmaId);
+
+    for (final stok in digerStoklar) {
+      await supabase
+          .from(DbTables.iplikHareketleri)
+          .update({'iplik_id': anaStok['id']})
+          .eq('iplik_id', stok['id'])
+          .eq('firma_id', firmaId);
+      await supabase
+          .from(DbTables.iplikStoklari)
+          .delete()
+          .eq('id', stok['id'])
+          .eq('firma_id', firmaId);
+    }
   }
 
   Future<void> _teslimatKaydiEkle({
@@ -1595,6 +1728,28 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
 
   String _siparisRengi(Map<String, dynamic> siparis) {
     return siparis['renk']?.toString().trim() ?? '';
+  }
+
+  bool _ayniStokAnahtari(
+    Map<String, dynamic> stok, {
+    required dynamic renk,
+    required dynamic lotNo,
+  }) {
+    final stokRenk = _stokAnahtarMetni(stok['renk']);
+    final hedefRenk = _stokAnahtarMetni(renk);
+    final stokLot = _stokAnahtarMetni(stok['lot_no']);
+    final hedefLot = _stokAnahtarMetni(lotNo);
+    if (hedefRenk.isEmpty || hedefLot.isEmpty) return false;
+    return stokRenk == hedefRenk && stokLot == hedefLot;
+  }
+
+  String _stokAnahtarMetni(dynamic value) {
+    return (value ?? '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('İ', 'i');
   }
 
   double? _parseDecimal(String value) {

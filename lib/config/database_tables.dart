@@ -54,6 +54,7 @@ class DbTables {
   static const kasaBankaHareketleri = 'kasa_banka_hareketleri';
   static const odemeKayitlari = 'odeme_kayitlari';
   static const odemeGecmisi = 'odeme_gecmisi';
+  static const yapilacakOdemeler = 'yapilacak_odemeler';
   static const maliyetHesaplama = 'maliyet_hesaplama';
   static const modelMaliyetPlanlari = 'model_maliyet_planlari';
   static const modelMaliyetKalemleri = 'model_maliyet_kalemleri';

@@ -17,6 +17,7 @@ import 'package:uretim_takip/pages/muhasebe/fatura_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/kasa_banka_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/kasa_banka_hareket_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/sevk_irsaliye_listesi_page.dart';
+import 'package:uretim_takip/pages/muhasebe/yapilacak_odemeler_page.dart';
 import 'package:uretim_takip/pages/ayarlar/dosyalar_page.dart';
 import 'package:uretim_takip/pages/uretim/dokuma_dashboard.dart';
 import 'package:uretim_takip/pages/uretim/konfeksiyon_dashboard.dart';
@@ -1541,6 +1542,15 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         });
       }
     }
+    if ((uretimAktif || stokAktif) && _sayfaErisimVar('dosya_yonetimi')) {
+      uretimStok.add({
+        'text': 'Dosya Yönetimi',
+        'icon': Icons.folder,
+        'color': usc,
+        'onPressed': () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const DosyalarPage()))
+      });
+    }
     if (uretimStok.isNotEmpty) kategoriler['Üretim & Stok'] = uretimStok;
 
     // 3. Raporlar & Analiz
@@ -1620,6 +1630,17 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                     builder: (_) => const KasaBankaHareketListesiPage()))
           });
         }
+        if (_sayfaErisimVar('yapilacak_odemeler')) {
+          finansItems.add({
+            'text': 'Yapılacak Ödemeler',
+            'icon': Icons.event_available,
+            'color': fc,
+            'onPressed': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const YapilacakOdemelerPage()))
+          });
+        }
         if (_sayfaErisimVar('sevk_irsaliyeleri') ||
             _sayfaErisimVar('faturalar') ||
             _sayfaErisimVar('sevkiyat')) {
@@ -1633,15 +1654,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                     builder: (_) => const SevkIrsaliyeListesiPage()))
           });
         }
-      }
-      if (_sayfaErisimVar('dosya_yonetimi')) {
-        finansItems.add({
-          'text': 'Dosya Yönetimi',
-          'icon': Icons.folder,
-          'color': fc,
-          'onPressed': () => Navigator.push(
-              context, MaterialPageRoute(builder: (_) => const DosyalarPage()))
-        });
       }
       if (finansItems.isNotEmpty) kategoriler['Finansal Yönetim'] = finansItems;
     }
