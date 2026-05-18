@@ -1,12 +1,13 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'tedarikci_panel.dart';
 
 /// Tedarikci panel - aksiyon ve dialog metotlari
 extension _AksiyonExt on _TedarikciPanelState {
-  Future<void> _handleAtamaAction(String action, Map<String, dynamic> atama) async {
+  Future<void> _handleAtamaAction(
+      String action, Map<String, dynamic> atama) async {
     try {
       final String tableName = _getTableNameFromAtamaType(atama['atama_tipi']);
-      
+
       if (action == 'kabul') {
         // Kabul edilen adet giriş dialog'ı
         await _showKabulDialog(atama, tableName);
@@ -14,32 +15,30 @@ extension _AksiyonExt on _TedarikciPanelState {
         // Reddetme sebebi sor
         final String? redSebebi = await _showReddetmeDialog();
         if (redSebebi != null) {
-          await supabase
-              .from(tableName)
-              .update({
-                'durum': 'reddedildi',
-                'red_sebebi': redSebebi,
-              })
-              .eq('id', atama['id'].toString());
-              
+          await supabase.from(tableName).update({
+            'durum': 'reddedildi',
+            'red_sebebi': redSebebi,
+          }).eq('id', atama['id'].toString());
+
           if (!mounted) return;
           context.showErrorSnackBar('❌ Atama reddedildi');
         }
       }
-      
+
       await _loadAtamalar();
-      
     } catch (e) {
       if (!mounted) return;
       context.showErrorSnackBar('Hata: $e');
     }
   }
 
-  Future<void> _showKabulDialog(Map<String, dynamic> atama, String tableName) async {
+  Future<void> _showKabulDialog(
+      Map<String, dynamic> atama, String tableName) async {
     final kabulAdetController = TextEditingController(
-      text: atama['talep_edilen_adet']?.toString() ?? atama['adet']?.toString() ?? '0'
-    );
-    
+        text: atama['talep_edilen_adet']?.toString() ??
+            atama['adet']?.toString() ??
+            '0');
+
     return showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -47,9 +46,11 @@ extension _AksiyonExt on _TedarikciPanelState {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Model: ${atama[DbTables.trikoTakip]['marka']} - ${atama[DbTables.trikoTakip]['item_no']}'),
+            Text(
+                'Model: ${atama[DbTables.trikoTakip]['marka']} - ${atama[DbTables.trikoTakip]['item_no']}'),
             Text('Aşama: ${atama['atama_tipi']}'),
-            Text('Talep Edilen: ${atama['talep_edilen_adet'] ?? atama['adet']} adet'),
+            Text(
+                'Talep Edilen: ${atama['talep_edilen_adet'] ?? atama['adet']} adet'),
             const SizedBox(height: 16),
             TextField(
               controller: kabulAdetController,
@@ -75,7 +76,8 @@ extension _AksiyonExt on _TedarikciPanelState {
                   Expanded(
                     child: Text(
                       'Kabul ettikten sonra atama aktif sekmesine geçecektir.',
-                      style: TextStyle(color: Colors.green.shade700, fontSize: 13),
+                      style:
+                          TextStyle(color: Colors.green.shade700, fontSize: 13),
                     ),
                   ),
                 ],
@@ -92,54 +94,58 @@ extension _AksiyonExt on _TedarikciPanelState {
             onPressed: () async {
               try {
                 final kabulAdet = int.tryParse(kabulAdetController.text) ?? 0;
-                final talepEdilen = atama['talep_edilen_adet'] ?? atama['adet'] ?? 0;
-                
+                final talepEdilen =
+                    atama['talep_edilen_adet'] ?? atama['adet'] ?? 0;
+
                 debugPrint('🔄 Kabul işlemi başlıyor...');
                 debugPrint('   Kabul adet: $kabulAdet');
                 debugPrint('   Talep edilen: $talepEdilen');
                 debugPrint('   Tablo: $tableName');
                 debugPrint('   Atama ID: ${atama['id']}');
-                
+
                 if (kabulAdet <= 0) {
                   throw Exception('Geçerli bir adet giriniz');
                 }
-                
+
                 if (kabulAdet > talepEdilen) {
-                  throw Exception('Kabul edilen adet talep edilenden fazla olamaz');
+                  throw Exception(
+                      'Kabul edilen adet talep edilenden fazla olamaz');
                 }
-                
+
                 final updateData = {
                   'durum': 'onaylandi',
                   // Sadece mevcut kolonları güncelle
-                  if (atama['talep_edilen_adet'] == null) 'talep_edilen_adet': kabulAdet,
+                  if (atama['talep_edilen_adet'] == null)
+                    'talep_edilen_adet': kabulAdet,
                   if (atama['adet'] == null) 'adet': kabulAdet,
                 };
-                
+
                 debugPrint('📤 Güncelleme verisi: $updateData');
-                
+
                 final result = await supabase
                     .from(tableName)
                     .update(updateData)
                     .eq('id', atama['id'].toString());
-                    
+
                 debugPrint('✅ Güncelleme sonucu: $result');
-                
+
                 // Model durumunu "üretim başladı" olarak güncelle
                 try {
                   await supabase
                       .from(DbTables.trikoTakip)
-                      .update({'uretim_durumu': 'üretim başladı'})
-                      .eq('id', atama['model_id']);
-                  debugPrint('✅ Model üretim durumu güncellendi: üretim başladı');
+                      .update({'uretim_durumu': 'üretim başladı'}).eq(
+                          'id', atama['model_id']);
+                  debugPrint(
+                      '✅ Model üretim durumu güncellendi: üretim başladı');
                 } catch (e) {
                   debugPrint('⚠️ Model üretim durumu güncellenemedi: $e');
                 }
-                
+
                 if (!context.mounted) return;
                 Navigator.pop(context);
-                
-                context.showSuccessSnackBar('✅ $kabulAdet adet iş kabul edildi');
-                
+
+                context
+                    .showSuccessSnackBar('✅ $kabulAdet adet iş kabul edildi');
               } catch (e) {
                 debugPrint('❌ Kabul işlemi hatası: $e');
                 if (!context.mounted) return;
@@ -159,17 +165,25 @@ extension _AksiyonExt on _TedarikciPanelState {
 
   String _getTableNameFromAtamaType(String atamaUpi) {
     switch (atamaUpi) {
-      case 'Dokuma': return DbTables.dokumaAtamalari;
-      case 'Konfeksiyon': return DbTables.konfeksiyonAtamalari;
-      case 'Nakış': return DbTables.nakisAtamalari;
-      case 'Yıkama': return DbTables.yikamaAtamalari;
-      case 'İlik Düğme': return DbTables.ilikDugmeAtamalari;
-      case 'Ütü': return DbTables.utuAtamalari;
-      default: return DbTables.dokumaAtamalari;
+      case 'Dokuma':
+        return DbTables.dokumaAtamalari;
+      case 'Konfeksiyon':
+        return DbTables.konfeksiyonAtamalari;
+      case 'Nakış':
+        return DbTables.nakisAtamalari;
+      case 'Yıkama':
+        return DbTables.yikamaAtamalari;
+      case 'İlik Düğme':
+        return DbTables.ilikDugmeAtamalari;
+      case 'Ütü':
+        return DbTables.utuAtamalari;
+      default:
+        return DbTables.dokumaAtamalari;
     }
   }
 
-  Future<void> _handleTamamlananAction(String action, Map<String, dynamic> atama) async {
+  Future<void> _handleTamamlananAction(
+      String action, Map<String, dynamic> atama) async {
     if (action == 'revize') {
       await _showRevizeDialog(atama);
     } else if (action == 'detay') {
@@ -180,12 +194,15 @@ extension _AksiyonExt on _TedarikciPanelState {
   Future<void> _showRevizeDialog(Map<String, dynamic> atama) async {
     final adetController = TextEditingController();
     final notlarController = TextEditingController();
-    
+
     final mevcutTamamlanan = atama['tamamlanan_adet'] ?? 0;
-    final kabulEdilenAdet = atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? 0;
-    
+    final kabulEdilenAdet = atama['kabul_edilen_adet'] ??
+        atama['talep_edilen_adet'] ??
+        atama['adet'] ??
+        0;
+
     adetController.text = mevcutTamamlanan.toString();
-    
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => AlertDialog(
@@ -194,7 +211,8 @@ extension _AksiyonExt on _TedarikciPanelState {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Model: ${atama[DbTables.trikoTakip]['marka']} - ${atama[DbTables.trikoTakip]['item_no']}'),
+            Text(
+                'Model: ${atama[DbTables.trikoTakip]['marka']} - ${atama[DbTables.trikoTakip]['item_no']}'),
             Text('Aşama: ${atama['atama_tipi']}'),
             const SizedBox(height: 16),
             Text('Kabul Edilen: $kabulEdilenAdet adet'),
@@ -234,7 +252,8 @@ extension _AksiyonExt on _TedarikciPanelState {
                   Expanded(
                     child: Text(
                       'Revize sonrası durum yeniden değerlendirilecektir.',
-                      style: TextStyle(color: Colors.orange.shade700, fontSize: 13),
+                      style: TextStyle(
+                          color: Colors.orange.shade700, fontSize: 13),
                     ),
                   ),
                 ],
@@ -254,70 +273,82 @@ extension _AksiyonExt on _TedarikciPanelState {
                 if (yeniTamamlanan < 0) {
                   throw Exception('Adet negatif olamaz');
                 }
-                
+
                 if (yeniTamamlanan > kabulEdilenAdet) {
-                  throw Exception('Tamamlanan adet kabul edilenden ($kabulEdilenAdet) fazla olamaz');
+                  throw Exception(
+                      'Tamamlanan adet kabul edilenden ($kabulEdilenAdet) fazla olamaz');
                 }
-                
+
                 // Yeni durumu belirle
                 String yeniDurum;
                 if (yeniTamamlanan == 0) {
-                  yeniDurum = 'onaylandi'; // Hiç tamamlanmamış, aktif sekmesine geri dönsün
+                  yeniDurum =
+                      'onaylandi'; // Hiç tamamlanmamış, aktif sekmesine geri dönsün
                 } else if (yeniTamamlanan < kabulEdilenAdet) {
                   yeniDurum = 'kismi_tamamlandi'; // Kısmi tamamlama
                 } else {
                   yeniDurum = 'tamamlandi'; // Tam tamamlama
                 }
-                
-                final String tableName = _getTableNameFromAtamaType(atama['atama_tipi']);
-                
+
+                final String tableName =
+                    _getTableNameFromAtamaType(atama['atama_tipi']);
+
                 final guncellenecekVeri = {
                   'durum': yeniDurum,
                   'tamamlanan_adet': yeniTamamlanan,
-                  'tamamlama_tarihi': yeniTamamlanan > 0 ? DateTime.now().toIso8601String() : null,
-                  'uretici_notlari': notlarController.text.isNotEmpty ? 
-                    '${atama['uretici_notlari'] ?? ''}\n[REVIZE] ${notlarController.text}' : 
-                    atama['uretici_notlari'],
+                  'tamamlama_tarihi': yeniTamamlanan > 0
+                      ? DateTime.now().toIso8601String()
+                      : null,
+                  'uretici_notlari': notlarController.text.isNotEmpty
+                      ? '${atama['uretici_notlari'] ?? ''}\n[REVIZE] ${notlarController.text}'
+                      : atama['uretici_notlari'],
                 };
-                
+
                 // Eğer kabul_edilen_adet yoksa onu da ekle
-                if (atama['kabul_edilen_adet'] == null && atama['talep_edilen_adet'] != null) {
-                  guncellenecekVeri['kabul_edilen_adet'] = atama['talep_edilen_adet'];
+                if (atama['kabul_edilen_adet'] == null &&
+                    atama['talep_edilen_adet'] != null) {
+                  guncellenecekVeri['kabul_edilen_adet'] =
+                      atama['talep_edilen_adet'];
                 }
-                
+
                 debugPrint('🔄 REVIZE işlemi başlıyor...');
-                debugPrint('   Atama ID: ${atama['id']} (tip: ${atama['id'].runtimeType})');
+                debugPrint(
+                    '   Atama ID: ${atama['id']} (tip: ${atama['id'].runtimeType})');
                 debugPrint('   Tablo: $tableName');
                 debugPrint('   Mevcut Tamamlanan: $mevcutTamamlanan');
                 debugPrint('   Yeni Tamamlanan: $yeniTamamlanan');
                 debugPrint('   Yeni Durum: $yeniDurum');
                 debugPrint('   Güncelleme Verisi: $guncellenecekVeri');
                 debugPrint('   Atama Objesi: $atama');
-                
+
                 // ID'yi doğru tipte kullan
                 final atamaId = atama['id']; // integer olarak bırak
-                debugPrint('   Kullanılacak ID: $atamaId (${atamaId.runtimeType})');
-                
+                debugPrint(
+                    '   Kullanılacak ID: $atamaId (${atamaId.runtimeType})');
+
                 // Önce kayıt var mı ve tedarikci'ye ait mi kontrol et
-                debugPrint('🔍 Kayıt varlığı kontrol ediliyor: $tableName.id=$atamaId');
+                debugPrint(
+                    '🔍 Kayıt varlığı kontrol ediliyor: $tableName.id=$atamaId');
                 debugPrint('   Tedarikci ID: ${tedarikciInfo?['id']}');
-                
+
                 final existingRecord = await supabase
                     .from(tableName)
                     .select('id, durum, tamamlanan_adet, tedarikci_id')
                     .eq('id', atamaId)
-                    .eq('tedarikci_id', tedarikciInfo!['id']) // Tedarikci kontrolü ekle
+                    .eq('tedarikci_id',
+                        tedarikciInfo!['id']) // Tedarikci kontrolü ekle
                     .maybeSingle();
-                    
+
                 debugPrint('   Mevcut kayıt: $existingRecord');
-                    
+
                 if (existingRecord == null) {
-                  throw Exception('Kayıt bulunamadı veya size ait değil (ID: $atamaId, Tablo: $tableName, TedarikciID: ${tedarikciInfo!['id']})');
+                  throw Exception(
+                      'Kayıt bulunamadı veya size ait değil (ID: $atamaId, Tablo: $tableName, TedarikciID: ${tedarikciInfo!['id']})');
                 }
-                
+
                 // Tek seferde tüm güncellemeyi yap - sadece temel alanları güncelle
                 debugPrint('📤 Güncelleme başlatılıyor...');
-                
+
                 // En basit güncelleme - tedarikci_id kontrolü ile
                 try {
                   final result = await supabase
@@ -327,19 +358,22 @@ extension _AksiyonExt on _TedarikciPanelState {
                         'durum': yeniDurum
                       })
                       .eq('id', atamaId)
-                      .eq('tedarikci_id', tedarikciInfo!['id']) // RLS için tedarikci kontrolü
-                      .select();  // select() ekleyerek sonucu alalım
-                      
+                      .eq('tedarikci_id',
+                          tedarikciInfo!['id']) // RLS için tedarikci kontrolü
+                      .select(); // select() ekleyerek sonucu alalım
+
                   debugPrint('✅ REVIZE güncelleme sonucu: $result');
-                  
+
                   if (result.isEmpty) {
-                    throw Exception('Kayıt güncellenemedi - izin hatası veya kayıt bulunamadı');
+                    throw Exception(
+                        'Kayıt güncellenemedi - izin hatası veya kayıt bulunamadı');
                   }
-                  
+
                   // Revize sonrası herhangi bir tamamlanan adet varsa kalite kontrol ataması oluştur
                   if (yeniTamamlanan > 0) {
-                    debugPrint('✅ Revize sonrası tamamlanan adet mevcut ($yeniTamamlanan) - kalite kontrol ataması kontrol ediliyor...');
-                    
+                    debugPrint(
+                        '✅ Revize sonrası tamamlanan adet mevcut ($yeniTamamlanan) - kalite kontrol ataması kontrol ediliyor...');
+
                     // Bu model için zaten kalite kontrol ataması var mı kontrol et
                     final mevcutKaliteKontrol = await supabase
                         .from(DbTables.kaliteKontrolAtamalari)
@@ -347,30 +381,34 @@ extension _AksiyonExt on _TedarikciPanelState {
                         .eq('model_id', atama['model_id'])
                         .eq('onceki_asama', atama['atama_tipi'])
                         .maybeSingle();
-                        
+
                     if (mevcutKaliteKontrol == null) {
-                      debugPrint('🔄 Yeni kalite kontrol ataması oluşturuluyor...');
+                      debugPrint(
+                          '🔄 Yeni kalite kontrol ataması oluşturuluyor...');
                       try {
                         await _createKaliteKontrolAtama(atama, yeniTamamlanan);
-                        debugPrint('✅ Kalite kontrol ataması başarıyla oluşturuldu');
+                        debugPrint(
+                            '✅ Kalite kontrol ataması başarıyla oluşturuldu');
                       } catch (e) {
-                        debugPrint('⚠️ Kalite kontrol ataması oluşturulamadı: $e');
+                        debugPrint(
+                            '⚠️ Kalite kontrol ataması oluşturulamadı: $e');
                         // Kalite kontrol ataması başarısız olsa da revize işlemi devam etsin
                       }
                     } else {
-                      debugPrint('ℹ️ Bu model için zaten kalite kontrol ataması mevcut');
+                      debugPrint(
+                          'ℹ️ Bu model için zaten kalite kontrol ataması mevcut');
                     }
                   }
-                  
+
                   debugPrint('✅ REVIZE başarıyla tamamlandı');
-                  
                 } catch (updateError) {
                   debugPrint('❌ Güncelleme hatası: $updateError');
-                  throw Exception('Güncelleme yapılamadı - RLS veya izin hatası: $updateError');
+                  throw Exception(
+                      'Güncelleme yapılamadı - RLS veya izin hatası: $updateError');
                 }
-                
+
                 debugPrint('✅ REVIZE başarıyla tamamlandı');
-                    
+
                 if (!context.mounted) return;
                 Navigator.pop(context, {
                   'success': true,
@@ -378,7 +416,6 @@ extension _AksiyonExt on _TedarikciPanelState {
                   'yeniDurum': yeniDurum,
                   'revizeNedeni': notlarController.text,
                 });
-                
               } catch (e) {
                 debugPrint('❌ REVIZE hatası: $e');
                 if (!context.mounted) return;
@@ -397,19 +434,20 @@ extension _AksiyonExt on _TedarikciPanelState {
         ],
       ),
     );
-    
+
     // Dialog'dan dönen sonucu işle
     if (result != null) {
       await _loadAtamalar();
-      
+
       if (mounted) {
         if (result['success'] == true) {
           final yeniTamamlanan = result['yeniTamamlanan'];
           final yeniDurum = result['yeniDurum'];
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✅ Revize tamamlandı: $yeniTamamlanan adet ($yeniDurum)'),
+              content: Text(
+                  '✅ Revize tamamlandı: $yeniTamamlanan adet ($yeniDurum)'),
               backgroundColor: Colors.orange,
             ),
           );
@@ -427,7 +465,7 @@ extension _AksiyonExt on _TedarikciPanelState {
 
   Future<String?> _showReddetmeDialog() async {
     final controller = TextEditingController();
-    
+
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -457,14 +495,17 @@ extension _AksiyonExt on _TedarikciPanelState {
   Future<void> _showTamamlamaDialog(Map<String, dynamic> atama) async {
     final adetController = TextEditingController();
     final notlarController = TextEditingController();
-    
-    final kabulEdilenAdet = atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? 0;
+
+    final kabulEdilenAdet = atama['kabul_edilen_adet'] ??
+        atama['talep_edilen_adet'] ??
+        atama['adet'] ??
+        0;
     final mevcutTamamlanan = atama['tamamlanan_adet'] ?? 0;
     final kalanAdet = kabulEdilenAdet - mevcutTamamlanan;
-    
+
     // Eğer daha önce kısmi tamamlama yapılmışsa, kalan adeti varsayılan değer olarak ayarla
     adetController.text = kalanAdet.toString();
-    
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => AlertDialog(
@@ -473,7 +514,8 @@ extension _AksiyonExt on _TedarikciPanelState {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Model: ${atama[DbTables.trikoTakip]['marka']} - ${atama[DbTables.trikoTakip]['item_no']}'),
+            Text(
+                'Model: ${atama[DbTables.trikoTakip]['marka']} - ${atama[DbTables.trikoTakip]['item_no']}'),
             Text('Aşama: ${atama['atama_tipi']}'),
             const SizedBox(height: 12),
             Container(
@@ -489,7 +531,8 @@ extension _AksiyonExt on _TedarikciPanelState {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Kabul Edilen:'),
-                      Text('$kabulEdilenAdet adet', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text('$kabulEdilenAdet adet',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ),
                   if (mevcutTamamlanan > 0) ...[
@@ -498,7 +541,8 @@ extension _AksiyonExt on _TedarikciPanelState {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Daha Önce Tamamlanan:'),
-                        Text('$mevcutTamamlanan adet', style: const TextStyle(color: Colors.green)),
+                        Text('$mevcutTamamlanan adet',
+                            style: const TextStyle(color: Colors.green)),
                       ],
                     ),
                   ],
@@ -507,7 +551,10 @@ extension _AksiyonExt on _TedarikciPanelState {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Kalan:'),
-                      Text('$kalanAdet adet', style: TextStyle(color: Colors.red.shade600, fontWeight: FontWeight.bold)),
+                      Text('$kalanAdet adet',
+                          style: TextStyle(
+                              color: Colors.red.shade600,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ],
@@ -548,7 +595,8 @@ extension _AksiyonExt on _TedarikciPanelState {
                   Expanded(
                     child: Text(
                       'Tüm iş tamamlandıktan sonra kalite kontrol aşamasına geçecektir.',
-                      style: TextStyle(color: Colors.blue.shade700, fontSize: 13),
+                      style:
+                          TextStyle(color: Colors.blue.shade700, fontSize: 13),
                     ),
                   ),
                 ],
@@ -568,31 +616,37 @@ extension _AksiyonExt on _TedarikciPanelState {
                 if (simdiTamamlanan <= 0) {
                   throw Exception('Geçerli bir adet giriniz');
                 }
-                
+
                 if (simdiTamamlanan > kalanAdet) {
-                  throw Exception('Tamamlanan adet kalan adetten ($kalanAdet) fazla olamaz');
+                  throw Exception(
+                      'Tamamlanan adet kalan adetten ($kalanAdet) fazla olamaz');
                 }
-                
+
                 final toplamTamamlanan = mevcutTamamlanan + simdiTamamlanan;
-                final yeniDurum = toplamTamamlanan >= kabulEdilenAdet ? 'tamamlandi' : 'kismi_tamamlandi';
-                
+                final yeniDurum = toplamTamamlanan >= kabulEdilenAdet
+                    ? 'tamamlandi'
+                    : 'kismi_tamamlandi';
+
                 debugPrint('🔄 Tamamlama işlemi başlıyor...');
                 debugPrint('   Şimdi Tamamlanan: $simdiTamamlanan');
                 debugPrint('   Mevcut Tamamlanan: $mevcutTamamlanan');
                 debugPrint('   Toplam Tamamlanan: $toplamTamamlanan');
                 debugPrint('   Kabul Edilen: $kabulEdilenAdet');
                 debugPrint('   Yeni Durum: $yeniDurum');
-                
+
                 // Önce mevcut atamanın durumunu güncelle
-                final String tableName = _getTableNameFromAtamaType(atama['atama_tipi']);
-                
+                final String tableName =
+                    _getTableNameFromAtamaType(atama['atama_tipi']);
+
                 final guncellenecekVeri = {
                   'durum': yeniDurum,
                   'tamamlanan_adet': toplamTamamlanan,
                   'tamamlama_tarihi': DateTime.now().toIso8601String(),
-                  'uretici_notlari': notlarController.text.isNotEmpty ? notlarController.text : null,
+                  'uretici_notlari': notlarController.text.isNotEmpty
+                      ? notlarController.text
+                      : null,
                 };
-                
+
                 debugPrint('📤 Güncelleme verisi: $guncellenecekVeri');
                 debugPrint('   Tablo: $tableName');
                 debugPrint('   Atama ID: ${atama['id']}');
@@ -601,25 +655,28 @@ extension _AksiyonExt on _TedarikciPanelState {
                     .from(tableName)
                     .update(guncellenecekVeri)
                     .eq('id', atama['id'].toString());
-                    
+
                 debugPrint('✅ Güncelleme başarılı');
-                
+
                 // Model üretim durumunu güncelle
                 try {
-                  final String modelDurumu = yeniDurum == 'tamamlandi' ? 'kalite kontrolde' : 'üretimde';
+                  final String modelDurumu = yeniDurum == 'tamamlandi'
+                      ? 'kalite kontrolde'
+                      : 'üretimde';
                   await supabase
                       .from(DbTables.trikoTakip)
-                      .update({'uretim_durumu': modelDurumu})
-                      .eq('id', atama['model_id']);
+                      .update({'uretim_durumu': modelDurumu}).eq(
+                          'id', atama['model_id']);
                   debugPrint('✅ Model üretim durumu güncellendi: $modelDurumu');
                 } catch (e) {
                   debugPrint('⚠️ Model üretim durumu güncellenemedi: $e');
                 }
-                
+
                 // Herhangi bir tamamlama yapıldığında kalite kontrol ataması oluştur
                 if (toplamTamamlanan > 0) {
-                  debugPrint('✅ Tamamlanan adet mevcut ($toplamTamamlanan) - kalite kontrol ataması kontrol ediliyor...');
-                  
+                  debugPrint(
+                      '✅ Tamamlanan adet mevcut ($toplamTamamlanan) - kalite kontrol ataması kontrol ediliyor...');
+
                   // Bu model için zaten kalite kontrol ataması var mı kontrol et
                   final mevcutKaliteKontrol = await supabase
                       .from(DbTables.kaliteKontrolAtamalari)
@@ -627,21 +684,25 @@ extension _AksiyonExt on _TedarikciPanelState {
                       .eq('model_id', atama['model_id'])
                       .eq('onceki_asama', atama['atama_tipi'])
                       .maybeSingle();
-                      
+
                   if (mevcutKaliteKontrol == null) {
-                    debugPrint('🔄 Yeni kalite kontrol ataması oluşturuluyor...');
+                    debugPrint(
+                        '🔄 Yeni kalite kontrol ataması oluşturuluyor...');
                     try {
                       await _createKaliteKontrolAtama(atama, toplamTamamlanan);
-                      debugPrint('✅ Kalite kontrol ataması başarıyla oluşturuldu');
+                      debugPrint(
+                          '✅ Kalite kontrol ataması başarıyla oluşturuldu');
                     } catch (e) {
-                      debugPrint('⚠️ Kalite kontrol ataması oluşturulamadı: $e');
+                      debugPrint(
+                          '⚠️ Kalite kontrol ataması oluşturulamadı: $e');
                       // Kalite kontrol ataması başarısız olsa da tamamlama işlemi devam etsin
                     }
                   } else {
-                    debugPrint('ℹ️ Bu model için zaten kalite kontrol ataması mevcut');
+                    debugPrint(
+                        'ℹ️ Bu model için zaten kalite kontrol ataması mevcut');
                   }
                 }
-                    
+
                 // Başarılı sonucu döndür
                 if (!context.mounted) return;
                 Navigator.pop(context, {
@@ -651,10 +712,9 @@ extension _AksiyonExt on _TedarikciPanelState {
                   'kabulEdilenAdet': kabulEdilenAdet,
                   'yeniDurum': yeniDurum,
                 });
-                
               } catch (e) {
                 debugPrint('❌ Tamamlama hatası: $e');
-                // Hata sonucunu döndür  
+                // Hata sonucunu döndür
                 if (!context.mounted) return;
                 Navigator.pop(context, {
                   'success': false,
@@ -671,23 +731,23 @@ extension _AksiyonExt on _TedarikciPanelState {
         ],
       ),
     );
-    
+
     // Dialog'dan dönen sonucu işle
     if (result != null) {
       await _loadAtamalar();
-      
+
       if (mounted) {
         if (result['success'] == true) {
           final yeniDurum = result['yeniDurum'];
           final simdiTamamlanan = result['simdiTamamlanan'];
           final toplamTamamlanan = result['toplamTamamlanan'];
           final kabulEdilenAdet = result['kabulEdilenAdet'];
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(yeniDurum == 'tamamlandi' ? 
-                '✅ İş tamamen tamamlandı ve kalite kontrole hazır' :
-                '✅ $simdiTamamlanan adet iş tamamlandı (Kalan: ${kabulEdilenAdet - toplamTamamlanan})'),
+              content: Text(yeniDurum == 'tamamlandi'
+                  ? '✅ İş tamamen tamamlandı ve kalite kontrole hazır'
+                  : '✅ $simdiTamamlanan adet iş tamamlandı (Kalan: ${kabulEdilenAdet - toplamTamamlanan})'),
               backgroundColor: Colors.green,
             ),
           );
@@ -704,24 +764,39 @@ extension _AksiyonExt on _TedarikciPanelState {
   }
 
   // Kalite kontrol ataması oluştur
-  Future<void> _createKaliteKontrolAtama(Map<String, dynamic> oncekiAtama, int tamamlananAdet) async {
+  Future<void> _createKaliteKontrolAtama(
+      Map<String, dynamic> oncekiAtama, int tamamlananAdet) async {
     try {
       debugPrint('🔄 Kalite kontrol ataması oluşturuluyor...');
-      
-      // Kalite kontrol tablosuna yeni atama ekle
-      await supabase.from(DbTables.kaliteKontrolAtamalari).insert({
-        'model_id': oncekiAtama['model_id'],
-        'durum': 'atandi',  // atandi olarak başlar
-        'onceki_asama': oncekiAtama['atama_tipi'],
-        'atanan_kullanici_id': 1, // Geçici olarak 1 (sonra kalite personeli sistemi yapılacak)
-        'atama_tarihi': DateTime.now().toIso8601String(),
-        'created_at': DateTime.now().toIso8601String(),
-        'notlar': '${oncekiAtama['atama_tipi']} aşaması tamamlandı - ${oncekiAtama['atama_tipi']} ID: ${oncekiAtama['id']} ($tamamlananAdet adet)',
-        'firma_id': TenantManager.instance.requireFirmaId,
-      });
-      
+
+      final firmaId = TenantManager.instance.requireFirmaId;
+      final idempotencyKey =
+          'tedarikci:${oncekiAtama['atama_tipi']}:${oncekiAtama['id']}:kalite';
+
+      // Kalite kontrol tablosuna yeni atama ekle veya aynı model varsa birleştir
+      await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+        tableName: DbTables.kaliteKontrolAtamalari,
+        firmaId: firmaId,
+        modelId: oncekiAtama['model_id'],
+        idempotencyKey: idempotencyKey,
+        quantityFields: const ['kontrol_edilecek_adet'],
+        values: {
+          'model_id': oncekiAtama['model_id'],
+          'durum': 'atandi', // atandi olarak başlar
+          'onceki_asama': oncekiAtama['atama_tipi'],
+          'kontrol_edilecek_adet': tamamlananAdet,
+          'atanan_kullanici_id':
+              1, // Geçici olarak 1 (sonra kalite personeli sistemi yapılacak)
+          'atama_tarihi': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toIso8601String(),
+          'notlar':
+              '${oncekiAtama['atama_tipi']} aşaması tamamlandı - ${oncekiAtama['atama_tipi']} ID: ${oncekiAtama['id']} ($tamamlananAdet adet) [IDEMP:$idempotencyKey]',
+          'firma_id': firmaId,
+          'idempotency_key': idempotencyKey,
+        },
+      );
+
       debugPrint('✅ Kalite kontrol ataması başarıyla oluşturuldu');
-      
     } catch (e) {
       debugPrint('❌ Kalite kontrol ataması oluşturma hatası: $e');
       throw Exception('Kalite kontrol ataması oluşturulamadı: $e');
@@ -730,7 +805,7 @@ extension _AksiyonExt on _TedarikciPanelState {
 
   void _showAtamaDetay(Map<String, dynamic> atama) {
     final modelData = atama[DbTables.trikoTakip];
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -752,11 +827,14 @@ extension _AksiyonExt on _TedarikciPanelState {
               Text('Notlar: ${atama['uretici_notlari']}'),
             const SizedBox(height: 16),
             if (atama['created_at'] != null)
-              Text('Oluşturulma: ${DateTime.parse(atama['created_at']).toLocal().toString().split('.')[0]}'),
+              Text(
+                  'Oluşturulma: ${DateTime.parse(atama['created_at']).toLocal().toString().split('.')[0]}'),
             if (atama['atama_tarihi'] != null)
-              Text('Atama: ${DateTime.parse(atama['atama_tarihi']).toLocal().toString().split('.')[0]}'),
+              Text(
+                  'Atama: ${DateTime.parse(atama['atama_tarihi']).toLocal().toString().split('.')[0]}'),
             if (atama['tamamlama_tarihi'] != null)
-              Text('Tamamlama: ${DateTime.parse(atama['tamamlama_tarihi']).toLocal().toString().split('.')[0]}'),
+              Text(
+                  'Tamamlama: ${DateTime.parse(atama['tamamlama_tarihi']).toLocal().toString().split('.')[0]}'),
           ],
         ),
         actions: [
@@ -780,7 +858,11 @@ extension _AksiyonExt on _TedarikciPanelState {
   }
 
   Widget _buildProgressBar(Map<String, dynamic> atama) {
-    final kabulEdilen = (atama['kabul_edilen_adet'] ?? atama['talep_edilen_adet'] ?? atama['adet'] ?? 0).toDouble();
+    final kabulEdilen = (atama['kabul_edilen_adet'] ??
+            atama['talep_edilen_adet'] ??
+            atama['adet'] ??
+            0)
+        .toDouble();
     final tamamlanan = (atama['tamamlanan_adet'] ?? 0).toDouble();
     final progress = kabulEdilen > 0 ? tamamlanan / kabulEdilen : 0.0;
     final yuzde = (progress * 100).toInt();
@@ -791,8 +873,10 @@ extension _AksiyonExt on _TedarikciPanelState {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('İlerleme: %$yuzde', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            Text('${tamamlanan.toInt()}/${kabulEdilen.toInt()}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('İlerleme: %$yuzde',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('${tamamlanan.toInt()}/${kabulEdilen.toInt()}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
         const SizedBox(height: 2),

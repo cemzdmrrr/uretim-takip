@@ -8,6 +8,7 @@ import 'package:uretim_takip/config/app_routes.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:uretim_takip/services/dashboard_event_bus.dart';
+import 'package:uretim_takip/services/atama_birlestirme_service.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/beden_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
@@ -266,7 +267,8 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
   String? _missingColumnName(Object error) {
     if (error is! PostgrestException) return null;
     final message =
-        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'.toLowerCase();
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
 
     final withTable = RegExp(
       r'column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does\s+not\s+exist',
@@ -286,8 +288,7 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
     var useTedarikciIdFilter = tabloTedarikciIdVar;
 
     for (var attempt = 0; attempt < 8; attempt++) {
-      final selectFields =
-          _atamaSelectFields(excludedColumns: excludedColumns);
+      final selectFields = _atamaSelectFields(excludedColumns: excludedColumns);
 
       try {
         if (currentUserRole == 'admin') {
@@ -321,8 +322,7 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
           return await supabase
               .from(widget.atamaTablosu)
               .select(selectFields)
-              .or(
-                  'atanan_kullanici_id.eq.$currentUserId,tedarikci_id.eq.$kullaniciTedarikciId')
+              .or('atanan_kullanici_id.eq.$currentUserId,tedarikci_id.eq.$kullaniciTedarikciId')
               .order(_siralamayaEsasTarihKolonu, ascending: false);
         }
 
@@ -401,7 +401,8 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
       // Hâlâ ilgili rolü yoksa, sayfa yetkisi ile erişim kontrol et
       if (!_rolAsamayaErisir(userRole)) {
         final sayfaYetkileri =
-            await SayfaYetkiService.efektifSayfaYetkileriniGetir(currentUser.id);
+            await SayfaYetkiService.efektifSayfaYetkileriniGetir(
+                currentUser.id);
         if (sayfaYetkileri
             .contains(SayfaYetkiService.normalizeSayfaKodu(widget.asamaAdi))) {
           userRole = 'admin';

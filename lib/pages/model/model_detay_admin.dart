@@ -955,19 +955,18 @@ extension _AdminIslemlerExt on _ModelDetayState {
       }
       // Geçersiz UUID (test kullanıcısı) - hiçbir ID alanı ekleme
 
-      try {
-        await supabase.from(tableName).insert(insertData);
-      } catch (e) {
-        // tedarikci_id veya atanan_kullanici_id sütunu yoksa bunları çıkarıp tekrar dene
-        if (e.toString().contains('tedarikci_id') ||
-            e.toString().contains('atanan_kullanici_id')) {
-          insertData.remove('tedarikci_id');
-          insertData.remove('atanan_kullanici_id');
-          await supabase.from(tableName).insert(insertData);
-        } else {
-          rethrow;
-        }
-      }
+      await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+        tableName: tableName,
+        firmaId: TenantManager.instance.requireFirmaId,
+        modelId: widget.modelId,
+        values: insertData,
+        matchFields: {
+          if (insertData['tedarikci_id'] != null)
+            'tedarikci_id': insertData['tedarikci_id'],
+          if (insertData['atanan_kullanici_id'] != null)
+            'atanan_kullanici_id': insertData['atanan_kullanici_id'],
+        },
+      );
 
       if (!mounted) return;
       Navigator.pop(context);

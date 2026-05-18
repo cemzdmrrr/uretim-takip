@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/services/beden_service.dart';
+import 'package:uretim_takip/services/atama_birlestirme_service.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/workflow_transition_service.dart';
@@ -119,7 +120,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
                 .from(DbTables.trikoTakip)
                 .select('id, marka, item_no, renk, adet, termin_tarihi')
                 .eq('id', modelId)
-              .eq('firma_id', TenantManager.instance.requireFirmaId)
+                .eq('firma_id', TenantManager.instance.requireFirmaId)
                 .maybeSingle();
 
             if (modelResponse != null) {

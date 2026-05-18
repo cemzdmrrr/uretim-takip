@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/asama_registry.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uretim_takip/services/atama_birlestirme_service.dart';
 import 'package:uretim_takip/services/sevkiyat_atama_guard.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
@@ -113,7 +114,13 @@ class UretimZinciriService {
           //   atamaData['musteri_adi'] = modelCheck['musteri_adi'];
           // }
 
-          await _supabase.from(tableName).insert(atamaData);
+          await AtamaBirlestirmeService(client: _supabase).insertOrMerge(
+            tableName: tableName,
+            firmaId: _firmaId,
+            modelId: modelId,
+            values: atamaData,
+            matchFields: {'atanan_kullanici_id': userId},
+          );
 
           // 2. ÖNEMLİ: uretim_kayitlari tablosuna da kayıt ekle (UI'da görünür olsun)
           // Sadece kesin olan minimum kolonları kullan

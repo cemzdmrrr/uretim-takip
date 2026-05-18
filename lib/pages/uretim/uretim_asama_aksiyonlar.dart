@@ -1882,65 +1882,6 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         atama['beden_detaylari'] ?? atama['beden_dagilimi'],
       );
 
-      Map<String, dynamic>? mevcutKayit;
-
-      try {
-        if (idempotencyKey.isNotEmpty) {
-          mevcutKayit = await supabase
-              .from(DbTables.kaliteKontrolAtamalari)
-              .select('id, durum, notlar, kontrol_edilecek_adet')
-              .eq('firma_id', firmaId)
-              .eq('idempotency_key', idempotencyKey)
-              .maybeSingle();
-        }
-      } catch (_) {
-        // idempotency_key kolonu henüz yoksa notlar üzerinden fallback yapılacak.
-      }
-
-      if (mevcutKayit == null) {
-        final adaylar = await supabase
-            .from(DbTables.kaliteKontrolAtamalari)
-            .select('id, durum, notlar, kontrol_edilecek_adet')
-            .eq('firma_id', firmaId)
-            .eq('model_id', atama['model_id'])
-            .eq('onceki_asama', oncekiAsama)
-            .order('created_at', ascending: false)
-            .limit(10);
-
-        const aktifDurumlar = {
-          'beklemede',
-          'atandi',
-          'kontrol_bekliyor',
-          'baslandi',
-          'kontrolde',
-        };
-
-        for (final aday in List<Map<String, dynamic>>.from(adaylar)) {
-          final durum = (aday['durum'] ?? '').toString();
-          final notlar = (aday['notlar'] ?? '').toString();
-          if (!aktifDurumlar.contains(durum)) continue;
-          if (notlar.contains(idempotencyTag)) {
-            mevcutKayit = aday;
-            break;
-          }
-        }
-      }
-
-      if (mevcutKayit != null) {
-        await supabase
-            .from(DbTables.kaliteKontrolAtamalari)
-            .update({
-              'kontrol_edilecek_adet': adet,
-              'updated_at': DateTime.now().toIso8601String(),
-              'notlar': yeniNot,
-              if (bedenDetaylari.isNotEmpty) 'beden_detaylari': bedenDetaylari,
-            })
-            .eq('id', mevcutKayit['id'])
-            .eq('firma_id', firmaId);
-        debugPrint('✅ Mevcut kalite kontrol ataması güncellendi (idempotent).');
-        return;
-      }
-
       final insertData = <String, dynamic>{
         'model_id': atama['model_id'],
         'durum': 'beklemede',
@@ -1955,19 +1896,19 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
         'idempotency_key': idempotencyKey,
       };
 
-      try {
-        await supabase.from(DbTables.kaliteKontrolAtamalari).insert(insertData);
-      } catch (_) {
-        // Eski şema desteği: yeni kolonlar yoksa temel alanlarla insert et.
-        final fallback = Map<String, dynamic>.from(insertData)
-          ..remove('kaynak_atama_tablosu')
-          ..remove('kaynak_atama_id')
-          ..remove('idempotency_key');
-        await supabase.from(DbTables.kaliteKontrolAtamalari).insert(fallback);
-      }
+      final mergeResult =
+          await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+        tableName: DbTables.kaliteKontrolAtamalari,
+        firmaId: firmaId,
+        modelId: atama['model_id'],
+        values: insertData,
+        idempotencyKey: idempotencyKey,
+        quantityFields: const ['kontrol_edilecek_adet'],
+      );
 
-      debugPrint(
-          '✅ Kalite kontrol ataması oluşturuldu: ${widget.asamaDisplayName} -> Kalite Kontrol');
+      debugPrint(mergeResult['merged'] == true
+          ? '✅ Kalite kontrol ataması beden/adet bazında birleştirildi.'
+          : '✅ Kalite kontrol ataması oluşturuldu: ${widget.asamaDisplayName} -> Kalite Kontrol');
 
       // Kalite kontrol rolüne sahip kullanıcılara bildirim gönder
       try {
@@ -2029,111 +1970,40 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       debugPrint(
           '📦 Sevkiyat ataması oluşturuluyor - Adet: $adet - Önceki Aşama: $oncekiAsama');
 
-      Map<String, dynamic>? mevcutKayit;
-
-      try {
-        if (idempotencyKey.isNotEmpty) {
-          mevcutKayit = await supabase
-              .from(DbTables.sevkiyatKayitlari)
-              .select('id, durum, notlar, alinan_adet, sevk_edilen_adet')
-              .eq('firma_id', firmaId)
-              .eq('idempotency_key', idempotencyKey)
-              .maybeSingle();
-        }
-      } catch (_) {
-        // idempotency_key kolonu eski şemada olmayabilir.
-      }
-
-      if (mevcutKayit == null) {
-        final adaylar = await supabase
-            .from(DbTables.sevkiyatKayitlari)
-            .select('id, durum, notlar, alinan_adet, sevk_edilen_adet')
-            .eq('firma_id', firmaId)
-            .eq('model_id', atama['model_id'])
-            .order('created_at', ascending: false)
-            .limit(10);
-
-        const aktifDurumlar = {
-          'beklemede',
-          'atandi',
-          'sevk_ediliyor',
-          'kismen_sevk',
-          'baslandi',
-        };
-
-        for (final aday in List<Map<String, dynamic>>.from(adaylar)) {
-          final durum = (aday['durum'] ?? '').toString();
-          final notlar = (aday['notlar'] ?? '').toString();
-          if (!aktifDurumlar.contains(durum)) continue;
-          if (notlar.contains(idempotencyTag)) {
-            mevcutKayit = aday;
-            break;
-          }
-        }
-      }
-
       final bedenDetaylariSevk = _parseBedenDetayi(
         atama['beden_detaylari'] ?? atama['beden_dagilimi'],
       );
 
-      if (mevcutKayit != null) {
-        final sevkEdilenAdet = (mevcutKayit['sevk_edilen_adet'] as int?) ?? 0;
-        final updateData = <String, dynamic>{
-          'alinan_adet': adet,
-          'kalan_adet': (adet - sevkEdilenAdet).clamp(0, 999999999),
-          'onceki_asama': oncekiAsama,
-          'notlar': yeniNot,
-          'updated_at': DateTime.now().toIso8601String(),
-          if (bedenDetaylariSevk.isNotEmpty)
-            'beden_detaylari': bedenDetaylariSevk,
-        };
-        try {
-          await supabase
-              .from(DbTables.sevkiyatKayitlari)
-              .update(updateData)
-              .eq('id', mevcutKayit['id'])
-              .eq('firma_id', firmaId);
-        } catch (_) {
-          // beden_detaylari kolonu yoksa onsuz güncelle
-          await supabase
-              .from(DbTables.sevkiyatKayitlari)
-              .update(updateData..remove('beden_detaylari'))
-              .eq('id', mevcutKayit['id'])
-              .eq('firma_id', firmaId);
-        }
-        debugPrint('✅ Mevcut sevkiyat kaydı güncellendi (idempotent).');
-      } else {
-        final insertData = <String, dynamic>{
-          'model_id': atama['model_id'],
-          'alinan_adet': adet,
-          'sevk_edilen_adet': 0,
-          'kalan_adet': adet,
-          'durum': 'beklemede',
-          'alis_tarihi': DateTime.now().toIso8601String(),
-          'notlar': yeniNot,
-          'firma_id': firmaId,
-          'onceki_asama': oncekiAsama,
-          'kaynak_atama_tablosu': kaynakAtamaTablosu,
-          if (kaynakAtamaId != null) 'kaynak_atama_id': kaynakAtamaId,
-          'idempotency_key': idempotencyKey,
-          if (bedenDetaylariSevk.isNotEmpty)
-            'beden_detaylari': bedenDetaylariSevk,
-        };
+      final insertData = <String, dynamic>{
+        'model_id': atama['model_id'],
+        'alinan_adet': adet,
+        'sevk_edilen_adet': 0,
+        'kalan_adet': adet,
+        'durum': 'beklemede',
+        'alis_tarihi': DateTime.now().toIso8601String(),
+        'notlar': yeniNot,
+        'firma_id': firmaId,
+        'onceki_asama': oncekiAsama,
+        'kaynak_atama_tablosu': kaynakAtamaTablosu,
+        if (kaynakAtamaId != null) 'kaynak_atama_id': kaynakAtamaId,
+        'idempotency_key': idempotencyKey,
+        if (bedenDetaylariSevk.isNotEmpty)
+          'beden_detaylari': bedenDetaylariSevk,
+      };
 
-        try {
-          await supabase.from(DbTables.sevkiyatKayitlari).insert(insertData);
-        } catch (_) {
-          final fallback = Map<String, dynamic>.from(insertData)
-            ..remove('kaynak_atama_tablosu')
-            ..remove('kaynak_atama_id')
-            ..remove('onceki_asama')
-            ..remove('idempotency_key')
-            ..remove('beden_detaylari');
-          await supabase.from(DbTables.sevkiyatKayitlari).insert(fallback);
-        }
+      final mergeResult =
+          await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+        tableName: DbTables.sevkiyatKayitlari,
+        firmaId: firmaId,
+        modelId: atama['model_id'],
+        values: insertData,
+        idempotencyKey: idempotencyKey,
+        quantityFields: const ['alinan_adet', 'kalan_adet'],
+      );
 
-        debugPrint('✅ Sevkiyat kaydı oluşturuldu - $adet adet');
-      }
+      debugPrint(mergeResult['merged'] == true
+          ? '✅ Sevkiyat kaydı beden/adet bazında birleştirildi.'
+          : '✅ Sevkiyat kaydı oluşturuldu - $adet adet');
 
       // 2. Sevkiyat rolüne sahip kullanıcılara bildirim gönder
       try {

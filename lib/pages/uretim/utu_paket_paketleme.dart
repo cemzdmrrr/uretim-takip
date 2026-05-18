@@ -177,6 +177,19 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
 
   Future<void> _paketlemeAtamasiEkleEsnek(Map<String, dynamic> values) async {
     final data = Map<String, dynamic>.from(values);
+    final modelId = data['model_id'];
+    final firmaId =
+        (data['firma_id'] ?? TenantManager.instance.requireFirmaId).toString();
+    if (modelId != null) {
+      await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+        tableName: DbTables.paketlemeAtamalari,
+        firmaId: firmaId,
+        modelId: modelId,
+        values: data,
+      );
+      return;
+    }
+
     const opsiyonelAlanSirasi = <String>[
       'tedarikci_id',
       'atanan_kullanici_id',
@@ -892,19 +905,30 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             extraFields: transitionFields,
           );
 
-          await supabase.from(DbTables.utuAtamalari).insert({
-            'model_id': atama['model_id'],
-            'tedarikci_id': atama['tedarikci_id'],
-            if (atama['atanan_kullanici_id'] != null)
-              'atanan_kullanici_id': atama['atanan_kullanici_id'],
-            'talep_edilen_adet': kalanAdet,
-            'adet': kalanAdet,
-            'durum': 'atandi',
-            'atama_tarihi': now,
-            if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
-            'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
-            'firma_id': firmaId,
-          });
+          await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+            tableName: DbTables.utuAtamalari,
+            firmaId: firmaId,
+            modelId: atama['model_id'],
+            matchFields: {
+              if (atama['tedarikci_id'] != null)
+                'tedarikci_id': atama['tedarikci_id'],
+              if (atama['atanan_kullanici_id'] != null)
+                'atanan_kullanici_id': atama['atanan_kullanici_id'],
+            },
+            values: {
+              'model_id': atama['model_id'],
+              'tedarikci_id': atama['tedarikci_id'],
+              if (atama['atanan_kullanici_id'] != null)
+                'atanan_kullanici_id': atama['atanan_kullanici_id'],
+              'talep_edilen_adet': kalanAdet,
+              'adet': kalanAdet,
+              'durum': 'atandi',
+              'atama_tarihi': now,
+              if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
+              'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
+              'firma_id': firmaId,
+            },
+          );
         }
 
         if (toplamTamamlanan > 0) {
@@ -1501,14 +1525,21 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           );
 
           // Kalan adet için yeni atama oluştur
-          await supabase.from(DbTables.paketlemeAtamalari).insert({
-            'model_id': atama['model_id'],
-            'talep_edilen_adet': kalanAdet,
-            'durum': 'bekleyen',
-            'baslangic_tarihi': DateTime.now().toIso8601String(),
-            'notlar': 'Kalan adet (Önceki atama: ${atama['id']})',
-            'firma_id': TenantManager.instance.requireFirmaId,
-          });
+          final firmaId = TenantManager.instance.requireFirmaId;
+          await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+            tableName: DbTables.paketlemeAtamalari,
+            firmaId: firmaId,
+            modelId: atama['model_id'],
+            values: {
+              'model_id': atama['model_id'],
+              'talep_edilen_adet': kalanAdet,
+              'adet': kalanAdet,
+              'durum': 'bekleyen',
+              'baslangic_tarihi': DateTime.now().toIso8601String(),
+              'notlar': 'Kalan adet (Önceki atama: ${atama['id']})',
+              'firma_id': firmaId,
+            },
+          );
         } else {
           // Fazla tamamlandı
           await _workflowTransitionService.applyTransition(

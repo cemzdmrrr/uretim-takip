@@ -1688,54 +1688,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     final firmaId = TenantManager.instance.requireFirmaId;
     final idTag = '[IDEMP:$idempotencyKey]';
 
-    Map<String, dynamic>? mevcutKayit;
-    try {
-      mevcutKayit = await supabase
-          .from(DbTables.sevkiyatKayitlari)
-          .select('id, sevk_edilen_adet, notlar')
-          .eq('firma_id', firmaId)
-          .eq('idempotency_key', idempotencyKey)
-          .maybeSingle();
-    } catch (_) {
-      // idempotency_key kolonu henüz eklenmemiş olabilir.
-    }
-
-    if (mevcutKayit == null) {
-      final adaylar = await _adayAtamaKayitlariGetir(
-        hedefTablo: DbTables.sevkiyatKayitlari,
-        firmaId: firmaId,
-        modelId: kontrol['model_id'],
-      );
-      for (final aday in adaylar) {
-        if ((aday['notlar'] ?? '').toString().contains(idTag)) {
-          mevcutKayit = aday;
-          break;
-        }
-      }
-    }
-
     final notMetni =
         'Kalite kontrol onaylandı - ${model['marka']} ${model['item_no']} $idTag';
-
-    if (mevcutKayit != null) {
-      final sevkEdilen = (mevcutKayit['sevk_edilen_adet'] as int?) ?? 0;
-      await _esnekAtamaGuncelle(
-        hedefTablo: DbTables.sevkiyatKayitlari,
-        kayitId: mevcutKayit['id'],
-        firmaId: firmaId,
-        values: {
-          'alinan_adet': kontrolAdet,
-          'kalan_adet': (kontrolAdet - sevkEdilen).clamp(0, 999999999),
-          'durum': 'beklemede',
-          'onceki_asama': oncekiAsama,
-          'hedef_asama': hedefAsama,
-          if (bedenDetaylari.isNotEmpty) 'beden_detaylari': bedenDetaylari,
-          'updated_at': DateTime.now().toIso8601String(),
-          'notlar': notMetni,
-        },
-      );
-      return;
-    }
 
     final insertData = {
       'model_id': kontrol['model_id'],
@@ -1754,9 +1708,13 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       'idempotency_key': idempotencyKey,
     };
 
-    await _esnekAtamaInsert(
-      hedefTablo: DbTables.sevkiyatKayitlari,
+    await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+      tableName: DbTables.sevkiyatKayitlari,
+      firmaId: firmaId,
+      modelId: kontrol['model_id'],
       values: insertData,
+      idempotencyKey: idempotencyKey,
+      quantityFields: const ['alinan_adet', 'kalan_adet'],
     );
   }
 
@@ -1771,49 +1729,8 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     final firmaId = TenantManager.instance.requireFirmaId;
     final idTag = '[IDEMP:$idempotencyKey]';
 
-    Map<String, dynamic>? mevcutAtama;
-    try {
-      mevcutAtama = await supabase
-          .from(hedefTablo)
-          .select('id, notlar')
-          .eq('firma_id', firmaId)
-          .eq('idempotency_key', idempotencyKey)
-          .maybeSingle();
-    } catch (_) {
-      // idempotency_key kolonu henüz eklenmemiş olabilir.
-    }
-
-    if (mevcutAtama == null) {
-      final adaylar = await _adayAtamaKayitlariGetir(
-        hedefTablo: hedefTablo,
-        firmaId: firmaId,
-        modelId: kontrol['model_id'],
-      );
-      for (final aday in adaylar) {
-        if ((aday['notlar'] ?? '').toString().contains(idTag)) {
-          mevcutAtama = aday;
-          break;
-        }
-      }
-    }
-
     final notMetni =
         'Kalite kontrolden geçti - ${model['marka']} ${model['item_no']} - $kontrolAdet adet $idTag';
-
-    if (mevcutAtama != null) {
-      await _esnekAtamaGuncelle(
-        hedefTablo: hedefTablo,
-        kayitId: mevcutAtama['id'],
-        firmaId: firmaId,
-        values: {
-          'adet': kontrolAdet,
-          'talep_edilen_adet': kontrolAdet,
-          'updated_at': DateTime.now().toIso8601String(),
-          'notlar': notMetni,
-        },
-      );
-      return;
-    }
 
     final insertData = {
       'model_id': kontrol['model_id'],
@@ -1829,9 +1746,12 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       'idempotency_key': idempotencyKey,
     };
 
-    await _esnekAtamaInsert(
-      hedefTablo: hedefTablo,
+    await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+      tableName: hedefTablo,
+      firmaId: firmaId,
+      modelId: kontrol['model_id'],
       values: insertData,
+      idempotencyKey: idempotencyKey,
     );
 
     await BildirimService().roleGoreBildirimGonder(
@@ -1865,46 +1785,6 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     final notMetni =
         'Kalite redi sonrası rework - ${model['marka']} ${model['item_no']} - $reworkAdet adet | Sebep: $redSebebi $tag';
 
-    Map<String, dynamic>? mevcut;
-    try {
-      mevcut = await supabase
-          .from(hedefTablo)
-          .select('id, notlar')
-          .eq('firma_id', firmaId)
-          .eq('idempotency_key', idempotencyKey)
-          .maybeSingle();
-    } catch (_) {
-      // idempotency_key kolonu olmayabilir.
-    }
-
-    if (mevcut == null) {
-      final adaylar = await _adayAtamaKayitlariGetir(
-        hedefTablo: hedefTablo,
-        firmaId: firmaId,
-        modelId: kontrol['model_id'],
-      );
-      for (final aday in adaylar) {
-        if ((aday['notlar'] ?? '').toString().contains(tag)) {
-          mevcut = aday;
-          break;
-        }
-      }
-    }
-
-    if (mevcut != null) {
-      await _esnekAtamaGuncelle(
-        hedefTablo: hedefTablo,
-        kayitId: mevcut['id'],
-        firmaId: firmaId,
-        values: {
-          'talep_edilen_adet': reworkAdet,
-          'updated_at': DateTime.now().toIso8601String(),
-          'notlar': notMetni,
-        },
-      );
-      return;
-    }
-
     final insertData = {
       'model_id': kontrol['model_id'],
       'durum': 'bekleyen',
@@ -1918,9 +1798,12 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       'kaynak_kalite_kontrol_id': kontrol['id'],
     };
 
-    await _esnekAtamaInsert(
-      hedefTablo: hedefTablo,
+    await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+      tableName: hedefTablo,
+      firmaId: firmaId,
+      modelId: kontrol['model_id'],
       values: insertData,
+      idempotencyKey: idempotencyKey,
     );
 
     await BildirimService().roleGoreBildirimGonder(

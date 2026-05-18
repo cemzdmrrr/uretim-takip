@@ -1695,113 +1695,20 @@ extension _WidgetsExt on _SevkiyatPanelState {
           atamaData['tedarikci_id'] = tedarikciId;
         }
 
-        Map<String, dynamic>? mevcutAtama;
-        var hedefAtamaBedenKolonuVar = true;
-        try {
-          mevcutAtama = await supabase
-              .from(hedefTabloAdi)
-              .select('id, adet, talep_edilen_adet, notlar, beden_detaylari')
-              .eq('firma_id', firmaId)
-              .eq('idempotency_key', hedefAtamaKey)
-              .maybeSingle();
-        } catch (e) {
-          final missing = _missingColumnName(e);
-          if (missing == 'beden_detaylari') {
-            hedefAtamaBedenKolonuVar = false;
-            try {
-              mevcutAtama = await supabase
-                  .from(hedefTabloAdi)
-                  .select('id, adet, talep_edilen_adet, notlar')
-                  .eq('firma_id', firmaId)
-                  .eq('idempotency_key', hedefAtamaKey)
-                  .maybeSingle();
-            } catch (_) {
-              // idempotency_key kolonu eski şemada da olmayabilir.
-            }
-          }
-        }
-
-        if (mevcutAtama == null) {
-          List<dynamic> adaylar;
-          try {
-            adaylar = await supabase
-                .from(hedefTabloAdi)
-                .select('id, adet, talep_edilen_adet, notlar, beden_detaylari')
-                .eq('firma_id', firmaId)
-                .eq('model_id', sevk['model_id'])
-                .order('created_at', ascending: false)
-                .limit(10);
-          } catch (e) {
-            final missing = _missingColumnName(e);
-            if (missing == 'beden_detaylari') {
-              hedefAtamaBedenKolonuVar = false;
-              adaylar = await supabase
-                  .from(hedefTabloAdi)
-                  .select('id, adet, talep_edilen_adet, notlar')
-                  .eq('firma_id', firmaId)
-                  .eq('model_id', sevk['model_id'])
-                  .order('created_at', ascending: false)
-                  .limit(10);
-            } else {
-              rethrow;
-            }
-          }
-
-          for (final aday in List<Map<String, dynamic>>.from(adaylar)) {
-            if ((aday['notlar'] ?? '').toString().contains(hedefEtiket)) {
-              mevcutAtama = aday;
-              break;
-            }
-          }
-        }
-
-        if (mevcutAtama != null) {
-          final mevcutAdet = (mevcutAtama['adet'] as int?) ??
-              (mevcutAtama['talep_edilen_adet'] as int?) ??
-              0;
-          final yeniAdet = mevcutAdet + adet;
-          final mevcutBedenDetayi = hedefAtamaBedenKolonuVar
-              ? _parseBedenDetayi(mevcutAtama['beden_detaylari'])
-              : const <String, int>{};
-          final birlesikBedenDetayi = <String, int>{...mevcutBedenDetayi};
-          for (final entry in sevkBedenDetayi.entries) {
-            birlesikBedenDetayi[entry.key] =
-                (birlesikBedenDetayi[entry.key] ?? 0) + entry.value;
-          }
-
-          final updateData = <String, dynamic>{
-            'adet': yeniAdet,
-            'talep_edilen_adet': yeniAdet,
-            'updated_at': DateTime.now().toIso8601String(),
-            if (hedefAtamaBedenKolonuVar && birlesikBedenDetayi.isNotEmpty)
-              'beden_detaylari': _siraliBedenMap(birlesikBedenDetayi),
-          };
-
-          try {
-            await supabase
-                .from(hedefTabloAdi)
-                .update(updateData)
-                .eq('id', mevcutAtama['id'])
-                .eq('firma_id', firmaId);
-          } catch (e) {
-            if (_missingColumnName(e) == 'beden_detaylari') {
-              final fallback = Map<String, dynamic>.from(updateData)
-                ..remove('beden_detaylari');
-              await supabase
-                  .from(hedefTabloAdi)
-                  .update(fallback)
-                  .eq('id', mevcutAtama['id'])
-                  .eq('firma_id', firmaId);
-            } else {
-              rethrow;
-            }
-          }
-          debugPrint('✅ $hedefTabloAdi mevcut atama güncellendi (idempotent).');
-        } else {
-          await _esnekAtamaInsert(tablo: hedefTabloAdi, values: atamaData);
-          debugPrint(
-              '✅ $hedefTabloAdi tablosuna yeni atama oluşturuldu (tedarikci_id: $tedarikciId)');
-        }
+        final mergeResult =
+            await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+          tableName: hedefTabloAdi,
+          firmaId: firmaId,
+          modelId: sevk['model_id'],
+          values: atamaData,
+          idempotencyKey: hedefAtamaKey,
+          matchFields: {
+            if (tedarikciId != null) 'tedarikci_id': tedarikciId,
+          },
+        );
+        debugPrint(mergeResult['merged'] == true
+            ? '✅ $hedefTabloAdi mevcut atama beden/adet bazında birleştirildi.'
+            : '✅ $hedefTabloAdi tablosuna yeni atama oluşturuldu (tedarikci_id: $tedarikciId)');
 
         // 4. Hedef aşama personeline bildirim gönder
         try {

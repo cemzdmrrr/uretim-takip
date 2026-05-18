@@ -1890,6 +1890,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/uretim/yikama_dashboard.da
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/providers/auth_provider.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/providers/tenant_provider.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/abonelik_service.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/atama_birlestirme_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/auth_helper_rls_free.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/beden_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/bildirim_service.dart

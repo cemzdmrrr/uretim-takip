@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
+import 'package:uretim_takip/services/atama_birlestirme_service.dart';
 import 'package:uretim_takip/services/sevk_irsaliye_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/workflow_state_machine.dart';

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:uretim_takip/config/app_routes.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/atama_birlestirme_service.dart';
 import 'package:uretim_takip/services/dashboard_event_bus.dart';
 import 'package:uretim_takip/utils/app_exceptions.dart';
 import 'package:uretim_takip/services/workflow_transition_service.dart';

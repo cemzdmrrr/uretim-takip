@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uretim_takip/services/model_maliyet_hesaplama_servisi.dart';
 import 'package:uretim_takip/services/model_karlilik_servisi.dart';
+import 'package:uretim_takip/services/atama_birlestirme_service.dart';
 import 'package:uretim_takip/services/sevkiyat_atama_guard.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'model_detay_utils.dart' as utils;
