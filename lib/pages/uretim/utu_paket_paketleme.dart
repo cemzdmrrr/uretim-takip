@@ -410,18 +410,22 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
 
     final tamamControllers = <String, TextEditingController>{};
     final fireControllers = <String, TextEditingController>{};
-    final fireKaynakAsamaByBeden = <String, String?>{};
+    final fireKaynakAdetControllers =
+        <String, Map<String, TextEditingController>>{};
 
     for (final entry in hedefBedenDagilimi.entries) {
       tamamControllers[entry.key] =
           TextEditingController(text: entry.value.toString());
       fireControllers[entry.key] = TextEditingController(text: '0');
-      fireKaynakAsamaByBeden[entry.key] = 'utu';
+      fireKaynakAdetControllers[entry.key] = {
+        for (final kod in fireKaynakAsamaKodlari)
+          kod: TextEditingController(text: ''),
+      };
     }
 
     final notController = TextEditingController();
 
-    final sonuc = await showDialog<bool>(
+    final sonuc = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
@@ -438,6 +442,76 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             toplamTamam += tamam;
             toplamFire += fire;
             toplamKalan += kalan;
+          }
+
+          void kaydet(String action) {
+            var satirHataVar = false;
+            for (final beden in hedefBedenDagilimi.keys) {
+              final hedef = hedefBedenDagilimi[beden] ?? 0;
+              final tamam = _toInt(tamamControllers[beden]?.text);
+              final fire = _toInt(fireControllers[beden]?.text);
+              if (tamam < 0 || fire < 0 || (tamam + fire) > hedef) {
+                satirHataVar = true;
+                break;
+              }
+            }
+
+            if (satirHataVar) {
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Beden satırlarında Tamam + Fire değeri hedef adedi aşamaz.',
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            final fireDagilimHatasi = hedefBedenDagilimi.keys.any((beden) {
+              final fire = _toInt(fireControllers[beden]?.text);
+              if (fire <= 0) return false;
+              final kaynakToplam =
+                  (fireKaynakAdetControllers[beden] ?? {}).values.fold<int>(
+                        0,
+                        (sum, controller) => sum + _toInt(controller.text),
+                      );
+              return kaynakToplam != fire;
+            });
+
+            if (fireDagilimHatasi) {
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Fire girilen her bedende kaynak aşama adetleri toplam fire adedine eşit olmalı.',
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            if ((toplamTamam + toplamFire) <= 0) {
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                const SnackBar(
+                  content: Text('En az bir beden için adet girmelisiniz.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            if ((toplamTamam + toplamFire) > talepAdet) {
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                const SnackBar(
+                  content: Text('Toplam Tamam + Fire, talep adedini aşamaz.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            Navigator.pop(context, action);
           }
 
           return AlertDialog(
@@ -657,66 +731,77 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                             return fire > 0;
                           }).map((beden) {
                             final fire = _toInt(fireControllers[beden]?.text);
-                            final mevcutSecim = fireKaynakAsamaByBeden[beden];
+                            final kaynakControllers =
+                                fireKaynakAdetControllers[beden] ?? {};
+                            final kaynakToplam =
+                                kaynakControllers.values.fold<int>(
+                              0,
+                              (sum, controller) =>
+                                  sum + _toInt(controller.text),
+                            );
                             return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: 84,
-                                    child: Text(
-                                      '$beden ($fire)',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: kaynakToplam == fire
+                                        ? Colors.orange[200]!
+                                        : Colors.red[300]!,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '$beden fire dağılımı: $kaynakToplam / $fire',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
                                         fontSize: 12,
+                                        color: kaynakToplam == fire
+                                            ? Colors.orange[900]
+                                            : Colors.red[700],
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue: (mevcutSecim != null &&
-                                              fireKaynakAsamaKodlari
-                                                  .contains(mevcutSecim))
-                                          ? mevcutSecim
-                                          : null,
-                                      isExpanded: true,
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 10,
-                                        ),
-                                        border: OutlineInputBorder(),
-                                        hintText: 'Aşama seçin',
-                                      ),
-                                      items: fireKaynakAsamaKodlari
-                                          .map(
-                                            (kod) => DropdownMenuItem<String>(
-                                              value: kod,
-                                              child: Text(
-                                                fireKaynakAsamaEtiketleri[
-                                                        kod] ??
-                                                    kod,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children:
+                                          fireKaynakAsamaKodlari.map((kod) {
+                                        final controller =
+                                            kaynakControllers[kod]!;
+                                        return SizedBox(
+                                          width: 150,
+                                          child: TextField(
+                                            controller: controller,
+                                            keyboardType: TextInputType.number,
+                                            decoration: InputDecoration(
+                                              isDense: true,
+                                              labelText:
+                                                  fireKaynakAsamaEtiketleri[
+                                                          kod] ??
+                                                      kod,
+                                              border:
+                                                  const OutlineInputBorder(),
                                             ),
-                                          )
-                                          .toList(),
-                                      onChanged: (value) {
-                                        fireKaynakAsamaByBeden[beden] = value;
-                                        setDialogState(() {});
-                                      },
+                                            onChanged: (_) =>
+                                                setDialogState(() {}),
+                                          ),
+                                        );
+                                      }).toList(),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             );
                           }),
                           if (!hedefBedenDagilimi.keys.any((beden) =>
                               _toInt(fireControllers[beden]?.text) > 0))
                             Text(
-                              'Fire girişi yaptığınızda kaynak aşama seçimi açılır.',
+                              'Fire girişi yaptığınızda kaynak aşama adetleri açılır.',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.orange[900],
@@ -740,88 +825,18 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(context, null),
                 child: const Text('İptal'),
               ),
               ElevatedButton(
-                onPressed: () {
-                  var satirHataVar = false;
-                  for (final beden in hedefBedenDagilimi.keys) {
-                    final hedef = hedefBedenDagilimi[beden] ?? 0;
-                    final tamam = _toInt(tamamControllers[beden]?.text);
-                    final fire = _toInt(fireControllers[beden]?.text);
-                    if (tamam < 0 || fire < 0 || (tamam + fire) > hedef) {
-                      satirHataVar = true;
-                      break;
-                    }
-                  }
-
-                  if (satirHataVar) {
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Beden satırlarında Tamam + Fire değeri hedef adedi aşamaz.',
-                        ),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  final fireAsamaEksik = hedefBedenDagilimi.keys.any((beden) {
-                    final fire = _toInt(fireControllers[beden]?.text);
-                    if (fire <= 0) return false;
-                    final secim = fireKaynakAsamaByBeden[beden]?.trim() ?? '';
-                    return secim.isEmpty;
-                  });
-
-                  if (fireAsamaEksik) {
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Fire girilen her beden için kaynak aşama seçmelisiniz.',
-                        ),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  final toplamTamam = hedefBedenDagilimi.keys.fold<int>(
-                    0,
-                    (sum, beden) => sum + _toInt(tamamControllers[beden]?.text),
-                  );
-                  final toplamFire = hedefBedenDagilimi.keys.fold<int>(
-                    0,
-                    (sum, beden) => sum + _toInt(fireControllers[beden]?.text),
-                  );
-
-                  if ((toplamTamam + toplamFire) <= 0) {
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(
-                        content:
-                            Text('En az bir beden için adet girmelisiniz.'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  if ((toplamTamam + toplamFire) > talepAdet) {
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(
-                        content:
-                            Text('Toplam Tamam + Fire, talep adedini aşamaz.'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  Navigator.pop(context, true);
-                },
+                onPressed: () => kaydet('tamamla'),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                 child: const Text('Tamamla'),
+              ),
+              ElevatedButton(
+                onPressed: () => kaydet('kismi'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                child: const Text('Kısmi Kaydet'),
               ),
             ],
           );
@@ -829,10 +844,12 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
       ),
     );
 
-    if (sonuc == true) {
+    if (sonuc == 'tamamla' || sonuc == 'kismi') {
       try {
+        final kismiKayit = sonuc == 'kismi';
         final tamamlananBeden = <String, int>{};
         final fireBeden = <String, int>{};
+        final fireKaynakBeden = <String, Map<String, int>>{};
         final kalanBeden = <String, int>{};
 
         for (final beden in hedefBedenDagilimi.keys) {
@@ -843,6 +860,15 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
 
           if (tamam > 0) tamamlananBeden[beden] = tamam;
           if (fire > 0) fireBeden[beden] = fire;
+          if (fire > 0) {
+            final kaynaklar = <String, int>{};
+            for (final entry
+                in (fireKaynakAdetControllers[beden] ?? {}).entries) {
+              final adet = _toInt(entry.value.text);
+              if (adet > 0) kaynaklar[entry.key] = adet;
+            }
+            if (kaynaklar.isNotEmpty) fireKaynakBeden[beden] = kaynaklar;
+          }
           if (kalan > 0) kalanBeden[beden] = kalan;
         }
 
@@ -856,13 +882,14 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
         final fireNotu =
             fireBeden.isNotEmpty ? '[FIRE] ${_bedenMapMetni(fireBeden)}' : '';
         final fireAsamaSatirlari = <String>[];
-        for (final entry in fireBeden.entries) {
-          final asamaKodu = fireKaynakAsamaByBeden[entry.key]?.trim();
-          if (asamaKodu == null || asamaKodu.isEmpty) continue;
-          final asamaEtiketi =
-              fireKaynakAsamaEtiketleri[asamaKodu] ?? asamaKodu;
-          fireAsamaSatirlari
-              .add('${entry.key}:${entry.value}->$asamaEtiketi($asamaKodu)');
+        for (final bedenEntry in fireKaynakBeden.entries) {
+          for (final kaynakEntry in bedenEntry.value.entries) {
+            final asamaEtiketi =
+                fireKaynakAsamaEtiketleri[kaynakEntry.key] ?? kaynakEntry.key;
+            fireAsamaSatirlari.add(
+              '${bedenEntry.key}:${kaynakEntry.value}->$asamaEtiketi(${kaynakEntry.key})',
+            );
+          }
         }
         final fireAsamaNotu = fireAsamaSatirlari.isNotEmpty
             ? '[FIRE_KAYNAK] ${fireAsamaSatirlari.join(' | ')}'
@@ -901,43 +928,30 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             firmaId: firmaId,
             fromStatus: atama['durum']?.toString(),
             toStatus: 'kismi_tamamlandi',
-            idempotencyKey: 'utu:${atama['id']}:kismi_tamamla',
+            idempotencyKey:
+                'utu:${atama['id']}:${kismiKayit ? 'kismi_kaydet' : 'tamamla_kismi'}',
             extraFields: transitionFields,
           );
 
-          await AtamaBirlestirmeService(client: supabase).insertOrMerge(
-            tableName: DbTables.utuAtamalari,
-            firmaId: firmaId,
-            modelId: atama['model_id'],
-            matchFields: {
-              if (atama['tedarikci_id'] != null)
-                'tedarikci_id': atama['tedarikci_id'],
-              if (atama['atanan_kullanici_id'] != null)
-                'atanan_kullanici_id': atama['atanan_kullanici_id'],
-            },
-            values: {
-              'model_id': atama['model_id'],
-              'tedarikci_id': atama['tedarikci_id'],
-              if (atama['atanan_kullanici_id'] != null)
-                'atanan_kullanici_id': atama['atanan_kullanici_id'],
-              'talep_edilen_adet': kalanAdet,
-              'adet': kalanAdet,
-              'durum': 'atandi',
-              'atama_tarihi': now,
-              if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
-              'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
-              'firma_id': firmaId,
-            },
-          );
+          await supabase.from(DbTables.utuAtamalari).insert({
+            'model_id': atama['model_id'],
+            'tedarikci_id': atama['tedarikci_id'],
+            if (atama['atanan_kullanici_id'] != null)
+              'atanan_kullanici_id': atama['atanan_kullanici_id'],
+            'talep_edilen_adet': kalanAdet,
+            'adet': kalanAdet,
+            'tamamlanan_adet': 0,
+            'durum': 'uretimde',
+            'atama_tarihi': now,
+            'uretim_baslangic_tarihi': now,
+            if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
+            'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
+            'firma_id': firmaId,
+          });
         }
 
-        if (toplamTamamlanan > 0) {
-          await _utuTamamlamayiCekiListesineAktar(
-            atama,
-            tamamlananBeden,
-            notController.text,
-          );
-        }
+        // Çeki listesi manuel "Yeni Çeki" akışıyla oluşturulur. Burada otomatik
+        // kayıt açmak, beden bazlı limit kontrolünü kullanıcı görmeden tüketir.
 
         if (mounted) {
           final mesajParcalari = <String>[
@@ -966,6 +980,11 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
     }
     for (final c in fireControllers.values) {
       c.dispose();
+    }
+    for (final sourceControllers in fireKaynakAdetControllers.values) {
+      for (final c in sourceControllers.values) {
+        c.dispose();
+      }
     }
     notController.dispose();
   }

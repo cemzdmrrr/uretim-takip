@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
@@ -9,8 +11,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:uretim_takip/services/model_maliyet_hesaplama_servisi.dart';
 import 'package:uretim_takip/services/model_karlilik_servisi.dart';
 import 'package:uretim_takip/services/atama_birlestirme_service.dart';
+import 'package:uretim_takip/services/beden_service.dart';
 import 'package:uretim_takip/services/sevkiyat_atama_guard.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/workflow_transition_service.dart';
 import 'model_detay_utils.dart' as utils;
 
 part 'model_detay_fiyatlandirma.dart';
@@ -40,6 +44,9 @@ class _ModelDetayState extends State<ModelDetay>
     with SingleTickerProviderStateMixin {
   Map<String, dynamic>? currentModelData;
   final supabase = Supabase.instance.client;
+  final BedenService _bedenService = BedenService();
+  final WorkflowTransitionService _workflowTransitionService =
+      WorkflowTransitionService();
   TabController? _tabController;
 
   /// Modelin üretim dalını modelData'dan okur, yoksa firmanın birincil dalını kullanır

@@ -634,7 +634,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ütü Paket Paneli'),
+        title: const Text('Ütü Paneli'),
         backgroundColor: Colors.amber[700],
         foregroundColor: Colors.white,
         bottom: TabBar(
@@ -645,7 +645,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           tabs: [
             const Tab(
               icon: Icon(Icons.all_inbox),
-              text: 'Ütü Paket',
+              text: 'Ütü',
             ),
             Tab(
               icon: const Icon(Icons.list_alt),
@@ -786,7 +786,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   }
 
   Widget _buildUtuPaketTabContent(int tabIndex) {
-    // Ütü Paket sekmesinde yalnızca ütü atamaları ilerler.
+    // Ütü sekmesinde yalnızca ütü atamaları ilerler.
     List<Map<String, dynamic>> list = [];
     if (tabIndex == 0) {
       list = _filtreleListe(utuBekleyenler);

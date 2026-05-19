@@ -347,14 +347,37 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
     final durum = atama['durum'] as String?;
     final tamamlananAdet = _atamaInt(atama['tamamlanan_adet']);
-    final kabulEdilenAdet = _atamaInt(atama['kabul_edilen_adet'] ??
+    final kayitliBedenDagilimi = _parseBedenDetayi(
+      atama['beden_detaylari'] ?? atama['beden_dagilimi'],
+    );
+    final notBedenDagilimi = _notlardanBedenDetayi(
+      '${atama['notlar'] ?? ''}\n${atama['aciklama'] ?? ''}',
+    );
+    final kalanBedenToplam = durum == 'kismi_tamamlandi'
+        ? _toplamBedenAdedi(kayitliBedenDagilimi)
+        : 0;
+    final hamKabulEdilenAdet = _atamaInt(atama['kabul_edilen_adet'] ??
         atama['talep_edilen_adet'] ??
         atama['adet'] ??
         model['adet'] ??
         0);
-    final talepEdilenAdet =
+    final hamTalepEdilenAdet =
         _atamaInt(atama['talep_edilen_adet'] ?? model['adet'] ?? atama['adet']);
-    final kalanAdet = (kabulEdilenAdet - tamamlananAdet).clamp(0, 999999999);
+    final kaynakBedenToplam = _toplamBedenAdedi(notBedenDagilimi);
+    final hesaplananToplam =
+        tamamlananAdet + (kalanBedenToplam > 0 ? kalanBedenToplam : 0);
+    final kabulEdilenAdet = [
+      hamKabulEdilenAdet,
+      hamTalepEdilenAdet,
+      kaynakBedenToplam,
+      hesaplananToplam,
+    ].reduce((a, b) => a > b ? a : b);
+    final talepEdilenAdet = hamTalepEdilenAdet > kabulEdilenAdet
+        ? hamTalepEdilenAdet
+        : kabulEdilenAdet;
+    final kalanAdet = kalanBedenToplam > 0
+        ? kalanBedenToplam
+        : (kabulEdilenAdet - tamamlananAdet).clamp(0, 999999999);
     final ilerleme = kabulEdilenAdet <= 0
         ? 0.0
         : (tamamlananAdet / kabulEdilenAdet).clamp(0.0, 1.0);
@@ -720,6 +743,31 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     return const <String, int>{};
   }
 
+  Map<String, int> _notlardanBedenDetayi(dynamic rawNot) {
+    final text = (rawNot ?? '').toString();
+    if (text.isEmpty) return const <String, int>{};
+
+    final match =
+        RegExp(r'\[BEDEN:([^\]]+)\]', caseSensitive: false).firstMatch(text);
+    if (match == null) return const <String, int>{};
+
+    final result = <String, int>{};
+    final body = (match.group(1) ?? '').trim();
+    if (body.isEmpty) return const <String, int>{};
+
+    for (final parca in body.split('|')) {
+      final kv = parca.split(':');
+      if (kv.length < 2) continue;
+      final beden = kv.first.trim().toUpperCase();
+      final adet = int.tryParse(kv.sublist(1).join(':').trim()) ?? 0;
+      if (beden.isNotEmpty && adet > 0) {
+        result[beden] = (result[beden] ?? 0) + adet;
+      }
+    }
+
+    return _siraliBedenMap(result);
+  }
+
   int _bedenSiraSkoru(String beden) {
     const standartSira = <String>[
       'XXS',
@@ -780,7 +828,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       });
     }
 
-    var dagitilacak = hedefToplam - _toplamBedenAdedi(tabanDegerler);
+    final dagitilacak = hedefToplam - _toplamBedenAdedi(tabanDegerler);
     kalanlar
         .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
 
@@ -1372,7 +1420,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
     if (dagilimFarkli) {
       final senkronToplam = _toplamBedenAdedi(talepBedenDagilimi);
-      var updateData = <String, dynamic>{
+      final updateData = <String, dynamic>{
         'beden_detaylari': talepBedenDagilimi,
         'talep_edilen_adet': senkronToplam,
         'adet': senkronToplam,
@@ -1412,6 +1460,8 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     final adetController = TextEditingController(
       text: talepEdilenAdet.toString(),
     );
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -1618,7 +1668,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
     final notMetni = _gecerliNotMetni(atama);
 
     // Tarih yardımcısı
-    String? _fmt(dynamic val) {
+    String? fmtTarih(dynamic val) {
       if (val == null) return null;
       final dt = DateTime.tryParse(val.toString());
       if (dt == null) return val.toString();
@@ -1663,23 +1713,25 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
               const Divider(height: 16),
               // Tarih bilgileri
               if (model['termin_tarihi'] != null)
-                _buildModelBilgisi('Termin', _fmt(model['termin_tarihi'])),
+                _buildModelBilgisi('Termin', fmtTarih(model['termin_tarihi'])),
               if ((atama['atama_tarihi'] ?? atama['created_at']) != null)
                 _buildModelBilgisi('Atama Tarihi',
-                    _fmt(atama['atama_tarihi'] ?? atama['created_at'])),
+                    fmtTarih(atama['atama_tarihi'] ?? atama['created_at'])),
               if ((atama['onay_tarihi'] ?? atama['kabul_tarihi']) != null)
                 _buildModelBilgisi('Onay Tarihi',
-                    _fmt(atama['onay_tarihi'] ?? atama['kabul_tarihi'])),
+                    fmtTarih(atama['onay_tarihi'] ?? atama['kabul_tarihi'])),
               if ((atama['uretim_baslangic_tarihi'] ??
                       atama['son_guncelleme_tarihi']) !=
                   null)
                 _buildModelBilgisi(
                     'Başlangıç',
-                    _fmt(atama['uretim_baslangic_tarihi'] ??
+                    fmtTarih(atama['uretim_baslangic_tarihi'] ??
                         atama['son_guncelleme_tarihi'])),
               if ((atama['tamamlama_tarihi'] ?? atama['teslim_tarihi']) != null)
-                _buildModelBilgisi('Tamamlanma',
-                    _fmt(atama['tamamlama_tarihi'] ?? atama['teslim_tarihi'])),
+                _buildModelBilgisi(
+                    'Tamamlanma',
+                    fmtTarih(
+                        atama['tamamlama_tarihi'] ?? atama['teslim_tarihi'])),
               // Notlar
               if (notMetni.isNotEmpty) ...[
                 const Divider(height: 16),
@@ -1873,7 +1925,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       final kaynakAtamaTablosu =
           (atama['kaynak_atama_tablosu'] ?? widget.atamaTablosu).toString();
       final idempotencyKey = (atama['idempotency_key'] ??
-              '${kaynakAtamaTablosu}:${kaynakAtamaId ?? atama['id']}:downstream')
+              '$kaynakAtamaTablosu:${kaynakAtamaId ?? atama['id']}:downstream')
           .toString();
       final idempotencyTag = '[IDEMP:$idempotencyKey]';
       final yeniNot =
@@ -1961,7 +2013,7 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
       final kaynakAtamaTablosu =
           (atama['kaynak_atama_tablosu'] ?? widget.atamaTablosu).toString();
       final idempotencyKey = (atama['idempotency_key'] ??
-              '${kaynakAtamaTablosu}:${kaynakAtamaId ?? atama['id']}:downstream')
+              '$kaynakAtamaTablosu:${kaynakAtamaId ?? atama['id']}:downstream')
           .toString();
       final idempotencyTag = '[IDEMP:$idempotencyKey]';
       final yeniNot =

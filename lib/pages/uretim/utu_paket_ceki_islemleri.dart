@@ -674,20 +674,62 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
           .fold<int>(0, (toplam, k) => toplam + toInt(k['adet']));
     }
 
+    Map<String, int> modelIcinTamamlananBedenler(String modelId) {
+      final result = <String, int>{};
+      for (final atama
+          in utuTamamlananlar.where((a) => modelIdFromKayit(a) == modelId)) {
+        final bedenler = _parseBedenDagilimi(
+          atama['beden_detaylari'] ?? atama['beden_dagilimi'],
+        );
+        if (bedenler.isNotEmpty) {
+          for (final entry in bedenler.entries) {
+            result[entry.key] = (result[entry.key] ?? 0) + entry.value;
+          }
+        } else {
+          final adet = toInt(atama['tamamlanan_adet'] ??
+              atama['kabul_edilen_adet'] ??
+              atama['adet'] ??
+              atama['talep_edilen_adet']);
+          if (adet > 0) result['GENEL'] = (result['GENEL'] ?? 0) + adet;
+        }
+      }
+      return result;
+    }
+
+    Map<String, int> modelIcinCekiBedenToplamlari(String modelId) {
+      final result = <String, int>{};
+      for (final kayit in cekiListesi
+          .where((k) => (k['model_id'] ?? '').toString() == modelId)) {
+        final koli = toInt(kayit['koli_adedi']);
+        final mix = kayit['mix_beden_detay'];
+        if (mix is List && mix.isNotEmpty) {
+          for (final item in mix) {
+            if (item is! Map) continue;
+            final beden = (item['beden'] ?? item['beden_kodu'] ?? '')
+                .toString()
+                .trim()
+                .toUpperCase();
+            final adet = toInt(item['adet']) * (koli > 0 ? koli : 1);
+            if (beden.isNotEmpty && adet > 0) {
+              result[beden] = (result[beden] ?? 0) + adet;
+            }
+          }
+        } else {
+          final beden =
+              (kayit['beden_kodu'] ?? 'GENEL').toString().trim().toUpperCase();
+          final adet = toInt(kayit['adet']);
+          if (beden.isNotEmpty && adet > 0) {
+            result[beden] = (result[beden] ?? 0) + adet;
+          }
+        }
+      }
+      return result;
+    }
+
     int tamamlananLimitHesapla(Map<String, dynamic>? model) {
       if (model == null) return 0;
       final modelId = (model['id'] ?? '').toString();
       if (modelId.isEmpty) return 0;
-
-      final fromPaketTamamlanan = paketTamamlananlar
-          .where((a) => modelIdFromKayit(a) == modelId)
-          .fold<int>(
-              0,
-              (toplam, a) =>
-                  toplam +
-                  toInt(a['tamamlanan_adet'] ??
-                      a['adet'] ??
-                      a['talep_edilen_adet']));
 
       final fromUtuTamamlanan = utuTamamlananlar
           .where((a) => modelIdFromKayit(a) == modelId)
@@ -700,7 +742,6 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                       a['adet'] ??
                       a['talep_edilen_adet']));
 
-      if (fromPaketTamamlanan > 0) return fromPaketTamamlanan;
       if (fromUtuTamamlanan > 0) return fromUtuTamamlanan;
 
       final atama = model['atama'] as Map<String, dynamic>?;
@@ -710,14 +751,8 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
           model['adet']);
     }
 
-    // Tüm modellerden benzersiz olanları al
-    for (var atama in [
-      ...paketBekleyenler,
-      ...paketOnaylananlar,
-      ...paketUretimde,
-      ...paketTamamlananlar,
-      ...utuTamamlananlar,
-    ]) {
+    // Çeki listesi için yalnızca ütüde tamamlanan bedenler kaynak alınır.
+    for (var atama in utuTamamlananlar) {
       final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
       if (model != null) {
         if (!tamamlananModeller.any((m) => m['id'] == model['id'])) {
@@ -752,8 +787,13 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
           // Seçili modelin bedenleri
           List<String> bedenler = ['Genel'];
           if (seciliModel != null) {
+            final completedBedenler = modelIcinTamamlananBedenler(
+              (seciliModel!['id'] ?? '').toString(),
+            );
             final bedenlerRaw = seciliModel!['bedenler'];
-            if (bedenlerRaw is Map) {
+            if (completedBedenler.isNotEmpty) {
+              bedenler = completedBedenler.keys.toList();
+            } else if (bedenlerRaw is Map) {
               bedenler = bedenlerRaw.keys.map((e) => e.toString()).toList();
             } else if (bedenlerRaw is List) {
               bedenler = bedenlerRaw.map((e) => e.toString()).toList();
@@ -790,6 +830,12 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
           final modelId = seciliModel?['id']?.toString();
           final tamamlananLimit =
               seciliModel == null ? 0 : tamamlananLimitHesapla(seciliModel);
+          final tamamlananBedenLimitleri = modelId == null || modelId.isEmpty
+              ? const <String, int>{}
+              : modelIcinTamamlananBedenler(modelId);
+          final mevcutCekiBedenToplamlari = modelId == null || modelId.isEmpty
+              ? const <String, int>{}
+              : modelIcinCekiBedenToplamlari(modelId);
           final mevcutCekiToplami = (modelId == null || modelId.isEmpty)
               ? 0
               : modelIcinMevcutCekiToplami(modelId);
@@ -797,9 +843,36 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
               ? (int.tryParse(koliAdetiController.text) ?? 1) * toplamAdet
               : toplamAdet;
           final toplamSonrasi = mevcutCekiToplami + planlananEklenecekAdet;
-          final limitAsildi = seciliModel != null &&
-              tamamlananLimit > 0 &&
-              toplamSonrasi > tamamlananLimit;
+          final planlananBedenAdetleri = <String, int>{};
+          if (isMixKoli) {
+            final koli = int.tryParse(koliAdetiController.text) ?? 1;
+            for (final entry in bedenAdetleri.entries) {
+              planlananBedenAdetleri[entry.key.toUpperCase()] =
+                  entry.value * koli;
+            }
+          } else if (seciliBedenKodu != null) {
+            planlananBedenAdetleri[seciliBedenKodu!.toUpperCase()] =
+                planlananEklenecekAdet;
+          }
+          final bedenUyariSatirlari = <String>[];
+          for (final entry in planlananBedenAdetleri.entries) {
+            final limit = tamamlananBedenLimitleri[entry.key] ?? 0;
+            final mevcut = mevcutCekiBedenToplamlari[entry.key] ?? 0;
+            final kalan = limit - mevcut;
+            if (limit > 0 && entry.value != kalan) {
+              bedenUyariSatirlari.add(
+                '${entry.key}: tamamlanan kalan $kalan, girilen ${entry.value}',
+              );
+            } else if (limit <= 0 && entry.value > 0) {
+              bedenUyariSatirlari.add(
+                '${entry.key}: tamamlanan ütü adedi bulunamadı, girilen ${entry.value}',
+              );
+            }
+          }
+          final limitAsildi = bedenUyariSatirlari.isNotEmpty ||
+              (seciliModel != null &&
+                  tamamlananLimit > 0 &&
+                  toplamSonrasi > tamamlananLimit);
           final kalanHak = (tamamlananLimit - mevcutCekiToplami);
 
           return AlertDialog(
@@ -1159,12 +1232,24 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                             if (limitAsildi) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Uyarı: Çeki toplamı tamamlanan adedi aşamaz.',
+                                bedenUyariSatirlari.isEmpty
+                                    ? 'Uyarı: Çeki toplamı tamamlanan adedi aşıyor.'
+                                    : 'Uyarı: Girilen beden adetleri tamamlanan ütü adediyle eşleşmiyor.',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.red[700],
                                 ),
                               ),
+                              if (bedenUyariSatirlari.isNotEmpty)
+                                ...bedenUyariSatirlari.map(
+                                  (satir) => Text(
+                                    satir,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red[700],
+                                    ),
+                                  ),
+                                ),
                             ],
                           ],
                         ),
@@ -1194,8 +1279,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                 onPressed: seciliModel == null ||
                         (isMixKoli && bedenAdetleri.isEmpty) ||
                         (!isMixKoli &&
-                            (toplamAdet == 0 || seciliBedenKodu == null)) ||
-                        limitAsildi
+                            (toplamAdet == 0 || seciliBedenKodu == null))
                     ? null
                     : () => Navigator.pop(context, true),
                 icon: const Icon(Icons.add),
@@ -1218,15 +1302,69 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
 
         final planlananEklenecekAdet = isMixKoli
             ? (int.tryParse(koliAdetiController.text) ?? 1) *
-                bedenAdetleri.values.fold(0, (a, b) => a + b)
+                bedenAdetleri.values.fold<int>(0, (a, b) => a + b)
             : (int.tryParse(koliAdetiController.text) ?? 1) *
                 (int.tryParse(adetPerKoliController.text) ?? 10);
 
-        if (tamamlananLimit > 0 &&
-            (mevcutCekiToplami + planlananEklenecekAdet) > tamamlananLimit) {
-          _hataGoster(
-              'Uyarı: Çeki toplamı tamamlanan adedi aşamaz. (Limit: $tamamlananLimit, Mevcut: $mevcutCekiToplami, Yeni: $planlananEklenecekAdet)');
-          return;
+        final tamamlananBedenLimitleri = modelIcinTamamlananBedenler(modelId);
+        final mevcutCekiBedenToplamlari = modelIcinCekiBedenToplamlari(modelId);
+        final planlananBedenAdetleri = <String, int>{};
+        if (isMixKoli) {
+          final koliSayisi = int.tryParse(koliAdetiController.text) ?? 1;
+          for (final entry in bedenAdetleri.entries) {
+            planlananBedenAdetleri[entry.key.toUpperCase()] =
+                entry.value * koliSayisi;
+          }
+        } else if (seciliBedenKodu != null) {
+          planlananBedenAdetleri[seciliBedenKodu!.toUpperCase()] =
+              planlananEklenecekAdet;
+        }
+
+        final uyariSatirlari = <String>[];
+        for (final entry in planlananBedenAdetleri.entries) {
+          final limit = tamamlananBedenLimitleri[entry.key] ?? 0;
+          final mevcut = mevcutCekiBedenToplamlari[entry.key] ?? 0;
+          final kalan = limit - mevcut;
+          if (limit <= 0 && entry.value > 0) {
+            uyariSatirlari.add(
+              '${entry.key}: tamamlanan ütü adedi bulunamadı, girilen ${entry.value}',
+            );
+          } else if (entry.value != kalan) {
+            uyariSatirlari.add(
+              '${entry.key}: tamamlanan kalan $kalan, girilen ${entry.value}',
+            );
+          }
+        }
+
+        if (uyariSatirlari.isNotEmpty ||
+            (tamamlananLimit > 0 &&
+                (mevcutCekiToplami + planlananEklenecekAdet) >
+                    tamamlananLimit)) {
+          final devam = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Çeki Adet Uyarısı'),
+              content: Text(
+                [
+                  if (uyariSatirlari.isNotEmpty) ...uyariSatirlari,
+                  if (uyariSatirlari.isEmpty)
+                    'Çeki toplamı tamamlanan adedi aşıyor. Limit: $tamamlananLimit, mevcut: $mevcutCekiToplami, yeni: $planlananEklenecekAdet',
+                  'İşleme devam etmek istiyor musunuz?',
+                ].join('\n'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Vazgeç'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Devam Et'),
+                ),
+              ],
+            ),
+          );
+          if (devam != true) return;
         }
 
         if (isMixKoli && bedenAdetleri.isNotEmpty) {

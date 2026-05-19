@@ -313,15 +313,135 @@ extension _AdminIslemlerExt on _ModelDetayState {
     }
   }
 
-  /// Aşama kodundan tablo adını döndür
-  /// Atanmış adet: Sadece dokuma (ilk aşama) atamalarının toplamı
-  /// Üretim dokumadan başladığı için üretime giren toplam adet = dokuma atamaları
-  int _getTotalAtananAdet() {
-    int toplam = 0;
-    for (var atama in dokumaAtamalari) {
-      toplam += (atama['adet'] ?? atama['talep_edilen_adet'] ?? 0) as int;
+  /// Model icin asama bazli en yuksek atama toplamını hesaplar.
+  String _normalizeAsamaKey(String asamaKey) =>
+      asamaKey == 'orgu' ? 'dokuma' : asamaKey;
+
+  int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  Map<String, int> _parseBedenMap(dynamic raw) {
+    if (raw == null) return {};
+    dynamic data = raw;
+    if (raw is String) {
+      if (raw.trim().isEmpty) return {};
+      try {
+        data = jsonDecode(raw);
+      } catch (_) {
+        return {};
+      }
     }
-    return toplam;
+
+    final result = <String, int>{};
+    if (data is Map) {
+      data.forEach((key, value) {
+        final beden = key.toString().trim();
+        final adet = _toInt(value);
+        if (beden.isNotEmpty && adet > 0) result[beden] = adet;
+      });
+      return result;
+    }
+
+    if (data is List) {
+      for (final item in data) {
+        if (item is! Map) continue;
+        final beden = (item['beden_kodu'] ??
+                item['beden'] ??
+                item['bedenKodu'] ??
+                item['size'])
+            ?.toString()
+            .trim();
+        final adet = _toInt(item['adet'] ??
+            item['siparis_adedi'] ??
+            item['kabul_edilen_adet'] ??
+            item['uretilen_adet'] ??
+            item['hedef_adet']);
+        if (beden != null && beden.isNotEmpty && adet > 0) {
+          result[beden] = (result[beden] ?? 0) + adet;
+        }
+      }
+    }
+    return result;
+  }
+
+  Map<String, int> _bedenDagiliminiToplamaUyarla(
+      Map<String, int> kaynak, int hedefToplam) {
+    if (kaynak.isEmpty || hedefToplam <= 0) return kaynak;
+    final mevcutToplam = kaynak.values.fold<int>(0, (sum, val) => sum + val);
+    if (mevcutToplam <= 0 || mevcutToplam == hedefToplam) return kaynak;
+
+    final entries = kaynak.entries.toList();
+    final scaled = <String, int>{};
+    var dagitilan = 0;
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      final adet = i == entries.length - 1
+          ? hedefToplam - dagitilan
+          : (entry.value * hedefToplam / mevcutToplam).round();
+      final guvenliAdet = adet.clamp(0, hedefToplam).toInt();
+      if (guvenliAdet > 0) scaled[entry.key] = guvenliAdet;
+      dagitilan += guvenliAdet;
+    }
+    return scaled;
+  }
+
+  Future<Map<String, int>> _bedenDagilimiForAtama(
+      String asamaKey, int adet) async {
+    final asama = _normalizeAsamaKey(asamaKey);
+    var bedenler = <String, int>{};
+
+    if (asama != 'dokuma') {
+      bedenler = await _bedenService.getOncekiAsamaGerceklesenAdetler(
+        widget.modelId,
+        asama,
+      );
+    }
+
+    if (bedenler.isEmpty) {
+      try {
+        final modelBedenleri =
+            await _bedenService.getModelBedenDagilimi(widget.modelId);
+        for (final beden in modelBedenleri) {
+          if (beden.siparisAdedi > 0) {
+            bedenler[beden.bedenKodu] = beden.siparisAdedi;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (bedenler.isEmpty) {
+      bedenler = _parseBedenMap(currentModelData?['bedenler']);
+    }
+
+    if (bedenler.isEmpty && adet > 0) {
+      bedenler = {'TOPLAM': adet};
+    }
+
+    return _bedenDagiliminiToplamaUyarla(bedenler, adet);
+  }
+
+  int _sumAtamaAdedi(List<dynamic> atamalar) {
+    return atamalar.fold<int>(
+      0,
+      (sum, atama) => sum + _toInt(atama['adet'] ?? atama['talep_edilen_adet']),
+    );
+  }
+
+  int _getTotalAtananAdet() {
+    final toplamlar = [
+      _sumAtamaAdedi(dokumaAtamalari),
+      _sumAtamaAdedi(konfeksiyonAtamalari),
+      _sumAtamaAdedi(nakisAtamalari),
+      _sumAtamaAdedi(yikamaAtamalari),
+      _sumAtamaAdedi(ilikDugmeAtamalari),
+      _sumAtamaAdedi(utuAtamalari),
+      _sumAtamaAdedi(kaliteKontrolAtamalari),
+      _sumAtamaAdedi(paketlemeAtamalari),
+    ];
+    return toplamlar.fold<int>(0, (max, val) => val > max ? val : max);
   }
 
   /// Tamamlanan adet: Ütü (son aşama) tamamlanan adetlerin toplamı
@@ -770,11 +890,13 @@ extension _AdminIslemlerExt on _ModelDetayState {
       }
 
       final String tableName = utils.getTableNameForStage(asamaKey);
+      final bedenDetaylari = await _bedenDagilimiForAtama(asamaKey, adet);
 
       // Mevcut atama kontrolü - aynı model için herhangi bir atama var mı?
       final mevcutAtama = await supabase
           .from(tableName)
-          .select('id, durum, tedarikci_id, tamamlanan_adet, talep_edilen_adet')
+          .select(
+              'id, durum, tedarikci_id, tamamlanan_adet, talep_edilen_adet, beden_detaylari')
           .eq('model_id', widget.modelId)
           .maybeSingle();
 
@@ -878,10 +1000,20 @@ extension _AdminIslemlerExt on _ModelDetayState {
           if (isTamamlandi) {
             updateData['adet'] = yeniToplam;
             updateData['talep_edilen_adet'] = yeniToplam;
+            final yeniBedenler = _parseBedenMap(mevcutAtama['beden_detaylari']);
+            bedenDetaylari.forEach((beden, bedenAdet) {
+              yeniBedenler[beden] = (yeniBedenler[beden] ?? 0) + bedenAdet;
+            });
+            if (yeniBedenler.isNotEmpty) {
+              updateData['beden_detaylari'] = yeniBedenler;
+            }
             // tamamlanan_adet değişmez - kaldığı yerden devam eder
           } else {
             updateData['adet'] = adet;
             updateData['talep_edilen_adet'] = adet;
+            if (bedenDetaylari.isNotEmpty) {
+              updateData['beden_detaylari'] = bedenDetaylari;
+            }
           }
 
           // Tedarikci bilgisi varsa ekle (try-catch ile güvenli)
@@ -938,6 +1070,7 @@ extension _AdminIslemlerExt on _ModelDetayState {
         'durum': 'atandi',
         'created_at': DateTime.now().toIso8601String(),
         'firma_id': TenantManager.instance.requireFirmaId,
+        if (bedenDetaylari.isNotEmpty) 'beden_detaylari': bedenDetaylari,
       };
 
       // UUID formatı kontrolü - test kullanıcıları için geçersiz UUID'ler var
@@ -992,13 +1125,20 @@ extension _AdminIslemlerExt on _ModelDetayState {
       // Tedarikçi kabul ederse 'onaylandi' olsun, sonra üretime başlasın
       final yeniDurum = kullaniciRolu == 'admin' ? 'uretimde' : 'onaylandi';
 
-      await supabase.from(tableName).update({
-        'durum': yeniDurum,
-        'onay_tarihi': DateTime.now().toIso8601String(),
-        'uretim_baslangic_tarihi':
-            yeniDurum == 'uretimde' ? DateTime.now().toIso8601String() : null,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', atamaId);
+      final now = DateTime.now().toIso8601String();
+      await _workflowTransitionService.applyTransition(
+        tableName: tableName,
+        recordId: atamaId,
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: atama['durum']?.toString(),
+        toStatus: yeniDurum,
+        extraFields: {
+          'onay_tarihi': now,
+          if (yeniDurum == 'uretimde') 'uretim_baslangic_tarihi': now,
+          'updated_at': now,
+        },
+        idempotencyKey: '$tableName:$atamaId:$yeniDurum:${atama['updated_at']}',
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1017,7 +1157,142 @@ extension _AdminIslemlerExt on _ModelDetayState {
     }
   }
 
-  void _showTamamlamaDialog(Map<String, dynamic> atama, String asamaKey) {
+  Future<void> _showTamamlamaDialog(
+      Map<String, dynamic> atama, String asamaKey) async {
+    final talepEdilenAdet = _toInt(atama['adet'] ?? atama['talep_edilen_adet']);
+    final mevcutTamamlanan = _toInt(atama['tamamlanan_adet']);
+    final kalanAdet =
+        (talepEdilenAdet - mevcutTamamlanan).clamp(0, 999999999).toInt();
+    var hedefBedenler = _parseBedenMap(atama['beden_detaylari']);
+    if (hedefBedenler.isEmpty) {
+      hedefBedenler = await _bedenDagilimiForAtama(asamaKey, kalanAdet);
+    }
+
+    final tamamlananControllers = <String, TextEditingController>{
+      for (final beden in hedefBedenler.keys) beden: TextEditingController(),
+    };
+    final fireControllers = <String, TextEditingController>{
+      for (final beden in hedefBedenler.keys) beden: TextEditingController(),
+    };
+
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${utils.getAsamaDisplayName(asamaKey)} - Beden Tamamlama'),
+        content: SizedBox(
+          width: MediaQuery.of(context).size.width > 640
+              ? 560
+              : MediaQuery.of(context).size.width * 0.92,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Talep Edilen: $talepEdilenAdet'),
+                Text('Mevcut Tamamlanan: $mevcutTamamlanan'),
+                Text('Kalan: $kalanAdet'),
+                const SizedBox(height: 16),
+                ...hedefBedenler.entries.map((entry) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final dar = constraints.maxWidth < 420;
+                        final baslik = Text(
+                          '${entry.key}\nHedef: ${entry.value}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        );
+                        final uretilen = TextFormField(
+                          controller: tamamlananControllers[entry.key],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Uretilen',
+                            border: OutlineInputBorder(),
+                          ),
+                        );
+                        final fire = TextFormField(
+                          controller: fireControllers[entry.key],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Fire',
+                            border: OutlineInputBorder(),
+                          ),
+                        );
+
+                        if (dar) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              baslik,
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(child: uretilen),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: fire),
+                                ],
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(child: baslik),
+                            const SizedBox(width: 8),
+                            Expanded(flex: 2, child: uretilen),
+                            const SizedBox(width: 8),
+                            Expanded(flex: 2, child: fire),
+                          ],
+                        );
+                      },
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Ä°ptal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final tamamlananBeden = <String, int>{};
+              final fireBeden = <String, int>{};
+              for (final beden in hedefBedenler.keys) {
+                final tamamlanan =
+                    _toInt(tamamlananControllers[beden]?.text.trim());
+                final fire = _toInt(fireControllers[beden]?.text.trim());
+                if (tamamlanan > 0) tamamlananBeden[beden] = tamamlanan;
+                if (fire > 0) fireBeden[beden] = fire;
+              }
+              _bedenliTamamlamayiKaydet(
+                atama,
+                asamaKey,
+                tamamlananBeden,
+                fireBeden,
+                hedefBedenler,
+              );
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+
+    for (final controller in tamamlananControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in fireControllers.values) {
+      controller.dispose();
+    }
+  }
+
+  void _showToplamTamamlamaDialog(Map<String, dynamic> atama, String asamaKey) {
     final tamamlananController = TextEditingController();
     final talepEdilenAdet = atama['adet'] ?? atama['talep_edilen_adet'] ?? 0;
     final mevcutTamamlanan = atama['tamamlanan_adet'] ?? 0;
@@ -1064,6 +1339,146 @@ extension _AdminIslemlerExt on _ModelDetayState {
     );
   }
 
+  Future<void> _bedenliTamamlamayiKaydet(
+    Map<String, dynamic> atama,
+    String asamaKey,
+    Map<String, int> tamamlananBeden,
+    Map<String, int> fireBeden,
+    Map<String, int> hedefBeden,
+  ) async {
+    final yeniTamamlananAdet =
+        tamamlananBeden.values.fold<int>(0, (sum, val) => sum + val);
+    if (yeniTamamlananAdet <= 0) {
+      Navigator.pop(context);
+      context.showErrorSnackBar('GeÃ§erli bir adet giriniz');
+      return;
+    }
+
+    for (final entry in tamamlananBeden.entries) {
+      final hedef = hedefBeden[entry.key] ?? 0;
+      if (hedef > 0 && entry.value > hedef) {
+        context.showErrorSnackBar(
+            '${entry.key} bedeni icin tamamlanan adet hedefi asamaz');
+        return;
+      }
+      final fire = fireBeden[entry.key] ?? 0;
+      if (fire > entry.value) {
+        context
+            .showErrorSnackBar('${entry.key} bedeni icin fire uretimi asamaz');
+        return;
+      }
+    }
+
+    try {
+      final atamaId = atama['id'];
+      final String tableName = utils.getTableNameForStage(asamaKey);
+      final mevcutTamamlanan = _toInt(atama['tamamlanan_adet']);
+      final yeniToplamTamamlanan = mevcutTamamlanan + yeniTamamlananAdet;
+      final talepEdilenAdet =
+          _toInt(atama['adet'] ?? atama['talep_edilen_adet']);
+
+      if (yeniToplamTamamlanan > talepEdilenAdet) {
+        Navigator.pop(context);
+        context
+            .showErrorSnackBar('Tamamlanan adet talep edilenden fazla olamaz');
+        return;
+      }
+
+      final kalanBeden = <String, int>{};
+      hedefBeden.forEach((beden, hedef) {
+        final kalan =
+            (hedef - (tamamlananBeden[beden] ?? 0)).clamp(0, 999999999).toInt();
+        if (kalan > 0) kalanBeden[beden] = kalan;
+      });
+
+      final bool modelTamamlandi =
+          yeniToplamTamamlanan >= talepEdilenAdet || kalanBeden.isEmpty;
+      final yeniDurum = modelTamamlandi ? 'tamamlandi' : 'kismi_tamamlandi';
+      final now = DateTime.now().toIso8601String();
+      final toplamFire = fireBeden.values.fold<int>(0, (sum, val) => sum + val);
+      final yeniFireToplam = _toInt(atama['fire_adet']) + toplamFire;
+      final normalizedAsama = _normalizeAsamaKey(asamaKey);
+      final int? intAtamaId =
+          atamaId is int ? atamaId : int.tryParse(atamaId.toString());
+
+      if (intAtamaId != null) {
+        final bedenVerileri = <String, Map<String, int>>{};
+        final mevcutTakipler =
+            await _bedenService.getAsamaBedenTakip(normalizedAsama, intAtamaId);
+        final mevcutTakipByBeden = {
+          for (final takip in mevcutTakipler)
+            takip.bedenKodu.toUpperCase(): takip,
+        };
+        hedefBeden.forEach((beden, hedef) {
+          final uretilen = tamamlananBeden[beden] ?? 0;
+          final fire = fireBeden[beden] ?? 0;
+          final oncekiKabul =
+              mevcutTakipByBeden[beden.toUpperCase()]?.kabulEdilenAdet ?? 0;
+          if (hedef > 0 || uretilen > 0 || fire > 0) {
+            bedenVerileri[beden] = {
+              'hedef_adet': modelTamamlandi ? hedef : (kalanBeden[beden] ?? 0),
+              'uretilen_adet': modelTamamlandi ? uretilen : 0,
+              'fire_adet': modelTamamlandi ? fire : 0,
+              'kabul_edilen_adet': oncekiKabul + uretilen,
+            };
+          }
+        });
+
+        try {
+          await _bedenService.updateUretimBedenlerToplu(
+            asama: normalizedAsama,
+            atamaId: intAtamaId,
+            modelId: widget.modelId,
+            bedenVerileri: bedenVerileri,
+          );
+        } catch (e) {
+          debugPrint('Model detay beden takip kaydedilemedi: $e');
+        }
+      }
+
+      await _workflowTransitionService.applyTransition(
+        tableName: tableName,
+        recordId: atamaId,
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: atama['durum']?.toString(),
+        toStatus: yeniDurum,
+        extraFields: {
+          'tamamlanan_adet': yeniToplamTamamlanan,
+          'fire_adet': yeniFireToplam,
+          if (modelTamamlandi) 'tamamlama_tarihi': now,
+          'beden_detaylari': modelTamamlandi ? tamamlananBeden : kalanBeden,
+          'updated_at': now,
+        },
+        idempotencyKey: '$tableName:$atamaId:$yeniDurum:${atama['updated_at']}',
+      );
+
+      if (modelTamamlandi) {
+        final maliyetServisi = ModelMaliyetHesaplamaServisi();
+        await maliyetServisi.modelTamamlandiMaliyetiHesapla(
+          modelId: widget.modelId,
+          tamamlananAdet: yeniToplamTamamlanan,
+        );
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'âœ… +$yeniTamamlananAdet adet tamamlandÄ± (Toplam: $yeniToplamTamamlanan)'),
+          backgroundColor: modelTamamlandi ? Colors.green : Colors.blue,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      await _atamaKayitlariniGetir();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      context.showErrorSnackBar('Hata: $e');
+    }
+  }
+
   Future<void> _tamamlamayiKaydet(Map<String, dynamic> atama, String asamaKey,
       int yeniTamamlananAdet) async {
     if (yeniTamamlananAdet <= 0) {
@@ -1095,11 +1510,20 @@ extension _AdminIslemlerExt on _ModelDetayState {
         modelTamamlandi = true;
       }
 
-      await supabase.from(tableName).update({
-        'tamamlanan_adet': yeniToplamTamamlanan,
-        'durum': yeniDurum,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', atamaId);
+      final now = DateTime.now().toIso8601String();
+      await _workflowTransitionService.applyTransition(
+        tableName: tableName,
+        recordId: atamaId,
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: atama['durum']?.toString(),
+        toStatus: yeniDurum,
+        extraFields: {
+          'tamamlanan_adet': yeniToplamTamamlanan,
+          if (modelTamamlandi) 'tamamlama_tarihi': now,
+          'updated_at': now,
+        },
+        idempotencyKey: '$tableName:$atamaId:$yeniDurum:${atama['updated_at']}',
+      );
 
       // ✅ MODEL TAMAMLANDIĞINDA MALİYET HESAPLA VE RAPORLA ENTEGRE ET
       if (modelTamamlandi) {

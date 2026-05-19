@@ -93,21 +93,24 @@ class WorkflowStateMachine {
       return _inProgress.contains(to) ||
           _partial.contains(to) ||
           _completed.contains(to) ||
-          _rejected.contains(to);
+          _rejected.contains(to) ||
+          _cancelled.contains(to);
     }
 
     if (_inProgress.contains(from)) {
       return _partial.contains(to) ||
           _completed.contains(to) ||
           _rejected.contains(to) ||
-          _inProgress.contains(to);
+          _inProgress.contains(to) ||
+          _cancelled.contains(to);
     }
 
     if (_partial.contains(from)) {
       return _inProgress.contains(to) ||
           _partial.contains(to) ||
           _completed.contains(to) ||
-          _rejected.contains(to);
+          _rejected.contains(to) ||
+          _cancelled.contains(to);
     }
 
     if (_rejected.contains(from)) {
@@ -138,9 +141,8 @@ class WorkflowStateMachine {
       return;
     }
 
-    final source = fromStatus == null || fromStatus.trim().isEmpty
-        ? 'bos'
-        : fromStatus;
+    final source =
+        fromStatus == null || fromStatus.trim().isEmpty ? 'bos' : fromStatus;
     final where = context == null ? '' : ' ($context)';
     throw Exception('Gecersiz durum gecisi$where: $source -> $toStatus');
   }

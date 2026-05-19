@@ -247,17 +247,13 @@ class _BedenUretimTamamlaDialogGenericState
       kalanlar.add({'beden': h.bedenKodu, 'kalan': oransal - base});
     }
 
-    var dagit = hedefToplam - taban.values.fold<int>(0, (s, v) => s + v);
+    final dagit = hedefToplam - taban.values.fold<int>(0, (s, v) => s + v);
     kalanlar
         .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
     for (var i = 0; i < dagit; i++) {
       final beden = kalanlar[i % kalanlar.length]['beden'] as String;
       taban[beden] = (taban[beden] ?? 0) + 1;
     }
-
-    final byBeden = {
-      for (final h in kaynak) h.bedenKodu: h,
-    };
 
     final duzeltilmis = <ModelBedenDagilimi>[];
     for (final h in kaynak) {
@@ -303,11 +299,44 @@ class _BedenUretimTamamlaDialogGenericState
             0,
       );
       var hedeflerBedenTakipten = false;
+      var hedeflerAtamaBedeninden = false;
       final sevkiyatKaynakliAtama = _sevkiyatKaynakliAtamaMi();
+      final kayitliAtamaBedenleri = _parseBedenDetayi(
+        widget.atama['beden_detaylari'] ?? widget.atama['beden_dagilimi'],
+      );
+      final notlardanAtamaBedenleri = _notlardanBedenDetayi(
+        '${widget.atama['notlar'] ?? ''}\n${widget.atama['aciklama'] ?? ''}',
+      );
+      final kismiKalanBedenleriKullan =
+          widget.atama['durum'] == 'kismi_tamamlandi' &&
+              kayitliAtamaBedenleri.isNotEmpty;
+      final atamaBedenleri = kismiKalanBedenleriKullan
+          ? kayitliAtamaBedenleri
+          : {
+              ...notlardanAtamaBedenleri,
+              ...kayitliAtamaBedenleri,
+            };
+
+      // Sevkiyattan gelen konfeksiyon işlerinde kısmi kayıt sonrası kalan hedef
+      // atama üzerinde tutulur. Bu yüzden eski takip satırları yerine önce
+      // atamanın güncel beden hedefi okunur.
+      if (widget.asamaAdi == 'konfeksiyon' &&
+          sevkiyatKaynakliAtama &&
+          atamaBedenleri.isNotEmpty) {
+        hedefler = atamaBedenleri.entries
+            .map((e) => ModelBedenDagilimi(
+                  id: 0,
+                  modelId: widget.modelId,
+                  bedenKodu: e.key,
+                  siparisAdedi: e.value,
+                ))
+            .toList();
+        hedeflerAtamaBedeninden = true;
+      }
 
       // Mevcut beden takip kayıtlarını öncelikli olarak kullan.
       List<BedenUretimTakip> mevcutUretim = [];
-      if (widget.atamaId is int) {
+      if (hedefler.isEmpty && widget.atamaId is int) {
         try {
           mevcutUretim = await _bedenService.getAsamaBedenTakip(
             widget.asamaAdi,
@@ -353,14 +382,6 @@ class _BedenUretimTamamlaDialogGenericState
 
       // Öncelik: atamaya kaydedilmiş beden detayları
       if (hedefler.isEmpty) {
-        final atamaBedenleri = {
-          ..._parseBedenDetayi(
-            widget.atama['beden_detaylari'] ?? widget.atama['beden_dagilimi'],
-          ),
-          ..._notlardanBedenDetayi(
-            '${widget.atama['notlar'] ?? ''}\n${widget.atama['aciklama'] ?? ''}',
-          ),
-        };
         if (atamaBedenleri.isNotEmpty) {
           hedefler = atamaBedenleri.entries
               .map((e) => ModelBedenDagilimi(
@@ -370,12 +391,15 @@ class _BedenUretimTamamlaDialogGenericState
                     siparisAdedi: e.value,
                   ))
               .toList();
+          hedeflerAtamaBedeninden = true;
         }
       }
 
-      // ⭐ ÖNEMLİ: Dokuma hariç tüm aşamalar için önceki aşamadan fire düşülmüş adetleri al
+      // Dokuma ve konfeksiyon üretim girişi model/atama beden hedefiyle çalışır.
+      // Sonraki operasyonlarda hedef, önceki aşamada gerçekten geçen net adet olur.
       if (hedefler.isEmpty &&
           widget.asamaAdi != 'dokuma' &&
+          widget.asamaAdi != 'konfeksiyon' &&
           !sevkiyatKaynakliAtama) {
         debugPrint(
             '🔄 ${widget.asamaAdi} için önceki aşamadan adetler alınıyor...');
@@ -476,7 +500,10 @@ class _BedenUretimTamamlaDialogGenericState
       }
 
       // Hedef toplam (kabul edilen adet) ile beden dağılımını hizala.
-      if (!hedeflerBedenTakipten && hedefler.isNotEmpty && hedefToplam > 0) {
+      if (!hedeflerBedenTakipten &&
+          !hedeflerAtamaBedeninden &&
+          hedefler.isNotEmpty &&
+          hedefToplam > 0) {
         hedefler = _hedefleriToplamaUyarla(hedefler, hedefToplam);
       }
 
@@ -625,12 +652,20 @@ class _BedenUretimTamamlaDialogGenericState
       final Map<String, int> sonrakiAsamaBedenDetayi = {};
       final Map<String, int> buKayitBedenDetayi =
           {}; // sadece bu kaydın fark adedi
+      final Map<String, int> kalanBedenHedefleri = {};
       int kalanToplam = 0;
       var kalanToplamHesaplandi = false;
 
       // Beden bazlı verileri kaydet (eğer gerçek beden tablosu varsa)
       if (bedenTablosuVar && widget.atamaId is int) {
         final Map<String, Map<String, int>> bedenVerileri = {};
+        final takipKabulToplam = _mevcutTakipByBeden.values.fold<int>(
+          0,
+          (sum, takip) => sum + takip.kabulEdilenAdet,
+        );
+        final takipKabulGuvenilir =
+            takipKabulToplam > 0 || oncekiTamamlananToplam == 0;
+
         for (final hedef in hedefler) {
           final bedenKodu = hedef.bedenKodu;
           final uretilen =
@@ -661,11 +696,14 @@ class _BedenUretimTamamlaDialogGenericState
           if (net > 0) {
             buKayitBedenDetayi[bedenKodu] = net;
           }
+          if (yeniHedef > 0) {
+            kalanBedenHedefleri[bedenKodu] = yeniHedef;
+          }
           kalanToplam += yeniHedef;
         }
         kalanToplamHesaplandi = true;
 
-        if (sonrakiAsamaBedenDetayi.isNotEmpty) {
+        if (sonrakiAsamaBedenDetayi.isNotEmpty && takipKabulGuvenilir) {
           yeniTamamlananToplam = sonrakiAsamaBedenDetayi.values
               .fold<int>(0, (sum, val) => sum + val);
           buKayitNetToplam = (yeniTamamlananToplam - oncekiTamamlananToplam)
@@ -694,9 +732,12 @@ class _BedenUretimTamamlaDialogGenericState
             0,
       );
       final int netAdet = yeniTamamlananToplam;
+      final int kalanHedefToplam = kalanToplamHesaplandi
+          ? kalanToplam
+          : (kabulToplam - buKayitNetToplam).clamp(0, 999999999).toInt();
       final bool tumuTamamlandi =
           (kabulToplam > 0 && yeniTamamlananToplam >= kabulToplam) ||
-              (kalanToplamHesaplandi && kalanToplam <= 0);
+              (kalanToplamHesaplandi && kalanHedefToplam <= 0);
 
       final String yeniDurum =
           (!kismiKayit || tumuTamamlandi) ? 'tamamlandi' : 'kismi_tamamlandi';
@@ -719,6 +760,8 @@ class _BedenUretimTamamlaDialogGenericState
       final firmaId = TenantManager.instance.requireFirmaId;
       final transitionKey =
           '${widget.atamaTablosu}:${widget.atamaId}:$yeniDurum:beden_takip:$yeniTamamlananToplam';
+      final konfeksiyonSevkiyatAkisi =
+          widget.asamaAdi == 'konfeksiyon' && _sevkiyatKaynakliAtamaMi();
 
       // Atama tablosunu güncelle
       final Map<String, dynamic> updateData = _eskiAtamaSemasi
@@ -734,6 +777,13 @@ class _BedenUretimTamamlaDialogGenericState
               'tamamlanan_adet': yeniTamamlananToplam,
               'tamamlama_tarihi': yeniDurum == 'tamamlandi' ? now : null,
               'updated_at': now,
+              if (konfeksiyonSevkiyatAkisi && yeniDurum == 'tamamlandi') ...{
+                'adet': netAdet,
+                'talep_edilen_adet': netAdet,
+                'kabul_edilen_adet': netAdet,
+              },
+              if (kismiKayit && kalanBedenHedefleri.isNotEmpty)
+                'beden_detaylari': kalanBedenHedefleri,
               if (yeniNot != null) 'notlar': yeniNot,
             };
 
@@ -764,7 +814,11 @@ class _BedenUretimTamamlaDialogGenericState
         }
       }
 
-      // Sonraki aşamaya sadece bu kaydın net adedini gönder.
+      // Kismi kayit mevcut is emrinin kalan hedefini dusurur ve girilen net
+      // adet kadar sonraki asamada is olusturur.
+      final downstreamBedenDetayi = buKayitBedenDetayi.isNotEmpty
+          ? buKayitBedenDetayi
+          : sonrakiAsamaBedenDetayi;
       final int downstreamAdet = buKayitNetToplam;
       if (downstreamAdet > 0) {
         final downstreamKey =
@@ -776,8 +830,8 @@ class _BedenUretimTamamlaDialogGenericState
           'tamamlanan_adet': downstreamAdet,
           'fire_adet': yeniFireToplam,
           'kismi': kismiKayit,
-          if (buKayitBedenDetayi.isNotEmpty)
-            'beden_detaylari': buKayitBedenDetayi,
+          if (downstreamBedenDetayi.isNotEmpty)
+            'beden_detaylari': downstreamBedenDetayi,
           'idempotency_key': downstreamKey,
           'kaynak_atama_id': widget.atamaId,
           'kaynak_atama_tablosu': widget.atamaTablosu,

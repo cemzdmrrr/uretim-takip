@@ -1918,12 +1918,20 @@ extension _UretimExt on _ModelDetayState {
     try {
       final atamaId = atama['id'];
       final String tableName = utils.getTableNameForStage(asamaKey);
+      final now = DateTime.now().toIso8601String();
 
-      await supabase.from(tableName).update({
-        'durum': 'uretimde',
-        'uretim_baslangic_tarihi': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', atamaId);
+      await _workflowTransitionService.applyTransition(
+        tableName: tableName,
+        recordId: atamaId,
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: atama['durum']?.toString(),
+        toStatus: 'uretimde',
+        extraFields: {
+          'uretim_baslangic_tarihi': now,
+          'updated_at': now,
+        },
+        idempotencyKey: '$tableName:$atamaId:uretimde:${atama['updated_at']}',
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1968,11 +1976,17 @@ extension _UretimExt on _ModelDetayState {
     try {
       final atamaId = atama['id'];
       final String tableName = utils.getTableNameForStage(asamaKey);
+      final now = DateTime.now().toIso8601String();
 
-      await supabase.from(tableName).update({
-        'durum': 'iptal',
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', atamaId);
+      await _workflowTransitionService.applyTransition(
+        tableName: tableName,
+        recordId: atamaId,
+        firmaId: TenantManager.instance.requireFirmaId,
+        fromStatus: atama['durum']?.toString(),
+        toStatus: 'iptal',
+        extraFields: {'updated_at': now},
+        idempotencyKey: '$tableName:$atamaId:iptal:${atama['updated_at']}',
+      );
 
       if (!mounted) return;
       context.showErrorSnackBar('⛔ Atama iptal edildi');
