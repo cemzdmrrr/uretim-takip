@@ -364,6 +364,7 @@ class _PersonelDetayPageState extends State<PersonelDetayPage> {
       body: Stack(
         children: [
           SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.only(bottom: 24),
             child: Column(
               children: [

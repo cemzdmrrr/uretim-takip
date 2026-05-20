@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -76,7 +76,7 @@ class BordroOzet {
   final String aciklama;
   final bool onaylandi;
   final String createdAt;
-  
+
   // Additional fields for detailed payroll
   final double kazancToplam;
   final double yasalKesinti;
@@ -150,6 +150,8 @@ class _BordroPageState extends State<BordroPage> {
   late pw.Font customFont;
   late pw.Font customBoldFont;
   String? seciliDonem;
+  String _aramaMetni = '';
+  String _durumFiltresi = 'tumu';
 
   @override
   void initState() {
@@ -168,11 +170,13 @@ class _BordroPageState extends State<BordroPage> {
   Future<void> _loadFont() async {
     try {
       // Regular font
-      final regularFontData = await rootBundle.load('assets/fonts/OpenSans-Regular.ttf');
+      final regularFontData =
+          await rootBundle.load('assets/fonts/OpenSans-Regular.ttf');
       customFont = pw.Font.ttf(regularFontData);
-      
+
       // Bold font
-      final boldFontData = await rootBundle.load('assets/fonts/OpenSans-Bold.ttf');
+      final boldFontData =
+          await rootBundle.load('assets/fonts/OpenSans-Bold.ttf');
       customBoldFont = pw.Font.ttf(boldFontData);
     } catch (e) {
       customFont = pw.Font.helvetica();
@@ -183,69 +187,119 @@ class _BordroPageState extends State<BordroPage> {
   Future<void> _loadData() async {
     try {
       final client = Supabase.instance.client;
-      
+
       // Şirket bilgilerini ve sistem ayarlarını yükle
       sirketBilgileri = await SupabaseService.getCompanySettings();
       sistemAyarlari = await SupabaseService.getSystemSettings();
-      
+
       // Fetch personnel records
-      final List<dynamic> personRows = await client.from(DbTables.personel).select().eq('firma_id', TenantManager.instance.requireFirmaId);
-      
-      personeller = personRows.map((row) => Personel(
-        id: row['user_id'].toString(),
-        adSoyad: '${row['ad'] ?? ''} ${row['soyad'] ?? ''}'.trim(),
-        tckn: row['tckn']?.toString() ?? '',
-        pozisyon: row['pozisyon']?.toString() ?? '',
-        iseGirisTarihi: row['ise_giris_tarihi']?.toString() ?? '',
-        brutMaas: (row['brut_maas'] as num? ?? 0).toDouble(),
-        sgkSicilNo: row['sgk_sicil_no']?.toString() ?? '',
-        departman: row['departman']?.toString() ?? '',
-        email: row['email']?.toString() ?? '',
-        telefon: row['telefon']?.toString() ?? '',
-        durum: row['durum']?.toString() ?? '',
-        createdAt: row['created_at']?.toString() ?? '',
-        adres: row['adres']?.toString() ?? '',
-        netMaas: (row['net_maas'] as num? ?? 0).toDouble(),
-        ekstraPrim: (row['ekstra_prim'] as num? ?? 0).toDouble(),
-        yolUcreti: (row['yol_ucreti'] as num? ?? 0).toDouble(),
-        yemekUcreti: (row['yemek_ucreti'] as num? ?? 0).toDouble(),
-        eldenMaas: (row['elden_maas'] as num? ?? 0).toDouble(),
-        gunlukCalismaSaati: (row['gunluk_calisma_saati'] as num? ?? 8).toDouble(),
-        haftalikCalismaGunu: row['haftalik_calisma_gunu'] as int? ?? 5,
-        iseBaslangic: (row['ise_baslangic'] ?? '').toString(),
-        yillikIzinHakki: (row['yillik_izin_hakki'] ?? 14) as int,
-        bankaMaas: (row['banka_maas'] as num? ?? 0).toDouble(),
-      )).toList();
-      
+      final List<dynamic> personRows = await client
+          .from(DbTables.personel)
+          .select()
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
+
+      personeller = personRows
+          .map((row) => Personel(
+                id: row['user_id'].toString(),
+                adSoyad: '${row['ad'] ?? ''} ${row['soyad'] ?? ''}'.trim(),
+                tckn: row['tckn']?.toString() ?? '',
+                pozisyon: row['pozisyon']?.toString() ?? '',
+                iseGirisTarihi: row['ise_giris_tarihi']?.toString() ?? '',
+                brutMaas: (row['brut_maas'] as num? ?? 0).toDouble(),
+                sgkSicilNo: row['sgk_sicil_no']?.toString() ?? '',
+                departman: row['departman']?.toString() ?? '',
+                email: row['email']?.toString() ?? '',
+                telefon: row['telefon']?.toString() ?? '',
+                durum: row['durum']?.toString() ?? '',
+                createdAt: row['created_at']?.toString() ?? '',
+                adres: row['adres']?.toString() ?? '',
+                netMaas: (row['net_maas'] as num? ?? 0).toDouble(),
+                ekstraPrim: (row['ekstra_prim'] as num? ?? 0).toDouble(),
+                yolUcreti: (row['yol_ucreti'] as num? ?? 0).toDouble(),
+                yemekUcreti: (row['yemek_ucreti'] as num? ?? 0).toDouble(),
+                eldenMaas: (row['elden_maas'] as num? ?? 0).toDouble(),
+                gunlukCalismaSaati:
+                    (row['gunluk_calisma_saati'] as num? ?? 8).toDouble(),
+                haftalikCalismaGunu: row['haftalik_calisma_gunu'] as int? ?? 5,
+                iseBaslangic: (row['ise_baslangic'] ?? '').toString(),
+                yillikIzinHakki: (row['yillik_izin_hakki'] ?? 14) as int,
+                bankaMaas: (row['banka_maas'] as num? ?? 0).toDouble(),
+              ))
+          .toList();
+
       // Fallback stub if no data
       if (personeller.isEmpty) {
         personeller = [
           Personel(
-            id: '1', adSoyad: 'Ali Veli', tckn: '12345678901', pozisyon: 'Çalışan', iseGirisTarihi: '2024-01-01', brutMaas: 15000,
-            sgkSicilNo: '123456', departman: 'Üretim', email: 'ali@example.com', telefon: '5551234567', durum: 'Aktif', createdAt: '2024-01-01', adres: 'İstanbul',
-            netMaas: 12000, ekstraPrim: 500, yolUcreti: 300, yemekUcreti: 400, eldenMaas: 1000, gunlukCalismaSaati: 8,
-            haftalikCalismaGunu: 5, iseBaslangic: '2024-01-01', yillikIzinHakki: 15, bankaMaas: 11000,
+            id: '1',
+            adSoyad: 'Ali Veli',
+            tckn: '12345678901',
+            pozisyon: 'Çalışan',
+            iseGirisTarihi: '2024-01-01',
+            brutMaas: 15000,
+            sgkSicilNo: '123456',
+            departman: 'Üretim',
+            email: 'ali@example.com',
+            telefon: '5551234567',
+            durum: 'Aktif',
+            createdAt: '2024-01-01',
+            adres: 'İstanbul',
+            netMaas: 12000,
+            ekstraPrim: 500,
+            yolUcreti: 300,
+            yemekUcreti: 400,
+            eldenMaas: 1000,
+            gunlukCalismaSaati: 8,
+            haftalikCalismaGunu: 5,
+            iseBaslangic: '2024-01-01',
+            yillikIzinHakki: 15,
+            bankaMaas: 11000,
           ),
           Personel(
-            id: '2', adSoyad: 'Ayşe Kaya', tckn: '98765432109', pozisyon: 'Süpervizör', iseGirisTarihi: '2023-06-15', brutMaas: 18000,
-            sgkSicilNo: '654321', departman: 'Kalite', email: 'ayse@example.com', telefon: '5559876543', durum: 'Aktif', createdAt: '2023-06-15', adres: 'Ankara',
-            netMaas: 14400, ekstraPrim: 800, yolUcreti: 350, yemekUcreti: 400, eldenMaas: 1500, gunlukCalismaSaati: 8,
-            haftalikCalismaGunu: 5, iseBaslangic: '2023-06-15', yillikIzinHakki: 20, bankaMaas: 12900,
+            id: '2',
+            adSoyad: 'Ayşe Kaya',
+            tckn: '98765432109',
+            pozisyon: 'Süpervizör',
+            iseGirisTarihi: '2023-06-15',
+            brutMaas: 18000,
+            sgkSicilNo: '654321',
+            departman: 'Kalite',
+            email: 'ayse@example.com',
+            telefon: '5559876543',
+            durum: 'Aktif',
+            createdAt: '2023-06-15',
+            adres: 'Ankara',
+            netMaas: 14400,
+            ekstraPrim: 800,
+            yolUcreti: 350,
+            yemekUcreti: 400,
+            eldenMaas: 1500,
+            gunlukCalismaSaati: 8,
+            haftalikCalismaGunu: 5,
+            iseBaslangic: '2023-06-15',
+            yillikIzinHakki: 20,
+            bankaMaas: 12900,
           ),
         ];
       }
-      
+
       // Fetch payroll summaries
-      var bordroQuery = client.from(DbTables.bordro).select().eq('firma_id', TenantManager.instance.requireFirmaId);
+      var bordroQuery = client
+          .from(DbTables.bordro)
+          .select()
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
       if (seciliDonem != null) {
         bordroQuery = bordroQuery.eq('donem', seciliDonem!);
       }
       final List<dynamic> bordroRows = await bordroQuery;
-      
+
       bordrolar = {};
-      for (var row in bordroRows) {        final summary = BordroOzet(
+      for (var row in bordroRows) {
+        final summary = BordroOzet(
           id: row['id'].toString(),
-          personelId: row['user_id']?.toString() ?? row['personel_id']?.toString() ?? '',
+          personelId: row['user_id']?.toString() ??
+              row['personel_id']?.toString() ??
+              '',
           donem: row['donem']?.toString() ?? '',
           brutMaas: (row['brut_maas'] as num? ?? 0).toDouble(),
           netMaas: (row['net_maas'] as num? ?? 0).toDouble(),
@@ -258,50 +312,62 @@ class _BordroPageState extends State<BordroPage> {
           onaylandi: row['onaylandi'] as bool? ?? false,
           createdAt: row['created_at']?.toString() ?? '',
           // Additional fields - use defaults if not in database
-          kazancToplam: (row['kazanc_toplam'] as num? ?? row['brut_maas'] as num? ?? 0).toDouble(),
+          kazancToplam:
+              (row['kazanc_toplam'] as num? ?? row['brut_maas'] as num? ?? 0)
+                  .toDouble(),
           yasalKesinti: (row['yasal_kesinti'] as num? ?? 0).toDouble(),
-          ozelKesinti: (row['ozel_kesinti'] as num? ?? row['ek_kesinti'] as num? ?? 0).toDouble(),
+          ozelKesinti:
+              (row['ozel_kesinti'] as num? ?? row['ek_kesinti'] as num? ?? 0)
+                  .toDouble(),
           calismaGunu: (row['calisma_gunu'] as int? ?? 0),
           normalGun: (row['normal_gun'] as int? ?? 0),
           haftaTatili: (row['hafta_tatili'] as int? ?? 0),
           genelTatil: (row['genel_tatil'] as int? ?? 0),
           ucretliIzin: (row['ucretli_izin'] as int? ?? 0),
           raporGunu: (row['rapor_gunu'] as int? ?? 0),
-          sgkMatrah: (row['sgk_matrah'] as num? ?? row['brut_maas'] as num? ?? 0).toDouble(),
-          vergiMatrah: (row['vergi_matrah'] as num? ?? row['brut_maas'] as num? ?? 0).toDouble(),
+          sgkMatrah:
+              (row['sgk_matrah'] as num? ?? row['brut_maas'] as num? ?? 0)
+                  .toDouble(),
+          vergiMatrah:
+              (row['vergi_matrah'] as num? ?? row['brut_maas'] as num? ?? 0)
+                  .toDouble(),
           oncekiAyMatrah: (row['onceki_ay_matrah'] as num? ?? 0).toDouble(),
           yilIciToplam: (row['yil_ici_toplam'] as num? ?? 0).toDouble(),
           issizlikIsci: (row['issizlik_isci'] as num? ?? 0).toDouble(),
           issizlikSeveren: (row['issizlik_severen'] as num? ?? 0).toDouble(),
-          asgariUcretGelirVergisi: (row['asgari_ucret_gelir_vergisi'] as num? ?? 0).toDouble(),
-          asgariUcretDamgaVergisi: (row['asgari_ucret_damga_vergisi'] as num? ?? 0).toDouble(),
+          asgariUcretGelirVergisi:
+              (row['asgari_ucret_gelir_vergisi'] as num? ?? 0).toDouble(),
+          asgariUcretDamgaVergisi:
+              (row['asgari_ucret_damga_vergisi'] as num? ?? 0).toDouble(),
         );
         bordrolar.putIfAbsent(summary.personelId, () => []).add(summary);
       }
-      
+
       // Fallback default bordrolar if empty
       if (bordrolar.isEmpty) {
         for (var person in personeller) {
-          final brutMaas = person.brutMaas > 0 ? person.brutMaas : person.netMaas;
+          final brutMaas =
+              person.brutMaas > 0 ? person.brutMaas : person.netMaas;
           final sgkKesinti = brutMaas * 0.14;
           final gelirVergisi = brutMaas * 0.15;
           final damgaVergisi = brutMaas * 0.007;
           final yasalKesinti = sgkKesinti + gelirVergisi + damgaVergisi;
-          
+
           bordrolar[person.id] = [
             BordroOzet(
-              id: '${person.id}_1', 
-              personelId: person.id, 
-              donem: '2024-12', 
-              brutMaas: brutMaas, 
-              netMaas: person.netMaas > 0 ? person.netMaas : brutMaas - yasalKesinti,
-              sgkIscilik: sgkKesinti, 
-              gelirVergisi: gelirVergisi, 
-              damgaVergisi: damgaVergisi, 
-              ekKesinti: 0, 
-              ekOdenek: person.ekstraPrim, 
-              aciklama: 'Aralık 2024 bordrosu', 
-              onaylandi: true, 
+              id: '${person.id}_1',
+              personelId: person.id,
+              donem: '2024-12',
+              brutMaas: brutMaas,
+              netMaas:
+                  person.netMaas > 0 ? person.netMaas : brutMaas - yasalKesinti,
+              sgkIscilik: sgkKesinti,
+              gelirVergisi: gelirVergisi,
+              damgaVergisi: damgaVergisi,
+              ekKesinti: 0,
+              ekOdenek: person.ekstraPrim,
+              aciklama: 'Aralık 2024 bordrosu',
+              onaylandi: true,
               createdAt: '2024-12-01',
               kazancToplam: brutMaas,
               yasalKesinti: yasalKesinti,
@@ -324,32 +390,73 @@ class _BordroPageState extends State<BordroPage> {
           ];
         }
       }
-      
     } catch (e) {
       // Fallback to dummy data on any error
       personeller = [
         Personel(
-          id: '1', adSoyad: 'Ali Veli (Hata)', tckn: '12345678901', pozisyon: 'Çalışan', iseGirisTarihi: '2024-01-01', brutMaas: 15000,
-          sgkSicilNo: '123456', departman: 'Üretim', email: 'ali@example.com', telefon: '5551234567', durum: 'Aktif', createdAt: '2024-01-01', adres: 'İstanbul',
-          netMaas: 12000, ekstraPrim: 500, yolUcreti: 300, yemekUcreti: 400, eldenMaas: 1000, gunlukCalismaSaati: 8,
-          haftalikCalismaGunu: 5, iseBaslangic: '2024-01-01', yillikIzinHakki: 15, bankaMaas: 11000,
+          id: '1',
+          adSoyad: 'Ali Veli (Hata)',
+          tckn: '12345678901',
+          pozisyon: 'Çalışan',
+          iseGirisTarihi: '2024-01-01',
+          brutMaas: 15000,
+          sgkSicilNo: '123456',
+          departman: 'Üretim',
+          email: 'ali@example.com',
+          telefon: '5551234567',
+          durum: 'Aktif',
+          createdAt: '2024-01-01',
+          adres: 'İstanbul',
+          netMaas: 12000,
+          ekstraPrim: 500,
+          yolUcreti: 300,
+          yemekUcreti: 400,
+          eldenMaas: 1000,
+          gunlukCalismaSaati: 8,
+          haftalikCalismaGunu: 5,
+          iseBaslangic: '2024-01-01',
+          yillikIzinHakki: 15,
+          bankaMaas: 11000,
         ),
-      ];      bordrolar = {
+      ];
+      bordrolar = {
         '1': [
           BordroOzet(
-            id: '1_1', personelId: '1', donem: '2024-12', brutMaas: 15000, netMaas: 12000,
-            sgkIscilik: 2100, gelirVergisi: 2250, damgaVergisi: 105, ekKesinti: 0, ekOdenek: 500,
-            aciklama: 'Test bordrosu', onaylandi: true, createdAt: '2024-12-01',
-            kazancToplam: 15000, yasalKesinti: 4455, ozelKesinti: 0,
-            calismaGunu: 20, normalGun: 20, haftaTatili: 8, genelTatil: 0,
-            ucretliIzin: 0, raporGunu: 0, sgkMatrah: 15000, vergiMatrah: 15000,
-            oncekiAyMatrah: 0, yilIciToplam: 180000, issizlikIsci: 150, issizlikSeveren: 300,
-            asgariUcretGelirVergisi: 0, asgariUcretDamgaVergisi: 0,
+            id: '1_1',
+            personelId: '1',
+            donem: '2024-12',
+            brutMaas: 15000,
+            netMaas: 12000,
+            sgkIscilik: 2100,
+            gelirVergisi: 2250,
+            damgaVergisi: 105,
+            ekKesinti: 0,
+            ekOdenek: 500,
+            aciklama: 'Test bordrosu',
+            onaylandi: true,
+            createdAt: '2024-12-01',
+            kazancToplam: 15000,
+            yasalKesinti: 4455,
+            ozelKesinti: 0,
+            calismaGunu: 20,
+            normalGun: 20,
+            haftaTatili: 8,
+            genelTatil: 0,
+            ucretliIzin: 0,
+            raporGunu: 0,
+            sgkMatrah: 15000,
+            vergiMatrah: 15000,
+            oncekiAyMatrah: 0,
+            yilIciToplam: 180000,
+            issizlikIsci: 150,
+            issizlikSeveren: 300,
+            asgariUcretGelirVergisi: 0,
+            asgariUcretDamgaVergisi: 0,
           ),
         ],
       };
     }
-    
+
     setState(() {
       _loadingData = false;
     });
@@ -366,7 +473,7 @@ class _BordroPageState extends State<BordroPage> {
         body: const LoadingWidget(),
       );
     }
-    
+
     // Show current data status for debugging
     if (personeller.isEmpty) {
       return Scaffold(
@@ -380,7 +487,8 @@ class _BordroPageState extends State<BordroPage> {
             children: [
               Icon(Icons.warning, size: 64, color: Colors.orange),
               SizedBox(height: 16),
-              Text('Personel verisi bulunamadı', style: TextStyle(fontSize: 18)),
+              Text('Personel verisi bulunamadı',
+                  style: TextStyle(fontSize: 18)),
               SizedBox(height: 8),
               Text('Supabase bağlantısını kontrol edin'),
             ],
@@ -388,23 +496,277 @@ class _BordroPageState extends State<BordroPage> {
         ),
       );
     }
-    
-    // Minimal UI: personel chips and PDF buttons
+
+    final isMobile = MediaQuery.of(context).size.width < 780;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F6FB),
       appBar: AppBar(
-        title: Text('Bordro Yönetimi (${personeller.length} personel)'),
+        title: const Text(
+          'Bordro Yönetimi',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
         backgroundColor: Colors.blue,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            onPressed: () {
+              setState(() => _loadingData = true);
+              _loadData();
+            },
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Yenile',
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            // Dönem seçici
-            Row(
-              children: [
-                const Text('Dönem: ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 12),
-                DonemSecici(
+      body: RefreshIndicator(
+        onRefresh: () async => _loadData(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            isMobile ? 14 : 24,
+            16,
+            isMobile ? 14 : 24,
+            28,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildBordroHero(isMobile),
+              const SizedBox(height: 16),
+              _buildBordroKontroller(isMobile),
+              const SizedBox(height: 16),
+              _buildKapanisKontrolPaneli(isMobile),
+              const SizedBox(height: 16),
+              _buildBordroListesi(isMobile),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Personel> get _filtreliPersoneller {
+    final arama = _aramaMetni.trim().toLowerCase();
+    return personeller.where((personel) {
+      final bordro = _bordroBul(personel.id);
+      final aramaUygun = arama.isEmpty ||
+          personel.adSoyad.toLowerCase().contains(arama) ||
+          personel.departman.toLowerCase().contains(arama) ||
+          personel.pozisyon.toLowerCase().contains(arama) ||
+          personel.tckn.toLowerCase().contains(arama);
+
+      final durumUygun = switch (_durumFiltresi) {
+        'onayli' => bordro?.onaylandi == true,
+        'onaysiz' => bordro != null && !bordro.onaylandi,
+        'kayitsiz' => bordro == null,
+        _ => true,
+      };
+
+      return aramaUygun && durumUygun;
+    }).toList();
+  }
+
+  BordroOzet? _bordroBul(String personelId) {
+    final liste = bordrolar[personelId];
+    if (liste == null || liste.isEmpty) return null;
+    return liste.first;
+  }
+
+  double get _toplamBrut => _filtreliPersoneller.fold(
+        0,
+        (sum, personel) =>
+            sum + (_bordroBul(personel.id)?.brutMaas ?? personel.brutMaas),
+      );
+
+  double get _toplamNet => _filtreliPersoneller.fold(
+        0,
+        (sum, personel) =>
+            sum + (_bordroBul(personel.id)?.netMaas ?? personel.netMaas),
+      );
+
+  double get _toplamKesinti => _filtreliPersoneller.fold(0, (sum, personel) {
+        final bordro = _bordroBul(personel.id);
+        if (bordro == null) return sum;
+        return sum + bordro.yasalKesinti + bordro.ozelKesinti;
+      });
+
+  int get _onayliBordroSayisi =>
+      personeller.where((p) => _bordroBul(p.id)?.onaylandi == true).length;
+
+  int get _onaysizBordroSayisi => personeller
+      .where((p) => _bordroBul(p.id) != null && !_bordroBul(p.id)!.onaylandi)
+      .length;
+
+  int get _bordrosuzPersonelSayisi =>
+      personeller.where((p) => _bordroBul(p.id) == null).length;
+
+  Widget _buildBordroHero(bool isMobile) {
+    final kapanisOrani = personeller.isEmpty
+        ? 0.0
+        : (_onayliBordroSayisi / personeller.length).clamp(0.0, 1.0);
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F3D91), Color(0xFF2563EB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x262563EB),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.receipt_long_outlined,
+                    color: Colors.white, size: 26),
+              ),
+              SizedBox(
+                width: isMobile ? double.infinity : 420,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Bordro Operasyon Merkezi',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${seciliDonem ?? '-'} dönemi • Kapanış, ödeme ve çıktı kontrolü',
+                      style: const TextStyle(
+                        color: Color(0xFFDCE7FF),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final dar = constraints.maxWidth < 760;
+              final kartlar = [
+                _buildHeroKpi('Personel', personeller.length.toString(),
+                    'Dönem kapsamı', Icons.groups_outlined),
+                _buildHeroKpi('Net Ödeme', _formatMoney(_toplamNet),
+                    'Filtrelenen toplam', Icons.payments_outlined),
+                _buildHeroKpi('Kesinti', _formatMoney(_toplamKesinti),
+                    'Yasal + özel', Icons.account_balance_outlined),
+                _buildHeroKpi('Kapanış', '${(kapanisOrani * 100).round()}%',
+                    'Onaylı bordro oranı', Icons.verified_outlined),
+              ];
+              if (dar) {
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: kartlar
+                      .map((k) => SizedBox(
+                            width: (constraints.maxWidth - 10) / 2,
+                            child: k,
+                          ))
+                      .toList(),
+                );
+              }
+              return Row(
+                children: kartlar
+                    .map((k) => Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: k,
+                          ),
+                        ))
+                    .toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroKpi(
+      String title, String value, String subtitle, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(height: 10),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(title,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700)),
+          Text(subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFFDCE7FF), fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBordroKontroller(bool isMobile) {
+    final filtreli = _filtreliPersoneller;
+    final tumuSecili = filtreli.isNotEmpty &&
+        filtreli.every((p) => seciliPersonelIds.contains(p.id));
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: isMobile ? double.infinity : 240,
+                child: DonemSecici(
                   seciliDonem: seciliDonem,
                   onDonemChanged: (donem) {
                     setState(() {
@@ -415,87 +777,497 @@ class _BordroPageState extends State<BordroPage> {
                     _loadData();
                   },
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text('Toplam ${personeller.length} personel yüklendi', 
-                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: personeller.map((p) {
-                return FilterChip(
-                  label: Text(p.adSoyad),
-                  selected: seciliPersonelIds.contains(p.id),
-                  onSelected: (selected) => setState(() {
-                    if (selected) {
-                      seciliPersonelIds.add(p.id);
-                    }
-                    else {
-                      seciliPersonelIds.remove(p.id);
-                    }
-                  }),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              ),
+              SizedBox(
+                width: isMobile ? double.infinity : 320,
+                child: TextField(
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Personel, departman, TCKN ara',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) => setState(() => _aramaMetni = value),
+                ),
+              ),
+              SizedBox(
+                width: isMobile ? double.infinity : 190,
+                child: DropdownButtonFormField<String>(
+                  initialValue: _durumFiltresi,
+                  decoration: const InputDecoration(
+                    labelText: 'Durum',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'tumu', child: Text('Tümü')),
+                    DropdownMenuItem(value: 'onayli', child: Text('Onaylı')),
+                    DropdownMenuItem(value: 'onaysiz', child: Text('Onaysız')),
+                    DropdownMenuItem(
+                        value: 'kayitsiz', child: Text('Bordro yok')),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _durumFiltresi = value ?? 'tumu'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: filtreli.isEmpty
+                    ? null
+                    : () {
+                        setState(() {
+                          if (tumuSecili) {
+                            seciliPersonelIds.removeWhere(
+                                (id) => filtreli.any((p) => p.id == id));
+                          } else {
+                            for (final p in filtreli) {
+                              if (!seciliPersonelIds.contains(p.id)) {
+                                seciliPersonelIds.add(p.id);
+                              }
+                            }
+                          }
+                        });
+                      },
+                icon: Icon(tumuSecili
+                    ? Icons.check_box_outlined
+                    : Icons.check_box_outline_blank),
+                label: Text(tumuSecili ? 'Seçimi kaldır' : 'Filtreyi seç'),
+              ),
+              FilledButton.icon(
+                onPressed: seciliPersonelIds.isEmpty ? null : _pdfIndir,
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                label: const Text('PDF indir'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: seciliPersonelIds.isEmpty ? null : _pdfYazdir,
+                icon: const Icon(Icons.print_outlined),
+                label: const Text('Yazdır'),
+              ),
+              Text(
+                '${filtreli.length} kayıt • ${seciliPersonelIds.length} seçili',
+                style: const TextStyle(
+                    color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKapanisKontrolPaneli(bool isMobile) {
+    final uyarilar = <Widget>[
+      _buildKontrolSatiri(
+        Icons.verified_outlined,
+        'Onaylı bordro',
+        '$_onayliBordroSayisi kayıt',
+        const Color(0xFF0F9D58),
+      ),
+      _buildKontrolSatiri(
+        Icons.pending_actions_outlined,
+        'Onay bekleyen',
+        '$_onaysizBordroSayisi kayıt',
+        const Color(0xFFF57C00),
+      ),
+      _buildKontrolSatiri(
+        Icons.warning_amber_outlined,
+        'Bordrosuz personel',
+        '$_bordrosuzPersonelSayisi kayıt',
+        _bordrosuzPersonelSayisi > 0
+            ? const Color(0xFFDC2626)
+            : const Color(0xFF64748B),
+      ),
+      _buildKontrolSatiri(
+        Icons.account_balance_wallet_outlined,
+        'Brüt / net toplam',
+        '${_formatMoney(_toplamBrut)} / ${_formatMoney(_toplamNet)}',
+        const Color(0xFF2563EB),
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.fact_check_outlined, color: Color(0xFF2563EB)),
+              SizedBox(width: 8),
+              Text(
+                'Bordro Kapanış Kontrolü',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          isMobile
+              ? Column(
+                  children: uyarilar
+                      .map((w) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: w,
+                          ))
+                      .toList(),
+                )
+              : Row(
+                  children: uyarilar
+                      .map((w) => Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: w,
+                            ),
+                          ))
+                      .toList(),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKontrolSatiri(
+      IconData icon, String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ElevatedButton(
-                  onPressed: seciliPersonelIds.isEmpty ? null : () async {
-                    final pdf = await _buildPdf();
-                    await Printing.sharePdf(bytes: await pdf.save(), filename: 'bordro_toplu.pdf');
-                  },
-                  child: const Text('PDF İndir'),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: seciliPersonelIds.isEmpty ? null : () async {
-                    final pdf = await _buildPdf();
-                    await Printing.layoutPdf(onLayout: (PdfPageFormat f) async => pdf.save());
-                  },
-                  child: const Text('Yazdır'),
-                ),
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w700)),
+                Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w800)),
               ],
             ),
-            const SizedBox(height: 16),
-            Center(child: Text('Seçili personel: ${seciliPersonelIds.length}')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBordroListesi(bool isMobile) {
+    final liste = _filtreliPersoneller;
+    if (liste.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(28),
+        decoration: _panelDecoration(),
+        child: const Column(
+          children: [
+            Icon(Icons.search_off_outlined, size: 42, color: Color(0xFF94A3B8)),
+            SizedBox(height: 10),
+            Text('Filtreye uygun bordro kaydı bulunamadı'),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Personel Bordro Listesi',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A)),
+          ),
+          const SizedBox(height: 12),
+          if (isMobile)
+            Column(
+              children: liste
+                  .map((personel) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildMobilBordroKart(personel),
+                      ))
+                  .toList(),
+            )
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowColor:
+                    WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                columns: const [
+                  DataColumn(label: Text('Seç')),
+                  DataColumn(label: Text('Personel')),
+                  DataColumn(label: Text('Departman')),
+                  DataColumn(label: Text('Brüt')),
+                  DataColumn(label: Text('Net')),
+                  DataColumn(label: Text('Kesinti')),
+                  DataColumn(label: Text('Durum')),
+                ],
+                rows: liste.map(_buildBordroDataRow).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  DataRow _buildBordroDataRow(Personel personel) {
+    final bordro = _bordroBul(personel.id);
+    final selected = seciliPersonelIds.contains(personel.id);
+    final double brut = bordro?.brutMaas ?? personel.brutMaas;
+    final double net = bordro?.netMaas ?? personel.netMaas;
+    final double kesinti =
+        bordro == null ? 0.0 : bordro.yasalKesinti + bordro.ozelKesinti;
+
+    return DataRow(
+      selected: selected,
+      cells: [
+        DataCell(Checkbox(
+          value: selected,
+          onChanged: (value) => _secimDegistir(personel.id, value ?? false),
+        )),
+        DataCell(Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(personel.adSoyad,
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(personel.pozisyon,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          ],
+        )),
+        DataCell(Text(personel.departman.isEmpty ? '-' : personel.departman)),
+        DataCell(Text(_formatMoney(brut))),
+        DataCell(Text(_formatMoney(net),
+            style: const TextStyle(fontWeight: FontWeight.w800))),
+        DataCell(Text(_formatMoney(kesinti))),
+        DataCell(_buildDurumEtiketi(bordro)),
+      ],
+    );
+  }
+
+  Widget _buildMobilBordroKart(Personel personel) {
+    final bordro = _bordroBul(personel.id);
+    final selected = seciliPersonelIds.contains(personel.id);
+    final double brut = bordro?.brutMaas ?? personel.brutMaas;
+    final double net = bordro?.netMaas ?? personel.netMaas;
+    final double kesinti =
+        bordro == null ? 0.0 : bordro.yasalKesinti + bordro.ozelKesinti;
+
+    return InkWell(
+      onTap: () => _secimDegistir(personel.id, !selected),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFEFF6FF) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Checkbox(
+                  value: selected,
+                  onChanged: (value) =>
+                      _secimDegistir(personel.id, value ?? false),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(personel.adSoyad,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A))),
+                      Text(
+                        '${personel.departman.isEmpty ? '-' : personel.departman} • ${personel.pozisyon.isEmpty ? '-' : personel.pozisyon}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildDurumEtiketi(bordro),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _buildMiniMoney('Brüt', brut)),
+                Expanded(child: _buildMiniMoney('Net', net)),
+                Expanded(child: _buildMiniMoney('Kesinti', kesinti)),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildMiniMoney(String label, double value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+        Text(_formatMoney(value),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A))),
+      ],
+    );
+  }
+
+  Widget _buildDurumEtiketi(BordroOzet? bordro) {
+    final label = bordro == null
+        ? 'Yok'
+        : bordro.onaylandi
+            ? 'Onaylı'
+            : 'Onay Bekliyor';
+    final color = bordro == null
+        ? const Color(0xFFDC2626)
+        : bordro.onaylandi
+            ? const Color(0xFF0F9D58)
+            : const Color(0xFFF57C00);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w800)),
+    );
+  }
+
+  void _secimDegistir(String personelId, bool selected) {
+    setState(() {
+      if (selected) {
+        if (!seciliPersonelIds.contains(personelId)) {
+          seciliPersonelIds.add(personelId);
+        }
+      } else {
+        seciliPersonelIds.remove(personelId);
+      }
+    });
+  }
+
+  Future<void> _pdfIndir() async {
+    final pdf = await _buildPdf();
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'bordro_${seciliDonem ?? 'donem'}.pdf',
+    );
+  }
+
+  Future<void> _pdfYazdir() async {
+    final pdf = await _buildPdf();
+    await Printing.layoutPdf(onLayout: (PdfPageFormat f) async => pdf.save());
+  }
+
+  BoxDecoration _panelDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0F0F172A),
+          blurRadius: 14,
+          offset: Offset(0, 8),
+        ),
+      ],
+    );
+  }
+
+  String _formatMoney(double value) {
+    if (value.abs() >= 1000000) {
+      return '₺${(value / 1000000).toStringAsFixed(1)}M';
+    }
+    if (value.abs() >= 1000) {
+      return '₺${(value / 1000).toStringAsFixed(1)}K';
+    }
+    return '₺${value.toStringAsFixed(0)}';
+  }
+
   Future<pw.Document> _buildPdf() async {
     final doc = pw.Document();
-    
+
     for (var id in seciliPersonelIds) {
       final person = personeller.firstWhere((p) => p.id == id);
       final summaries = bordrolar[id] ?? [];
-      
+
       // Gerçek bordro verisi yoksa varsayılan hesaplama yap
       BordroOzet bordro;
       if (summaries.isNotEmpty) {
         bordro = summaries.first;
       } else {
         // Gerçek sistem ayarlarına göre bordro hesapla
-        final sgkIsciOrani = double.tryParse(sistemAyarlari['sgk_isci_prim_orani'] ?? '14.0') ?? 14.0;
-        final damgaVergisiOrani = double.tryParse(sistemAyarlari['damga_vergisi_orani'] ?? '0.759') ?? 0.759;
-        final issizlikIsciOrani = double.tryParse(sistemAyarlari['issizlik_isci_prim_orani'] ?? '1.0') ?? 1.0;
-        final issizlikIsverenOrani = double.tryParse(sistemAyarlari['issizlik_isveren_prim_orani'] ?? '2.0') ?? 2.0;
-        
-        final brutMaas = person.brutMaas > 0 ? person.brutMaas : person.netMaas * 1.4;
+        final sgkIsciOrani =
+            double.tryParse(sistemAyarlari['sgk_isci_prim_orani'] ?? '14.0') ??
+                14.0;
+        final damgaVergisiOrani =
+            double.tryParse(sistemAyarlari['damga_vergisi_orani'] ?? '0.759') ??
+                0.759;
+        final issizlikIsciOrani = double.tryParse(
+                sistemAyarlari['issizlik_isci_prim_orani'] ?? '1.0') ??
+            1.0;
+        final issizlikIsverenOrani = double.tryParse(
+                sistemAyarlari['issizlik_isveren_prim_orani'] ?? '2.0') ??
+            2.0;
+
+        final brutMaas =
+            person.brutMaas > 0 ? person.brutMaas : person.netMaas * 1.4;
         final sgkIsci = brutMaas * (sgkIsciOrani / 100);
         final gelirVergisi = _hesaplaGelirVergisi(brutMaas);
         final damgaVergisi = brutMaas * (damgaVergisiOrani / 1000);
         final issizlikIsci = brutMaas * (issizlikIsciOrani / 100);
         final issizlikIsveren = brutMaas * (issizlikIsverenOrani / 100);
-        
-        final yasalKesinti = sgkIsci + gelirVergisi + damgaVergisi + issizlikIsci;
+
+        final yasalKesinti =
+            sgkIsci + gelirVergisi + damgaVergisi + issizlikIsci;
         final netMaas = brutMaas - yasalKesinti;
-        
+
         bordro = BordroOzet(
           id: '${person.id}_calc',
           personelId: person.id,
@@ -529,7 +1301,7 @@ class _BordroPageState extends State<BordroPage> {
           asgariUcretDamgaVergisi: 0,
         );
       }
-      
+
       doc.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
@@ -548,7 +1320,7 @@ class _BordroPageState extends State<BordroPage> {
                 child: pw.Text(
                   'ÜCRET HESAP PUSULASI',
                   style: pw.TextStyle(
-                    fontSize: 16, 
+                    fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
                     font: customBoldFont,
                     fontFallback: [customFont],
@@ -556,7 +1328,7 @@ class _BordroPageState extends State<BordroPage> {
                 ),
               ),
               pw.SizedBox(height: 20),
-              
+
               // Personal Information Section
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -572,9 +1344,11 @@ class _BordroPageState extends State<BordroPage> {
                         _buildInfoRow('Dönem', bordro.donem),
                         _buildInfoRow('Adres', person.adres),
                         pw.SizedBox(height: 10),
-                        _buildInfoRow('Merkez Adres', sirketBilgileri?['adres'] ?? ''),
+                        _buildInfoRow(
+                            'Merkez Adres', sirketBilgileri?['adres'] ?? ''),
                         pw.SizedBox(height: 10),
-                        _buildInfoRow('Web Adresi', sirketBilgileri?['web'] ?? ''),
+                        _buildInfoRow(
+                            'Web Adresi', sirketBilgileri?['web'] ?? ''),
                       ],
                     ),
                   ),
@@ -585,10 +1359,14 @@ class _BordroPageState extends State<BordroPage> {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         _buildInfoRow('Bordro Tür', 'Normal'),
-                        _buildInfoRow('İşyeri No', sirketBilgileri?['sicil_no'] ?? ''),
-                        _buildInfoRow('Vergi Dairesi No', sirketBilgileri?['vergi_dairesi'] ?? ''),
-                        _buildInfoRow('Mersis No', sirketBilgileri?['mersis_no'] ?? ''),
-                        _buildInfoRow('Ticaret Sicil No', sirketBilgileri?['sicil_no'] ?? ''),
+                        _buildInfoRow(
+                            'İşyeri No', sirketBilgileri?['sicil_no'] ?? ''),
+                        _buildInfoRow('Vergi Dairesi No',
+                            sirketBilgileri?['vergi_dairesi'] ?? ''),
+                        _buildInfoRow(
+                            'Mersis No', sirketBilgileri?['mersis_no'] ?? ''),
+                        _buildInfoRow('Ticaret Sicil No',
+                            sirketBilgileri?['sicil_no'] ?? ''),
                         _buildInfoRow('Vatandaş No', person.tckn),
                         _buildInfoRow('SGK No', person.sgkSicilNo),
                         _buildInfoRow('Giriş Tarihi', person.iseGirisTarihi),
@@ -598,14 +1376,14 @@ class _BordroPageState extends State<BordroPage> {
                   ),
                 ],
               ),
-              
+
               pw.SizedBox(height: 20),
-              
+
               // Work and Leave Days Table
               pw.Text(
                 'ÇALIŞMA VE İZİN GÜNLERİ',
                 style: pw.TextStyle(
-                  fontSize: 12, 
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   font: customBoldFont,
                   fontFallback: [customFont],
@@ -613,10 +1391,18 @@ class _BordroPageState extends State<BordroPage> {
               ),
               pw.SizedBox(height: 8),
               pw.TableHelper.fromTextArray(
-                headers: ['Tür', 'SGK Gün', 'Normal Gün', 'Hafta Tatili', 'Genel Tatil', 'Ücretli İzin', 'Rapor'],
+                headers: [
+                  'Tür',
+                  'SGK Gün',
+                  'Normal Gün',
+                  'Hafta Tatili',
+                  'Genel Tatil',
+                  'Ücretli İzin',
+                  'Rapor'
+                ],
                 data: [
                   [
-                    'Gün Sayısı', 
+                    'Gün Sayısı',
                     bordro.calismaGunu.toString(),
                     bordro.normalGun.toString(),
                     bordro.haftaTatili.toString(),
@@ -625,9 +1411,11 @@ class _BordroPageState extends State<BordroPage> {
                     bordro.raporGunu.toString(),
                   ],
                   [
-                    'Toplam Tutar', 
-                    (bordro.brutMaas / 30 * bordro.calismaGunu).toStringAsFixed(2),
-                    (bordro.brutMaas / 30 * bordro.normalGun).toStringAsFixed(2),
+                    'Toplam Tutar',
+                    (bordro.brutMaas / 30 * bordro.calismaGunu)
+                        .toStringAsFixed(2),
+                    (bordro.brutMaas / 30 * bordro.normalGun)
+                        .toStringAsFixed(2),
                     '0.00',
                     '0.00',
                     '0.00',
@@ -635,7 +1423,7 @@ class _BordroPageState extends State<BordroPage> {
                   ],
                 ],
                 headerStyle: pw.TextStyle(
-                  fontSize: 10, 
+                  fontSize: 10,
                   fontWeight: pw.FontWeight.bold,
                   font: customBoldFont,
                   fontFallback: [customFont],
@@ -645,7 +1433,8 @@ class _BordroPageState extends State<BordroPage> {
                   font: customFont,
                   fontFallback: [customBoldFont],
                 ),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                headerDecoration:
+                    const pw.BoxDecoration(color: PdfColors.grey300),
                 cellPadding: const pw.EdgeInsets.all(4),
                 columnWidths: {
                   0: const pw.FlexColumnWidth(2),
@@ -657,9 +1446,9 @@ class _BordroPageState extends State<BordroPage> {
                   6: const pw.FlexColumnWidth(1),
                 },
               ),
-              
+
               pw.SizedBox(height: 15),
-              
+
               // Earnings and Deductions
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -671,7 +1460,7 @@ class _BordroPageState extends State<BordroPage> {
                         pw.Text(
                           'YASAL KESİNTİLER',
                           style: pw.TextStyle(
-                            fontSize: 12, 
+                            fontSize: 12,
                             fontWeight: pw.FontWeight.bold,
                             font: customBoldFont,
                             fontFallback: [customFont],
@@ -679,23 +1468,55 @@ class _BordroPageState extends State<BordroPage> {
                         ),
                         pw.SizedBox(height: 8),
                         _buildEarningsDeductionsTable([
-                          ['SİGORTA', 'SGK Prim Tutarı', bordro.sgkIscilik.toStringAsFixed(2)],
-                          ['', 'Sevk Prim Tutarı', (bordro.sgkIscilik * 1.5).toStringAsFixed(2)],
+                          [
+                            'SİGORTA',
+                            'SGK Prim Tutarı',
+                            bordro.sgkIscilik.toStringAsFixed(2)
+                          ],
+                          [
+                            '',
+                            'Sevk Prim Tutarı',
+                            (bordro.sgkIscilik * 1.5).toStringAsFixed(2)
+                          ],
                           ['', 'Matrah', bordro.sgkMatrah.toStringAsFixed(2)],
-                          ['VERGİ', 'Gelir Vergisi', bordro.gelirVergisi.toStringAsFixed(2)],
+                          [
+                            'VERGİ',
+                            'Gelir Vergisi',
+                            bordro.gelirVergisi.toStringAsFixed(2)
+                          ],
                           ['', 'Matrah', bordro.vergiMatrah.toStringAsFixed(2)],
-                          ['', 'Önceki Ay Matrah', bordro.oncekiAyMatrah.toStringAsFixed(2)],
-                          ['', 'Yıl İçi Toplam', bordro.yilIciToplam.toStringAsFixed(2)],
-                          ['', 'Damga Vergisi', bordro.damgaVergisi.toStringAsFixed(2)],
-                          ['İŞSİZLİK', 'İşçi Prim Tutarı', bordro.issizlikIsci.toStringAsFixed(2)],
-                          ['', 'Sevk Prim Tutarı', bordro.issizlikSeveren.toStringAsFixed(2)],
+                          [
+                            '',
+                            'Önceki Ay Matrah',
+                            bordro.oncekiAyMatrah.toStringAsFixed(2)
+                          ],
+                          [
+                            '',
+                            'Yıl İçi Toplam',
+                            bordro.yilIciToplam.toStringAsFixed(2)
+                          ],
+                          [
+                            '',
+                            'Damga Vergisi',
+                            bordro.damgaVergisi.toStringAsFixed(2)
+                          ],
+                          [
+                            'İŞSİZLİK',
+                            'İşçi Prim Tutarı',
+                            bordro.issizlikIsci.toStringAsFixed(2)
+                          ],
+                          [
+                            '',
+                            'Sevk Prim Tutarı',
+                            bordro.issizlikSeveren.toStringAsFixed(2)
+                          ],
                         ]),
                       ],
                     ),
                   ),
-                  
+
                   pw.SizedBox(width: 20),
-                  
+
                   // Right side - Summary
                   pw.Expanded(
                     child: pw.Column(
@@ -703,7 +1524,7 @@ class _BordroPageState extends State<BordroPage> {
                         pw.Text(
                           'ÖZET BİLGİLER',
                           style: pw.TextStyle(
-                            fontSize: 12, 
+                            fontSize: 12,
                             fontWeight: pw.FontWeight.bold,
                             font: customBoldFont,
                             fontFallback: [customFont],
@@ -711,13 +1532,32 @@ class _BordroPageState extends State<BordroPage> {
                         ),
                         pw.SizedBox(height: 8),
                         _buildSummaryTable([
-                          ['Kazanç Toplam', bordro.kazancToplam.toStringAsFixed(2)],
-                          ['Yasal Kesinti Toplamı', bordro.yasalKesinti.toStringAsFixed(2)],
-                          ['Kesintiler Toplamı', (bordro.yasalKesinti + bordro.ozelKesinti).toStringAsFixed(2)],
-                          ['Özel Kesinti Toplamı', bordro.ozelKesinti.toStringAsFixed(2)],
+                          [
+                            'Kazanç Toplam',
+                            bordro.kazancToplam.toStringAsFixed(2)
+                          ],
+                          [
+                            'Yasal Kesinti Toplamı',
+                            bordro.yasalKesinti.toStringAsFixed(2)
+                          ],
+                          [
+                            'Kesintiler Toplamı',
+                            (bordro.yasalKesinti + bordro.ozelKesinti)
+                                .toStringAsFixed(2)
+                          ],
+                          [
+                            'Özel Kesinti Toplamı',
+                            bordro.ozelKesinti.toStringAsFixed(2)
+                          ],
                           ['', ''],
-                          ['Asgari Ücret Gelir Vergisi', bordro.asgariUcretGelirVergisi.toStringAsFixed(2)],
-                          ['Asgari Ücret Damga Vergisi', bordro.asgariUcretDamgaVergisi.toStringAsFixed(2)],
+                          [
+                            'Asgari Ücret Gelir Vergisi',
+                            bordro.asgariUcretGelirVergisi.toStringAsFixed(2)
+                          ],
+                          [
+                            'Asgari Ücret Damga Vergisi',
+                            bordro.asgariUcretDamgaVergisi.toStringAsFixed(2)
+                          ],
                           ['Net Ödenen', bordro.netMaas.toStringAsFixed(2)],
                         ]),
                       ],
@@ -725,9 +1565,9 @@ class _BordroPageState extends State<BordroPage> {
                   ),
                 ],
               ),
-              
+
               pw.SizedBox(height: 20),
-              
+
               // Footer
               pw.Center(
                 child: pw.Text(
@@ -745,10 +1585,10 @@ class _BordroPageState extends State<BordroPage> {
         },
       ));
     }
-    
+
     return doc;
   }
-  
+
   pw.Widget _buildInfoRow(String label, String value) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 2),
@@ -759,7 +1599,7 @@ class _BordroPageState extends State<BordroPage> {
             child: pw.Text(
               '$label:',
               style: pw.TextStyle(
-                fontSize: 10, 
+                fontSize: 10,
                 fontWeight: pw.FontWeight.bold,
                 font: customBoldFont,
                 fontFallback: [customFont],
@@ -780,7 +1620,7 @@ class _BordroPageState extends State<BordroPage> {
       ),
     );
   }
-  
+
   pw.Widget _buildEarningsDeductionsTable(List<List<String>> data) {
     return pw.TableHelper.fromTextArray(
       headers: null,
@@ -799,7 +1639,7 @@ class _BordroPageState extends State<BordroPage> {
       border: pw.TableBorder.all(width: 0.5),
     );
   }
-  
+
   pw.Widget _buildSummaryTable(List<List<String>> data) {
     return pw.TableHelper.fromTextArray(
       headers: null,
@@ -832,12 +1672,24 @@ class _BordroPageState extends State<BordroPage> {
   String _getAyAdi(String donem) {
     if (donem.contains('-')) {
       final ayNumarasi = donem.split('-').last;
-      const aylar = ['', 'OCAK', 'ŞUBAT', 'MART', 'NİSAN', 'MAYIS', 'HAZİRAN', 
-                     'TEMMUZ', 'AĞUSTOS', 'EYLÜL', 'EKİM', 'KASIM', 'ARALIK'];
+      const aylar = [
+        '',
+        'OCAK',
+        'ŞUBAT',
+        'MART',
+        'NİSAN',
+        'MAYIS',
+        'HAZİRAN',
+        'TEMMUZ',
+        'AĞUSTOS',
+        'EYLÜL',
+        'EKİM',
+        'KASIM',
+        'ARALIK'
+      ];
       final ay = int.tryParse(ayNumarasi) ?? 6;
       return ay < aylar.length ? aylar[ay] : 'HAZİRAN';
     }
     return 'HAZİRAN';
   }
 } // end class _BordroPageState
-

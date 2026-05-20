@@ -38,14 +38,14 @@ String? getTabloAdi(String asamaKodu) {
       return DbTables.yikamaAtamalari;
     case 'utu':
       return DbTables.utuAtamalari;
+    case 'kalite_kontrol':
+      return DbTables.kaliteKontrolAtamalari;
     case 'paketleme':
       return DbTables.paketlemeAtamalari;
     case 'ilik_dugme':
       return DbTables.ilikDugmeAtamalari;
     case 'nakis':
       return DbTables.nakisAtamalari;
-    case 'kalite_kontrol':
-      return DbTables.kaliteKontrolAtamalari;
     default:
       return null;
   }
@@ -66,6 +66,8 @@ String getTableNameForStage(String asamaKey) {
       return DbTables.ilikDugmeAtamalari;
     case 'utu':
       return DbTables.utuAtamalari;
+    case 'kalite_kontrol':
+      return DbTables.kaliteKontrolAtamalari;
     case 'paketleme':
       return DbTables.paketlemeAtamalari;
     default:
@@ -87,6 +89,8 @@ String getAsamaDisplayName(String asamaKey) {
       return 'İlik Düğme';
     case 'utu':
       return 'Ütü';
+    case 'kalite_kontrol':
+      return 'Kalite Kontrol';
     case 'paketleme':
       return 'Paketleme';
     default:

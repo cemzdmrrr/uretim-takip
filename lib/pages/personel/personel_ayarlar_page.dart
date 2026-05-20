@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/services/supabase_service.dart';
 
@@ -12,10 +12,10 @@ class PersonelAyarlarPage extends StatefulWidget {
 class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   // Form controllers
   final _formKey = GlobalKey<FormState>();
-  
+
   // Şirket Bilgileri
   final _sirketAdiController = TextEditingController();
   final _vergiNumarasiController = TextEditingController();
@@ -26,7 +26,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
   final _ibanController = TextEditingController();
   final _bankaAdiController = TextEditingController();
   final _yetkiliBilgiController = TextEditingController();
-  
+
   // SGK & Vergi Ayarları
   final _sgkIsverenOranController = TextEditingController();
   final _sgkIsciOranController = TextEditingController();
@@ -36,7 +36,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
   final _gelirVergisiMaxController = TextEditingController();
   final _damgaVergisiOranController = TextEditingController();
   final _asgariUcretController = TextEditingController();
-  
+
   // Bordro Ayarları
   final _yemekYardimController = TextEditingController();
   final _yolYardimController = TextEditingController();
@@ -45,7 +45,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
   final _irsaliyeVardiyaController = TextEditingController();
   final _fazlaMesaiFizikselController = TextEditingController();
   final _fazlaMesaiZihinselController = TextEditingController();
-  
+
   // Çalışma Ayarları
   final _gunlukCalismaSaatiController = TextEditingController();
   final _haftalikCalismaSaatiController = TextEditingController();
@@ -54,7 +54,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
   final _gece2230_0600Controller = TextEditingController();
   final _pazarTatilController = TextEditingController();
   final _resmiTatilController = TextEditingController();
-  
+
   // İzin Ayarları
   final _yillikIzinController = TextEditingController();
   final _hastalikIzinController = TextEditingController();
@@ -64,7 +64,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
   final _olumIzinController = TextEditingController();
   final _askerlikIzinController = TextEditingController();
   final _mazeretIzinController = TextEditingController();
-  
+
   bool _isLoading = false;
 
   @override
@@ -122,7 +122,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Future<void> _loadSettings() async {
     setState(() => _isLoading = true);
-    
+
     try {
       // Şirket bilgilerini yükle
       final companyData = await SupabaseService.getCompanySettings();
@@ -137,37 +137,49 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
         _bankaAdiController.text = companyData['banka'] ?? '';
         _yetkiliBilgiController.text = companyData['yetkili'] ?? '';
       }
-      
+
       // Sistem ayarlarını yükle
       final systemData = await SupabaseService.getSystemSettings();
       if (systemData.isNotEmpty) {
-        _sgkIsverenOranController.text = systemData['sgk_isveren_prim_orani'] ?? '20.5';
-        _sgkIsciOranController.text = systemData['sgk_isci_prim_orani'] ?? '14.0';
-        _issizlikIsverenController.text = systemData['issizlik_isveren_prim_orani'] ?? '2.0';
-        _issizlikIsciController.text = systemData['issizlik_isci_prim_orani'] ?? '1.0';
+        _sgkIsverenOranController.text =
+            systemData['sgk_isveren_prim_orani'] ?? '20.5';
+        _sgkIsciOranController.text =
+            systemData['sgk_isci_prim_orani'] ?? '14.0';
+        _issizlikIsverenController.text =
+            systemData['issizlik_isveren_prim_orani'] ?? '2.0';
+        _issizlikIsciController.text =
+            systemData['issizlik_isci_prim_orani'] ?? '1.0';
         _gelirVergisiMinController.text = '15.0'; // Sabit değer
         _gelirVergisiMaxController.text = '40.0'; // Sabit değer
-        _damgaVergisiOranController.text = systemData['damga_vergisi_orani'] ?? '0.759';
+        _damgaVergisiOranController.text =
+            systemData['damga_vergisi_orani'] ?? '0.759';
         _asgariUcretController.text = systemData['asgari_ucret'] ?? '17002.0';
-        
+
         // Bordro ayarları
         _yemekYardimController.text = systemData['yemek_yardim'] ?? '0';
         _yolYardimController.text = systemData['yol_yardim'] ?? '0';
         _cocukYardimController.text = systemData['cocuk_yardim'] ?? '0';
         _egitimYardimController.text = systemData['egitim_yardim'] ?? '0';
         _irsaliyeVardiyaController.text = systemData['irsaliye_vardiya'] ?? '0';
-        _fazlaMesaiFizikselController.text = systemData['mesai_carpani'] ?? '1.5';
-        _fazlaMesaiZihinselController.text = systemData['mesai_carpani'] ?? '1.5';
-        
+        _fazlaMesaiFizikselController.text =
+            systemData['mesai_carpani'] ?? '1.5';
+        _fazlaMesaiZihinselController.text =
+            systemData['mesai_carpani'] ?? '1.5';
+
         // Çalışma ayarları
-        _gunlukCalismaSaatiController.text = systemData['gunluk_calisma_saati'] ?? '8';
-        _haftalikCalismaSaatiController.text = systemData['haftalik_calisma_saati'] ?? '45';
-        _aylikCalismaSaatiController.text = systemData['aylik_calisma_saati'] ?? '180';
-        _mesaiUcretKatsayiController.text = systemData['mesai_carpani'] ?? '1.5';
-        _gece2230_0600Controller.text = systemData['gece_vardiya_carpani'] ?? '1.25';
+        _gunlukCalismaSaatiController.text =
+            systemData['gunluk_calisma_saati'] ?? '8';
+        _haftalikCalismaSaatiController.text =
+            systemData['haftalik_calisma_saati'] ?? '45';
+        _aylikCalismaSaatiController.text =
+            systemData['aylik_calisma_saati'] ?? '180';
+        _mesaiUcretKatsayiController.text =
+            systemData['mesai_carpani'] ?? '1.5';
+        _gece2230_0600Controller.text =
+            systemData['gece_vardiya_carpani'] ?? '1.25';
         _pazarTatilController.text = systemData['pazar_carpani'] ?? '1.5';
         _resmiTatilController.text = systemData['bayram_carpani'] ?? '2.0';
-        
+
         // İzin ayarları
         _yillikIzinController.text = systemData['yillik_izin_gunu'] ?? '14';
         _hastalikIzinController.text = systemData['hastalik_izin'] ?? '18';
@@ -182,15 +194,15 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
       if (!mounted) return;
       context.showSnackBar('Ayarlar yüklenirken hata: $e');
     }
-    
+
     setState(() => _isLoading = false);
   }
 
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       // Şirket bilgilerini kaydet
       final companyData = {
@@ -209,7 +221,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
         'kurulus_yili': '2024',
         'web': '',
       };
-      
+
       // Sistem ayarlarını kaydet
       final systemData = {
         'sgk_isveren_prim_orani': _sgkIsverenOranController.text,
@@ -239,10 +251,12 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
         'askerlik_izin': _askerlikIzinController.text,
         'mazeret_izin': _mazeretIzinController.text,
       };
-      
-      final companySuccess = await SupabaseService.saveCompanySettings(companyData);
-      final systemSuccess = await SupabaseService.saveSystemSettings(systemData);
-      
+
+      final companySuccess =
+          await SupabaseService.saveCompanySettings(companyData);
+      final systemSuccess =
+          await SupabaseService.saveSystemSettings(systemData);
+
       if (companySuccess && systemSuccess) {
         if (!mounted) return;
         context.showSuccessSnackBar('Ayarlar başarıyla kaydedildi');
@@ -254,7 +268,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
       if (!mounted) return;
       context.showErrorSnackBar('Hata: $e');
     }
-    
+
     setState(() => _isLoading = false);
   }
 
@@ -313,7 +327,11 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
                     child: isMobile
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [_buildHeaderText(), const SizedBox(height: 12), _buildHeaderMetrics()],
+                            children: [
+                              _buildHeaderText(),
+                              const SizedBox(height: 12),
+                              _buildHeaderMetrics()
+                            ],
                           )
                         : Row(
                             children: [
@@ -415,6 +433,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildCompanyTab() {
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
@@ -425,13 +444,15 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
                 controller: _sirketAdiController,
                 label: 'Şirket Adı',
                 icon: Icons.business,
-                validator: (value) => value?.isEmpty ?? true ? 'Şirket adı gerekli' : null,
+                validator: (value) =>
+                    value?.isEmpty ?? true ? 'Şirket adı gerekli' : null,
               ),
               _buildTextField(
                 controller: _vergiNumarasiController,
                 label: 'Vergi Numarası',
                 icon: Icons.receipt_long,
-                validator: (value) => value?.isEmpty ?? true ? 'Vergi numarası gerekli' : null,
+                validator: (value) =>
+                    value?.isEmpty ?? true ? 'Vergi numarası gerekli' : null,
               ),
               _buildTextField(
                 controller: _ticSicilNoController,
@@ -486,6 +507,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildTaxTab() {
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
@@ -575,6 +597,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildPayrollTab() {
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
@@ -649,6 +672,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildWorkingTab() {
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [
@@ -715,6 +739,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
   Widget _buildLeaveTab() {
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         children: [

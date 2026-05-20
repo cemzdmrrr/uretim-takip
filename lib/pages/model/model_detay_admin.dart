@@ -430,6 +430,13 @@ extension _AdminIslemlerExt on _ModelDetayState {
     );
   }
 
+  int _sumTamamlananAdedi(List<dynamic> atamalar) {
+    return atamalar.fold<int>(
+      0,
+      (sum, atama) => sum + _toInt(atama['tamamlanan_adet']),
+    );
+  }
+
   int _getTotalAtananAdet() {
     final toplamlar = [
       _sumAtamaAdedi(dokumaAtamalari),
@@ -444,14 +451,19 @@ extension _AdminIslemlerExt on _ModelDetayState {
     return toplamlar.fold<int>(0, (max, val) => val > max ? val : max);
   }
 
-  /// Tamamlanan adet: Ütü (son aşama) tamamlanan adetlerin toplamı
-  /// Üretim ütüden çıktığında tamamlanmış sayılır
+  /// Tamamlanan adet: aktif aşamalardaki en yüksek tamamlanan toplamı.
   int _getTotalTamamlananAdet() {
-    int toplam = 0;
-    for (var atama in utuAtamalari) {
-      toplam += (atama['tamamlanan_adet'] ?? 0) as int;
-    }
-    return toplam;
+    final tamamlananlar = [
+      _sumTamamlananAdedi(dokumaAtamalari),
+      _sumTamamlananAdedi(konfeksiyonAtamalari),
+      _sumTamamlananAdedi(nakisAtamalari),
+      _sumTamamlananAdedi(yikamaAtamalari),
+      _sumTamamlananAdedi(ilikDugmeAtamalari),
+      _sumTamamlananAdedi(utuAtamalari),
+      _sumTamamlananAdedi(kaliteKontrolAtamalari),
+      _sumTamamlananAdedi(paketlemeAtamalari),
+    ];
+    return tamamlananlar.fold<int>(0, (max, val) => val > max ? val : max);
   }
 
   void _showAtamaDialog(String asamaKey) {
@@ -835,6 +847,22 @@ extension _AdminIslemlerExt on _ModelDetayState {
             'role': 'utu_firma',
           },
         ];
+      case 'kalite_kontrol':
+        return [
+          {
+            'id': 'test-kalite-1',
+            'email': 'Kalite Kontrol Ekibi',
+            'role': 'kalite_firma',
+          },
+        ];
+      case 'paketleme':
+        return [
+          {
+            'id': 'test-paketleme-1',
+            'email': 'Paketleme Ekibi',
+            'role': 'paketleme_firma',
+          },
+        ];
       default:
         return [
           {
@@ -848,6 +876,13 @@ extension _AdminIslemlerExt on _ModelDetayState {
 
   // Aşamaya göre gerekli rolleri döndürür
   List<String> _getRequiredRolesForStage(String asamaKey) {
+    if (asamaKey == 'kalite_kontrol') {
+      return ['Kalite', 'Kalite Kontrol', 'kalite_firma'];
+    }
+    if (asamaKey == 'paketleme') {
+      return ['Paketleme', 'paketleme_firma'];
+    }
+
     switch (asamaKey) {
       case 'orgu':
         return ['Örgü', 'Dokuma', 'orgu_firma', 'dokuma_firma'];

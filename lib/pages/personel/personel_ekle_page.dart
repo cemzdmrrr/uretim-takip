@@ -147,6 +147,7 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
         elevation: 0,
       ),
       body: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         child: Center(
           child: Container(
@@ -808,8 +809,7 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
           'pozisyon': pozisyonController.text.trim(),
           'departman': departmanController.text.trim(),
           'telefon': telefonController.text.trim(),
-          'ise_baslangic':
-              iseBaslangicYeni.isEmpty ? null : iseBaslangicYeni,
+          'ise_baslangic': iseBaslangicYeni.isEmpty ? null : iseBaslangicYeni,
           'brut_maas': brutMaasController.text.trim().isEmpty
               ? null
               : num.tryParse(brutMaasController.text.trim()),
@@ -822,9 +822,10 @@ class _PersonelEklePageState extends State<PersonelEklePage> {
               haftalikCalismaGunuController.text.trim().isEmpty
                   ? null
                   : num.tryParse(haftalikCalismaGunuController.text.trim()),
-          'yol_ucreti': yolUcretiVar && yolUcretiController.text.trim().isNotEmpty
-              ? num.tryParse(yolUcretiController.text.trim())
-              : null,
+          'yol_ucreti':
+              yolUcretiVar && yolUcretiController.text.trim().isNotEmpty
+                  ? num.tryParse(yolUcretiController.text.trim())
+                  : null,
           'yemek_ucreti':
               yemekUcretiVar && yemekUcretiController.text.trim().isNotEmpty
                   ? num.tryParse(yemekUcretiController.text.trim())

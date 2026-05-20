@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:uretim_takip/config/asama_registry.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/config/dal_form_config.dart';
@@ -12,6 +14,7 @@ import 'package:uretim_takip/services/model_maliyet_hesaplama_servisi.dart';
 import 'package:uretim_takip/services/model_karlilik_servisi.dart';
 import 'package:uretim_takip/services/atama_birlestirme_service.dart';
 import 'package:uretim_takip/services/beden_service.dart';
+import 'package:uretim_takip/services/dashboard_event_bus.dart';
 import 'package:uretim_takip/services/sevkiyat_atama_guard.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/workflow_transition_service.dart';
@@ -47,6 +50,7 @@ class _ModelDetayState extends State<ModelDetay>
   final BedenService _bedenService = BedenService();
   final WorkflowTransitionService _workflowTransitionService =
       WorkflowTransitionService();
+  StreamSubscription<Map<String, dynamic>>? _dashboardEventSubscription;
   TabController? _tabController;
 
   /// Modelin üretim dalını modelData'dan okur, yoksa firmanın birincil dalını kullanır
@@ -104,10 +108,12 @@ class _ModelDetayState extends State<ModelDetay>
     currentModelData = widget.modelData == null
         ? null
         : Map<String, dynamic>.from(widget.modelData!);
+    _setupDashboardEventListener();
     _initializeData();
   }
 
   Future<void> _initializeData() async {
+    await AsamaRegistry.yukle();
     await _kullaniciRolunuAl();
     await _erisimKontrolYap();
     if (_hasAccess) {
@@ -121,6 +127,25 @@ class _ModelDetayState extends State<ModelDetay>
     if (!mounted) return;
     setState(() {
       _isLoading = false;
+    });
+  }
+
+  void _setupDashboardEventListener() {
+    _dashboardEventSubscription = DashboardEventBus().stream.listen((event) {
+      final data = event['data'];
+      final eventModelId = data is Map
+          ? data['model_id']?.toString()
+          : event['model_id']?.toString();
+
+      if (eventModelId != null && eventModelId != widget.modelId) return;
+
+      final eventType =
+          event['event_type']?.toString() ?? event['type']?.toString();
+      if (eventType == 'atama_update' ||
+          eventType == 'model_status_update' ||
+          eventType == 'refresh') {
+        verileriGetir();
+      }
     });
   }
 
@@ -605,6 +630,7 @@ class _ModelDetayState extends State<ModelDetay>
 
   @override
   void dispose() {
+    _dashboardEventSubscription?.cancel();
     _tabController?.dispose();
     super.dispose();
   }

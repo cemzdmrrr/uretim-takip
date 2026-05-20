@@ -501,6 +501,30 @@ extension _UretimExt on _ModelDetayState {
     );
   }
 
+  Set<String> _aktifModelAsamaKodlari() {
+    const desteklenenAsamalar = {
+      'dokuma',
+      'konfeksiyon',
+      'nakis',
+      'yikama',
+      'ilik_dugme',
+      'utu',
+      'kalite_kontrol',
+      'paketleme',
+    };
+    final aktifAsamalar = AsamaRegistry.asamalariGetir(_modelUretimDali)
+        .where((asama) => asama.asamaKodu != 'sevkiyat')
+        .map((asama) => asama.asamaKodu == 'orgu' ? 'dokuma' : asama.asamaKodu)
+        .where(desteklenenAsamalar.contains)
+        .toSet();
+
+    if (aktifAsamalar.isNotEmpty) {
+      return aktifAsamalar;
+    }
+
+    return desteklenenAsamalar;
+  }
+
   Widget _buildAsamaOperasyonListesi() {
     final asamalar = [
       (
@@ -552,12 +576,32 @@ extension _UretimExt on _ModelDetayState {
         const Color(0xFFC62828)
       ),
     ];
+    asamalar.add((
+      'Kalite Kontrol',
+      <dynamic>[],
+      kaliteKontrolAtamalari,
+      Icons.verified,
+      'kalite_kontrol',
+      const Color(0xFF00897B)
+    ));
+    asamalar.add((
+      'Paketleme',
+      <dynamic>[],
+      paketlemeAtamalari,
+      Icons.inventory_2,
+      'paketleme',
+      const Color(0xFF2E7D32)
+    ));
+    final aktifKodlar = _aktifModelAsamaKodlari();
+    final gorunenAsamalar = asamalar
+        .where((a) => aktifKodlar.contains(a.$5 == 'orgu' ? 'dokuma' : a.$5))
+        .toList();
 
     return _erpPanel(
       title: kullaniciRolu == 'admin' ? 'Operasyon Atamaları' : 'Atanan İşler',
       icon: Icons.assignment_turned_in,
       child: Column(
-        children: asamalar
+        children: gorunenAsamalar
             .map((a) => _buildOperasyonKarti(
                   a.$1,
                   a.$2,
@@ -795,8 +839,11 @@ extension _UretimExt on _ModelDetayState {
         'atamalar': paketlemeAtamalari,
       },
     ];
+    final aktifKodlar = _aktifModelAsamaKodlari();
+    final gorunenAsamalar =
+        asamalar.where((asama) => aktifKodlar.contains(asama['kod'])).toList();
 
-    return asamalar.map((asama) {
+    return gorunenAsamalar.map((asama) {
       final atamalar = asama['atamalar'] as List<dynamic>;
       String durum = 'bekliyor';
       int toplamAdet = 0;
@@ -826,7 +873,8 @@ extension _UretimExt on _ModelDetayState {
         }
         if (atamaDurum == 'devam_ediyor' ||
             atamaDurum == 'uretimde' ||
-            atamaDurum == 'baslatildi') {
+            atamaDurum == 'baslatildi' ||
+            atamaDurum == 'kismi_tamamlandi') {
           enAzBirAtamaDevamEdiyor = true;
         }
 
@@ -1498,6 +1546,16 @@ extension _UretimExt on _ModelDetayState {
   }
 
   String _asamaDurumMetni(String durum) {
+    const panelMetinleri = {
+      'devam_ediyor': 'Devam Ediyor',
+      'kismi_tamamlandi': 'KÄ±smi TamamlandÄ±',
+      'uretimde': 'Ãœretimde',
+      'baslatildi': 'BaÅŸlatÄ±ldÄ±',
+      'kabul_edildi': 'Kabul Edildi',
+    };
+    final panelMetni = panelMetinleri[durum];
+    if (panelMetni != null) return panelMetni;
+
     switch (durum) {
       case 'tamamlandi':
         return 'Tamamlandı';

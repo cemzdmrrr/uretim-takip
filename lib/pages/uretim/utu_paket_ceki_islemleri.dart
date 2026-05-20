@@ -35,7 +35,8 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
           // Toplam adet hesapla
           int toplamKoliBasiAdet = 0;
           if (isMixKoli) {
-            toplamKoliBasiAdet = bedenAdetleri.values.fold(0, (a, b) => a + b);
+            toplamKoliBasiAdet =
+                bedenAdetleri.values.fold<int>(0, (a, b) => a + b);
           }
 
           return AlertDialog(
@@ -280,7 +281,8 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
         if (isMixKoli && bedenAdetleri.isNotEmpty) {
           // Mix koli güncelleme
           final koliSayisi = int.tryParse(koliAdediController.text) ?? 1;
-          final koliBasiAdet = bedenAdetleri.values.fold(0, (a, b) => a + b);
+          final koliBasiAdet =
+              bedenAdetleri.values.fold<int>(0, (a, b) => a + b);
 
           updateData = {
             'koli_no': koliNoController.text,
@@ -820,7 +822,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
           // Toplam adet hesapla
           int toplamAdet = 0;
           if (isMixKoli) {
-            toplamAdet = bedenAdetleri.values.fold(0, (a, b) => a + b);
+            toplamAdet = bedenAdetleri.values.fold<int>(0, (a, b) => a + b);
           } else {
             final koli = int.tryParse(koliAdetiController.text) ?? 1;
             final perKoli = int.tryParse(adetPerKoliController.text) ?? 10;
@@ -1293,6 +1295,8 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
       ),
     );
 
+    if (!mounted) return;
+
     if (sonuc == true && seciliModel != null) {
       try {
         final modelId = (seciliModel!['id'] ?? '').toString();
@@ -1370,7 +1374,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
         if (isMixKoli && bedenAdetleri.isNotEmpty) {
           // Mix koli - JSON olarak kaydet
           final koliSayisi = int.tryParse(koliAdetiController.text) ?? 1;
-          final toplamAdet = bedenAdetleri.values.fold(0, (a, b) => a + b);
+          final toplamAdet = bedenAdetleri.values.fold<int>(0, (a, b) => a + b);
 
           await supabase.from(DbTables.cekiListesi).insert({
             'model_id': seciliModel!['id'],

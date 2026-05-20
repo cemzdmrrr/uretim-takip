@@ -456,7 +456,7 @@ extension _AksiyonExt on _OdemePageState {
       ),
       _buildHeroMetricCard(
         icon: Icons.task_alt,
-        label: 'Onaylanan hacim',
+        label: 'Onaylanan Avans',
         value: _formatTutar(onayliToplam),
       ),
     ];
@@ -464,38 +464,53 @@ extension _AksiyonExt on _OdemePageState {
     final left = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-          ),
-          child: const Text(
-            'Finans Operasyon Paneli',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+              ),
+              child: const Text(
+                'Finans Operasyon Paneli',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          personel?.ad ?? 'Personel ödeme hareketleri',
-          style: TextStyle(
-            fontSize: isWide ? 32 : 26,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${personel?.departman ?? 'Departman yok'} • ${_donemEtiketi(seciliDonem)} dönemi için avans, prim, mesai ve kesinti hareketleri tek ekranda.',
-          style: TextStyle(
-            height: 1.45,
-            fontSize: 15,
-            color: Colors.white.withValues(alpha: 0.88),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: personel?.ad ?? 'Personel ödeme hareketleri',
+                      style: TextStyle(
+                        fontSize: isWide ? 32 : 26,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    TextSpan(
+                      text:
+                          '  •  ${personel?.departman ?? 'Departman yok'} • ${_donemEtiketi(seciliDonem)} dönemi için avans, prim, mesai ve kesinti hareketleri tek ekranda.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white.withValues(alpha: 0.88),
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 18),
         Wrap(
@@ -967,40 +982,47 @@ extension _AksiyonExt on _OdemePageState {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, color: Colors.white),
+            child: Icon(icon, color: Colors.white, size: 18),
           ),
-          const SizedBox(height: 18),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.82),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-            ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.white.withValues(alpha: 0.82),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ],
       ),

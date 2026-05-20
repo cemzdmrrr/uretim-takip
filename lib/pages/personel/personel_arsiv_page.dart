@@ -96,6 +96,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                 : double.infinity;
 
             return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
                 horizontalPadding,
                 16,

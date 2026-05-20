@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,7 +8,6 @@ import 'package:uretim_takip/services/tenant_manager.dart';
 
 part 'personel_analiz_widgets.dart';
 
-
 class PersonelAnalizPage extends StatefulWidget {
   const PersonelAnalizPage({super.key});
 
@@ -16,15 +15,18 @@ class PersonelAnalizPage extends StatefulWidget {
   State<PersonelAnalizPage> createState() => _PersonelAnalizPageState();
 }
 
-class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTickerProviderStateMixin {
+class _PersonelAnalizPageState extends State<PersonelAnalizPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool yukleniyor = true;
   String? hata;
   String? seciliDonem;
-  String raporTipi = 'all'; // 'all', 'monthly', 'yearly'
+  String raporTipi = 'all'; // 'all', 'monthly', 'yearly', 'custom'
   int seciliYil = DateTime.now().year;
   int seciliAy = DateTime.now().month;
-  
+  DateTime? baslangicTarihFiltresi;
+  DateTime? bitisTarihFiltresi;
+
   // Genel İstatistikler
   int toplamPersonel = 0;
   int aktifPersonel = 0;
@@ -33,34 +35,34 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
   double ortalamaYas = 0;
   double ortalamaNetMaas = 0;
   double toplamMaasBedeli = 0;
-  
+
   // Departman Analizi
   final Map<String, Map<String, dynamic>> departmanIstatistikleri = {};
-  
+
   // Maaş Analizi
   double enDusukMaas = 0;
   double enYuksekMaas = 0;
   double medyanMaas = 0;
   final Map<String, int> maasDilimleri = {};
-  
+
   // İzin Analizi
   double ortalamaIzinKullanimOrani = 0;
   int toplamKullanilanIzin = 0;
   int toplamKalanIzin = 0;
   final List<Map<String, dynamic>> enCokIzinKullananlar = [];
-  
+
   // Mesai Analizi
   double toplamMesaiSaati = 0;
   double ortalamaMesaiSaati = 0;
   final List<Map<String, dynamic>> enCokMesaiYapanlar = [];
-  
+
   // Performans Analizi
   final List<Map<String, dynamic>> personelPerformans = [];
-  
+
   // Trend Verileri
   final List<Map<String, dynamic>> aylikPersonelSayisi = [];
   final List<Map<String, dynamic>> aylikMaasTrendi = [];
-  
+
   @override
   void initState() {
     super.initState();
@@ -79,27 +81,27 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
       yukleniyor = true;
       hata = null;
     });
-    
+
     try {
       final client = Supabase.instance.client;
-      
+
       // 1. TÜM PERSONELLERİ YÜKLE (aktif ve pasif)
       final personelRes = await client
           .from(DbTables.personel)
           .select('*')
           .eq('firma_id', TenantManager.instance.requireFirmaId);
-      
+
       toplamPersonel = personelRes.length;
       aktifPersonel = 0;
       pasifPersonel = 0;
-      
+
       final maaslar = <double>[];
       double toplamKidemYil = 0;
       int kidemSayisi = 0;
       double toplamYasToplam = 0;
       int yasSayisi = 0;
       departmanIstatistikleri.clear();
-      
+
       for (final personel in personelRes) {
         // Durum kontrolü
         final durum = personel['durum']?.toString() ?? 'aktif';
@@ -108,36 +110,41 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         } else {
           pasifPersonel++;
         }
-        
+
         // Maaş hesaplamaları
-        final netMaas = double.tryParse(personel['net_maas']?.toString() ?? '0') ?? 0;
-        final brutMaas = double.tryParse(personel['brut_maas']?.toString() ?? '0') ?? 0;
+        final netMaas =
+            double.tryParse(personel['net_maas']?.toString() ?? '0') ?? 0;
+        final brutMaas =
+            double.tryParse(personel['brut_maas']?.toString() ?? '0') ?? 0;
         // Eğer brut_maas yoksa net_maas'ı kullan
         final hesaplanacakMaas = brutMaas > 0 ? brutMaas : netMaas;
         if (netMaas > 0) {
           maaslar.add(netMaas);
         }
         toplamMaasBedeli += hesaplanacakMaas;
-        
+
         // Kıdem hesaplaması
-        final iseBaslangic = DateTime.tryParse(personel['ise_baslangic']?.toString() ?? '');
+        final iseBaslangic =
+            DateTime.tryParse(personel['ise_baslangic']?.toString() ?? '');
         if (iseBaslangic != null) {
           final kidemGun = DateTime.now().difference(iseBaslangic).inDays;
           toplamKidemYil += kidemGun / 365.0;
           kidemSayisi++;
         }
-        
+
         // Yaş hesaplaması (dogum_tarihi varsa)
-        final dogumTarihi = DateTime.tryParse(personel['dogum_tarihi']?.toString() ?? '');
+        final dogumTarihi =
+            DateTime.tryParse(personel['dogum_tarihi']?.toString() ?? '');
         if (dogumTarihi != null) {
           final yas = DateTime.now().difference(dogumTarihi).inDays / 365.0;
           toplamYasToplam += yas;
           yasSayisi++;
         }
-        
+
         // Departman bazlı istatistikler
-        final departman = personel['departman']?.toString() ?? 
-                         personel['pozisyon']?.toString() ?? 'Genel';
+        final departman = personel['departman']?.toString() ??
+            personel['pozisyon']?.toString() ??
+            'Genel';
         if (!departmanIstatistikleri.containsKey(departman)) {
           departmanIstatistikleri[departman] = {
             'sayi': 0,
@@ -147,24 +154,27 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
             'pasif': 0,
           };
         }
-        departmanIstatistikleri[departman]!['sayi'] = 
+        departmanIstatistikleri[departman]!['sayi'] =
             (departmanIstatistikleri[departman]!['sayi'] as int) + 1;
-        departmanIstatistikleri[departman]!['toplamMaas'] = 
-            (departmanIstatistikleri[departman]!['toplamMaas'] as double) + hesaplanacakMaas;
+        departmanIstatistikleri[departman]!['toplamMaas'] =
+            (departmanIstatistikleri[departman]!['toplamMaas'] as double) +
+                hesaplanacakMaas;
         if (iseBaslangic != null) {
-          final kidemYil = DateTime.now().difference(iseBaslangic).inDays / 365.0;
-          departmanIstatistikleri[departman]!['toplamKidem'] = 
-              (departmanIstatistikleri[departman]!['toplamKidem'] as double) + kidemYil;
+          final kidemYil =
+              DateTime.now().difference(iseBaslangic).inDays / 365.0;
+          departmanIstatistikleri[departman]!['toplamKidem'] =
+              (departmanIstatistikleri[departman]!['toplamKidem'] as double) +
+                  kidemYil;
         }
         if (durum == 'aktif' || durum.isEmpty) {
-          departmanIstatistikleri[departman]!['aktif'] = 
+          departmanIstatistikleri[departman]!['aktif'] =
               (departmanIstatistikleri[departman]!['aktif'] as int) + 1;
         } else {
-          departmanIstatistikleri[departman]!['pasif'] = 
+          departmanIstatistikleri[departman]!['pasif'] =
               (departmanIstatistikleri[departman]!['pasif'] as int) + 1;
         }
       }
-      
+
       // Ortalama hesaplamaları
       if (kidemSayisi > 0) {
         ortalamaKidem = toplamKidemYil / kidemSayisi;
@@ -172,7 +182,7 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
       if (yasSayisi > 0) {
         ortalamaYas = toplamYasToplam / yasSayisi;
       }
-      
+
       // Maaş istatistikleri
       if (maaslar.isNotEmpty) {
         maaslar.sort();
@@ -180,30 +190,34 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         enYuksekMaas = maaslar.last;
         ortalamaNetMaas = maaslar.reduce((a, b) => a + b) / maaslar.length;
         medyanMaas = maaslar.length % 2 == 0
-            ? (maaslar[maaslar.length ~/ 2 - 1] + maaslar[maaslar.length ~/ 2]) / 2
+            ? (maaslar[maaslar.length ~/ 2 - 1] +
+                    maaslar[maaslar.length ~/ 2]) /
+                2
             : maaslar[maaslar.length ~/ 2];
-        
+
         // Maaş dilimleri
         maasDilimleri.clear();
         maasDilimleri['0-20K'] = maaslar.where((m) => m < 20000).length;
-        maasDilimleri['20K-30K'] = maaslar.where((m) => m >= 20000 && m < 30000).length;
-        maasDilimleri['30K-40K'] = maaslar.where((m) => m >= 30000 && m < 40000).length;
-        maasDilimleri['40K-50K'] = maaslar.where((m) => m >= 40000 && m < 50000).length;
+        maasDilimleri['20K-30K'] =
+            maaslar.where((m) => m >= 20000 && m < 30000).length;
+        maasDilimleri['30K-40K'] =
+            maaslar.where((m) => m >= 30000 && m < 40000).length;
+        maasDilimleri['40K-50K'] =
+            maaslar.where((m) => m >= 40000 && m < 50000).length;
         maasDilimleri['50K+'] = maaslar.where((m) => m >= 50000).length;
       }
-      
+
       // 2. İZİN VERİLERİ
       await _loadIzinVerileri(client, personelRes);
-      
+
       // 3. MESAİ VERİLERİ
       await _loadMesaiVerileri(client, personelRes);
-      
+
       // 4. PERFORMANS VERİLERİ
       await _loadPerformansVerileri(client, personelRes);
-      
+
       // 5. TREND VERİLERİ
       await _loadTrendVerileri(client);
-      
     } catch (e) {
       debugPrint('Analiz verisi yükleme hatası: $e');
       if (!mounted) return;
@@ -211,18 +225,24 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         hata = 'Veriler yüklenirken bir hata oluştu: ${e.toString()}';
       });
     }
-    
+
     setState(() => yukleniyor = false);
   }
-  
-  Future<void> _loadIzinVerileri(SupabaseClient client, List<dynamic> personelRes) async {
+
+  Future<void> _loadIzinVerileri(
+      SupabaseClient client, List<dynamic> personelRes) async {
     try {
       // Tarih aralığını rapor tipine göre belirle
       DateTime baslangicTarih;
       DateTime bitisTarih;
       final now = DateTime.now();
-      
-      if (raporTipi == 'monthly') {
+
+      if (raporTipi == 'custom' &&
+          baslangicTarihFiltresi != null &&
+          bitisTarihFiltresi != null) {
+        baslangicTarih = baslangicTarihFiltresi!;
+        bitisTarih = bitisTarihFiltresi!;
+      } else if (raporTipi == 'monthly') {
         baslangicTarih = DateTime(seciliYil, seciliAy, 1);
         bitisTarih = DateTime(seciliYil, seciliAy + 1, 0);
       } else if (raporTipi == 'yearly') {
@@ -233,7 +253,7 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         baslangicTarih = DateTime(now.year - 1, now.month, 1);
         bitisTarih = now;
       }
-      
+
       final izinRes = await client
           .from(DbTables.izinler)
           .select('user_id, gun_sayisi, onay_durumu')
@@ -241,38 +261,41 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
           .gte('baslama_tarihi', baslangicTarih.toIso8601String().split('T')[0])
           .lte('baslama_tarihi', bitisTarih.toIso8601String().split('T')[0])
           .eq('onay_durumu', 'onaylandi');
-      
+
       // Personel başına izin kullanımı
       final personelIzinMap = <String, int>{};
       for (final izin in izinRes) {
         final personelId = izin['user_id']?.toString() ?? '';
         final gunSayisi = izin['gun_sayisi'] as int? ?? 0;
-        personelIzinMap[personelId] = (personelIzinMap[personelId] ?? 0) + gunSayisi;
+        personelIzinMap[personelId] =
+            (personelIzinMap[personelId] ?? 0) + gunSayisi;
       }
-      
+
       toplamKullanilanIzin = personelIzinMap.values.fold(0, (a, b) => a + b);
-      
+
       // Yıllık izin hakları toplamı
       toplamKalanIzin = 0;
       for (final personel in personelRes) {
-        final yillikIzin = int.tryParse(personel['yillik_izin_hakki']?.toString() ?? '14') ?? 14;
+        final yillikIzin =
+            int.tryParse(personel['yillik_izin_hakki']?.toString() ?? '14') ??
+                14;
         toplamKalanIzin += yillikIzin;
       }
       toplamKalanIzin = toplamKalanIzin - toplamKullanilanIzin;
       if (toplamKalanIzin < 0) toplamKalanIzin = 0;
-      
+
       // Ortalama izin kullanım oranı
       if (personelRes.isNotEmpty) {
         final toplamHak = personelRes.length * 14; // Ortalama 14 gün varsayalım
         ortalamaIzinKullanimOrani = (toplamKullanilanIzin / toplamHak) * 100;
         if (ortalamaIzinKullanimOrani > 100) ortalamaIzinKullanimOrani = 100;
       }
-      
+
       // En çok izin kullananlar (top 5)
       enCokIzinKullananlar.clear();
       final sortedIzin = personelIzinMap.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
-      
+
       for (var i = 0; i < sortedIzin.length && i < 5; i++) {
         final personelId = sortedIzin[i].key;
         final personel = personelRes.firstWhere(
@@ -290,15 +313,21 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
       debugPrint('İzin verileri yüklenemedi: $e');
     }
   }
-  
-  Future<void> _loadMesaiVerileri(SupabaseClient client, List<dynamic> personelRes) async {
+
+  Future<void> _loadMesaiVerileri(
+      SupabaseClient client, List<dynamic> personelRes) async {
     try {
       // Tarih aralığını rapor tipine göre belirle
       DateTime baslangicTarih;
       DateTime bitisTarih;
       final now = DateTime.now();
-      
-      if (raporTipi == 'monthly') {
+
+      if (raporTipi == 'custom' &&
+          baslangicTarihFiltresi != null &&
+          bitisTarihFiltresi != null) {
+        baslangicTarih = baslangicTarihFiltresi!;
+        bitisTarih = bitisTarihFiltresi!;
+      } else if (raporTipi == 'monthly') {
         baslangicTarih = DateTime(seciliYil, seciliAy, 1);
         bitisTarih = DateTime(seciliYil, seciliAy + 1, 0);
       } else if (raporTipi == 'yearly') {
@@ -309,7 +338,7 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         baslangicTarih = DateTime(now.year - 1, now.month, 1);
         bitisTarih = now;
       }
-      
+
       final mesaiRes = await client
           .from(DbTables.mesai)
           .select('user_id, saat, onay_durumu')
@@ -317,28 +346,29 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
           .gte('tarih', baslangicTarih.toIso8601String().split('T')[0])
           .lte('tarih', bitisTarih.toIso8601String().split('T')[0])
           .eq('onay_durumu', 'onaylandi');
-      
+
       // Personel başına mesai
       final personelMesaiMap = <String, double>{};
       toplamMesaiSaati = 0;
-      
+
       for (final mesai in mesaiRes) {
         final personelId = mesai['user_id']?.toString() ?? '';
         final saatSayisi = (mesai['saat'] as num? ?? 0).toDouble();
-        personelMesaiMap[personelId] = (personelMesaiMap[personelId] ?? 0) + saatSayisi;
+        personelMesaiMap[personelId] =
+            (personelMesaiMap[personelId] ?? 0) + saatSayisi;
         toplamMesaiSaati += saatSayisi;
       }
-      
+
       // Ortalama mesai
       if (personelRes.isNotEmpty) {
         ortalamaMesaiSaati = toplamMesaiSaati / personelRes.length;
       }
-      
+
       // En çok mesai yapanlar (top 5)
       enCokMesaiYapanlar.clear();
       final sortedMesai = personelMesaiMap.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
-      
+
       for (var i = 0; i < sortedMesai.length && i < 5; i++) {
         final personelId = sortedMesai[i].key;
         final personel = personelRes.firstWhere(
@@ -356,28 +386,29 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
       debugPrint('Mesai verileri yüklenemedi: $e');
     }
   }
-  
-  Future<void> _loadPerformansVerileri(SupabaseClient client, List<dynamic> personelRes) async {
+
+  Future<void> _loadPerformansVerileri(
+      SupabaseClient client, List<dynamic> personelRes) async {
     try {
       final now = DateTime.now();
       personelPerformans.clear();
-      
+
       for (final personel in personelRes) {
         final personelId = personel['user_id']?.toString() ?? '';
         if (personelId.isEmpty) continue;
-        
+
         // Puantaj verisi
         int calismaGunu = 0;
         int devamsizlik = 0;
         double fazlaMesai = 0;
-        
+
         try {
           final puantajRes = await client
               .from(DbTables.puantaj)
               .select('gun, devamsizlik, fazla_mesai')
               .eq('user_id', personelId)
               .eq('yil', now.year);
-          
+
           for (final p in puantajRes) {
             calismaGunu += (p['gun'] as int? ?? 0);
             devamsizlik += (p['devamsizlik'] as int? ?? 0);
@@ -386,15 +417,15 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         } catch (e) {
           // Puantaj verisi yoksa devam et
         }
-        
+
         // Performans puanı hesapla (basit formül)
         // - Devamsızlık azaltır
         // - Fazla mesai artırır (aşırı değilse)
         double performansPuani = 70; // Base puan
-        
+
         // Devamsızlık etkisi (her gün -3 puan)
         performansPuani -= devamsizlik * 3;
-        
+
         // Fazla mesai etkisi (aylık ortalamaya göre)
         final aylikFazlaMesai = fazlaMesai / 12;
         if (aylikFazlaMesai > 0 && aylikFazlaMesai <= 20) {
@@ -402,18 +433,20 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         } else if (aylikFazlaMesai > 20) {
           performansPuani += 10; // Max bonus
         }
-        
+
         // Kıdem bonusu
-        final iseBaslangic = DateTime.tryParse(personel['ise_baslangic']?.toString() ?? '');
+        final iseBaslangic =
+            DateTime.tryParse(personel['ise_baslangic']?.toString() ?? '');
         if (iseBaslangic != null) {
-          final kidemYil = DateTime.now().difference(iseBaslangic).inDays / 365.0;
+          final kidemYil =
+              DateTime.now().difference(iseBaslangic).inDays / 365.0;
           performansPuani += kidemYil * 2; // Her yıl için +2 puan
         }
-        
+
         // Sınırla
         if (performansPuani > 100) performansPuani = 100;
         if (performansPuani < 0) performansPuani = 0;
-        
+
         String performansDurumu;
         Color performansRenk;
         if (performansPuani >= 80) {
@@ -426,7 +459,7 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
           performansDurumu = 'Düşük';
           performansRenk = Colors.red;
         }
-        
+
         personelPerformans.add({
           'ad': '${personel['ad'] ?? ''} ${personel['soyad'] ?? ''}'.trim(),
           'departman': personel['departman'] ?? personel['pozisyon'] ?? 'Genel',
@@ -438,45 +471,47 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
           'fazlaMesai': fazlaMesai,
         });
       }
-      
+
       // Puana göre sırala
-      personelPerformans.sort((a, b) => (b['puan'] as double).compareTo(a['puan'] as double));
-      
+      personelPerformans
+          .sort((a, b) => (b['puan'] as double).compareTo(a['puan'] as double));
     } catch (e) {
       debugPrint('Performans verileri yüklenemedi: $e');
     }
   }
-  
+
   Future<void> _loadTrendVerileri(SupabaseClient client) async {
     try {
       // Son 12 aylık personel sayısı trendi (işe başlayanlara göre)
       aylikPersonelSayisi.clear();
       aylikMaasTrendi.clear();
-      
+
       for (int i = 11; i >= 0; i--) {
         final tarih = DateTime.now().subtract(Duration(days: i * 30));
         final aySonu = DateTime(tarih.year, tarih.month + 1, 0);
-        
+
         // O ay sonuna kadar işe başlamış personeller
         final personelRes = await client
             .from(DbTables.personel)
             .select('id, brut_maas, net_maas')
             .eq('firma_id', TenantManager.instance.requireFirmaId)
             .lte('ise_baslangic', aySonu.toIso8601String().split('T')[0]);
-        
+
         double toplamMaas = 0;
         for (final p in personelRes) {
-          final brutMaas = double.tryParse(p['brut_maas']?.toString() ?? '0') ?? 0;
-          final netMaas = double.tryParse(p['net_maas']?.toString() ?? '0') ?? 0;
+          final brutMaas =
+              double.tryParse(p['brut_maas']?.toString() ?? '0') ?? 0;
+          final netMaas =
+              double.tryParse(p['net_maas']?.toString() ?? '0') ?? 0;
           // Eğer brut_maas yoksa net_maas'ı kullan
           toplamMaas += brutMaas > 0 ? brutMaas : netMaas;
         }
-        
+
         aylikPersonelSayisi.add({
           'ay': '${tarih.month}/${tarih.year % 100}',
           'sayi': personelRes.length,
         });
-        
+
         aylikMaasTrendi.add({
           'ay': '${tarih.month}/${tarih.year % 100}',
           'tutar': toplamMaas,
@@ -489,11 +524,13 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 760;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F6FB),
       appBar: AppBar(
         title: const Text(
-          'Personel Analiz ve Raporlama',
+          'Rapor Merkezi',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         backgroundColor: Colors.blue,
@@ -509,9 +546,13 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
             tooltip: 'Dışa Aktar',
             onSelected: _exportData,
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'csv_ozet', child: Text('Özet Rapor (CSV)')),
-              const PopupMenuItem(value: 'csv_personel', child: Text('Personel Listesi (CSV)')),
-              const PopupMenuItem(value: 'csv_performans', child: Text('Performans Raporu (CSV)')),
+              const PopupMenuItem(
+                  value: 'csv_ozet', child: Text('Özet Rapor (CSV)')),
+              const PopupMenuItem(
+                  value: 'csv_personel', child: Text('Personel Listesi (CSV)')),
+              const PopupMenuItem(
+                  value: 'csv_performans',
+                  child: Text('Performans Raporu (CSV)')),
             ],
           ),
         ],
@@ -520,114 +561,100 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
           ? const LoadingWidget()
           : hata != null
               ? _buildHataWidget()
-              : Column(
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0F3D91), Color(0xFF2563EB)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+              : NestedScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                    SliverToBoxAdapter(child: _buildErpHeader()),
+                    SliverToBoxAdapter(
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x262563EB),
-                            blurRadius: 28,
-                            offset: Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Personel verisini departman, maaş ve performans kırılımlarında inceleyin',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              height: 1.15,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Filtreleri değiştirerek dönemsel raporları yeniden hesaplayabilirsiniz.',
-                            style: TextStyle(
-                              color: Color(0xFFDCE7FF),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          _buildRaporChip('all', 'Tümü'),
-                          _buildRaporChip('monthly', 'Aylık'),
-                          _buildRaporChip('yearly', 'Yıllık'),
-                          if (raporTipi == 'monthly' || raporTipi == 'yearly')
-                            _buildYilSecici(),
-                          if (raporTipi == 'monthly') _buildAySecici(),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        labelColor: Colors.white,
-                        unselectedLabelColor: const Color(0xFF475569),
-                        dividerColor: Colors.transparent,
-                        indicator: BoxDecoration(
-                          color: const Color(0xFF2563EB),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        tabs: const [
-                          Tab(icon: Icon(Icons.dashboard_outlined), text: 'Genel'),
-                          Tab(icon: Icon(Icons.business_outlined), text: 'Departman'),
-                          Tab(icon: Icon(Icons.payments_outlined), text: 'Maaş'),
-                          Tab(icon: Icon(Icons.access_time_outlined), text: 'İzin ve Mesai'),
-                          Tab(icon: Icon(Icons.trending_up_outlined), text: 'Performans'),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: TabBarView(
-                          controller: _tabController,
+                        child: Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _buildGenelTab(),
-                            _buildDepartmanTab(),
-                            _buildMaasTab(),
-                            _buildIzinMesaiTab(),
-                            _buildPerformansTab(),
+                            _buildRaporChip('all', 'Tümü'),
+                            _buildRaporChip('monthly', 'Aylık'),
+                            _buildRaporChip('yearly', 'Yıllık'),
+                            _buildRaporChip('custom', 'Tarih Aralığı'),
+                            if (raporTipi == 'monthly' || raporTipi == 'yearly')
+                              _buildYilSecici(),
+                            if (raporTipi == 'monthly') _buildAySecici(),
+                            if (raporTipi == 'custom')
+                              _buildTarihAraligiSecici(),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          isScrollable: isMobile,
+                          tabAlignment:
+                              isMobile ? TabAlignment.start : TabAlignment.fill,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          labelPadding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 14 : 0,
+                          ),
+                          labelColor: Colors.white,
+                          unselectedLabelColor: const Color(0xFF475569),
+                          dividerColor: Colors.transparent,
+                          labelStyle: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w800),
+                          unselectedLabelStyle: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600),
+                          indicator: BoxDecoration(
+                            color: const Color(0xFF2563EB),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          tabs: const [
+                            Tab(
+                                icon: Icon(Icons.dashboard_outlined),
+                                text: 'Genel'),
+                            Tab(
+                                icon: Icon(Icons.business_outlined),
+                                text: 'Departman'),
+                            Tab(
+                                icon: Icon(Icons.payments_outlined),
+                                text: 'Maaş'),
+                            Tab(
+                                icon: Icon(Icons.access_time_outlined),
+                                text: 'İzin ve Mesai'),
+                            Tab(
+                                icon: Icon(Icons.trending_up_outlined),
+                                text: 'Performans'),
                           ],
                         ),
                       ),
                     ),
                   ],
+                  body: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildGenelTab(),
+                        _buildDepartmanTab(),
+                        _buildMaasTab(),
+                        _buildIzinMesaiTab(),
+                        _buildPerformansTab(),
+                      ],
+                    ),
+                  ),
                 ),
     );
   }
@@ -648,7 +675,14 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
         color: selected ? const Color(0xFF2563EB) : const Color(0xFFD8E1EC),
       ),
       onSelected: (_) {
-        setState(() => raporTipi = value);
+        setState(() {
+          raporTipi = value;
+          if (value == 'custom') {
+            final now = DateTime.now();
+            baslangicTarihFiltresi ??= DateTime(now.year, now.month, 1);
+            bitisTarihFiltresi ??= now;
+          }
+        });
         _loadAnalizData();
       },
     );
@@ -708,5 +742,78 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage> with SingleTick
       ),
     );
   }
-  
+
+  Widget _buildTarihAraligiSecici() {
+    final formatter = DateFormat('dd.MM.yyyy');
+    final baslangic = baslangicTarihFiltresi;
+    final bitis = bitisTarihFiltresi;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _buildTarihButonu(
+          label: baslangic == null ? 'Başlangıç' : formatter.format(baslangic),
+          icon: Icons.event_available_outlined,
+          onTap: () => _tarihSec(baslangicMi: true),
+        ),
+        _buildTarihButonu(
+          label: bitis == null ? 'Bitiş' : formatter.format(bitis),
+          icon: Icons.event_busy_outlined,
+          onTap: () => _tarihSec(baslangicMi: false),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTarihButonu({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFF334155),
+        side: const BorderSide(color: Color(0xFFD8E1EC)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Future<void> _tarihSec({required bool baslangicMi}) async {
+    final now = DateTime.now();
+    final initialDate = baslangicMi
+        ? (baslangicTarihFiltresi ?? DateTime(now.year, now.month, 1))
+        : (bitisTarihFiltresi ?? now);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      locale: const Locale('tr', 'TR'),
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      raporTipi = 'custom';
+      if (baslangicMi) {
+        baslangicTarihFiltresi = picked;
+        if (bitisTarihFiltresi != null &&
+            bitisTarihFiltresi!.isBefore(picked)) {
+          bitisTarihFiltresi = picked;
+        }
+      } else {
+        bitisTarihFiltresi = picked;
+        if (baslangicTarihFiltresi != null &&
+            baslangicTarihFiltresi!.isAfter(picked)) {
+          baslangicTarihFiltresi = picked;
+        }
+      }
+    });
+    _loadAnalizData();
+  }
 }
