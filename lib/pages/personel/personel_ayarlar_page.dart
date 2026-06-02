@@ -26,6 +26,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
   final _ibanController = TextEditingController();
   final _bankaAdiController = TextEditingController();
   final _yetkiliBilgiController = TextEditingController();
+  final _ayarDonemiController = TextEditingController();
 
   // SGK & Vergi Ayarları
   final _sgkIsverenOranController = TextEditingController();
@@ -87,6 +88,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
     _ibanController.dispose();
     _bankaAdiController.dispose();
     _yetkiliBilgiController.dispose();
+    _ayarDonemiController.dispose();
     _sgkIsverenOranController.dispose();
     _sgkIsciOranController.dispose();
     _issizlikIsverenController.dispose();
@@ -124,6 +126,9 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
     setState(() => _isLoading = true);
 
     try {
+      final now = DateTime.now();
+      _ayarDonemiController.text =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}';
       // Şirket bilgilerini yükle
       final companyData = await SupabaseService.getCompanySettings();
       if (companyData != null) {
@@ -141,6 +146,8 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
       // Sistem ayarlarını yükle
       final systemData = await SupabaseService.getSystemSettings();
       if (systemData.isNotEmpty) {
+        _ayarDonemiController.text =
+            systemData['ayar_gecerlilik_donemi'] ?? _ayarDonemiController.text;
         _sgkIsverenOranController.text =
             systemData['sgk_isveren_prim_orani'] ?? '20.5';
         _sgkIsciOranController.text =
@@ -149,8 +156,10 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
             systemData['issizlik_isveren_prim_orani'] ?? '2.0';
         _issizlikIsciController.text =
             systemData['issizlik_isci_prim_orani'] ?? '1.0';
-        _gelirVergisiMinController.text = '15.0'; // Sabit değer
-        _gelirVergisiMaxController.text = '40.0'; // Sabit değer
+        _gelirVergisiMinController.text =
+            systemData['gelir_vergisi_min_orani'] ?? '15.0';
+        _gelirVergisiMaxController.text =
+            systemData['gelir_vergisi_max_orani'] ?? '40.0';
         _damgaVergisiOranController.text =
             systemData['damga_vergisi_orani'] ?? '0.759';
         _asgariUcretController.text = systemData['asgari_ucret'] ?? '17002.0';
@@ -162,9 +171,13 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
         _egitimYardimController.text = systemData['egitim_yardim'] ?? '0';
         _irsaliyeVardiyaController.text = systemData['irsaliye_vardiya'] ?? '0';
         _fazlaMesaiFizikselController.text =
-            systemData['mesai_carpani'] ?? '1.5';
+            systemData['fiziksel_is_mesai_carpani'] ??
+                systemData['mesai_carpani'] ??
+                '1.5';
         _fazlaMesaiZihinselController.text =
-            systemData['mesai_carpani'] ?? '1.5';
+            systemData['zihinsel_is_mesai_carpani'] ??
+                systemData['mesai_carpani'] ??
+                '1.5';
 
         // Çalışma ayarları
         _gunlukCalismaSaatiController.text =
@@ -198,6 +211,15 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
     setState(() => _isLoading = false);
   }
 
+  String _ayarMetni(TextEditingController controller) {
+    return controller.text.trim();
+  }
+
+  String _sayisalAyar(TextEditingController controller) {
+    final text = controller.text.trim().replaceAll(',', '.');
+    return text.isEmpty ? '0' : text;
+  }
+
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -206,15 +228,15 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
     try {
       // Şirket bilgilerini kaydet
       final companyData = {
-        'sirket_adi': _sirketAdiController.text,
-        'vergi_numarasi': _vergiNumarasiController.text,
-        'ticaret_sicil_no': _ticSicilNoController.text,
-        'adres': _adresController.text,
-        'telefon': _telefonController.text,
-        'email': _emailController.text,
-        'iban': _ibanController.text,
-        'banka_adi': _bankaAdiController.text,
-        'yetkili_bilgi': _yetkiliBilgiController.text,
+        'sirket_adi': _ayarMetni(_sirketAdiController),
+        'vergi_numarasi': _ayarMetni(_vergiNumarasiController),
+        'ticaret_sicil_no': _ayarMetni(_ticSicilNoController),
+        'adres': _ayarMetni(_adresController),
+        'telefon': _ayarMetni(_telefonController),
+        'email': _ayarMetni(_emailController),
+        'iban': _ayarMetni(_ibanController),
+        'banka_adi': _ayarMetni(_bankaAdiController),
+        'yetkili_bilgi': _ayarMetni(_yetkiliBilgiController),
         'vergi_dairesi': 'Belirtilmemiş',
         'sgk_sicil_no': '',
         'faaliyet': 'Genel',
@@ -224,32 +246,39 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
 
       // Sistem ayarlarını kaydet
       final systemData = {
-        'sgk_isveren_prim_orani': _sgkIsverenOranController.text,
-        'sgk_isci_prim_orani': _sgkIsciOranController.text,
-        'issizlik_isveren_prim_orani': _issizlikIsverenController.text,
-        'issizlik_isci_prim_orani': _issizlikIsciController.text,
-        'damga_vergisi_orani': _damgaVergisiOranController.text,
-        'asgari_ucret': _asgariUcretController.text,
-        'yemek_yardim': _yemekYardimController.text,
-        'yol_yardim': _yolYardimController.text,
-        'cocuk_yardim': _cocukYardimController.text,
-        'egitim_yardim': _egitimYardimController.text,
-        'irsaliye_vardiya': _irsaliyeVardiyaController.text,
-        'mesai_carpani': _fazlaMesaiFizikselController.text,
-        'gunluk_calisma_saati': _gunlukCalismaSaatiController.text,
-        'haftalik_calisma_saati': _haftalikCalismaSaatiController.text,
-        'aylik_calisma_saati': _aylikCalismaSaatiController.text,
-        'gece_vardiya_carpani': _gece2230_0600Controller.text,
-        'pazar_carpani': _pazarTatilController.text,
-        'bayram_carpani': _resmiTatilController.text,
-        'yillik_izin_gunu': _yillikIzinController.text,
-        'hastalik_izin': _hastalikIzinController.text,
-        'dogum_izin': _dogumIzinController.text,
-        'babalik_izin': _babalikIzinController.text,
-        'evlilik_izin': _evlilikIzinController.text,
-        'olum_izin': _olumIzinController.text,
-        'askerlik_izin': _askerlikIzinController.text,
-        'mazeret_izin': _mazeretIzinController.text,
+        'ayar_gecerlilik_donemi': _ayarMetni(_ayarDonemiController),
+        'sgk_isveren_prim_orani': _sayisalAyar(_sgkIsverenOranController),
+        'sgk_isci_prim_orani': _sayisalAyar(_sgkIsciOranController),
+        'issizlik_isveren_prim_orani': _sayisalAyar(_issizlikIsverenController),
+        'issizlik_isci_prim_orani': _sayisalAyar(_issizlikIsciController),
+        'gelir_vergisi_min_orani': _sayisalAyar(_gelirVergisiMinController),
+        'gelir_vergisi_max_orani': _sayisalAyar(_gelirVergisiMaxController),
+        'damga_vergisi_orani': _sayisalAyar(_damgaVergisiOranController),
+        'asgari_ucret': _sayisalAyar(_asgariUcretController),
+        'yemek_yardim': _sayisalAyar(_yemekYardimController),
+        'yol_yardim': _sayisalAyar(_yolYardimController),
+        'cocuk_yardim': _sayisalAyar(_cocukYardimController),
+        'egitim_yardim': _sayisalAyar(_egitimYardimController),
+        'irsaliye_vardiya': _sayisalAyar(_irsaliyeVardiyaController),
+        'mesai_carpani': _sayisalAyar(_fazlaMesaiFizikselController),
+        'fiziksel_is_mesai_carpani':
+            _sayisalAyar(_fazlaMesaiFizikselController),
+        'zihinsel_is_mesai_carpani':
+            _sayisalAyar(_fazlaMesaiZihinselController),
+        'gunluk_calisma_saati': _sayisalAyar(_gunlukCalismaSaatiController),
+        'haftalik_calisma_saati': _sayisalAyar(_haftalikCalismaSaatiController),
+        'aylik_calisma_saati': _sayisalAyar(_aylikCalismaSaatiController),
+        'gece_vardiya_carpani': _sayisalAyar(_gece2230_0600Controller),
+        'pazar_carpani': _sayisalAyar(_pazarTatilController),
+        'bayram_carpani': _sayisalAyar(_resmiTatilController),
+        'yillik_izin_gunu': _sayisalAyar(_yillikIzinController),
+        'hastalik_izin': _sayisalAyar(_hastalikIzinController),
+        'dogum_izin': _sayisalAyar(_dogumIzinController),
+        'babalik_izin': _sayisalAyar(_babalikIzinController),
+        'evlilik_izin': _sayisalAyar(_evlilikIzinController),
+        'olum_izin': _sayisalAyar(_olumIzinController),
+        'askerlik_izin': _sayisalAyar(_askerlikIzinController),
+        'mazeret_izin': _sayisalAyar(_mazeretIzinController),
       };
 
       final companySuccess =
@@ -341,6 +370,7 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
                             ],
                           ),
                   ),
+                  _buildScopePanel(isMobile),
                   Container(
                     margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                     padding: const EdgeInsets.all(6),
@@ -428,6 +458,65 @@ class _PersonelAyarlarPageState extends State<PersonelAyarlarPage>
           _MiniMetric(label: 'Kapsam', value: 'Bordro • SGK • İzin'),
         ],
       ),
+    );
+  }
+
+  Widget _buildScopePanel(bool isMobile) {
+    final periodField = _buildTextField(
+      controller: _ayarDonemiController,
+      label: 'Geçerlilik Dönemi',
+      icon: Icons.event_available_outlined,
+    );
+    final scopeInfo = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.domain_verification_outlined, color: Color(0xFF2563EB)),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Firma bazlı personel parametreleri bordro, izin ve mesai hesaplarına uygulanır.',
+              style: TextStyle(
+                color: Color(0xFF475569),
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                periodField,
+                const SizedBox(height: 8),
+                scopeInfo,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 2, child: periodField),
+                const SizedBox(width: 12),
+                Expanded(flex: 3, child: scopeInfo),
+              ],
+            ),
     );
   }
 

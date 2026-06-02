@@ -13,6 +13,9 @@ class AtamaBirlestirmeService {
     'beklemede',
     'atandi',
     'onaylandi',
+    'onay_bekliyor',
+    'firma_onay_bekliyor',
+    'kabul_edildi',
     'kontrol_bekliyor',
     'baslandi',
     'baslatildi',
@@ -45,6 +48,88 @@ class AtamaBirlestirmeService {
     'idempotency_key',
     'created_at',
   ];
+
+  static const _varsayilanAdetKolonlari = [
+    'adet',
+    'talep_edilen_adet',
+    'kabul_edilen_adet',
+    'kontrol_edilecek_adet',
+    'alinan_adet',
+    'kalan_adet',
+    'sevk_edilen_adet',
+    'tamamlanan_adet',
+  ];
+
+  static List<Map<String, dynamic>> mergeForDisplay(
+    List<Map<String, dynamic>> rows, {
+    List<String> quantityFields = _varsayilanAdetKolonlari,
+  }) {
+    final grouped = <String, Map<String, dynamic>>{};
+    final order = <String>[];
+
+    for (final row in rows) {
+      final modelId = row['model_id']?.toString();
+      if (modelId == null || modelId.isEmpty) {
+        final fallbackKey = 'row:${row['id'] ?? order.length}';
+        grouped[fallbackKey] = Map<String, dynamic>.from(row);
+        order.add(fallbackKey);
+        continue;
+      }
+
+      final key = '$modelId:${_durumGrubu(row['durum'])}';
+      final existing = grouped[key];
+      if (existing == null) {
+        final first = Map<String, dynamic>.from(row);
+        first['_merged_record_ids'] = [row['id']];
+        grouped[key] = first;
+        order.add(key);
+        continue;
+      }
+
+      final ids = List<dynamic>.from(existing['_merged_record_ids'] ?? []);
+      ids.add(row['id']);
+      existing['_merged_record_ids'] = ids;
+
+      for (final field in quantityFields) {
+        if (!row.containsKey(field)) continue;
+        final incoming = _toInt(row[field]);
+        if (incoming <= 0) continue;
+        existing[field] = _toInt(existing[field]) + incoming;
+      }
+
+      final existingBeden = _parseBedenDetayi(existing['beden_detaylari']);
+      final incomingBeden = _parseBedenDetayi(
+        row['beden_detaylari'] ?? row['beden_dagilimi'],
+      );
+      if (incomingBeden.isNotEmpty) {
+        final merged = <String, int>{...existingBeden};
+        for (final entry in incomingBeden.entries) {
+          merged[entry.key] = (merged[entry.key] ?? 0) + entry.value;
+        }
+        existing['beden_detaylari'] = _siraliBedenMap(merged);
+      }
+
+      final yeniNot =
+          (row['notlar'] ?? row['aciklama'] ?? '').toString().trim();
+      if (yeniNot.isNotEmpty) {
+        final mevcutNot = (existing['notlar'] ?? existing['aciklama'] ?? '')
+            .toString()
+            .trim();
+        final birlesikNot = mevcutNot.isEmpty || mevcutNot.contains(yeniNot)
+            ? mevcutNot.isEmpty
+                ? yeniNot
+                : mevcutNot
+            : '$mevcutNot\n$yeniNot';
+        if (existing.containsKey('notlar')) {
+          existing['notlar'] = birlesikNot;
+        } else if (existing.containsKey('aciklama')) {
+          existing['aciklama'] = birlesikNot;
+        }
+      }
+    }
+
+    return order.map((key) => grouped[key]!).toList();
+  }
 
   Future<Map<String, dynamic>> insertOrMerge({
     required String tableName,
@@ -241,6 +326,12 @@ class AtamaBirlestirmeService {
       updateData['durum'] = incoming['durum'];
     }
 
+    final yeniIdempotency = (incoming['idempotency_key'] ?? '').toString();
+    if (yeniIdempotency.isNotEmpty &&
+        yeniIdempotency != (mevcutKayit['idempotency_key'] ?? '').toString()) {
+      updateData['idempotency_key'] = yeniIdempotency;
+    }
+
     return updateData;
   }
 
@@ -298,6 +389,40 @@ class AtamaBirlestirmeService {
         .replaceAll('i̇', 'i')
         .replaceAll('ı', 'i')
         .replaceAll(' ', '_');
+  }
+
+  static String _durumGrubu(dynamic value) {
+    final durum = _normalize(value);
+    if (durum.isEmpty ||
+        {
+          'bekleyen',
+          'beklemede',
+          'atandi',
+          'firma_onay_bekliyor',
+          'onay_bekliyor',
+          'kontrol_bekliyor',
+        }.contains(durum)) {
+      return 'bekleyen';
+    }
+    if ({'onaylandi', 'kabul_edildi'}.contains(durum)) {
+      return 'onaylanan';
+    }
+    if ({
+      'baslandi',
+      'baslatildi',
+      'uretimde',
+      'devam_ediyor',
+      'kontrolde',
+      'islemde',
+      'isleniyor',
+      'kismi_tamamlandi',
+      'sevk_ediliyor',
+      'kismen_sevk',
+    }.contains(durum)) {
+      return 'islemde';
+    }
+    if (durum == 'tamamlandi') return 'tamamlanan';
+    return durum;
   }
 
   static int _toInt(dynamic value) {

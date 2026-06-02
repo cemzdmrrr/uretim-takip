@@ -221,14 +221,17 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
         }
       }
 
+      final birlesikKayitlar =
+          AtamaBirlestirmeService.mergeForDisplay(zenginKayitlar);
+
       setState(() {
         // Bekleyenler: beklemede, atandi durumu
-        bekleyenSevkler = zenginKayitlar
+        bekleyenSevkler = birlesikKayitlar
             .where((p) => p['durum'] == 'atandi' || p['durum'] == 'beklemede')
             .toList();
 
         // Devam edenler: kismen_sevk, baslandi, uretimde, sevk_ediliyor
-        devamEdenSevkler = zenginKayitlar
+        devamEdenSevkler = birlesikKayitlar
             .where((p) =>
                 p['durum'] == 'kismen_sevk' ||
                 p['durum'] == 'baslandi' ||
@@ -237,7 +240,7 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
             .toList();
 
         // Tamamlananlar
-        tamamlananSevkler = zenginKayitlar
+        tamamlananSevkler = birlesikKayitlar
             .where((p) =>
                 p['durum'] == 'tamamlandi' || p['durum'] == 'sevk_edildi')
             .toList();

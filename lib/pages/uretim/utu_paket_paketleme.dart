@@ -933,21 +933,28 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             extraFields: transitionFields,
           );
 
-          await supabase.from(DbTables.utuAtamalari).insert({
-            'model_id': atama['model_id'],
-            'tedarikci_id': atama['tedarikci_id'],
-            if (atama['atanan_kullanici_id'] != null)
-              'atanan_kullanici_id': atama['atanan_kullanici_id'],
-            'talep_edilen_adet': kalanAdet,
-            'adet': kalanAdet,
-            'tamamlanan_adet': 0,
-            'durum': 'uretimde',
-            'atama_tarihi': now,
-            'uretim_baslangic_tarihi': now,
-            if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
-            'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
-            'firma_id': firmaId,
-          });
+          await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+            tableName: DbTables.utuAtamalari,
+            firmaId: firmaId,
+            modelId: atama['model_id'],
+            idempotencyKey: 'utu:${atama['id']}:kalan:$kalanAdet',
+            values: {
+              'model_id': atama['model_id'],
+              'tedarikci_id': atama['tedarikci_id'],
+              if (atama['atanan_kullanici_id'] != null)
+                'atanan_kullanici_id': atama['atanan_kullanici_id'],
+              'talep_edilen_adet': kalanAdet,
+              'adet': kalanAdet,
+              'tamamlanan_adet': 0,
+              'durum': 'uretimde',
+              'atama_tarihi': now,
+              'uretim_baslangic_tarihi': now,
+              if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
+              'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
+              'firma_id': firmaId,
+            },
+            quantityFields: const ['talep_edilen_adet', 'adet'],
+          );
         }
 
         // Çeki listesi manuel "Yeni Çeki" akışıyla oluşturulur. Burada otomatik

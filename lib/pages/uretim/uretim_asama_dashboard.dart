@@ -447,8 +447,9 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
       );
 
       // Durumlara göre ayır
-      final tumModeller = List<Map<String, dynamic>>.from(response);
-      await _modelBilgileriniEkle(tumModeller);
+      final hamModeller = List<Map<String, dynamic>>.from(response);
+      await _modelBilgileriniEkle(hamModeller);
+      final tumModeller = AtamaBirlestirmeService.mergeForDisplay(hamModeller);
 
       setState(() {
         // Bekleyen: bekleyen, beklemede, atandı veya firma onay bekliyor
@@ -457,6 +458,7 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
                 m['durum'] == 'bekleyen' ||
                 m['durum'] == 'beklemede' ||
                 m['durum'] == 'atandi' ||
+                m['durum'] == 'onay_bekliyor' ||
                 m['durum'] == 'firma_onay_bekliyor' ||
                 m['durum'] == null)
             .toList();

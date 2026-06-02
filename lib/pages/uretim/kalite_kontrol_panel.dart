@@ -152,10 +152,12 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
 
       debugPrint(
           '📋 Zenginleştirilmiş kontroller: ${zenginKontroller.length} kayıt');
+      final birlesikKontroller =
+          AtamaBirlestirmeService.mergeForDisplay(zenginKontroller);
 
       setState(() {
         // Bekleyenler: atandi durumu (yeni atamalar)
-        bekleyenler = zenginKontroller
+        bekleyenler = birlesikKontroller
             .where((k) =>
                 k['durum'] == 'atandi' ||
                 k['durum'] == 'beklemede' ||
@@ -163,12 +165,12 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
             .toList();
 
         // Kontrol ediliyor: baslandi durumu
-        kontrolEdiliyor = zenginKontroller
+        kontrolEdiliyor = birlesikKontroller
             .where((k) => k['durum'] == 'baslandi' || k['durum'] == 'kontrolde')
             .toList();
 
         // Tamamlananlar: tamamlandi, iptal
-        tamamlananlar = zenginKontroller
+        tamamlananlar = birlesikKontroller
             .where((k) =>
                 k['durum'] == 'tamamlandi' ||
                 k['durum'] == 'onaylandi' ||

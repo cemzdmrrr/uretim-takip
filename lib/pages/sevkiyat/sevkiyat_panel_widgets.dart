@@ -35,7 +35,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
     return RefreshIndicator(
       onRefresh: _verileriYukle,
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding:
+            EdgeInsets.all(MediaQuery.sizeOf(context).width < 640 ? 10 : 16),
         itemCount: liste.length,
         itemBuilder: (context, index) => _buildSevkCard(liste[index], tip),
       ),
@@ -77,6 +78,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
                     children: [
                       Text(
                         '${model['marka'] ?? 'Bilinmiyor'} - ${model['item_no'] ?? 'N/A'}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.bold),
                       ),
@@ -138,29 +141,111 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
   Widget _buildBilgiSatiri(String label, String? value,
       {Color? textColor, bool isBold = false}) {
+    final darKart = MediaQuery.sizeOf(context).width < 640;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: darKart
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$label:',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value ?? '-',
+                  softWrap: true,
+                  style: TextStyle(
+                    color: textColor ?? Colors.black87,
+                    fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 140,
+                  child: Text(
+                    '$label:',
+                    style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    value ?? '-',
+                    style: TextStyle(
+                      color: textColor ?? Colors.black87,
+                      fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildResponsiveActionRow(List<Widget> buttons) {
+    final darKart = MediaQuery.sizeOf(context).width < 640;
+    if (darKart) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                  color: Colors.grey.shade600, fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value ?? '-',
-              style: TextStyle(
-                color: textColor ?? Colors.black87,
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
+          for (var i = 0; i < buttons.length; i++) ...[
+            buttons[i],
+            if (i < buttons.length - 1) const SizedBox(height: 8),
+          ],
         ],
+      );
+    }
+
+    return Row(
+      children: [
+        for (var i = 0; i < buttons.length; i++) ...[
+          Expanded(flex: i == 0 ? 1 : 2, child: buttons[i]),
+          if (i < buttons.length - 1) const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDetayButton(String label, VoidCallback onPressed) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.info_outline),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  Widget _buildPrimarySevkButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
       ),
     );
   }
@@ -206,60 +291,39 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
   Widget _buildAksiyonButonlari(Map<String, dynamic> sevk, String tip) {
     if (tip == 'bekleyen') {
-      return Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _showDetayDialog(sevk),
-              icon: const Icon(Icons.info_outline),
-              label: const Text('Detay'),
-            ),
+      return _buildResponsiveActionRow(
+        [
+          _buildDetayButton(
+            'Detay',
+            () => _showDetayDialog(sevk),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton.icon(
-              onPressed: () => _showSevkDialog(sevk),
-              icon: const Icon(Icons.local_shipping),
-              label: const Text('Sevk Et'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                foregroundColor: Colors.white,
-              ),
-            ),
+          _buildPrimarySevkButton(
+            label: 'Sevk Et',
+            icon: Icons.local_shipping,
+            onPressed: () => _showSevkDialog(sevk),
+            color: Colors.indigo,
           ),
         ],
       );
     } else if (tip == 'devam') {
-      return Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _showDetayDialog(sevk),
-              icon: const Icon(Icons.info_outline),
-              label: const Text('Detay'),
-            ),
+      return _buildResponsiveActionRow(
+        [
+          _buildDetayButton(
+            'Detay',
+            () => _showDetayDialog(sevk),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton.icon(
-              onPressed: () => _sevkTamamla(sevk),
-              icon: const Icon(Icons.check),
-              label: const Text('Tamamla'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-            ),
+          _buildPrimarySevkButton(
+            label: 'Tamamla',
+            icon: Icons.check,
+            onPressed: () => _sevkTamamla(sevk),
+            color: Colors.green,
           ),
         ],
       );
     } else {
-      return OutlinedButton.icon(
-        onPressed: () => _showDetayDialog(sevk),
-        icon: const Icon(Icons.info_outline),
-        label: const Text('Detay Görüntüle'),
+      return _buildDetayButton(
+        'Detay Görüntüle',
+        () => _showDetayDialog(sevk),
       );
     }
   }

@@ -3,6 +3,56 @@ part of 'utu_paket_dashboard.dart';
 
 /// Çeki CRUD işlemleri (düzenle, gönderim, sil, ekle) for _UtuPaketDashboardState.
 extension _CekiIslemleriExt on _UtuPaketDashboardState {
+  int _cekiInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  List<String> _cekiKaydiBedenleriniGetir(
+    Map<String, dynamic> kayit,
+    Map<String, dynamic>? model,
+  ) {
+    final bedenler = <String>{};
+
+    void ekle(dynamic value) {
+      final beden = (value ?? '').toString().trim().toUpperCase();
+      if (beden.isNotEmpty && beden != 'MIX' && beden != 'GENEL') {
+        bedenler.add(beden);
+      }
+    }
+
+    final modelBedenleri = model?['bedenler'];
+    if (modelBedenleri is Map) {
+      for (final key in modelBedenleri.keys) {
+        ekle(key);
+      }
+    } else if (modelBedenleri is List) {
+      for (final item in modelBedenleri) {
+        if (item is Map) {
+          ekle(item['beden'] ?? item['beden_kodu'] ?? item['size']);
+        } else {
+          ekle(item);
+        }
+      }
+    }
+
+    final mix = kayit['mix_beden_detay'];
+    if (mix is List) {
+      for (final item in mix) {
+        if (item is Map) {
+          ekle(item['beden'] ?? item['beden_kodu']);
+        }
+      }
+    }
+
+    ekle(kayit['beden_kodu']);
+
+    final sonuc = bedenler.toList()..sort();
+    if (sonuc.isEmpty) sonuc.add('GENEL');
+    return sonuc;
+  }
+
   // ===== ÇEKİ LISTESI DÜZENLE =====
   Future<void> _cekiDuzenleDialogu(Map<String, dynamic> kayit) async {
     final koliNoController =
@@ -16,15 +66,24 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
     final adetPerKoliController =
         TextEditingController(text: (kayit['adet_per_koli'] ?? '').toString());
     final notController = TextEditingController(text: kayit['notlar'] ?? '');
+    final yeniBedenAdetController = TextEditingController();
 
     // Mix koli kontrolü
     final isMixKoli = kayit['beden_kodu'] == 'MIX';
     final mixBedenDetay = kayit['mix_beden_detay'] as List<dynamic>?;
     final Map<String, int> bedenAdetleri = {};
+    final model = kayit[DbTables.trikoTakip] as Map<String, dynamic>?;
+    final secilebilirBedenler = _cekiKaydiBedenleriniGetir(kayit, model);
+    String? eklenecekBeden =
+        secilebilirBedenler.isNotEmpty ? secilebilirBedenler.first : null;
 
     if (isMixKoli && mixBedenDetay != null) {
       for (var item in mixBedenDetay) {
-        bedenAdetleri[item['beden']] = item['adet'];
+        final beden = (item['beden'] ?? '').toString().trim().toUpperCase();
+        final adet = _cekiInt(item['adet']);
+        if (beden.isNotEmpty && adet > 0) {
+          bedenAdetleri[beden] = adet;
+        }
       }
     }
 
@@ -141,6 +200,118 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                                 ),
                               );
                             }).toList(),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.purple.withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Yeni Beden Ekle',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.purple[700],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final darAlan =
+                                          constraints.maxWidth < 520;
+                                      final alanlar = [
+                                        DropdownButtonFormField<String>(
+                                          initialValue: eklenecekBeden,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Beden',
+                                            border: OutlineInputBorder(),
+                                            isDense: true,
+                                          ),
+                                          items: secilebilirBedenler
+                                              .map(
+                                                (beden) => DropdownMenuItem(
+                                                  value: beden,
+                                                  child: Text(beden),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (value) {
+                                            setDialogState(() {
+                                              eklenecekBeden = value;
+                                            });
+                                          },
+                                        ),
+                                        TextField(
+                                          controller: yeniBedenAdetController,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Adet',
+                                            border: OutlineInputBorder(),
+                                            isDense: true,
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                        ),
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            final beden =
+                                                eklenecekBeden?.trim();
+                                            final adet = int.tryParse(
+                                                  yeniBedenAdetController.text,
+                                                ) ??
+                                                0;
+                                            if (beden == null ||
+                                                beden.isEmpty ||
+                                                adet <= 0) {
+                                              return;
+                                            }
+                                            setDialogState(() {
+                                              bedenAdetleri[
+                                                  beden.toUpperCase()] = adet;
+                                              yeniBedenAdetController.clear();
+                                            });
+                                          },
+                                          icon: const Icon(Icons.add, size: 18),
+                                          label: const Text('Ekle'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.purple,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ),
+                                      ];
+
+                                      if (darAlan) {
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            alanlar[0],
+                                            const SizedBox(height: 8),
+                                            alanlar[1],
+                                            const SizedBox(height: 8),
+                                            alanlar[2],
+                                          ],
+                                        );
+                                      }
+
+                                      return Row(
+                                        children: [
+                                          Expanded(child: alanlar[0]),
+                                          const SizedBox(width: 8),
+                                          Expanded(child: alanlar[1]),
+                                          const SizedBox(width: 8),
+                                          alanlar[2],
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
                             const Divider(),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -280,9 +451,11 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
 
         if (isMixKoli && bedenAdetleri.isNotEmpty) {
           // Mix koli güncelleme
+          final temizBedenAdetleri = Map<String, int>.from(bedenAdetleri)
+            ..removeWhere((beden, adet) => beden.trim().isEmpty || adet <= 0);
           final koliSayisi = int.tryParse(koliAdediController.text) ?? 1;
           final koliBasiAdet =
-              bedenAdetleri.values.fold<int>(0, (a, b) => a + b);
+              temizBedenAdetleri.values.fold<int>(0, (a, b) => a + b);
 
           updateData = {
             'koli_no': koliNoController.text,
@@ -290,7 +463,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
             'adet': koliBasiAdet * koliSayisi,
             'beden_kodu': 'MIX',
             'adet_per_koli': koliBasiAdet,
-            'mix_beden_detay': bedenAdetleri.entries
+            'mix_beden_detay': temizBedenAdetleri.entries
                 .map((e) => {'beden': e.key, 'adet': e.value})
                 .toList(),
             'notlar': notController.text.isNotEmpty ? notController.text : null,
@@ -407,6 +580,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
       try {
         final modelId = kayit['model_id'];
         final gonderilecekAdet = kayit['adet'] ?? 0;
+        final firmaId = TenantManager.instance.requireFirmaId;
 
         debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         debugPrint('🚀 ÇEKİ GÖNDERİM İŞLEMİ BAŞLADI');
@@ -431,7 +605,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
                   aliciController.text.isNotEmpty ? aliciController.text : null,
             })
             .eq('id', kayit['id'])
-            .eq('firma_id', TenantManager.instance.requireFirmaId);
+            .eq('firma_id', firmaId);
         debugPrint('✅ Çeki listesi güncellendi');
 
         // ===== 2. MODEL DETAY'DA YÜKLEME KAYDI EKLE =====
@@ -448,6 +622,7 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
             'tarih': DateTime.now().toIso8601String(),
             'kaynak': DbTables.cekiListesi,
             'ceki_id': kayit['id'],
+            'firma_id': firmaId,
           };
 
           debugPrint('📋 Eklenecek veri: $yuklemeData');

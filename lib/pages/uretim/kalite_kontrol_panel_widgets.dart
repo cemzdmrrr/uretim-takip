@@ -643,7 +643,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
                     children: [
                       Text(
                         '${model['marka']} - ${model['item_no']}',
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 16,
@@ -768,7 +768,12 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     IconData icon,
     Color color,
   ) {
+    final ekranGenisligi = MediaQuery.sizeOf(context).width;
+    final darKart = ekranGenisligi < 640;
+    final metricWidth =
+        darKart ? ((ekranGenisligi - 82) / 2).clamp(132.0, 260.0) : null;
     return Container(
+      width: metricWidth,
       constraints: const BoxConstraints(minWidth: 126),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -781,28 +786,34 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

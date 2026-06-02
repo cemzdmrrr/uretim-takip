@@ -419,7 +419,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     try {
       debugPrint('🔄 Ütü atamaları yükleniyor...');
 
-      final liste = await _atamaKayitlariniGetirEsnek(
+      final hamListe = await _atamaKayitlariniGetirEsnek(
         tablo: DbTables.utuAtamalari,
         kolonlar: [
           'id',
@@ -440,6 +440,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           'triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)',
         ],
       );
+      final liste = AtamaBirlestirmeService.mergeForDisplay(hamListe);
 
       // Bekleyen: bekleyen, atandi, beklemede, null
       utuBekleyenler =
@@ -465,7 +466,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     try {
       debugPrint('🔄 Paketleme atamaları yükleniyor...');
 
-      final liste = await _atamaKayitlariniGetirEsnek(
+      final hamListe = await _atamaKayitlariniGetirEsnek(
         tablo: DbTables.paketlemeAtamalari,
         kolonlar: [
           'id',
@@ -484,6 +485,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           'triko_takip(id, marka, item_no, adet, bedenler, renk, termin_tarihi, created_at)',
         ],
       );
+      final liste = AtamaBirlestirmeService.mergeForDisplay(hamListe);
 
       // Bekleyen: bekleyen, atandi, beklemede, null
       paketBekleyenler =

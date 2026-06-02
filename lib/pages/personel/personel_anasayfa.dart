@@ -76,7 +76,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
 
       final allPersonelRes = await client
           .from(DbTables.personel)
-          .select('user_id, departman, brut_maas, net_maas, banka_maas, elden_maas')
+          .select(
+              'user_id, departman, brut_maas, net_maas, banka_maas, elden_maas')
           .eq('firma_id', TenantManager.instance.requireFirmaId);
 
       final departmanlar = <String>{};
@@ -84,13 +85,15 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
       double eldenMaasLocal = 0;
 
       for (final p in allPersonelRes) {
-        if (p['departman'] != null && p['departman'].toString().trim().isNotEmpty) {
+        if (p['departman'] != null &&
+            p['departman'].toString().trim().isNotEmpty) {
           departmanlar.add(p['departman'].toString());
         }
 
         final bankaMaasValue =
             double.tryParse(p['banka_maas']?.toString() ?? '0') ?? 0;
-        final netMaasValue = double.tryParse(p['net_maas']?.toString() ?? '0') ?? 0;
+        final netMaasValue =
+            double.tryParse(p['net_maas']?.toString() ?? '0') ?? 0;
         final eldenMaasValue = netMaasValue - bankaMaasValue;
 
         bankaMaasLocal += bankaMaasValue;
@@ -101,7 +104,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
           .from(DbTables.izinler)
           .select('id')
           .eq('firma_id', TenantManager.instance.requireFirmaId)
-          .gte('baslama_tarihi', baslangicTarihi.toIso8601String().split('T')[0])
+          .gte(
+              'baslama_tarihi', baslangicTarihi.toIso8601String().split('T')[0])
           .lt('baslama_tarihi', bitisTarihi.toIso8601String().split('T')[0])
           .eq('onay_durumu', 'onaylandi');
 
@@ -109,8 +113,9 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
           .from(DbTables.bordro)
           .select('id')
           .eq('firma_id', TenantManager.instance.requireFirmaId);
-      final bordroRes =
-          seciliDonem != null ? await bordroQuery.ilike('donem_kodu', '$seciliDonem%') : await bordroQuery;
+      final bordroRes = seciliDonem != null
+          ? await bordroQuery.ilike('donem_kodu', '$seciliDonem%')
+          : await bordroQuery;
 
       final mesaiRes = await client
           .from(DbTables.mesai)
@@ -186,7 +191,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
 
   Future<void> _yeniDonemEkle(BuildContext context) async {
     if (!_yonetebilir) {
-      context.showErrorSnackBar('Bu işlem için yönetici veya İK yetkisi gerekli.');
+      context
+          .showErrorSnackBar('Bu işlem için yönetici veya İK yetkisi gerekli.');
       return;
     }
 
@@ -216,7 +222,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           _personelMi ? 'Personel Paneli' : 'Personel Yönetimi',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          style:
+              const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         actions: [
           IconButton(
@@ -265,20 +272,20 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
 
   Widget _buildHero(bool isMobile) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      padding: EdgeInsets.all(isMobile ? 18 : 24),
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      padding: EdgeInsets.all(isMobile ? 14 : 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF0F3D91), Color(0xFF2563EB)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Color(0x262563EB),
-            blurRadius: 28,
-            offset: Offset(0, 12),
+            blurRadius: 20,
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -287,14 +294,14 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeroText(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _buildHeroSide(),
               ],
             )
           : Row(
               children: [
                 Expanded(flex: 3, child: _buildHeroText()),
-                const SizedBox(width: 18),
+                const SizedBox(width: 16),
                 Expanded(flex: 2, child: _buildHeroSide()),
               ],
             ),
@@ -306,7 +313,7 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(999),
@@ -320,17 +327,19 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
             ),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
         Text(
-          _personelMi ? 'Bilgilerinizi ve taleplerinizi tek panelden izleyin' : 'Operasyon, bordro ve ekip akışını tek ekranda yönetin',
+          _personelMi
+              ? 'Bilgilerinizi ve taleplerinizi tek panelden izleyin'
+              : 'Operasyon, bordro ve ekip akışını tek ekranda yönetin',
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 28,
+            fontSize: 22,
             fontWeight: FontWeight.w700,
-            height: 1.12,
+            height: 1.15,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         Text(
           'Seçili dönem: ${_getDonemText()}',
           style: const TextStyle(
@@ -345,10 +354,10 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
 
   Widget _buildHeroSide() {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
       ),
       child: Column(
@@ -358,11 +367,11 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
             'Hızlı görünüm',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           _buildHeroMetric('Toplam personel', toplamPersonel.toString()),
           _buildHeroMetric('Onaylı izin', toplamIzin.toString()),
           _buildHeroMetric('Bordro kaydı', toplamBordro.toString()),
@@ -374,7 +383,7 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
 
   Widget _buildHeroMetric(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
           Expanded(
@@ -382,7 +391,7 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
               label,
               style: const TextStyle(
                 color: Color(0xFFDCE7FF),
-                fontSize: 13,
+                fontSize: 12,
               ),
             ),
           ),
@@ -390,7 +399,7 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
             value,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -423,7 +432,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.event_note, color: Color(0xFF2563EB), size: 18),
+                const Icon(Icons.event_note,
+                    color: Color(0xFF2563EB), size: 18),
                 const SizedBox(width: 8),
                 const Text(
                   'Dönem',
@@ -451,7 +461,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF0F9D58),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
               icon: const Icon(Icons.add_circle_outline),
               label: const Text('Yeni dönem'),
@@ -463,14 +474,25 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
 
   Widget _buildOzetGrid(bool isMobile) {
     final kartlar = [
-      _SummaryItem(Icons.groups_2_outlined, 'Toplam Personel', toplamPersonel.toString(), const Color(0xFF2563EB)),
-      _SummaryItem(Icons.beach_access_outlined, 'Onaylı İzin', toplamIzin.toString(), const Color(0xFFF57C00)),
-      _SummaryItem(Icons.receipt_long_outlined, 'Bordro', toplamBordro.toString(), const Color(0xFF0F9D58)),
-      _SummaryItem(Icons.timer_outlined, 'Mesai', '$toplamMesai • ${toplamMesaiSaati.toStringAsFixed(1)} saat', const Color(0xFF7C3AED)),
-      _SummaryItem(Icons.account_balance_wallet_outlined, 'Ödeme', _formatMoney(toplamOdeme), const Color(0xFF0891B2)),
-      _SummaryItem(Icons.account_balance_outlined, 'Banka Maaşları', _formatMoney(bankaMaas), const Color(0xFF4F46E5)),
-      _SummaryItem(Icons.payments_outlined, 'Elden Maaşlar', _formatMoney(eldenMaas), const Color(0xFFA16207)),
-      _SummaryItem(Icons.apartment_outlined, 'Departman', departmanSayisi.toString(), const Color(0xFFDC2626)),
+      _SummaryItem(Icons.groups_2_outlined, 'Toplam Personel',
+          toplamPersonel.toString(), const Color(0xFF2563EB)),
+      _SummaryItem(Icons.beach_access_outlined, 'Onaylı İzin',
+          toplamIzin.toString(), const Color(0xFFF57C00)),
+      _SummaryItem(Icons.receipt_long_outlined, 'Bordro',
+          toplamBordro.toString(), const Color(0xFF0F9D58)),
+      _SummaryItem(
+          Icons.timer_outlined,
+          'Mesai',
+          '$toplamMesai • ${toplamMesaiSaati.toStringAsFixed(1)} saat',
+          const Color(0xFF7C3AED)),
+      _SummaryItem(Icons.account_balance_wallet_outlined, 'Ödeme',
+          _formatMoney(toplamOdeme), const Color(0xFF0891B2)),
+      _SummaryItem(Icons.account_balance_outlined, 'Banka Maaşları',
+          _formatMoney(bankaMaas), const Color(0xFF4F46E5)),
+      _SummaryItem(Icons.payments_outlined, 'Elden Maaşlar',
+          _formatMoney(eldenMaas), const Color(0xFFA16207)),
+      _SummaryItem(Icons.apartment_outlined, 'Departman',
+          departmanSayisi.toString(), const Color(0xFFDC2626)),
     ];
 
     if (isMobile) {
@@ -643,7 +665,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
                 color: const Color(0xFFDC2626),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const PersonelAyarlarPage()),
+                  MaterialPageRoute(
+                      builder: (_) => const PersonelAyarlarPage()),
                 ),
               ),
           ];
@@ -668,7 +691,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
               spacing: 14,
               runSpacing: 14,
               children: aksiyonlar
-                  .map((item) => SizedBox(width: 260, child: _buildActionCard(item)))
+                  .map((item) =>
+                      SizedBox(width: 260, child: _buildActionCard(item)))
                   .toList(),
             ),
     );
@@ -726,7 +750,8 @@ class _PersonelAnaSayfaState extends State<PersonelAnaSayfa> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Color(0xFF94A3B8)),
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 16, color: Color(0xFF94A3B8)),
             ],
           ),
         ),
