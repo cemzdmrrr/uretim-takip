@@ -414,9 +414,25 @@ extension _TopluIslemExt on _ModelListeleState {
       try {
         setState(() => yukleniyor = true);
 
-        await supabase
+        final now = DateTime.now().toIso8601String();
+        final updateData = <String, dynamic>{
+          'tamamlandi': tamamlandi,
+          'durum': tamamlandi ? 'tamamlandi' : 'Beklemede',
+          'updated_at': now,
+        };
+
+        final updatedRows = await supabase
             .from(DbTables.trikoTakip)
-            .update({'tamamlandi': tamamlandi}).inFilter('id', seciliIdler);
+            .update(updateData)
+            .eq('firma_id', _firmaId)
+            .inFilter('id', seciliIdler)
+            .select('id, tamamlandi, durum');
+
+        final updatedCount = (updatedRows as List).length;
+        if (updatedCount == 0) {
+          throw Exception(
+              'Seçili model güncellenemedi. Firma yetkisi veya kayıt eşleşmesi kontrol edilmeli.');
+        }
 
         await modelleriGetir();
         seciliIdler.clear();

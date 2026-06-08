@@ -84,6 +84,9 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     'devam_eden': 0,
     'tamamlanan': 0,
     'geciken': 0,
+    'toplam_adet': 0,
+    'yuklenen_adet': 0,
+    'kalan_adet': 0,
   };
 
   @override
@@ -148,16 +151,44 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
       final modeller = await supabase
           .from(DbTables.trikoTakip)
-          .select('id, tamamlandi, termin_tarihi')
+          .select(
+              'id, tamamlandi, termin_tarihi, toplam_adet, adet, yuklenen_adet')
           .eq('firma_id', _firmaId);
 
       final int toplam = modeller.length;
       int tamamlanan = 0;
       int geciken = 0;
+      int toplamAdet = 0;
+      int toplamYuklenenAdet = 0;
+      final modelIds = <String>[];
+      final modelToplamAdetleri = <String, int>{};
+      final modelFallbackYuklenenAdetleri = <String, int>{};
       final aktifUretim = await _aktifUretimModelSayisi(supabase);
 
-      for (final m in modeller) {
+      for (final m in List<Map<String, dynamic>>.from(modeller)) {
+        final modelId = m['id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        final modelAdet = _intDeger(m['toplam_adet'] ?? m['adet']);
+        modelIds.add(modelId);
+        modelToplamAdetleri[modelId] = modelAdet;
+        modelFallbackYuklenenAdetleri[modelId] = _intDeger(m['yuklenen_adet']);
+        toplamAdet += modelAdet;
+      }
+
+      final yuklenenByModel = await _yuklenenAdetleriGetir(supabase, modelIds);
+
+      for (final m in List<Map<String, dynamic>>.from(modeller)) {
+        final modelId = m['id']?.toString();
+        final modelToplamAdet = modelToplamAdetleri[modelId] ?? 0;
+        final modelYuklenenAdet = yuklenenByModel[modelId] ??
+            modelFallbackYuklenenAdetleri[modelId] ??
+            0;
+        toplamYuklenenAdet += modelYuklenenAdet;
+
         if (m['tamamlandi'] == true) {
+          tamamlanan++;
+        } else if (modelToplamAdet > 0 &&
+            modelYuklenenAdet >= modelToplamAdet) {
           tamamlanan++;
         } else {
           final terminStr = m['termin_tarihi']?.toString();
@@ -177,12 +208,47 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
             'devam_eden': aktifUretim,
             'tamamlanan': tamamlanan,
             'geciken': geciken,
+            'toplam_adet': toplamAdet,
+            'yuklenen_adet': toplamYuklenenAdet,
+            'kalan_adet':
+                (toplamAdet - toplamYuklenenAdet).clamp(0, toplamAdet).toInt(),
           };
         });
       }
     } catch (e) {
       debugPrint('Dashboard veri hatası: $e');
     }
+  }
+
+  Future<Map<String, int>> _yuklenenAdetleriGetir(
+    SupabaseClient supabase,
+    List<String> modelIds,
+  ) async {
+    if (modelIds.isEmpty) return {};
+
+    try {
+      final yuklemeler = await supabase
+          .from(DbTables.yuklemeKayitlari)
+          .select('model_id, adet')
+          .eq('firma_id', _firmaId)
+          .inFilter('model_id', modelIds);
+      final sonuc = <String, int>{};
+      for (final yukleme in List<Map<String, dynamic>>.from(yuklemeler)) {
+        final modelId = yukleme['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        sonuc[modelId] = (sonuc[modelId] ?? 0) + _intDeger(yukleme['adet']);
+      }
+      return sonuc;
+    } catch (e) {
+      debugPrint('Ana sayfa yÃ¼kleme adetleri okunamadÄ±: $e');
+      return {};
+    }
+  }
+
+  int _intDeger(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Future<int> _aktifUretimModelSayisi(SupabaseClient supabase) async {
@@ -977,11 +1043,13 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
           const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
-              final cols = constraints.maxWidth >= 920
+              final cols = constraints.maxWidth >= 1180
                   ? 4
-                  : constraints.maxWidth >= 520
-                      ? 2
-                      : 1;
+                  : constraints.maxWidth >= 760
+                      ? 3
+                      : constraints.maxWidth >= 520
+                          ? 2
+                          : 1;
               final stats = [
                 _buildStatCard(
                     'Açık Model Kartı',
@@ -997,6 +1065,18 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                     Icons.fact_check, const Color(0xFF2E7D32)),
                 _buildStatCard('Termin Riski', '${_dashboardStats['geciken']}',
                     Icons.warning, const Color(0xFFD32F2F)),
+                _buildStatCard(
+                    'Toplam Adet',
+                    '${_dashboardStats['toplam_adet']}',
+                    Icons.format_list_numbered,
+                    const Color(0xFF5C6BC0)),
+                _buildStatCard(
+                    'YÃ¼klenen Adet',
+                    '${_dashboardStats['yuklenen_adet']}',
+                    Icons.local_shipping,
+                    const Color(0xFF0F766E)),
+                _buildStatCard('Kalan Adet', '${_dashboardStats['kalan_adet']}',
+                    Icons.pending_actions, const Color(0xFF8E24AA)),
               ];
 
               return GridView.builder(

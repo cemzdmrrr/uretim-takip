@@ -278,6 +278,7 @@ class _ModelDetayState extends State<ModelDetay>
           .from(DbTables.yuklemeKayitlari)
           .select('*')
           .eq('model_id', widget.modelId)
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .order('tarih', ascending: false);
 
       setState(() {

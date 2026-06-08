@@ -85,6 +85,7 @@ class UretimRaporuService {
 
       // 1.1 Yükleme kayıtlarından gönderilen/kalan adetleri hesapla
       final yuklenenAdetler = await _yuklenenAdetleriGetir(modelListesi);
+      final utuFireKaynaklari = await _utuFireKaynaklariniGetir(modelListesi);
 
       // 2. Tüm aşama tablolarını paralel olarak çek
       final asamaVerileri = <String, List<Map<String, dynamic>>>{};
@@ -143,6 +144,7 @@ class UretimRaporuService {
         asamaVerileri,
         tedarikciler,
         yuklenenAdetler,
+        utuFireKaynaklari,
       );
 
       // 5. Marka listesini oluştur
@@ -170,6 +172,7 @@ class UretimRaporuService {
     Map<String, List<Map<String, dynamic>>> asamaVerileri,
     List<Map<String, dynamic>> tedarikciler,
     Map<String, int> yuklenenAdetler,
+    Map<String, Map<String, int>> utuFireKaynaklari,
   ) {
     // Model bazlı aşama verilerini indexle (en son kayıt)
     final modelAsamaIndex = <String, Map<String, Map<String, dynamic>>>{};
@@ -218,11 +221,14 @@ class UretimRaporuService {
       // Ütü notlarından fire kaynak aşama dağılımını rapor kullanımına hazırla.
       final utuAsama = asamaDurumlari['utu'];
       if (utuAsama != null && utuAsama.isNotEmpty) {
-        final fireKaynakDagilimi =
+        final fireKaynakDagilimi = utuFireKaynaklari[modelId] ??
             _fireKaynakDagilimiFromNotlar(utuAsama['notlar']?.toString());
         if (fireKaynakDagilimi.isNotEmpty) {
+          final toplamUtuFire =
+              fireKaynakDagilimi.values.fold<int>(0, (s, v) => s + v);
           asamaDurumlari['utu'] = {
             ...utuAsama,
+            'fire_adet': toplamUtuFire,
             'fire_kaynak_dagilimi': fireKaynakDagilimi,
             'fire_kaynak_ozet': _fireKaynakOzetMetni(fireKaynakDagilimi),
           };
@@ -307,6 +313,58 @@ class UretimRaporuService {
       return sonuc;
     } catch (e) {
       AppLogger.debug('Yükleme kayıtları yüklenemedi: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, Map<String, int>>> _utuFireKaynaklariniGetir(
+    List<Map<String, dynamic>> modeller,
+  ) async {
+    final modelIds = modeller
+        .map((model) => model['id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    if (modelIds.isEmpty) return {};
+
+    try {
+      List<Map<String, dynamic>> kayitlar;
+      try {
+        final data = await _supabase
+            .from(DbTables.fireKayitlari)
+            .select('model_id, asama, adet, kayit_asamasi')
+            .inFilter('model_id', modelIds)
+            .eq('kayit_asamasi', 'utu');
+        kayitlar = List<Map<String, dynamic>>.from(data);
+      } catch (e) {
+        final missingColumn = _missingColumnName(e);
+        if (missingColumn != 'kayit_asamasi') rethrow;
+        final data = await _supabase
+            .from(DbTables.fireKayitlari)
+            .select('model_id, asama, adet')
+            .inFilter('model_id', modelIds);
+        kayitlar = List<Map<String, dynamic>>.from(data);
+      }
+
+      final sonuc = <String, Map<String, int>>{};
+      for (final kayit in kayitlar) {
+        final modelId = kayit['model_id']?.toString();
+        final asama = kayit['asama']?.toString().trim();
+        final adet = _intDeger(kayit['adet']);
+        if (modelId == null ||
+            modelId.isEmpty ||
+            asama == null ||
+            asama.isEmpty) {
+          continue;
+        }
+        if (adet <= 0) continue;
+        final modelDagilimi = sonuc.putIfAbsent(modelId, () => {});
+        modelDagilimi[asama] = (modelDagilimi[asama] ?? 0) + adet;
+      }
+      return sonuc;
+    } catch (e) {
+      AppLogger.debug('Fire kayıtları yüklenemedi: $e');
       return {};
     }
   }

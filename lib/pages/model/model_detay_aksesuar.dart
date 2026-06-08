@@ -20,6 +20,13 @@ extension _AksesuarlarTabExt on _ModelDetayState {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
+  double _aksesuarBirimMaliyeti({
+    required double birimFiyat,
+    required double adetPerModel,
+  }) {
+    return birimFiyat * adetPerModel;
+  }
+
   // ==================== AKSESUARLAR SEKMESİ ====================
   Widget _buildAksesuarlarTab() {
     // Sipariş adedi: toplam_adet, adet veya siparis_adedi
@@ -37,9 +44,13 @@ extension _AksesuarlarTabExt on _ModelDetayState {
           (aksesuarDetay?['birim_fiyat'] as num?)?.toDouble() ?? 0.0;
       final double adetPerModel =
           _aksesuarAdetDegeri(aksesuar['adet_per_model'] ?? aksesuar['miktar']);
+      final double modelBasiBirimMaliyet = _aksesuarBirimMaliyeti(
+        birimFiyat: birimFiyat,
+        adetPerModel: adetPerModel,
+      );
       final double gerekenAdet = siparisAdedi * adetPerModel;
       toplamAksesuarMaliyeti += birimFiyat * gerekenAdet;
-      birModelMaliyeti += birimFiyat * adetPerModel; // 1 model için maliyet
+      birModelMaliyeti += modelBasiBirimMaliyet; // 1 model için maliyet
     }
 
     return Column(
@@ -147,6 +158,11 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                                 0.0;
                         final double adetPerModel = _aksesuarAdetDegeri(
                             aksesuar['adet_per_model'] ?? aksesuar['miktar']);
+                        final double modelBasiBirimMaliyet =
+                            _aksesuarBirimMaliyeti(
+                          birimFiyat: birimFiyat,
+                          adetPerModel: adetPerModel,
+                        );
                         // Sipariş adedi: toplam_adet, adet veya siparis_adedi
                         final int siparisAdedi =
                             (currentModelData?['toplam_adet'] ??
@@ -156,7 +172,8 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                         // Gereken Toplam = Sipariş Adedi * Model Başına Adet
                         final double gerekenAdet = siparisAdedi * adetPerModel;
                         // Toplam Maliyet = Gereken Adet * Birim Fiyat
-                        final double toplamFiyat = birimFiyat * gerekenAdet;
+                        final double toplamFiyat =
+                            modelBasiBirimMaliyet * siparisAdedi;
                         final double eksikAdet = gerekenAdet > stokMiktari
                             ? gerekenAdet - stokMiktari
                             : 0;
@@ -219,7 +236,7 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                                   ],
                                 ),
                               ),
-                              // Birim fiyat gösterimi
+                              // Model başına birim maliyet gösterimi
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 4),
@@ -229,11 +246,12 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                                 ),
                                 child: Column(
                                   children: [
-                                    Text('Birim',
+                                    Text('Birim Maliyet',
                                         style: TextStyle(
                                             fontSize: 10,
                                             color: Colors.grey[600])),
-                                    Text('₺${birimFiyat.toStringAsFixed(2)}',
+                                    Text(
+                                        '₺${modelBasiBirimMaliyet.toStringAsFixed(2)}',
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: Colors.blue)),
@@ -311,7 +329,7 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                                           ],
                                         ),
                                       ),
-                                      // Birim fiyat gösterimi
+                                      // Model başına birim maliyet gösterimi
                                       Container(
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 8, vertical: 4),
@@ -322,12 +340,12 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                                         ),
                                         child: Column(
                                           children: [
-                                            Text('Birim',
+                                            Text('Birim Maliyet',
                                                 style: TextStyle(
                                                     fontSize: 10,
                                                     color: Colors.grey[600])),
                                             Text(
-                                                '₺${birimFiyat.toStringAsFixed(2)}',
+                                                '₺${modelBasiBirimMaliyet.toStringAsFixed(2)}',
                                                 style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     color: Colors.blue)),
@@ -381,7 +399,7 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                                       ),
                                       Expanded(
                                         child: _buildStokInfoTile(
-                                          'Toplam Maliyet',
+                                          'Sipariş Maliyeti',
                                           '₺${toplamFiyat.toStringAsFixed(2)}',
                                           Colors.purple,
                                           Icons.payments,
@@ -613,12 +631,16 @@ extension _AksesuarlarTabExt on _ModelDetayState {
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text(
-                                              'Birim Fiyat: ₺${birimFiyat.toStringAsFixed(2)}',
+                                          Expanded(
+                                            child: Text(
+                                              'Birim Maliyet: ${_formatAksesuarAdet(adetPerModel)} x ₺${birimFiyat.toStringAsFixed(2)} = ₺${modelBasiBirimMaliyet.toStringAsFixed(2)}',
                                               style: TextStyle(
-                                                  color: Colors.grey[700])),
+                                                  color: Colors.grey[700]),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
                                           Text(
-                                            'Toplam: ₺${toplamFiyat.toStringAsFixed(2)}',
+                                            'Sipariş: ₺${toplamFiyat.toStringAsFixed(2)}',
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.purple),
@@ -1128,6 +1150,7 @@ extension _AksesuarlarTabExt on _ModelDetayState {
     );
   }
 
+  // ignore: unused_element
   Future<void> _addAksesuar(dynamic aksesuarId,
       [double adetPerModel = 1]) async {
     try {

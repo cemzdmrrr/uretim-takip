@@ -28,7 +28,12 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                 final children = [
                   Expanded(child: _buildHedefPlanGerceklesen(ozet)),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildKararPaneli(ozet)),
+                  Expanded(
+                    child: _buildKararPaneli(
+                      ozet,
+                      guncelFiyatlandirmaOzeti: hesaplananOzet,
+                    ),
+                  ),
                 ];
                 if (wide) {
                   return Row(
@@ -39,7 +44,10 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                   children: [
                     _buildHedefPlanGerceklesen(ozet),
                     const SizedBox(height: 16),
-                    _buildKararPaneli(ozet),
+                    _buildKararPaneli(
+                      ozet,
+                      guncelFiyatlandirmaOzeti: hesaplananOzet,
+                    ),
                   ],
                 );
               },
@@ -121,16 +129,30 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
     final siparisAdedi = _intDeger(db['siparis_adedi']);
     final tamamlananAdet = _intDeger(db['tamamlanan_adet']);
     final fireAdedi = _intDeger(db['fire_adedi']);
-    final planBirim = _doubleDeger(db['plan_birim_maliyet']);
-    final gercekBirim = _doubleDeger(db['gercek_birim_maliyet']);
     final hedefKarMarji = _aktifPlanDegeri('hedef_kar_marji') ??
         (fallback.hedefKarMarji > 0 ? fallback.hedefKarMarji : 0);
+    final satisAdedi = tamamlananAdet > 0 ? tamamlananAdet : siparisAdedi;
+    final maliyetAdedi = tamamlananAdet > 0
+        ? tamamlananAdet + fireAdedi
+        : siparisAdedi + fireAdedi;
     final kalemler = _dbMaliyetKalemleri(
-      tamamlananAdet > 0 ? tamamlananAdet : siparisAdedi,
-      planBirim,
-      gercekBirim,
+      satisAdedi,
+      maliyetAdedi,
       fallback.kalemler,
     );
+    final planBirim =
+        kalemler.fold<double>(0, (sum, kalem) => sum + kalem.planBirim);
+    final gercekBirim =
+        kalemler.fold<double>(0, (sum, kalem) => sum + kalem.gercekBirim);
+    final planToplam = planBirim * siparisAdedi;
+    final gercekToplam = gercekBirim * satisAdedi;
+    final satisBirim = _hesaplananSatisFiyati(planBirim, hedefKarMarji);
+    final satisGeliri = satisBirim * satisAdedi;
+    final brutKar = satisGeliri - gercekToplam;
+    final brutKarMarji = satisGeliri > 0 ? (brutKar / satisGeliri) * 100 : 0.0;
+    final maliyetSapmasi = gercekBirim - planBirim;
+    final maliyetSapmaOrani =
+        planBirim > 0 ? (maliyetSapmasi / planBirim) * 100 : 0.0;
 
     return ModelKarlilikOzeti(
       siparisAdedi: siparisAdedi,
@@ -138,15 +160,15 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
       fireAdedi: fireAdedi,
       planBirimMaliyet: planBirim,
       gercekBirimMaliyet: gercekBirim,
-      planToplamMaliyet: _doubleDeger(db['plan_toplam_maliyet']),
-      gercekToplamMaliyet: _doubleDeger(db['gercek_toplam_maliyet']),
-      satisBirimFiyati: _doubleDeger(db['satis_birim_fiyati']),
-      satisGeliri: _doubleDeger(db['satis_geliri']),
-      brutKar: _doubleDeger(db['brut_kar']),
-      brutKarMarji: _doubleDeger(db['brut_kar_marji']),
-      maliyetSapmasi: _doubleDeger(db['maliyet_sapmasi']),
-      maliyetSapmaOrani: _doubleDeger(db['maliyet_sapma_orani']),
-      fireOrani: _doubleDeger(db['fire_orani']),
+      planToplamMaliyet: planToplam,
+      gercekToplamMaliyet: gercekToplam,
+      satisBirimFiyati: satisBirim,
+      satisGeliri: satisGeliri,
+      brutKar: brutKar,
+      brutKarMarji: brutKarMarji,
+      maliyetSapmasi: maliyetSapmasi,
+      maliyetSapmaOrani: maliyetSapmaOrani,
+      fireOrani: siparisAdedi > 0 ? (fireAdedi / siparisAdedi) * 100 : 0,
       tamamlanmaOrani:
           siparisAdedi > 0 ? (tamamlananAdet / siparisAdedi) * 100 : 0,
       hedefKarMarji: hedefKarMarji,
@@ -158,31 +180,48 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
     );
   }
 
+  double _hesaplananSatisFiyati(double planBirim, double karMarji) {
+    var satisFiyati = planBirim * (1 + karMarji / 100);
+    final vadeAy = _intDeger(currentModelData?['vade_ay']);
+    final vadeOrani = _doubleDeger(currentModelData?['vade_orani']);
+    if (vadeAy > 0 && vadeOrani > 0) {
+      satisFiyati *= 1 + vadeOrani / 100;
+    }
+    return satisFiyati;
+  }
+
   List<MaliyetKalemi> _dbMaliyetKalemleri(
-    int adetBaz,
-    double planBirim,
-    double gercekBirim,
+    int satisAdedi,
+    int maliyetAdedi,
     List<MaliyetKalemi> fallback,
   ) {
     if (maliyetKalemleri.isEmpty) return fallback;
 
     final gerceklesenToplamlari = <String, double>{};
+    final gerceklesenMiktarlari = <String, double>{};
     for (final kayit in maliyetGerceklesen) {
       if (kayit is! Map) continue;
       final tip = kayit['kalem_tipi']?.toString() ?? 'diger';
       gerceklesenToplamlari[tip] = (gerceklesenToplamlari[tip] ?? 0) +
           _doubleDeger(kayit['toplam_tutar']);
+      gerceklesenMiktarlari[tip] =
+          (gerceklesenMiktarlari[tip] ?? 0) + _doubleDeger(kayit['miktar']);
     }
 
-    return maliyetKalemleri.whereType<Map>().map((kalem) {
+    final dbKalemler = maliyetKalemleri.whereType<Map>().where((kalem) {
+      return kalem['kalem_tipi']?.toString() != 'aksesuar';
+    }).map((kalem) {
       final kod = kalem['kalem_tipi']?.toString() ?? 'diger';
       final plan = _doubleDeger(kalem['plan_birim_maliyet']);
       final gercekToplam = gerceklesenToplamlari[kod] ?? 0;
-      final gercek = gercekToplam > 0 && adetBaz > 0
-          ? gercekToplam / adetBaz
-          : planBirim > 0
-              ? plan * (gercekBirim / planBirim)
-              : plan;
+      final gercekMiktar = gerceklesenMiktarlari[kod] ?? 0;
+      final gercek = gercekToplam > 0
+          ? (gercekMiktar > 0
+              ? gercekToplam / gercekMiktar
+              : (satisAdedi > 0 ? gercekToplam / satisAdedi : gercekToplam))
+          : (satisAdedi > 0 && maliyetAdedi > 0
+              ? plan * (maliyetAdedi / satisAdedi)
+              : plan);
       return MaliyetKalemi(
         kod: kod,
         ad: kalem['aciklama']?.toString() ?? kod,
@@ -190,6 +229,32 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
         gercekBirim: gercek,
       );
     }).toList();
+
+    return _aksesuarKalemleriniNormalizeEt(dbKalemler);
+  }
+
+  List<MaliyetKalemi> _aksesuarKalemleriniNormalizeEt(
+    List<MaliyetKalemi> kalemler,
+  ) {
+    final manuelGenelAksesuar =
+        _doubleDeger(currentModelData?['genel_aksesuar_fiyat']);
+
+    final normalized = kalemler.map((kalem) {
+      if (kalem.kod != 'genel_aksesuar') return kalem;
+      if (manuelGenelAksesuar <= 0) return kalem;
+
+      final gercek = kalem.planBirim > 0
+          ? kalem.gercekBirim * (manuelGenelAksesuar / kalem.planBirim)
+          : manuelGenelAksesuar;
+      return MaliyetKalemi(
+        kod: kalem.kod,
+        ad: 'Genel Aksesuar',
+        planBirim: manuelGenelAksesuar,
+        gercekBirim: gercek,
+      );
+    }).toList();
+
+    return normalized.where((kalem) => kalem.planBirim > 0).toList();
   }
 
   Widget _buildKarlilikBaslik(ModelKarlilikOzeti ozet) {
@@ -457,7 +522,10 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
     );
   }
 
-  Widget _buildKararPaneli(ModelKarlilikOzeti ozet) {
+  Widget _buildKararPaneli(
+    ModelKarlilikOzeti ozet, {
+    required ModelKarlilikOzeti guncelFiyatlandirmaOzeti,
+  }) {
     final oneriler = <String>[
       if (ozet.satisFiyatiEksik)
         'Satış fiyatı eksik. Karlılık takibi için fiyatlandırma sekmesinde peşin fiyatı kaydedin.',
@@ -490,7 +558,8 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () => _aktifMaliyetPlaniKaydet(ozet),
+              onPressed: () =>
+                  _aktifMaliyetPlaniKaydet(guncelFiyatlandirmaOzeti),
               icon: const Icon(Icons.save),
               label: const Text('Mevcut fiyatlandırmayı aktif plan yap'),
             ),
@@ -1526,8 +1595,9 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
       case 'baski_nakis':
         return 'Baskı / Nakış';
       case 'aksesuar':
+        return 'Model Aksesuarı';
       case 'genel_aksesuar':
-        return 'Aksesuar';
+        return 'Genel Aksesuar';
       case 'genel_gider':
         return 'Genel Gider';
       case 'paketleme':

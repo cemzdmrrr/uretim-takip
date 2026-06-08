@@ -360,6 +360,65 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
     return bedenler.entries.map((e) => '${e.key}:${e.value}').join(' | ');
   }
 
+  Future<void> _utuFireKayitlariniKaydet({
+    required dynamic modelId,
+    required dynamic atamaId,
+    required Map<String, Map<String, int>> fireKaynakBeden,
+    required String notlar,
+  }) async {
+    final modelIdText = modelId?.toString();
+    if (modelIdText == null || modelIdText.isEmpty || fireKaynakBeden.isEmpty) {
+      return;
+    }
+
+    final bugun = DateTime.now().toIso8601String().split('T').first;
+    final simdi = DateTime.now().toIso8601String();
+    final kayitlar = <Map<String, dynamic>>[];
+
+    for (final bedenEntry in fireKaynakBeden.entries) {
+      for (final kaynakEntry in bedenEntry.value.entries) {
+        if (kaynakEntry.value <= 0) continue;
+        kayitlar.add({
+          'model_id': modelIdText,
+          'asama': kaynakEntry.key,
+          'adet': kaynakEntry.value,
+          'tarih': bugun,
+          'created_at': simdi,
+          'kayit_asamasi': 'utu',
+          'kaynak_asama': kaynakEntry.key,
+          'beden_kodu': bedenEntry.key,
+          'atama_tablo': DbTables.utuAtamalari,
+          'atama_id': atamaId?.toString(),
+          'notlar': notlar.trim().isEmpty ? null : notlar.trim(),
+        });
+      }
+    }
+
+    if (kayitlar.isEmpty) return;
+
+    var kolonlar = kayitlar.first.keys.toSet();
+    while (true) {
+      try {
+        await supabase.from(DbTables.fireKayitlari).insert(
+              kayitlar
+                  .map((kayit) => {
+                        for (final entry in kayit.entries)
+                          if (kolonlar.contains(entry.key))
+                            entry.key: entry.value,
+                      })
+                  .toList(),
+            );
+        return;
+      } catch (e) {
+        final missingColumn = _missingColumnName(e);
+        if (missingColumn != null && kolonlar.remove(missingColumn)) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+  }
+
   Future<void> _utuBedenliBitirDialogu(Map<String, dynamic> atama) async {
     final model = atama[DbTables.trikoTakip] as Map<String, dynamic>?;
 
@@ -956,6 +1015,13 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             quantityFields: const ['talep_edilen_adet', 'adet'],
           );
         }
+
+        await _utuFireKayitlariniKaydet(
+          modelId: atama['model_id'],
+          atamaId: atama['id'],
+          fireKaynakBeden: fireKaynakBeden,
+          notlar: notController.text,
+        );
 
         // Çeki listesi manuel "Yeni Çeki" akışıyla oluşturulur. Burada otomatik
         // kayıt açmak, beden bazlı limit kontrolünü kullanıcı görmeden tüketir.

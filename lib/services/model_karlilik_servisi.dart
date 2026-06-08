@@ -85,7 +85,7 @@ class ModelKarlilikServisi {
     final tamamlananSonucu = _tamamlananAdet(model, uretimKayitlari);
     final tamamlananAdet = tamamlananSonucu.adet;
     final fireAdedi = _fireAdedi(model, uretimKayitlari);
-    final maliyetKalemleri = _maliyetKalemleri(model, modelAksesuarlari);
+    final maliyetKalemleri = _maliyetKalemleri(model);
     final planBirimMaliyet =
         maliyetKalemleri.fold<double>(0, (sum, item) => sum + item.planBirim);
     final hedefKarMarji = _doubleDeger(model['kar_marji']);
@@ -146,10 +146,7 @@ class ModelKarlilikServisi {
     );
   }
 
-  List<MaliyetKalemi> _maliyetKalemleri(
-    Map<String, dynamic> model,
-    List<dynamic> modelAksesuarlari,
-  ) {
+  List<MaliyetKalemi> _maliyetKalemleri(Map<String, dynamic> model) {
     final kalemler = <MaliyetKalemi>[
       _kalem('iplik', 'Iplik', model['iplik_maliyeti']),
       _kalem('orgu', 'Orgu', model['orgu_fiyat']),
@@ -159,11 +156,7 @@ class ModelKarlilikServisi {
       _kalem('ilik_dugme', 'Ilik Dugme', model['ilik_dugme_fiyat']),
       _kalem('fermuar', 'Fermuar', model['fermuar_fiyat']),
       _kalem('baski_nakis', 'Baski / Nakis', model['aksesuar_fiyat']),
-      _kalem(
-          'genel_aksesuar',
-          'Genel Aksesuar',
-          _doubleDeger(model['genel_aksesuar_fiyat']) +
-              _aksesuarBirimMaliyeti(modelAksesuarlari)),
+      _kalem('genel_aksesuar', 'Genel Aksesuar', model['genel_aksesuar_fiyat']),
       _kalem('genel_gider', 'Genel Gider', model['genel_gider_fiyat']),
     ];
 
@@ -174,20 +167,6 @@ class ModelKarlilikServisi {
     final tutar = _doubleDeger(value);
     return MaliyetKalemi(
         kod: kod, ad: ad, planBirim: tutar, gercekBirim: tutar);
-  }
-
-  double _aksesuarBirimMaliyeti(List<dynamic> modelAksesuarlari) {
-    double toplam = 0;
-    for (final item in modelAksesuarlari) {
-      if (item is! Map) continue;
-      final detay = item['aksesuarlar'];
-      if (detay is! Map) continue;
-      final adetPerModel =
-          _doubleDeger(item['adet_per_model'] ?? item['miktar']);
-      final birimFiyat = _doubleDeger(detay['birim_fiyat']);
-      toplam += adetPerModel * birimFiyat;
-    }
-    return toplam;
   }
 
   _TamamlananAdetSonucu _tamamlananAdet(
@@ -249,14 +228,14 @@ class ModelKarlilikServisi {
 
   double _satisBirimFiyati(
       Map<String, dynamic> model, double planBirimMaliyet) {
-    final kayitliFiyat = _doubleDeger(model['pesin_fiyat'] ??
-        model['satis_fiyati'] ??
-        model['final_fiyat'] ??
-        model['birim_satis_fiyati']);
-    if (kayitliFiyat > 0) return kayitliFiyat;
-
     final karMarji = _doubleDeger(model['kar_marji']);
-    return planBirimMaliyet * (1 + karMarji / 100);
+    var satisFiyati = planBirimMaliyet * (1 + karMarji / 100);
+    final vadeAy = _intDeger(model['vade_ay']);
+    final vadeOrani = _doubleDeger(model['vade_orani']);
+    if (vadeAy > 0 && vadeOrani > 0) {
+      satisFiyati *= 1 + vadeOrani / 100;
+    }
+    return satisFiyati;
   }
 
   int _intDeger(dynamic value) {

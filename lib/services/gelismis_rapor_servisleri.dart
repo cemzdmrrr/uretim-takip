@@ -683,6 +683,787 @@ class GelismisRaporServisleri {
     }
   }
 
+  /// Yükleme yapılan modeller için hedef/gerçek maliyet, kar/zarar ve fire finans analizi.
+  static Future<Map<String, dynamic>> getYuklemeFinansAnalizi({
+    DateTime? baslangicTarihi,
+    DateTime? bitisTarihi,
+    RaporFiltresi? filtre,
+  }) async {
+    try {
+      var yuklemeQuery = _supabase
+          .from(DbTables.yuklemeKayitlari)
+          .select('id, model_id, adet, tarih, created_at')
+          .eq('firma_id', _firmaId);
+
+      if (baslangicTarihi != null) {
+        yuklemeQuery =
+            yuklemeQuery.gte('tarih', baslangicTarihi.toIso8601String());
+      }
+      if (bitisTarihi != null) {
+        final bitisDahil = DateTime(
+          bitisTarihi.year,
+          bitisTarihi.month,
+          bitisTarihi.day,
+          23,
+          59,
+          59,
+          999,
+        );
+        yuklemeQuery = yuklemeQuery.lte('tarih', bitisDahil.toIso8601String());
+      }
+
+      final yuklemeler = await yuklemeQuery;
+      final donemYuklemeByModel = <String, int>{};
+      final donemYuklemeleriByModel = <String, List<Map<String, dynamic>>>{};
+      for (final yukleme in yuklemeler) {
+        final modelId = yukleme['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        donemYuklemeByModel[modelId] =
+            (donemYuklemeByModel[modelId] ?? 0) + _intDeger(yukleme['adet']);
+        donemYuklemeleriByModel
+            .putIfAbsent(modelId, () => [])
+            .add(Map<String, dynamic>.from(yukleme));
+      }
+
+      var modelIds = donemYuklemeByModel.keys.toList();
+      if (modelIds.isEmpty) return _bosYuklemeFinansAnalizi();
+
+      var modelQuery = _supabase.from(DbTables.trikoTakip).select('''
+        id, marka, item_no, renk, renk_kombinasyonu, adet, toplam_adet, yuklenen_adet, created_at, termin_tarihi,
+        iplik_maliyeti, orgu_fiyat, dikim_fiyat, utu_fiyat, yikama_fiyat, ilik_dugme_fiyat,
+        aksesuar_fiyat, genel_aksesuar_fiyat, genel_gider_fiyat, fermuar_fiyat, kar_marji, pesin_fiyat,
+        vade_ay, vade_orani
+      ''').eq('firma_id', _firmaId).inFilter('id', modelIds);
+
+      if (filtre?.marka != null) {
+        modelQuery = modelQuery.eq('marka', filtre!.marka!);
+      }
+      if (filtre?.model != null) {
+        modelQuery = modelQuery.eq('item_no', filtre!.model!);
+      }
+      if (filtre?.modelId != null) {
+        modelQuery = modelQuery.eq('id', filtre!.modelId!);
+      }
+
+      final modeller = await modelQuery;
+      final modellerById = <String, Map<String, dynamic>>{};
+      for (final model in modeller) {
+        final modelId = model['id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        modellerById[modelId] = Map<String, dynamic>.from(model);
+      }
+      modelIds = modelIds.where(modellerById.containsKey).toList();
+      if (modelIds.isEmpty) return _bosYuklemeFinansAnalizi();
+
+      final tumYuklemeler = await _supabase
+          .from(DbTables.yuklemeKayitlari)
+          .select('model_id, adet')
+          .eq('firma_id', _firmaId)
+          .inFilter('model_id', modelIds);
+      final toplamYuklemeByModel = <String, int>{};
+      for (final yukleme in tumYuklemeler) {
+        final modelId = yukleme['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        toplamYuklemeByModel[modelId] =
+            (toplamYuklemeByModel[modelId] ?? 0) + _intDeger(yukleme['adet']);
+      }
+
+      final ozetByModelId = <String, Map<String, dynamic>>{};
+      final ozetler = await _supabase
+          .from(DbTables.modelKarlilikOzetleri)
+          .select('*')
+          .eq('firma_id', _firmaId)
+          .inFilter('model_id', modelIds);
+      for (final ozet in ozetler) {
+        final modelId = ozet['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        ozetByModelId[modelId] = Map<String, dynamic>.from(ozet);
+      }
+
+      final planByModelId = <String, Map<String, dynamic>>{};
+      final planlar = await _supabase
+          .from(DbTables.modelMaliyetPlanlari)
+          .select('*')
+          .eq('firma_id', _firmaId)
+          .inFilter('model_id', modelIds)
+          .order('updated_at', ascending: false);
+      for (final plan in planlar) {
+        final modelId = plan['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        final mevcut = planByModelId[modelId];
+        if (mevcut == null || plan['durum'] == 'aktif') {
+          planByModelId[modelId] = Map<String, dynamic>.from(plan);
+        }
+      }
+      final planIds = planByModelId.values
+          .map((plan) => plan['id']?.toString())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toList();
+      final kalemlerByPlanId = <String, List<Map<String, dynamic>>>{};
+      if (planIds.isNotEmpty) {
+        final kalemler = await _supabase
+            .from(DbTables.modelMaliyetKalemleri)
+            .select('*')
+            .eq('firma_id', _firmaId)
+            .inFilter('plan_id', planIds)
+            .order('sira_no', ascending: true)
+            .order('created_at', ascending: true);
+        for (final kalem in kalemler) {
+          final planId = kalem['plan_id']?.toString();
+          if (planId == null || planId.isEmpty) continue;
+          kalemlerByPlanId
+              .putIfAbsent(planId, () => [])
+              .add(Map<String, dynamic>.from(kalem));
+        }
+      }
+
+      final gerceklesenByModelId = <String, Map<String, Map<String, double>>>{};
+      final gerceklesenler = await _supabase
+          .from(DbTables.modelMaliyetGerceklesen)
+          .select('model_id, kalem_tipi, miktar, toplam_tutar, fire_adedi')
+          .eq('firma_id', _firmaId)
+          .inFilter('model_id', modelIds);
+      for (final kayit in gerceklesenler) {
+        final modelId = kayit['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        final kalemTipi = kayit['kalem_tipi']?.toString().trim();
+        final kod = kalemTipi == null || kalemTipi.isEmpty
+            ? 'diger'
+            : (kalemTipi == 'baski_nakis' ? 'nakis' : kalemTipi);
+        final modelGerceklesen =
+            gerceklesenByModelId.putIfAbsent(modelId, () => {});
+        final hedef = modelGerceklesen.putIfAbsent(
+          kod,
+          () => {'tutar': 0, 'miktar': 0, 'fire': 0},
+        );
+        hedef['tutar'] =
+            (hedef['tutar'] ?? 0) + _doubleDeger(kayit['toplam_tutar']);
+        hedef['miktar'] =
+            (hedef['miktar'] ?? 0) + _doubleDeger(kayit['miktar']);
+        hedef['fire'] =
+            (hedef['fire'] ?? 0) + _doubleDeger(kayit['fire_adedi']);
+      }
+
+      final fireByModelId = <String, int>{};
+      try {
+        var fireQuery = _supabase
+            .from(DbTables.fireKayitlari)
+            .select('model_id, adet, tarih')
+            .inFilter('model_id', modelIds);
+        if (baslangicTarihi != null) {
+          fireQuery = fireQuery.gte(
+            'tarih',
+            baslangicTarihi.toIso8601String().split('T').first,
+          );
+        }
+        if (bitisTarihi != null) {
+          fireQuery = fireQuery.lte(
+            'tarih',
+            bitisTarihi.toIso8601String().split('T').first,
+          );
+        }
+        final fireler = await fireQuery;
+        for (final fire in fireler) {
+          final modelId = fire['model_id']?.toString();
+          if (modelId == null || modelId.isEmpty) continue;
+          fireByModelId[modelId] =
+              (fireByModelId[modelId] ?? 0) + _intDeger(fire['adet']);
+        }
+      } catch (e) {
+        AppLogger.debug('Fire kayıtları yükleme finansına eklenemedi: $e');
+      }
+
+      final operasyonelGiderler = await _operasyonelGiderleriGetir(
+        baslangicTarihi: baslangicTarihi,
+        bitisTarihi: bitisTarihi,
+      );
+      final toplamOperasyonelGider =
+          _doubleDeger(operasyonelGiderler['toplam']);
+
+      double toplamHedefMaliyet = 0;
+      double toplamGercekMaliyet = 0;
+      double toplamSatisGeliri = 0;
+      double toplamKar = 0;
+      double toplamBrutKar = 0;
+      double toplamUretimMaliyeti = 0;
+      double toplamFireMaliyeti = 0;
+      double toplamKayipKazanc = 0;
+      int toplamSiparisAdedi = 0;
+      int toplamUretilenAdet = 0;
+      int toplamDonemYuklenenAdet = 0;
+      int toplamYuklenenAdet = 0;
+      int toplamKalanAdet = 0;
+      int toplamFireAdedi = 0;
+      int zararModelSayisi = 0;
+      int hedefAltiSayisi = 0;
+      int fiyatEksikSayisi = 0;
+      int maliyetEksikSayisi = 0;
+      int hesaplanabilirModelSayisi = 0;
+      final durumDagilimi = <String, int>{};
+      final modelFinanslari = <Map<String, dynamic>>[];
+      final markaAnalizi = <String, Map<String, dynamic>>{};
+      final aylikAnaliz = <String, Map<String, dynamic>>{};
+      final maliyetDagilimi = <String, double>{};
+      final toplamDonemYuklenenReferans = donemYuklemeByModel.values.fold<int>(
+        0,
+        (sum, adet) => sum + adet,
+      );
+
+      for (final modelId in modelIds) {
+        final model = modellerById[modelId]!;
+        final ozet = ozetByModelId[modelId];
+        final plan = planByModelId[modelId];
+        final gerceklesen = gerceklesenByModelId[modelId];
+        final siparisAdedi = _intDeger(model['toplam_adet'] ?? model['adet']);
+        final donemYuklenenAdet = donemYuklemeByModel[modelId] ?? 0;
+        final toplamModelYuklenen = toplamYuklemeByModel[modelId] ?? 0;
+        final ozetTamamlanan = _intDeger(ozet?['tamamlanan_adet']);
+        final uretilenAdet = ozetTamamlanan > toplamModelYuklenen
+            ? ozetTamamlanan
+            : toplamModelYuklenen;
+        final kalanAdet =
+            (siparisAdedi - toplamModelYuklenen).clamp(0, siparisAdedi);
+        final planKalemleri = plan == null
+            ? <Map<String, dynamic>>[]
+            : kalemlerByPlanId[plan['id']?.toString()] ??
+                <Map<String, dynamic>>[];
+        final maliyetKalemleri = _fiyatlandirmaMaliyetKalemleri(
+          model: model,
+          planKalemleri: planKalemleri,
+        );
+        final gercekBirimliKalemler = _gercekBirimliMaliyetKalemleri(
+          maliyetKalemleri: maliyetKalemleri,
+          gerceklesenKalemleri: gerceklesen,
+          fallbackAdet: ozetTamamlanan > 0 ? ozetTamamlanan : siparisAdedi,
+        );
+        final planBirimMaliyet = gercekBirimliKalemler.fold<double>(
+          0,
+          (sum, kalem) => sum + _doubleDeger(kalem['planBirim']),
+        );
+        final gercekBirimMaliyet = gercekBirimliKalemler.fold<double>(
+          0,
+          (sum, kalem) => sum + _doubleDeger(kalem['gercekBirim']),
+        );
+        final modelKarOrani = _doubleDeger(model['kar_marji']);
+        final hedefKarOrani = modelKarOrani > 0
+            ? modelKarOrani
+            : _doubleDeger(plan?['hedef_kar_marji']);
+        final satisBirimFiyati = _fiyatlandirmaSatisFiyati(
+          model,
+          planBirimMaliyet,
+          hedefKarOrani,
+        );
+        final fireAdedi =
+            fireByModelId[modelId] ?? _intDeger(ozet?['fire_adedi']);
+        final double? hedefMaliyet =
+            planBirimMaliyet > 0 ? planBirimMaliyet * donemYuklenenAdet : null;
+        final double? gercekMaliyet = gercekBirimMaliyet > 0
+            ? gercekBirimMaliyet * donemYuklenenAdet
+            : null;
+        final double? satisGeliri =
+            satisBirimFiyati > 0 ? satisBirimFiyati * donemYuklenenAdet : null;
+        final double? maliyetSapmasi =
+            gercekMaliyet == null || hedefMaliyet == null
+                ? null
+                : gercekMaliyet - hedefMaliyet;
+        final double? maliyetSapmaOrani =
+            maliyetSapmasi == null || hedefMaliyet == null || hedefMaliyet <= 0
+                ? null
+                : (maliyetSapmasi / hedefMaliyet) * 100;
+        final fireBirimMaliyeti = gercekBirimMaliyet > 0
+            ? gercekBirimMaliyet
+            : (planBirimMaliyet > 0 ? planBirimMaliyet : null);
+        final double? fireMaliyeti =
+            fireBirimMaliyeti == null ? null : fireBirimMaliyeti * fireAdedi;
+        final double operasyonelGiderPayi = toplamDonemYuklenenReferans <= 0
+            ? 0
+            : toplamOperasyonelGider *
+                (donemYuklenenAdet / toplamDonemYuklenenReferans);
+        final double? uretimMaliyeti = gercekMaliyet ?? hedefMaliyet;
+        final double genelToplamMaliyet =
+            (uretimMaliyeti ?? 0) + operasyonelGiderPayi + (fireMaliyeti ?? 0);
+        final double? brutKar = satisGeliri == null || uretimMaliyeti == null
+            ? null
+            : satisGeliri - uretimMaliyeti - (fireMaliyeti ?? 0);
+        final double? netKar =
+            satisGeliri == null ? null : satisGeliri - genelToplamMaliyet;
+        final double? netKarMarji =
+            netKar == null || satisGeliri == null || satisGeliri <= 0
+                ? null
+                : (netKar / satisGeliri) * 100;
+        final double? gercekKarOrani = netKar == null || genelToplamMaliyet <= 0
+            ? null
+            : (netKar / genelToplamMaliyet) * 100;
+        final double? birimKar = netKar == null || donemYuklenenAdet <= 0
+            ? null
+            : netKar / donemYuklenenAdet;
+        final double kayipKazanc = satisBirimFiyati * kalanAdet;
+        final fireOrani =
+            siparisAdedi > 0 ? (fireAdedi / siparisAdedi) * 100 : 0.0;
+        final durum = uretimMaliyeti == null
+            ? 'maliyet_eksik'
+            : (satisBirimFiyati <= 0
+                ? 'fiyat_eksik'
+                : (netKar != null && netKar < 0
+                    ? 'zarar_riski'
+                    : (hedefKarOrani > 0 &&
+                            gercekKarOrani != null &&
+                            gercekKarOrani + 0.05 < hedefKarOrani
+                        ? 'hedef_alti'
+                        : 'hedefte')));
+
+        if (hedefMaliyet != null) toplamHedefMaliyet += hedefMaliyet;
+        if (gercekMaliyet != null) toplamGercekMaliyet += gercekMaliyet;
+        if (satisGeliri != null) toplamSatisGeliri += satisGeliri;
+        if (brutKar != null) toplamBrutKar += brutKar;
+        if (netKar != null) toplamKar += netKar;
+        if (fireMaliyeti != null) toplamFireMaliyeti += fireMaliyeti;
+        if (uretimMaliyeti != null) toplamUretimMaliyeti += uretimMaliyeti;
+        toplamKayipKazanc += kayipKazanc;
+        toplamSiparisAdedi += siparisAdedi;
+        toplamUretilenAdet += uretilenAdet;
+        toplamDonemYuklenenAdet += donemYuklenenAdet;
+        toplamYuklenenAdet += toplamModelYuklenen;
+        toplamKalanAdet += kalanAdet;
+        toplamFireAdedi += fireAdedi;
+        if (durum == 'zarar_riski') zararModelSayisi++;
+        if (durum == 'hedef_alti') hedefAltiSayisi++;
+        if (durum == 'fiyat_eksik') fiyatEksikSayisi++;
+        if (durum == 'maliyet_eksik') maliyetEksikSayisi++;
+        if (netKar != null) hesaplanabilirModelSayisi++;
+        durumDagilimi[durum] = (durumDagilimi[durum] ?? 0) + 1;
+
+        for (final kalem in gercekBirimliKalemler) {
+          final ad = kalem['ad']?.toString() ?? 'Diğer';
+          maliyetDagilimi[ad] = (maliyetDagilimi[ad] ?? 0) +
+              _doubleDeger(kalem['gercekBirim']) * donemYuklenenAdet;
+        }
+        if (fireMaliyeti != null) {
+          maliyetDagilimi['Fire Maliyeti'] =
+              (maliyetDagilimi['Fire Maliyeti'] ?? 0) + fireMaliyeti;
+        }
+        if (operasyonelGiderPayi > 0) {
+          maliyetDagilimi['Operasyonel Gider'] =
+              (maliyetDagilimi['Operasyonel Gider'] ?? 0) +
+                  operasyonelGiderPayi;
+        }
+
+        final marka = model['marka']?.toString().trim().isNotEmpty == true
+            ? model['marka'].toString()
+            : 'Diğer';
+        final markaSatiri = markaAnalizi.putIfAbsent(
+          marka,
+          () => {
+            'marka': marka,
+            'modelSayisi': 0,
+            'siparisAdedi': 0,
+            'ciro': 0.0,
+            'maliyet': 0.0,
+            'kar': 0.0,
+          },
+        );
+        markaSatiri['modelSayisi'] = _intDeger(markaSatiri['modelSayisi']) + 1;
+        markaSatiri['siparisAdedi'] =
+            _intDeger(markaSatiri['siparisAdedi']) + siparisAdedi;
+        markaSatiri['ciro'] =
+            _doubleDeger(markaSatiri['ciro']) + (satisGeliri ?? 0);
+        markaSatiri['maliyet'] =
+            _doubleDeger(markaSatiri['maliyet']) + genelToplamMaliyet;
+        markaSatiri['kar'] = _doubleDeger(markaSatiri['kar']) + (netKar ?? 0);
+
+        final modelDonemYuklemeleri =
+            donemYuklemeleriByModel[modelId] ?? const <Map<String, dynamic>>[];
+        for (final yukleme in modelDonemYuklemeleri) {
+          final ayKey = _ayAnahtari(yukleme['tarih'] ?? yukleme['created_at']);
+          if (ayKey == null) continue;
+          final adet = _intDeger(yukleme['adet']);
+          final oran = donemYuklenenAdet <= 0 ? 0.0 : adet / donemYuklenenAdet;
+          final ay = aylikAnaliz.putIfAbsent(
+            ayKey,
+            () => {
+              'ay': ayKey,
+              'ciro': 0.0,
+              'kar': 0.0,
+              'uretimAdedi': 0,
+              'yuklemeAdedi': 0,
+              'fireAdedi': 0,
+            },
+          );
+          ay['ciro'] = _doubleDeger(ay['ciro']) + (satisBirimFiyati * adet);
+          ay['kar'] = _doubleDeger(ay['kar']) + ((netKar ?? 0) * oran);
+          ay['uretimAdedi'] = _intDeger(ay['uretimAdedi']) + adet;
+          ay['yuklemeAdedi'] = _intDeger(ay['yuklemeAdedi']) + adet;
+          ay['fireAdedi'] =
+              _intDeger(ay['fireAdedi']) + (fireAdedi * oran).round();
+        }
+
+        modelFinanslari.add({
+          'id': modelId,
+          'marka': model['marka'] ?? '',
+          'itemNo': model['item_no'] ?? '',
+          'renk': _modelRengi(model),
+          'siparisAdedi': siparisAdedi,
+          'uretilenAdet': uretilenAdet,
+          'donemYuklenenAdet': donemYuklenenAdet,
+          'toplamYuklenenAdet': toplamModelYuklenen,
+          'kalanAdet': kalanAdet,
+          'planBirimMaliyet': planBirimMaliyet,
+          'gercekBirimMaliyet': gercekBirimMaliyet,
+          'satisBirimFiyati': satisBirimFiyati,
+          'hedefMaliyet': hedefMaliyet,
+          'gercekMaliyet': gercekMaliyet,
+          'maliyetSapmasi': maliyetSapmasi,
+          'maliyetSapmaOrani': maliyetSapmaOrani,
+          'satisGeliri': satisGeliri,
+          'toplamUretimMaliyeti': uretimMaliyeti,
+          'toplamOperasyonelMaliyet': operasyonelGiderPayi,
+          'genelToplamMaliyet': genelToplamMaliyet,
+          'brutKar': brutKar,
+          'netKar': netKar,
+          'kar': netKar,
+          'karMarji': gercekKarOrani,
+          'gercekKarOrani': gercekKarOrani,
+          'netKarMarji': netKarMarji,
+          'birimKar': birimKar,
+          'kayipKazanc': kayipKazanc,
+          'fireAdedi': fireAdedi,
+          'fireBirimMaliyeti': fireBirimMaliyeti,
+          'fireMaliyeti': fireMaliyeti,
+          'fireOrani': fireOrani,
+          'hedefKarMarji': hedefKarOrani,
+          'hedefKarOrani': hedefKarOrani,
+          'durum': durum,
+          'maliyetVerisiVar': gercekBirimMaliyet > 0,
+          'satisFiyatiVar': satisBirimFiyati > 0,
+          'maliyetKalemleri': gercekBirimliKalemler,
+          'fiyatlandirmaKaynak': planKalemleri.isNotEmpty
+              ? 'Aktif maliyet planı'
+              : 'Model fiyatlandırma',
+        });
+      }
+
+      modelFinanslari.sort(
+          (a, b) => ((a['kar'] ?? 0) as num).compareTo((b['kar'] ?? 0) as num));
+      for (final marka in markaAnalizi.values) {
+        final ciro = _doubleDeger(marka['ciro']);
+        final maliyet = _doubleDeger(marka['maliyet']);
+        final kar = _doubleDeger(marka['kar']);
+        marka['karMarji'] = maliyet > 0 ? (kar / maliyet) * 100 : 0.0;
+        marka['netKarMarji'] = ciro > 0 ? (kar / ciro) * 100 : 0.0;
+      }
+      final enZararliModeller = modelFinanslari
+          .where((model) => _doubleDeger(model['netKar']) < 0)
+          .take(10)
+          .toList();
+      final enKarliModeller = modelFinanslari.reversed
+          .where((model) => _doubleDeger(model['netKar']) > 0)
+          .take(10)
+          .toList();
+      final markaListesi = markaAnalizi.values.toList()
+        ..sort(
+            (a, b) => _doubleDeger(b['kar']).compareTo(_doubleDeger(a['kar'])));
+      final aylikListesi = aylikAnaliz.values.toList()
+        ..sort((a, b) =>
+            (a['ay'] ?? '').toString().compareTo((b['ay'] ?? '').toString()));
+      final maliyetDagilimiListesi = maliyetDagilimi.entries
+          .map((entry) => {'ad': entry.key, 'tutar': entry.value})
+          .where((entry) => _doubleDeger(entry['tutar']) > 0)
+          .toList()
+        ..sort((a, b) =>
+            _doubleDeger(b['tutar']).compareTo(_doubleDeger(a['tutar'])));
+
+      final toplamGenelToplamMaliyet =
+          toplamUretimMaliyeti + toplamOperasyonelGider + toplamFireMaliyeti;
+
+      return {
+        'modelFinanslari': modelFinanslari,
+        'durumDagilimi': durumDagilimi,
+        'markaAnalizi': markaListesi,
+        'aylikAnaliz': aylikListesi,
+        'maliyetDagilimi': maliyetDagilimiListesi,
+        'operasyonelGiderDagilimi':
+            operasyonelGiderler['kategoriler'] ?? <Map<String, dynamic>>[],
+        'enKarliModeller': enKarliModeller,
+        'enZararliModeller': enZararliModeller,
+        'toplamModel': modelFinanslari.length,
+        'toplamSiparisAdedi': toplamSiparisAdedi,
+        'toplamUretilenAdet': toplamUretilenAdet,
+        'toplamDonemYuklenenAdet': toplamDonemYuklenenAdet,
+        'toplamYuklenenAdet': toplamYuklenenAdet,
+        'toplamKalanAdet': toplamKalanAdet,
+        'toplamHedefMaliyet': toplamHedefMaliyet,
+        'toplamGercekMaliyet': toplamGercekMaliyet,
+        'toplamUretimMaliyeti': toplamUretimMaliyeti,
+        'toplamOperasyonelGider': toplamOperasyonelGider,
+        'genelToplamMaliyet': toplamGenelToplamMaliyet,
+        'toplamSatisGeliri': toplamSatisGeliri,
+        'toplamBrutKar': toplamBrutKar,
+        'toplamNetKar': toplamKar,
+        'toplamKar': toplamKar,
+        'toplamKayipKazanc': toplamKayipKazanc,
+        'ortalamaKarMarji': toplamGenelToplamMaliyet > 0
+            ? (toplamKar / toplamGenelToplamMaliyet) * 100
+            : 0.0,
+        'ortalamaNetKarMarji':
+            toplamSatisGeliri > 0 ? (toplamKar / toplamSatisGeliri) * 100 : 0.0,
+        'maliyetSapmasi': toplamGercekMaliyet - toplamHedefMaliyet,
+        'maliyetSapmaOrani': toplamHedefMaliyet > 0
+            ? ((toplamGercekMaliyet - toplamHedefMaliyet) /
+                    toplamHedefMaliyet) *
+                100
+            : 0.0,
+        'toplamFireAdedi': toplamFireAdedi,
+        'toplamFireMaliyeti': toplamFireMaliyeti,
+        'fireOrani': toplamSiparisAdedi > 0
+            ? (toplamFireAdedi / toplamSiparisAdedi) * 100
+            : 0.0,
+        'zararModelSayisi': zararModelSayisi,
+        'hedefAltiSayisi': hedefAltiSayisi,
+        'fiyatEksikSayisi': fiyatEksikSayisi,
+        'maliyetEksikSayisi': maliyetEksikSayisi,
+        'hesaplanabilirModelSayisi': hesaplanabilirModelSayisi,
+      };
+    } catch (e) {
+      final bos = _bosYuklemeFinansAnalizi();
+      bos['hata'] = e.toString();
+      return bos;
+    }
+  }
+
+  static Future<Map<String, dynamic>> _operasyonelGiderleriGetir({
+    DateTime? baslangicTarihi,
+    DateTime? bitisTarihi,
+  }) async {
+    final kategoriler = <String, double>{};
+
+    void ekle(String kategori, double tutar) {
+      if (tutar <= 0) return;
+      final temizKategori = kategori.trim().isEmpty ? 'Diğer' : kategori.trim();
+      kategoriler[temizKategori] = (kategoriler[temizKategori] ?? 0) + tutar;
+    }
+
+    try {
+      var hareketQuery = _supabase
+          .from(DbTables.kasaBankaHareketleri)
+          .select('*')
+          .eq('firma_id', _firmaId);
+      if (baslangicTarihi != null) {
+        hareketQuery = hareketQuery.gte(
+          'tarih',
+          baslangicTarihi.toIso8601String().split('T').first,
+        );
+      }
+      if (bitisTarihi != null) {
+        hareketQuery = hareketQuery.lte(
+          'tarih',
+          bitisTarihi.toIso8601String().split('T').first,
+        );
+      }
+      final hareketler = await hareketQuery;
+      for (final hareket in hareketler) {
+        final tip = hareket['islem_tipi']?.toString() ??
+            hareket['hareket_tipi']?.toString() ??
+            '';
+        if (tip != 'gider' && tip != 'cikis' && tip != 'odeme') continue;
+        ekle(
+          hareket['kategori']?.toString() ??
+              hareket['aciklama']?.toString() ??
+              'Operasyonel Gider',
+          _doubleDeger(hareket['tutar']),
+        );
+      }
+    } catch (e) {
+      AppLogger.debug('Kasa/banka operasyonel giderleri okunamadı: $e');
+    }
+
+    final liste = kategoriler.entries
+        .map((entry) => {'ad': entry.key, 'tutar': entry.value})
+        .toList()
+      ..sort((a, b) =>
+          _doubleDeger(b['tutar']).compareTo(_doubleDeger(a['tutar'])));
+
+    return {
+      'toplam': kategoriler.values.fold<double>(0, (sum, tutar) => sum + tutar),
+      'kategoriler': liste,
+    };
+  }
+
+  static String? _ayAnahtari(dynamic tarihDegeri) {
+    if (tarihDegeri == null) return null;
+    final tarih = DateTime.tryParse(tarihDegeri.toString());
+    if (tarih == null) return null;
+    return '${tarih.year}-${tarih.month.toString().padLeft(2, '0')}';
+  }
+
+  static Map<String, dynamic> _bosYuklemeFinansAnalizi() {
+    return {
+      'modelFinanslari': <Map<String, dynamic>>[],
+      'durumDagilimi': <String, int>{},
+      'markaAnalizi': <Map<String, dynamic>>[],
+      'aylikAnaliz': <Map<String, dynamic>>[],
+      'maliyetDagilimi': <Map<String, dynamic>>[],
+      'operasyonelGiderDagilimi': <Map<String, dynamic>>[],
+      'enKarliModeller': <Map<String, dynamic>>[],
+      'enZararliModeller': <Map<String, dynamic>>[],
+      'toplamModel': 0,
+      'toplamSiparisAdedi': 0,
+      'toplamUretilenAdet': 0,
+      'toplamDonemYuklenenAdet': 0,
+      'toplamYuklenenAdet': 0,
+      'toplamKalanAdet': 0,
+      'toplamHedefMaliyet': 0.0,
+      'toplamGercekMaliyet': 0.0,
+      'toplamUretimMaliyeti': 0.0,
+      'toplamOperasyonelGider': 0.0,
+      'genelToplamMaliyet': 0.0,
+      'toplamSatisGeliri': 0.0,
+      'toplamBrutKar': 0.0,
+      'toplamNetKar': 0.0,
+      'toplamKar': 0.0,
+      'toplamKayipKazanc': 0.0,
+      'ortalamaKarMarji': 0.0,
+      'ortalamaNetKarMarji': 0.0,
+      'maliyetSapmasi': 0.0,
+      'maliyetSapmaOrani': 0.0,
+      'toplamFireAdedi': 0,
+      'toplamFireMaliyeti': 0.0,
+      'fireOrani': 0.0,
+      'zararModelSayisi': 0,
+      'hedefAltiSayisi': 0,
+      'fiyatEksikSayisi': 0,
+      'maliyetEksikSayisi': 0,
+      'hesaplanabilirModelSayisi': 0,
+    };
+  }
+
+  static List<Map<String, dynamic>> _fiyatlandirmaMaliyetKalemleri({
+    required Map<String, dynamic> model,
+    required List<Map<String, dynamic>> planKalemleri,
+  }) {
+    final kullanilabilirPlanKalemleri = planKalemleri
+        .where((kalem) => kalem['kalem_tipi']?.toString() != 'aksesuar')
+        .toList();
+    if (kullanilabilirPlanKalemleri.isNotEmpty) {
+      return kullanilabilirPlanKalemleri
+          .map((kalem) {
+            final planBirim = _doubleDeger(kalem['plan_birim_maliyet']);
+            if (planBirim <= 0) return null;
+            final ad = kalem['aciklama']?.toString().trim().isNotEmpty == true
+                ? kalem['aciklama'].toString()
+                : _maliyetKalemEtiketi(kalem['kalem_tipi']?.toString() ?? '');
+            return {
+              'kod': kalem['kalem_tipi']?.toString() ?? '',
+              'ad': ad,
+              'planBirim': planBirim,
+              'gercekBirim': planBirim,
+              'kaynak': kalem['kaynak']?.toString() ?? 'plan',
+            };
+          })
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    }
+
+    final kalemler = [
+      _fiyatlandirmaKalemi('iplik', 'İplik Maliyeti', model['iplik_maliyeti']),
+      _fiyatlandirmaKalemi(
+          'genel_aksesuar', 'Genel Aksesuar', model['genel_aksesuar_fiyat']),
+      _fiyatlandirmaKalemi('orgu', 'Örgü / Dokuma', model['orgu_fiyat']),
+      _fiyatlandirmaKalemi('dikim', 'Dikim', model['dikim_fiyat']),
+      _fiyatlandirmaKalemi('yikama', 'Yıkama', model['yikama_fiyat']),
+      _fiyatlandirmaKalemi(
+          'ilik_dugme', 'İlik Düğme', model['ilik_dugme_fiyat']),
+      _fiyatlandirmaKalemi('fermuar', 'Fermuar', model['fermuar_fiyat']),
+      _fiyatlandirmaKalemi('konfeksiyon', 'Konfeksiyon', 0),
+      _fiyatlandirmaKalemi('utu', 'Ütü', model['utu_fiyat']),
+      _fiyatlandirmaKalemi('nakis', 'Nakış / Baskı', model['aksesuar_fiyat']),
+      _fiyatlandirmaKalemi('nakliye', 'Nakliye', 0),
+      _fiyatlandirmaKalemi('numune', 'Numune', 0),
+      _fiyatlandirmaKalemi(
+          'genel_gider', 'Diğer Giderler', model['genel_gider_fiyat']),
+    ].whereType<Map<String, dynamic>>().toList();
+
+    return kalemler;
+  }
+
+  static Map<String, dynamic>? _fiyatlandirmaKalemi(
+    String kod,
+    String ad,
+    dynamic value,
+  ) {
+    final tutar = _doubleDeger(value);
+    return {
+      'kod': kod,
+      'ad': ad,
+      'planBirim': tutar,
+      'gercekBirim': tutar,
+      'kaynak': 'model_fiyatlandirma',
+    };
+  }
+
+  static double _fiyatlandirmaSatisFiyati(
+    Map<String, dynamic> model,
+    double planBirimMaliyet,
+    double karMarji,
+  ) {
+    if (planBirimMaliyet <= 0) return 0;
+    var satisFiyati = planBirimMaliyet * (1 + karMarji / 100);
+    final vadeAy = _intDeger(model['vade_ay']);
+    final vadeOrani = _doubleDeger(model['vade_orani']);
+    if (vadeAy > 0 && vadeOrani > 0) {
+      satisFiyati *= 1 + vadeOrani / 100;
+    }
+    return satisFiyati;
+  }
+
+  static List<Map<String, dynamic>> _gercekBirimliMaliyetKalemleri({
+    required List<Map<String, dynamic>> maliyetKalemleri,
+    required Map<String, Map<String, double>>? gerceklesenKalemleri,
+    required int fallbackAdet,
+  }) {
+    return maliyetKalemleri.map((kalem) {
+      final kod = kalem['kod']?.toString() ?? '';
+      final gerceklesen = gerceklesenKalemleri?[kod];
+      final tutar = gerceklesen?['tutar'] ?? 0;
+      final miktar = gerceklesen?['miktar'] ?? 0;
+      double gercekBirim = _doubleDeger(kalem['planBirim']);
+      if (tutar > 0) {
+        if (miktar > 0) {
+          gercekBirim = tutar / miktar;
+        } else if (fallbackAdet > 0) {
+          gercekBirim = tutar / fallbackAdet;
+        }
+      }
+      return {
+        ...kalem,
+        'gercekBirim': gercekBirim,
+      };
+    }).toList();
+  }
+
+  static String _maliyetKalemEtiketi(String kod) {
+    const etiketler = {
+      'iplik': 'İplik Maliyeti',
+      'orgu': 'Örgü / Dokuma',
+      'dikim': 'Dikim',
+      'utu': 'Ütü',
+      'yikama': 'Yıkama',
+      'ilik_dugme': 'İlik Düğme',
+      'fermuar': 'Fermuar',
+      'baski_nakis': 'Baskı / Nakış',
+      'nakis': 'Nakış / Baskı',
+      'aksesuar': 'Aksesuar',
+      'genel_aksesuar': 'Genel Aksesuar',
+      'genel_gider': 'Genel Gider',
+      'paketleme': 'Paketleme',
+      'konfeksiyon': 'Konfeksiyon',
+      'nakliye': 'Nakliye',
+      'numune': 'Numune',
+      'diger': 'Diğer',
+    };
+    return etiketler[kod] ?? kod;
+  }
+
   /// Kâr/Zarar Analizi
   static Future<Map<String, dynamic>> getKarZararAnalizi({
     DateTime? baslangicTarihi,
@@ -699,50 +1480,12 @@ class GelismisRaporServisleri {
     final Map<String, double> kategoriGelir = {};
     final Map<String, double> kategoriGider = {};
     final Map<String, double> markaBazliSatis = {};
-    int faturaSayisi = 0;
+    const faturaSayisi = 0;
     int hareketSayisi = 0;
     int depoSatisSayisi = 0;
     final modelKapsamiVar = filtre?.modelKapsamiVar ?? false;
 
     try {
-      // 1. Fatura gelirlerini getir
-      if (!modelKapsamiVar) {
-        try {
-          var faturaQuery = _supabase
-              .from(DbTables.faturalar)
-              .select('*')
-              .eq('firma_id', _firmaId);
-          if (baslangicTarihi != null) {
-            faturaQuery = faturaQuery.gte('fatura_tarihi',
-                baslangicTarihi.toIso8601String().split('T')[0]);
-          }
-          if (bitisTarihi != null) {
-            faturaQuery = faturaQuery.lte(
-                'fatura_tarihi', bitisTarihi.toIso8601String().split('T')[0]);
-          }
-          final faturalar = await faturaQuery;
-
-          for (var fatura in faturalar) {
-            final faturaTuru = fatura['fatura_turu']?.toString() ?? '';
-            if (faturaTuru == 'satis' || faturaTuru == 'satış') {
-              final tutar =
-                  ((fatura['toplam_tutar'] ?? fatura['tutar'] ?? 0) as num)
-                      .toDouble();
-              faturaGeliri += tutar;
-              faturaSayisi++;
-
-              final musteri = fatura['musteri_adi']?.toString() ??
-                  fatura['musteri']?.toString() ??
-                  'Bilinmeyen';
-              musteriBazliGelir[musteri] =
-                  (musteriBazliGelir[musteri] ?? 0) + tutar;
-            }
-          }
-        } catch (e) {
-          AppLogger.debug('Veri isleme hatasi: $e');
-        }
-      }
-
       // 2. Kasa/banka hareketlerini getir
       if (!modelKapsamiVar) {
         try {

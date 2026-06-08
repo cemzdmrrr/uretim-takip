@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,7 +11,8 @@ class TamamlananSiparislerPage extends StatefulWidget {
   const TamamlananSiparislerPage({Key? key}) : super(key: key);
 
   @override
-  State<TamamlananSiparislerPage> createState() => _TamamlananSiparislerPageState();
+  State<TamamlananSiparislerPage> createState() =>
+      _TamamlananSiparislerPageState();
 }
 
 class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
@@ -22,7 +23,7 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
   bool tarihArtan = true;
 
   // Seçili modellerin id'leri
-  Set<int> seciliModelIdler = {};
+  Set<String> seciliModelIdler = {};
   // Filtre seçenekleri
   String? seciliMarka;
   String? seciliModel;
@@ -41,29 +42,29 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
     try {
       final response = await supabase
           .from(DbTables.trikoTakip)
-          .select('''
-            *,
-            yukleme_kayitlari (
-              id,
-              adet,
-              tarih
-            )
-          ''')
-          .eq('firma_id', TenantManager.instance.requireFirmaId)
-          .eq('tamamlandi', true);
+          .select('*')
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
 
-      final List<Map<String, dynamic>> liste = List<Map<String, dynamic>>.from(response);
-      
+      final List<Map<String, dynamic>> liste =
+          List<Map<String, dynamic>>.from(response)
+              .where(_tamamlanmisModelMi)
+              .toList();
+
+      await _yuklemeKayitlariniEkle(liste);
+
       debugPrint('========== TAMAMLANAN SİPARİŞLER ==========');
       debugPrint('Tamamlanan siparişler sayısı: ${liste.length}');
       for (var item in liste) {
-        debugPrint('✅ Tamamlanan: ${item['item_no']} - tamamlandi: ${item['tamamlandi']} - ID: ${item['id']}');
+        debugPrint(
+            '✅ Tamamlanan: ${item['item_no']} - tamamlandi: ${item['tamamlandi']} - durum: ${item['durum']} - ID: ${item['id']}');
       }
       debugPrint('=========================================');
 
       liste.sort((a, b) {
-        final tarihA = DateTime.tryParse(a['yukleme_tarihi'] ?? '') ?? DateTime(2000);
-        final tarihB = DateTime.tryParse(b['yukleme_tarihi'] ?? '') ?? DateTime(2000);
+        final tarihA =
+            DateTime.tryParse(a['yukleme_tarihi'] ?? '') ?? DateTime(2000);
+        final tarihB =
+            DateTime.tryParse(b['yukleme_tarihi'] ?? '') ?? DateTime(2000);
         return tarihArtan ? tarihA.compareTo(tarihB) : tarihB.compareTo(tarihA);
       });
 
@@ -77,7 +78,54 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
     }
   }
 
-  Future<void> exportToExcel(List<Map<String, dynamic>> data, {required String fileName}) async {
+  Future<void> _yuklemeKayitlariniEkle(
+      List<Map<String, dynamic>> modeller) async {
+    if (modeller.isEmpty) return;
+
+    try {
+      final modelIdleri = modeller.map((m) => m['id'].toString()).toList();
+      final response = await supabase
+          .from(DbTables.yuklemeKayitlari)
+          .select('id, model_id, adet, tarih')
+          .inFilter('model_id', modelIdleri);
+
+      final kayitlar = List<Map<String, dynamic>>.from(response);
+      final kayitlarByModel = <String, List<Map<String, dynamic>>>{};
+      for (final kayit in kayitlar) {
+        final modelId = kayit['model_id']?.toString();
+        if (modelId == null) continue;
+        kayitlarByModel.putIfAbsent(modelId, () => []).add(kayit);
+      }
+
+      for (final model in modeller) {
+        model[DbTables.yuklemeKayitlari] =
+            kayitlarByModel[model['id'].toString()] ?? [];
+      }
+    } catch (e) {
+      debugPrint('Yükleme kayıtları eklenemedi: $e');
+      for (final model in modeller) {
+        model[DbTables.yuklemeKayitlari] = <Map<String, dynamic>>[];
+      }
+    }
+  }
+
+  bool _tamamlanmisModelMi(Map<String, dynamic> model) {
+    final tamamlandi = model['tamamlandi'];
+    if (tamamlandi is bool && tamamlandi) return true;
+    if (tamamlandi is int && tamamlandi == 1) return true;
+    if (tamamlandi is String) {
+      final normalized = tamamlandi.toLowerCase().trim();
+      if (normalized == 'true' || normalized == '1' || normalized == 'evet') {
+        return true;
+      }
+    }
+
+    final durum = model['durum']?.toString().toLowerCase().trim();
+    return durum == 'tamamlandi' || durum == 'tamamlandı';
+  }
+
+  Future<void> exportToExcel(List<Map<String, dynamic>> data,
+      {required String fileName}) async {
     try {
       await ExcelHelper.exportToExcel(
         data: data,
@@ -95,7 +143,7 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
           'orgu_firma': 'Örgü Firma',
           'orgu_bitis': 'Örgü Bitiş',
           'konfeksiyon_firma': 'Konfeksiyon Firma',
-          'konfeksiyon_bitis': 'Konfeksiyon Bitiş', 
+          'konfeksiyon_bitis': 'Konfeksiyon Bitiş',
           'utu_firma': 'Ütü Firma',
           'utu_bitis': 'Ütü Bitiş',
           'tamamlanma_tarihi': 'Tamamlanma Tarihi'
@@ -112,32 +160,54 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
   }
 
   // Dinamik filtreler için yardımcılar
-  List<String> getMarkalar() => tamamlananlar.map((m) => m['marka']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().toList();
+  List<String> getMarkalar() => tamamlananlar
+      .map((m) => m['marka']?.toString() ?? '')
+      .where((e) => e.isNotEmpty)
+      .toSet()
+      .toList();
   List<String> getModeller() {
     final filtered = seciliMarka != null && seciliMarka!.isNotEmpty
         ? tamamlananlar.where((m) => m['marka'] == seciliMarka)
         : tamamlananlar;
-    return filtered.map((m) => m['item_no']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().toList();
+    return filtered
+        .map((m) => m['item_no']?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
   }
+
   List<String> getRenkler() {
     final filtered = seciliModel != null && seciliModel!.isNotEmpty
         ? tamamlananlar.where((m) => m['item_no'] == seciliModel)
         : tamamlananlar;
-    return filtered.map((m) => m['renk']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().toList();
+    return filtered
+        .map((m) => m['renk']?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
   }
-  List<String> getIplikCinsleri() => tamamlananlar.map((m) => m['iplik_cinsi']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().toList();
+
+  List<String> getIplikCinsleri() => tamamlananlar
+      .map((m) => m['iplik_cinsi']?.toString() ?? '')
+      .where((e) => e.isNotEmpty)
+      .toSet()
+      .toList();
 
   // Excel için tarih sütunu düzeltildi
   Future<void> exportSeciliToExcel() async {
-    final secili = filtreli.where((m) => seciliModelIdler.contains(m['id'])).toList();
+    final secili =
+        filtreli.where((m) => seciliModelIdler.contains(m['id'])).toList();
     if (secili.isEmpty) return;
     final data = secili.map((m) {
       String? tarih = m['yukleme_tarihi'];
       if (tarih == null || tarih.isEmpty) {
         // En son yükleme kaydının tarihini al
-        final kayitlar = (m[DbTables.yuklemeKayitlari] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final kayitlar = (m[DbTables.yuklemeKayitlari] as List?)
+                ?.cast<Map<String, dynamic>>() ??
+            [];
         if (kayitlar.isNotEmpty) {
-          kayitlar.sort((a, b) => (b['tarih'] ?? '').compareTo(a['tarih'] ?? ''));
+          kayitlar
+              .sort((a, b) => (b['tarih'] ?? '').compareTo(a['tarih'] ?? ''));
           tarih = kayitlar.first['tarih'];
         }
       }
@@ -177,7 +247,7 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
   void tumunuSec(bool sec) {
     setState(() {
       if (sec) {
-        seciliModelIdler = filtreli.map((m) => m['id'] as int).toSet();
+        seciliModelIdler = filtreli.map((m) => m['id'].toString()).toSet();
       } else {
         seciliModelIdler.clear();
       }
@@ -189,10 +259,26 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
       final marka = (model['marka'] ?? '').toString().toLowerCase();
       final itemNo = (model['item_no'] ?? '').toString().toLowerCase();
       final query = arama.toLowerCase();
-      if (seciliMarka != null && seciliMarka!.isNotEmpty && model['marka'] != seciliMarka) return false;
-      if (seciliModel != null && seciliModel!.isNotEmpty && model['item_no'] != seciliModel) return false;
-      if (seciliRenk != null && seciliRenk!.isNotEmpty && model['renk'] != seciliRenk) return false;
-      if (seciliIplikCinsi != null && seciliIplikCinsi!.isNotEmpty && model['iplik_cinsi'] != seciliIplikCinsi) return false;
+      if (seciliMarka != null &&
+          seciliMarka!.isNotEmpty &&
+          model['marka'] != seciliMarka) {
+        return false;
+      }
+      if (seciliModel != null &&
+          seciliModel!.isNotEmpty &&
+          model['item_no'] != seciliModel) {
+        return false;
+      }
+      if (seciliRenk != null &&
+          seciliRenk!.isNotEmpty &&
+          model['renk'] != seciliRenk) {
+        return false;
+      }
+      if (seciliIplikCinsi != null &&
+          seciliIplikCinsi!.isNotEmpty &&
+          model['iplik_cinsi'] != seciliIplikCinsi) {
+        return false;
+      }
       return marka.contains(query) || itemNo.contains(query);
     }).toList();
   }
@@ -201,7 +287,8 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
   Widget build(BuildContext context) {
     // Toplam model ve toplam adet hesapla
     final toplamModel = filtreli.length;
-    final toplamAdet = filtreli.fold<int>(0, (sum, m) => sum + ((m['yuklenen_adet'] ?? 0) as num).toInt());
+    final toplamAdet = filtreli.fold<int>(
+        0, (sum, m) => sum + ((m['yuklenen_adet'] ?? 0) as num).toInt());
 
     return Scaffold(
       appBar: AppBar(
@@ -248,13 +335,15 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                     Expanded(
                       child: Text(
                         'Toplam Model: $toplamModel',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         'Toplam Adet: $toplamAdet',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                         textAlign: TextAlign.right,
                       ),
                     ),
@@ -270,8 +359,15 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                           child: DropdownButtonFormField<String>(
                             initialValue: seciliMarka,
                             isDense: true,
-                            decoration: const InputDecoration(labelText: 'Marka', border: OutlineInputBorder()),
-                            items: getMarkalar().map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))).toList(),
+                            decoration: const InputDecoration(
+                                labelText: 'Marka',
+                                border: OutlineInputBorder()),
+                            items: getMarkalar()
+                                .map((m) => DropdownMenuItem(
+                                    value: m,
+                                    child: Text(m,
+                                        overflow: TextOverflow.ellipsis)))
+                                .toList(),
                             onChanged: (v) {
                               setState(() {
                                 seciliMarka = v;
@@ -286,8 +382,15 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                           child: DropdownButtonFormField<String>(
                             initialValue: seciliModel,
                             isDense: true,
-                            decoration: const InputDecoration(labelText: 'Model', border: OutlineInputBorder()),
-                            items: getModeller().map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))).toList(),
+                            decoration: const InputDecoration(
+                                labelText: 'Model',
+                                border: OutlineInputBorder()),
+                            items: getModeller()
+                                .map((m) => DropdownMenuItem(
+                                    value: m,
+                                    child: Text(m,
+                                        overflow: TextOverflow.ellipsis)))
+                                .toList(),
                             onChanged: (v) {
                               setState(() {
                                 seciliModel = v;
@@ -305,8 +408,15 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                           child: DropdownButtonFormField<String>(
                             initialValue: seciliRenk,
                             isDense: true,
-                            decoration: const InputDecoration(labelText: 'Renk', border: OutlineInputBorder()),
-                            items: getRenkler().map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))).toList(),
+                            decoration: const InputDecoration(
+                                labelText: 'Renk',
+                                border: OutlineInputBorder()),
+                            items: getRenkler()
+                                .map((m) => DropdownMenuItem(
+                                    value: m,
+                                    child: Text(m,
+                                        overflow: TextOverflow.ellipsis)))
+                                .toList(),
                             onChanged: (v) => setState(() => seciliRenk = v),
                           ),
                         ),
@@ -315,9 +425,17 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                           child: DropdownButtonFormField<String>(
                             initialValue: seciliIplikCinsi,
                             isDense: true,
-                            decoration: const InputDecoration(labelText: 'İplik Cinsi', border: OutlineInputBorder()),
-                            items: getIplikCinsleri().map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))).toList(),
-                            onChanged: (v) => setState(() => seciliIplikCinsi = v),
+                            decoration: const InputDecoration(
+                                labelText: 'İplik Cinsi',
+                                border: OutlineInputBorder()),
+                            items: getIplikCinsleri()
+                                .map((m) => DropdownMenuItem(
+                                    value: m,
+                                    child: Text(m,
+                                        overflow: TextOverflow.ellipsis)))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => seciliIplikCinsi = v),
                           ),
                         ),
                       ],
@@ -341,7 +459,8 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                 Row(
                   children: [
                     Checkbox(
-                      value: seciliModelIdler.length == filtreli.length && filtreli.isNotEmpty,
+                      value: seciliModelIdler.length == filtreli.length &&
+                          filtreli.isNotEmpty,
                       tristate: true,
                       onChanged: (v) => tumunuSec(v ?? false),
                     ),
@@ -350,7 +469,9 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                     ElevatedButton.icon(
                       icon: const Icon(Icons.file_copy),
                       label: const Text("Excel'e Aktar"),
-                      onPressed: seciliModelIdler.isNotEmpty ? exportSeciliToExcel : null,
+                      onPressed: seciliModelIdler.isNotEmpty
+                          ? exportSeciliToExcel
+                          : null,
                     ),
                   ],
                 ),
@@ -359,45 +480,63 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                   child: yukleniyor
                       ? const LoadingWidget()
                       : filtreli.isEmpty
-                          ? const Center(child: Text('Tamamlanan sipariş bulunamadı'))
+                          ? const Center(
+                              child: Text('Tamamlanan sipariş bulunamadı'))
                           : ListView.builder(
                               itemCount: filtreli.length,
                               itemBuilder: (context, index) {
                                 final m = filtreli[index];
                                 return Card(
-                                  margin: const EdgeInsets.symmetric(vertical: 6),
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 6),
                                   child: ExpansionTile(
                                     leading: Checkbox(
-                                      value: seciliModelIdler.contains(m['id']),
+                                      value: seciliModelIdler
+                                          .contains(m['id'].toString()),
                                       onChanged: (v) {
                                         setState(() {
                                           if (v == true) {
-                                            seciliModelIdler.add(m['id'] as int);
+                                            seciliModelIdler
+                                                .add(m['id'].toString());
                                           } else {
-                                            seciliModelIdler.remove(m['id'] as int);
+                                            seciliModelIdler
+                                                .remove(m['id'].toString());
                                           }
                                         });
                                       },
                                     ),
                                     // Renk bilgisi de başlıkta göster
-                                    title: Text("${m['marka']} - ${m['item_no']} (${m['renk'] ?? '-'})"),
-                                    subtitle: Text("Toplam Adet: ${m['adet']} | Yüklenen: ${m['yuklenen_adet']}", maxLines: 2),
+                                    title: Text(
+                                        "${m['marka']} - ${m['item_no']} (${m['renk'] ?? '-'})"),
+                                    subtitle: Text(
+                                        "Toplam Adet: ${m['adet']} | Yüklenen: ${m['yuklenen_adet']}",
+                                        maxLines: 2),
                                     children: [
                                       if (m[DbTables.yuklemeKayitlari] != null)
-                                        ...List<Map<String, dynamic>>.from(m[DbTables.yuklemeKayitlari]).map((yukleme) {
-                                          final yuklemeTarihi = DateTime.tryParse(yukleme['tarih'])?.toLocal();
+                                        ...List<Map<String, dynamic>>.from(
+                                                m[DbTables.yuklemeKayitlari])
+                                            .map((yukleme) {
+                                          final yuklemeTarihi =
+                                              DateTime.tryParse(
+                                                      yukleme['tarih'])
+                                                  ?.toLocal();
                                           return ListTile(
                                             dense: true,
-                                            leading: const Icon(Icons.local_shipping, size: 20),
+                                            leading: const Icon(
+                                                Icons.local_shipping,
+                                                size: 20),
                                             title: Text(
                                               "Adet: ${yukleme['adet']}",
-                                              style: const TextStyle(fontSize: 14),
+                                              style:
+                                                  const TextStyle(fontSize: 14),
                                             ),
                                             trailing: Text(
-                                              yuklemeTarihi != null 
-                                                ? DateFormat('dd.MM.yyyy').format(yuklemeTarihi)
-                                                : '-',
-                                              style: const TextStyle(fontSize: 14),
+                                              yuklemeTarihi != null
+                                                  ? DateFormat('dd.MM.yyyy')
+                                                      .format(yuklemeTarihi)
+                                                  : '-',
+                                              style:
+                                                  const TextStyle(fontSize: 14),
                                             ),
                                           );
                                         }).toList(),
@@ -406,17 +545,31 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           IconButton(
-                                            icon: const Icon(Icons.undo, color: Colors.orange),
+                                            icon: const Icon(Icons.undo,
+                                                color: Colors.orange),
                                             tooltip: 'Modeli geri al',
                                             onPressed: () async {
-                                              final onay = await showDialog<bool>(
+                                              final onay =
+                                                  await showDialog<bool>(
                                                 context: context,
                                                 builder: (_) => AlertDialog(
-                                                  title: const Text('Geri Alma Onayı'),
-                                                  content: const Text('Bu modeli aktif listeye geri almak istiyor musunuz?'),
+                                                  title: const Text(
+                                                      'Geri Alma Onayı'),
+                                                  content: const Text(
+                                                      'Bu modeli aktif listeye geri almak istiyor musunuz?'),
                                                   actions: [
-                                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('İptal')),
-                                                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Evet')),
+                                                    TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                context, false),
+                                                        child: const Text(
+                                                            'İptal')),
+                                                    TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                context, true),
+                                                        child:
+                                                            const Text('Evet')),
                                                   ],
                                                 ),
                                               );
@@ -424,11 +577,22 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                                               if (onay == true) {
                                                 await supabase
                                                     .from(DbTables.trikoTakip)
-                                                    .update({'tamamlandi': false})
+                                                    .update({
+                                                      'tamamlandi': false,
+                                                      'durum': 'Beklemede',
+                                                      'updated_at': DateTime
+                                                              .now()
+                                                          .toIso8601String(),
+                                                    })
+                                                    .eq(
+                                                        'firma_id',
+                                                        TenantManager.instance
+                                                            .requireFirmaId)
                                                     .eq('id', m['id']);
 
                                                 if (!context.mounted) return;
-                                                context.showSnackBar('Model geri alındı');
+                                                context.showSnackBar(
+                                                    'Model geri alındı');
 
                                                 await tamamlananlariGetir(); // listeyi yenile
                                               }

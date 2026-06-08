@@ -1,4 +1,4 @@
-﻿part of 'model_detay.dart';
+part of 'model_detay.dart';
 
 /// Yükleme (Shipping/Files) tab extension for _ModelDetayState.
 extension _YuklemeTabExt on _ModelDetayState {
@@ -37,7 +37,7 @@ extension _YuklemeTabExt on _ModelDetayState {
             ],
           ),
         ),
-        
+
         // Sekmeler: Yükleme Kayıtları ve Teknik Dosyalar
         Expanded(
           child: DefaultTabController(
@@ -75,17 +75,18 @@ extension _YuklemeTabExt on _ModelDetayState {
           children: [
             Icon(Icons.upload_outlined, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text('Henüz yükleme kaydı yok', style: TextStyle(color: Colors.grey)),
+            Text('Henüz yükleme kaydı yok',
+                style: TextStyle(color: Colors.grey)),
           ],
         ),
       );
     }
-    
+
     int toplamYuklenen = 0;
     for (var kayit in yuklemeKayitlari) {
       toplamYuklenen += (kayit['adet'] ?? 0) as int;
     }
-    
+
     return Column(
       children: [
         // Özet
@@ -101,29 +102,38 @@ extension _YuklemeTabExt on _ModelDetayState {
             children: [
               Column(
                 children: [
-                  const Text('Toplam Adet', style: TextStyle(color: Colors.grey)),
-                  Text('${currentModelData?['toplam_adet'] ?? 0}', 
-                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text('Toplam Adet',
+                      style: TextStyle(color: Colors.grey)),
+                  Text('${currentModelData?['toplam_adet'] ?? 0}',
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.bold)),
                 ],
               ),
               Column(
                 children: [
                   const Text('Yüklenen', style: TextStyle(color: Colors.grey)),
-                  Text('$toplamYuklenen', 
-                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green)),
+                  Text('$toplamYuklenen',
+                      style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green)),
                 ],
               ),
               Column(
                 children: [
                   const Text('Kalan', style: TextStyle(color: Colors.grey)),
-                  Text('${(currentModelData?['toplam_adet'] ?? 0) - toplamYuklenen}', 
-                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.orange)),
+                  Text(
+                      '${(currentModelData?['toplam_adet'] ?? 0) - toplamYuklenen}',
+                      style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange)),
                 ],
               ),
             ],
           ),
         ),
-        
+
         // Liste
         Expanded(
           child: ListView.builder(
@@ -137,17 +147,18 @@ extension _YuklemeTabExt on _ModelDetayState {
               } catch (e) {
                 // Tarih parse hatası
               }
-              
+
               final kaynak = kayit['kaynak'] ?? 'manual';
               final cekidenMi = kaynak == DbTables.cekiListesi;
-              
+
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 color: cekidenMi ? Colors.blue[50] : null,
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: cekidenMi ? Colors.blue : Colors.teal,
-                    child: Text('${kayit['adet']}', style: const TextStyle(color: Colors.white)),
+                    child: Text('${kayit['adet']}',
+                        style: const TextStyle(color: Colors.white)),
                   ),
                   title: Row(
                     children: [
@@ -155,7 +166,8 @@ extension _YuklemeTabExt on _ModelDetayState {
                       const SizedBox(width: 8),
                       if (cekidenMi)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.blue[200],
                             borderRadius: BorderRadius.circular(4),
@@ -163,9 +175,14 @@ extension _YuklemeTabExt on _ModelDetayState {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.local_shipping, size: 12, color: Colors.blue[700]),
+                              Icon(Icons.local_shipping,
+                                  size: 12, color: Colors.blue[700]),
                               const SizedBox(width: 4),
-                              Text('Çekiden', style: TextStyle(fontSize: 11, color: Colors.blue[700], fontWeight: FontWeight.w600)),
+                              Text('Çekiden',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.blue[700],
+                                      fontWeight: FontWeight.w600)),
                             ],
                           ),
                         ),
@@ -195,18 +212,19 @@ extension _YuklemeTabExt on _ModelDetayState {
           children: [
             Icon(Icons.folder_open, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text('Henüz teknik dosya yok', style: TextStyle(color: Colors.grey)),
+            Text('Henüz teknik dosya yok',
+                style: TextStyle(color: Colors.grey)),
           ],
         ),
       );
     }
-    
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: teknikDosyalar.length,
       itemBuilder: (context, index) {
         final dosya = teknikDosyalar[index];
-        
+
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
@@ -247,7 +265,7 @@ extension _YuklemeTabExt on _ModelDetayState {
   void _showYuklemeKaydiEkleDialog() {
     final adetController = TextEditingController();
     DateTime secilenTarih = DateTime.now();
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -305,24 +323,27 @@ extension _YuklemeTabExt on _ModelDetayState {
       context.showErrorSnackBar('Geçerli bir adet giriniz');
       return;
     }
-    
+
     try {
+      final firmaId = TenantManager.instance.requireFirmaId;
       await supabase.from(DbTables.yuklemeKayitlari).insert({
         'model_id': widget.modelId,
         'adet': adet,
         'tarih': tarih.toIso8601String(),
         'kaynak': 'manual',
+        'firma_id': firmaId,
       });
-      
+
       // Gelişmiş raporlar için hesaplamaları tetikle
       await _guncelleGelismisRaporlar();
-      
+
       if (!mounted) return;
       Navigator.pop(context);
       await _yuklemeKayitlariniGetir();
-      
+
       if (!mounted) return;
-      context.showSuccessSnackBar('✅ Yükleme kaydı eklendi - Raporlar güncellendi');
+      context.showSuccessSnackBar(
+          '✅ Yükleme kaydı eklendi - Raporlar güncellendi');
     } catch (e) {
       if (!mounted) return;
       context.showErrorSnackBar('❌ Hata: $e');
@@ -331,9 +352,13 @@ extension _YuklemeTabExt on _ModelDetayState {
 
   Future<void> _deleteYuklemeKaydi(String id) async {
     try {
-      await supabase.from(DbTables.yuklemeKayitlari).delete().eq('id', id);
+      await supabase
+          .from(DbTables.yuklemeKayitlari)
+          .delete()
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
+          .eq('id', id);
       await _yuklemeKayitlariniGetir();
-      
+
       if (!mounted) return;
       context.showSuccessSnackBar('✅ Kayıt silindi');
     } catch (e) {
@@ -345,13 +370,22 @@ extension _YuklemeTabExt on _ModelDetayState {
   Future<void> _dosyaYukle() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'],
+      allowedExtensions: [
+        'pdf',
+        'jpg',
+        'jpeg',
+        'png',
+        'doc',
+        'docx',
+        'xls',
+        'xlsx'
+      ],
       withData: true,
     );
-    
+
     if (result != null && result.files.isNotEmpty) {
       String? dosyaTipi;
-      
+
       // Dosya tipi seçimi dialog'u
       if (!mounted) return;
       dosyaTipi = await showDialog<String>(
@@ -378,22 +412,26 @@ extension _YuklemeTabExt on _ModelDetayState {
           ],
         ),
       );
-      
+
       if (dosyaTipi == null) return;
-      
+
       try {
         final file = result.files.first;
         final fileBytes = file.bytes!;
         final fileName = file.name;
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final storagePath = 'teknik_dosyalar/${widget.modelId}/${timestamp}_$fileName';
-        
+        final storagePath =
+            'teknik_dosyalar/${widget.modelId}/${timestamp}_$fileName';
+
         // Storage'a yükle
-        await supabase.storage.from(DbTables.dosyalar).uploadBinary(storagePath, fileBytes);
-        
+        await supabase.storage
+            .from(DbTables.dosyalar)
+            .uploadBinary(storagePath, fileBytes);
+
         // URL al
-        final url = supabase.storage.from(DbTables.dosyalar).getPublicUrl(storagePath);
-        
+        final url =
+            supabase.storage.from(DbTables.dosyalar).getPublicUrl(storagePath);
+
         // Veritabanına kaydet
         await supabase.from(DbTables.teknikDosyalar).insert({
           'model_id': widget.modelId,
@@ -402,9 +440,9 @@ extension _YuklemeTabExt on _ModelDetayState {
           'dosya_url': url,
           'dosya_boyutu': file.size,
         });
-        
+
         await _teknikDosyalariGetir();
-        
+
         if (!mounted) return;
         context.showSuccessSnackBar('✅ Dosya yüklendi');
       } catch (e) {
@@ -429,7 +467,7 @@ extension _YuklemeTabExt on _ModelDetayState {
     try {
       await supabase.from(DbTables.teknikDosyalar).delete().eq('id', id);
       await _teknikDosyalariGetir();
-      
+
       if (!mounted) return;
       context.showSuccessSnackBar('✅ Dosya silindi');
     } catch (e) {
@@ -445,8 +483,9 @@ extension _YuklemeTabExt on _ModelDetayState {
       final yukleme = await supabase
           .from(DbTables.yuklemeKayitlari)
           .select('adet')
-          .eq('model_id', widget.modelId);
-      
+          .eq('model_id', widget.modelId)
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
+
       int toplamYuklenen = 0;
       for (var kayit in yukleme) {
         toplamYuklenen += (kayit['adet'] as num?)?.toInt() ?? 0;
@@ -454,16 +493,23 @@ extension _YuklemeTabExt on _ModelDetayState {
 
       // Model verilerini güncelle (cache için)
       if (currentModelData != null) {
-        final modelAdet = (currentModelData!['toplam_adet'] ?? currentModelData!['adet'] ?? 0) as num;
+        final modelAdet = (currentModelData!['toplam_adet'] ??
+            currentModelData!['adet'] ??
+            0) as num;
         final kalanAdet = modelAdet.toInt() - toplamYuklenen;
-        
+
         // triko_takip tablosunu güncelle
-        await supabase.from(DbTables.trikoTakip).update({
-          'yuklenen_adet': toplamYuklenen,
-          'kalan_adet': kalanAdet > 0 ? kalanAdet : 0,
-        }).eq('id', widget.modelId);
-        
-        debugPrint('📊 Model raporları güncellendi - Yüklenen: $toplamYuklenen, Kalan: $kalanAdet');
+        await supabase
+            .from(DbTables.trikoTakip)
+            .update({
+              'yuklenen_adet': toplamYuklenen,
+              'kalan_adet': kalanAdet > 0 ? kalanAdet : 0,
+            })
+            .eq('firma_id', TenantManager.instance.requireFirmaId)
+            .eq('id', widget.modelId);
+
+        debugPrint(
+            '📊 Model raporları güncellendi - Yüklenen: $toplamYuklenen, Kalan: $kalanAdet');
       }
     } catch (e) {
       debugPrint('⚠️ Rapor güncelleme hatası: $e');

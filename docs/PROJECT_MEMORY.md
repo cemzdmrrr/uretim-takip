@@ -158,6 +158,7 @@ Notlar:
 - Ütü işlemde kısmında kısmi kaydet ve tamamla davranışları beden bazlı olmalıdır.
 - Çeki listesi sadece ütüde tamamlanan beden adedi kadar oluşturulabilmelidir; fazla/eksik girişte kullanıcı uyarılmalıdır.
 - Fire kaynakları adet bazlı ve birden fazla kaynak aşamaya bölünebilir olmalıdır.
+- Utu tamamla/kismi kaydet fire girisleri `fire_kayitlari` tablosuna yazilir. Mevcut semada `asama` alani fire kaynak asamasi olarak kullanilir; uretim raporu utu fire kaynak verisini once bu tablodan okur, kayit yoksa eski not fallback'ini kullanir.
 
 ## Finans ve Fatura Hafizasi
 
@@ -176,6 +177,15 @@ Notlar:
 - Fatura olusturulduktan sonra detayda KDV tutar ve toplam hesaplamalari calismalidir.
 - Fatura duzenlemede mevcut kalemler sifirlanmamali; kalem bazli duzenle/sil olmalidir.
 - Finans operasyon panelleri ERP ekranlari gibi kompakt ve tek satir KPI kullanacak sekilde tasarlanmalidir.
+- Gelismis raporlar sayfasi yukleme finans raporu olarak tek amacli calisir. Ana veri `yukleme_kayitlari`dir; tarih filtresi yukleme tarihine uygulanir. Gerceklesen maliyet yoksa model fiyatlandirma/aktif plan maliyetiyle proforma analiz yapilir; gerceklesen maliyet varsa yalnizca ilgili maliyet kaleminin birim degeri degisir.
+- Gelismis raporlar model bazli finans detayinda model satiri acilarak maliyet kirilimi gosterilir. Kirma verisi once aktif `model_maliyet_planlari` + `model_maliyet_kalemleri`, yoksa model detay fiyatlandirma alanlarindan (`iplik_maliyeti`, `orgu_fiyat`, `dikim_fiyat`, vb.) alinir.
+- Gelismis raporlar finans merkezi olarak toplam ciro, uretim maliyeti, operasyonel gider, fire maliyeti, kayip kazanc, brut/net kar, marka bazli karlilik, aylik ciro/kar ve en karli/zararli model listelerini ayni servis ciktisindan uretir. Satis fiyati model detay fiyatlandirma verisinden gelir; fire maliyeti birim maliyet x fire adedi, kalan/yuklenmeyen adet ise zarar degil `kayipKazanc` olarak hesaplanir.
+- Gelismis raporlar ana kar orani fiyatlandirma sekmesiyle ayni bazdadir: `gercekKarOrani = netKar / genelToplamMaliyet * 100`. Satis gelirine gore oran ayrica `netKarMarji = netKar / satisGeliri * 100` olarak tutulur; ana tablo ve hedef karsilastirmasi maliyet bazli oranla calisir.
+- Gelismis raporlar satis fiyatini eski `pesin_fiyat`, aktif plan `plan_satis_fiyati` veya `model_karlilik_ozetleri.satis_birim_fiyati` degerinden okumaz. Fiyatlandirma sekmesiyle ayni formul kullanilir: `planBirimMaliyet * (1 + kar_marji / 100)`, varsa vade orani uygulanir. `model_aksesuar` kaynakli otomatik `aksesuar` plan satirlari toplam maliyete alinmaz; manuel genel aksesuar `genel_aksesuar_fiyat` olarak kullanilir.
+- Gelismis raporlar hesaplarina faturalar bolumundeki girilen faturalar simdilik dahil edilmez. Operasyonel gider hesabi gecici olarak yalnizca `kasa_banka_hareketleri` gider/cikis/odeme hareketlerinden beslenir; satis geliri model detay fiyatlandirma/yukleme verisinden gelir.
+- Model detay maliyet/karlilik sayfasi fiyatlandirma sekmesiyle ayni maliyet tabanini kullanir. `genel_aksesuar_fiyat` yalnizca fiyatlandirma sekmesindeki manuel genel aksesuar degeridir; `model_aksesuar` tablosundan hesaplanan aksesuar maliyeti bu iki sekmenin toplam maliyetine otomatik eklenmez.
+- Model detay maliyet/karlilik sayfasinda satis fiyati aktif planin eski `plan_satis_fiyati` veya `model_karlilik_ozetleri.satis_birim_fiyati` degerinden okunmaz. Fiyatlandirma sekmesiyle ayni formul kullanilir: `planBirimMaliyet * (1 + kar_marji / 100)`, varsa vade orani ayrica uygulanir.
+- Model detay maliyet/karlilik sayfasinda gerceklesen maliyet kaydi varsa yalnizca ilgili kalemin gercek birim maliyeti degisir. Kaydi olmayan maliyet kalemleri plan birim maliyetle hesaba dahil edilmeye devam eder; aksi halde tek kalemlik gerceklesen kayit modelin toplam maliyetini eksik gosterir.
 
 ## Personel, Bordro ve Donem Hafizasi
 
@@ -224,11 +234,13 @@ Notlar:
 
 - Iplik depoda ayni renk kodu ve lot numarasina sahip girisler stok deposunda birlestirilmelidir.
 - Model aksesuar kullaniminda model basina adet 0.025 gibi ondalikli degerleri desteklemelidir.
+- Model detay aksesuar sekmesinde aksesuar birim maliyeti `model basina kullanilacak adet * aksesuar birim fiyat` olarak hesaplanir; siparis maliyeti bu birim maliyetin siparis adediyle carpimidir.
 
 ## UI / Responsive Hafiza
 
 - Web ve mobil birlikte dusunulmeli.
 - Ana sayfalar ve paneller dikey scroll'a izin vermelidir.
+- Ana sayfa KPI ozetinde toplam/yuklenen/kalan adetler model toplam adetleri ve `yukleme_kayitlari` toplamlari uzerinden hesaplanir. `Kapanan Is` yalnizca `tamamlandi` bayragina degil, siparis toplam adedi tamamen yuklenmis modellere de bakmalidir.
 - Mobilde sabit `Column + Expanded` yapilari ust filtre/tab alanlarini kilitleyebilir; gerekirse `SingleChildScrollView`, `CustomScrollView` veya `NestedScrollView` kullan.
 - Buton ikonlari icin mevcut Material Icons veya yerel ikon setleri kullanilmali; gorunmeyen ikonlar kontrol edilmelidir.
 - ERP ekranlari genelde kompakt KPI satirlari, filtre paneli, tablo/kart listesi ve aksiyon butonlariyla tasarlanir.

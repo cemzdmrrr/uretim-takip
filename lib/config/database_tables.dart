@@ -87,6 +87,7 @@ class DbTables {
   static const sevkIrsaliyeKalemleri = 'sevk_irsaliye_kalemleri';
   static const cekiListesi = 'ceki_listesi';
   static const yuklemeKayitlari = 'yukleme_kayitlari';
+  static const fireKayitlari = 'fire_kayitlari';
 
   // ─── Personel & İK ───
   static const personel = 'personel';

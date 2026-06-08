@@ -1836,12 +1836,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/platform_admin/modul_yonet
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/platform_admin/platform_dashboard.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/platform_admin/platform_raporlari.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/platform_admin/uretim_dali_yonetimi_page.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/raporlar/gelismis_raporlar_export.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/raporlar/gelismis_raporlar_kalite.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/raporlar/gelismis_raporlar_page.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/raporlar/gelismis_raporlar_sevkiyat.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/raporlar/gelismis_raporlar_stok.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/raporlar/gelismis_raporlar_tabs.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/raporlar/uretim_plani_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/sevkiyat/sevkiyat_panel.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/sevkiyat/sevkiyat_panel_widgets.dart
@@ -1899,7 +1894,6 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/donem_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/edge_function_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/fatura_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/firma_service.dart
-file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/gelismis_rapor_operasyon_servisleri.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/gelismis_rapor_servisleri.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/izin_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/kasa_banka_hareket_service.dart
