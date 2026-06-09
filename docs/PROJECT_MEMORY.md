@@ -186,6 +186,7 @@ Notlar:
 - Model detay maliyet/karlilik sayfasi fiyatlandirma sekmesiyle ayni maliyet tabanini kullanir. `genel_aksesuar_fiyat` yalnizca fiyatlandirma sekmesindeki manuel genel aksesuar degeridir; `model_aksesuar` tablosundan hesaplanan aksesuar maliyeti bu iki sekmenin toplam maliyetine otomatik eklenmez.
 - Model detay maliyet/karlilik sayfasinda satis fiyati aktif planin eski `plan_satis_fiyati` veya `model_karlilik_ozetleri.satis_birim_fiyati` degerinden okunmaz. Fiyatlandirma sekmesiyle ayni formul kullanilir: `planBirimMaliyet * (1 + kar_marji / 100)`, varsa vade orani ayrica uygulanir.
 - Model detay maliyet/karlilik sayfasinda gerceklesen maliyet kaydi varsa yalnizca ilgili kalemin gercek birim maliyeti degisir. Kaydi olmayan maliyet kalemleri plan birim maliyetle hesaba dahil edilmeye devam eder; aksi halde tek kalemlik gerceklesen kayit modelin toplam maliyetini eksik gosterir.
+- Gerceklesen maliyet kaydi "ek maliyet" degil, ilgili kalemin kullanici tarafindan girilen gercek tutaridir. Plan aksesuar 20 TL iken kullanici gercek tutari 11 TL girerse 9 TL model basina maliyet tasarrufu olarak kar etkisine yansir; negatif tutar girilmez.
 
 ## Personel, Bordro ve Donem Hafizasi
 
@@ -240,7 +241,7 @@ Notlar:
 
 - Web ve mobil birlikte dusunulmeli.
 - Ana sayfalar ve paneller dikey scroll'a izin vermelidir.
-- Ana sayfa KPI ozetinde toplam/yuklenen/kalan adetler model toplam adetleri ve `yukleme_kayitlari` toplamlari uzerinden hesaplanir. `Kapanan Is` yalnizca `tamamlandi` bayragina degil, siparis toplam adedi tamamen yuklenmis modellere de bakmalidir.
+- Ana sayfa KPI ozetinde toplam/yuklenen/kalan adetler model toplam adetleri ve `yukleme_kayitlari` toplamlari uzerinden hesaplanir. `Kapanan Is`, yukleme kaydi bulunan benzersiz model sayisidir.
 - Mobilde sabit `Column + Expanded` yapilari ust filtre/tab alanlarini kilitleyebilir; gerekirse `SingleChildScrollView`, `CustomScrollView` veya `NestedScrollView` kullan.
 - Buton ikonlari icin mevcut Material Icons veya yerel ikon setleri kullanilmali; gorunmeyen ikonlar kontrol edilmelidir.
 - ERP ekranlari genelde kompakt KPI satirlari, filtre paneli, tablo/kart listesi ve aksiyon butonlariyla tasarlanir.

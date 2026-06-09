@@ -1309,6 +1309,13 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
           final double anlikBirim = anlikTutar > 0 && anlikMiktar > 0
               ? anlikTutar / anlikMiktar
               : 0.0;
+          final seciliKalem = _maliyetKalemiBul(ozet, kalemTipi);
+          final planBirim = seciliKalem?.planBirim ?? 0.0;
+          final birimFark =
+              planBirim > 0 && anlikBirim > 0 ? planBirim - anlikBirim : 0.0;
+          final toplamFark =
+              anlikMiktar > 0 ? birimFark * anlikMiktar : birimFark;
+          final etkiRengi = _sapmaRengi(-birimFark);
 
           return AlertDialog(
             title: const Text('Gerçekleşen Maliyet Kaydı'),
@@ -1318,7 +1325,7 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Bu pencere, planlanan maliyetten sonra gerçekten oluşan fatura, stok çıkışı, fason veya manuel gideri modele işler. Kaydettiğiniz tutar modelin gerçek maliyetini ve kar marjını yeniden hesaplatır.',
+                    'Bu pencerede planlanan maliyet kalemi için oluşan gerçek tutarı kullanıcı girer. Sistem, girilen gerçek tutarı plan maliyetle karşılaştırır; gerçek tutar düşükse fark kâra, yüksekse ek maliyete yansır.',
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.35,
@@ -1366,6 +1373,35 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                     },
                   ),
                   const SizedBox(height: 10),
+                  if (planBirim > 0)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline,
+                              size: 20, color: Color(0xFFD97706)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Plan birim maliyet: ${_para(planBirim)}. Gerçek tutarı aşağıdaki alana kullanıcı girer.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.35,
+                                color: Color(0xFF92400E),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (planBirim > 0) const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
@@ -1375,9 +1411,9 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                               decimal: true),
                           onChanged: (_) => setDialogState(() {}),
                           decoration: const InputDecoration(
-                            labelText: 'Paylaştırılacak miktar',
+                            labelText: 'Dağıtılacak adet',
                             suffixText: 'adet',
-                            helperText: 'Tutar kaç adet ürüne dağıtılacak?',
+                            helperText: 'Gerçek tutar kaç adede bölünecek?',
                           ),
                         ),
                       ),
@@ -1389,9 +1425,9 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                               decimal: true),
                           onChanged: (_) => setDialogState(() {}),
                           decoration: const InputDecoration(
-                            labelText: 'Toplam tutar',
+                            labelText: 'Gerçek toplam tutar',
                             prefixText: '₺ ',
-                            helperText: 'Fatura veya gider toplamı',
+                            helperText: 'Kullanıcının girdiği gerçek maliyet',
                           ),
                         ),
                       ),
@@ -1414,18 +1450,58 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                         Expanded(
                           child: Text(
                             anlikBirim > 0
-                                ? 'Birim maliyet etkisi: ${_para(anlikTutar)} / ${_adet(anlikMiktar.round())} adet = ${_para(anlikBirim)}'
-                                : 'Örnek: 10.000 TL gideri 500 adede dağıtırsanız birim etki 20 TL olur.',
-                            style: const TextStyle(
+                                ? 'Gerçek birim: ${_para(anlikTutar)} / ${_adet(anlikMiktar.round())} adet = ${_para(anlikBirim)}'
+                                : 'Örnek: Plan 20 TL iken gerçek 11 TL ise 1 adet ve 11 TL girin. 1.000 adet için gerçek toplam 11.000 TL girilirse birim gerçek maliyet 11 TL olur.',
+                            style: TextStyle(
                               fontSize: 12,
                               height: 1.35,
-                              color: Color(0xFF455A64),
+                              color: anlikBirim > 0
+                                  ? const Color(0xFF455A64)
+                                  : const Color(0xFF607D8B),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                  if (planBirim > 0 && anlikBirim > 0) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: etkiRengi.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: etkiRengi.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            birimFark >= 0
+                                ? Icons.trending_up
+                                : Icons.trending_down,
+                            color: etkiRengi,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              birimFark >= 0
+                                  ? 'Plan ${_para(planBirim)}, gerçek ${_para(anlikBirim)}. Model başına ${_para(birimFark)} maliyet tasarrufu oluşur; ${_adet(anlikMiktar.round())} adet için toplam kâr etkisi ${_para(toplamFark)}.'
+                                  : 'Plan ${_para(planBirim)}, gerçek ${_para(anlikBirim)}. Model başına ${_para(birimFark.abs())} ek maliyet oluşur; ${_adet(anlikMiktar.round())} adet için toplam etki ${_para(toplamFark.abs())}.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.35,
+                                color: etkiRengi,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   TextField(
                     controller: aciklamaController,
@@ -1574,6 +1650,15 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
     final values = ozet.kalemler.map((kalem) => kalem.kod).toSet().toList();
     if (!values.contains('diger')) values.add('diger');
     return values;
+  }
+
+  MaliyetKalemi? _maliyetKalemiBul(ModelKarlilikOzeti ozet, String kod) {
+    for (final kalem in ozet.kalemler) {
+      if (kalem.kod == kod) return kalem;
+      if (kod == 'nakis' && kalem.kod == 'baski_nakis') return kalem;
+      if (kod == 'baski_nakis' && kalem.kod == 'nakis') return kalem;
+    }
+    return null;
   }
 
   String _kalemTipiEtiketi(dynamic value) {

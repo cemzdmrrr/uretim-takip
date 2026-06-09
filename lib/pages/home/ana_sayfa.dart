@@ -179,16 +179,12 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
       for (final m in List<Map<String, dynamic>>.from(modeller)) {
         final modelId = m['id']?.toString();
-        final modelToplamAdet = modelToplamAdetleri[modelId] ?? 0;
         final modelYuklenenAdet = yuklenenByModel[modelId] ??
             modelFallbackYuklenenAdetleri[modelId] ??
             0;
         toplamYuklenenAdet += modelYuklenenAdet;
 
-        if (m['tamamlandi'] == true) {
-          tamamlanan++;
-        } else if (modelToplamAdet > 0 &&
-            modelYuklenenAdet >= modelToplamAdet) {
+        if (modelYuklenenAdet > 0) {
           tamamlanan++;
         } else {
           final terminStr = m['termin_tarihi']?.toString();
