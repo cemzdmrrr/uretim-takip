@@ -56,7 +56,6 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
       filtre: RaporFiltresi(
         baslangicTarihi: _baslangic,
         bitisTarihi: _bitis,
-        marka: _markaFiltresi == 'tum' ? null : _markaFiltresi,
       ),
     );
     if (!mounted) return;
@@ -72,6 +71,9 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
     return modeller.where((model) {
       final durum = model['durum']?.toString() ?? '';
       if (_durumFiltresi != 'tum' && durum != _durumFiltresi) return false;
+
+      final marka = model['marka']?.toString() ?? '';
+      if (_markaFiltresi != 'tum' && marka != _markaFiltresi) return false;
 
       if (_arama.trim().isEmpty) return true;
       final q = _arama.toLowerCase();
@@ -98,6 +100,176 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
     }
     if (_markaFiltresi != 'tum') markalar.add(_markaFiltresi);
     return markalar.toList()..sort();
+  }
+
+  bool get _filtreAktif =>
+      _durumFiltresi != 'tum' ||
+      _markaFiltresi != 'tum' ||
+      _arama.trim().isNotEmpty;
+
+  Map<String, dynamic> get _aktifRapor {
+    if (!_filtreAktif) return _rapor;
+    final modeller = _modeller;
+    final durumDagilimi = <String, int>{};
+    final markaAnalizi = <String, Map<String, dynamic>>{};
+    final maliyetDagilimi = <String, double>{};
+    double toplamHedefMaliyet = 0;
+    double toplamGercekMaliyet = 0;
+    double toplamUretimMaliyeti = 0;
+    double toplamOperasyonelGider = 0;
+    double toplamFireMaliyeti = 0;
+    double toplamSatisGeliri = 0;
+    double toplamBrutKar = 0;
+    double toplamKar = 0;
+    double toplamKayipKazanc = 0;
+    int toplamSiparisAdedi = 0;
+    int toplamUretilenAdet = 0;
+    int toplamDonemYuklenenAdet = 0;
+    int toplamYuklenenAdet = 0;
+    int toplamKalanAdet = 0;
+    int toplamFireAdedi = 0;
+    int zararModelSayisi = 0;
+    int hedefAltiSayisi = 0;
+    int fiyatEksikSayisi = 0;
+    int maliyetEksikSayisi = 0;
+    int hesaplanabilirModelSayisi = 0;
+
+    for (final model in modeller) {
+      final durum = model['durum']?.toString() ?? '';
+      durumDagilimi[durum] = (durumDagilimi[durum] ?? 0) + 1;
+      if (durum == 'zarar_riski') zararModelSayisi++;
+      if (durum == 'hedef_alti') hedefAltiSayisi++;
+      if (durum == 'fiyat_eksik') fiyatEksikSayisi++;
+      if (durum == 'maliyet_eksik') maliyetEksikSayisi++;
+      if (_nullableNum(model['netKar']) != null) hesaplanabilirModelSayisi++;
+
+      toplamHedefMaliyet += _num(model['hedefMaliyet']);
+      toplamGercekMaliyet += _num(model['gercekMaliyet']);
+      toplamUretimMaliyeti += _num(model['toplamUretimMaliyeti']);
+      toplamOperasyonelGider += _num(model['toplamOperasyonelMaliyet']);
+      toplamFireMaliyeti += _num(model['fireMaliyeti']);
+      toplamSatisGeliri += _num(model['satisGeliri']);
+      toplamBrutKar += _num(model['brutKar']);
+      toplamKar += _num(model['netKar']);
+      toplamKayipKazanc += _num(model['kayipKazanc']);
+      toplamSiparisAdedi += _num(model['siparisAdedi']).round();
+      toplamUretilenAdet += _num(model['uretilenAdet']).round();
+      toplamDonemYuklenenAdet += _num(model['donemYuklenenAdet']).round();
+      toplamYuklenenAdet += _num(model['toplamYuklenenAdet']).round();
+      toplamKalanAdet += _num(model['kalanAdet']).round();
+      toplamFireAdedi += _num(model['fireAdedi']).round();
+
+      final marka = model['marka']?.toString().trim().isNotEmpty == true
+          ? model['marka'].toString()
+          : 'Diğer';
+      final markaSatiri = markaAnalizi.putIfAbsent(
+        marka,
+        () => {
+          'marka': marka,
+          'modelSayisi': 0,
+          'siparisAdedi': 0,
+          'ciro': 0.0,
+          'maliyet': 0.0,
+          'kar': 0.0,
+        },
+      );
+      markaSatiri['modelSayisi'] = _num(markaSatiri['modelSayisi']).round() + 1;
+      markaSatiri['siparisAdedi'] = _num(markaSatiri['siparisAdedi']).round() +
+          _num(model['siparisAdedi']).round();
+      markaSatiri['ciro'] =
+          _num(markaSatiri['ciro']) + _num(model['satisGeliri']);
+      markaSatiri['maliyet'] =
+          _num(markaSatiri['maliyet']) + _num(model['genelToplamMaliyet']);
+      markaSatiri['kar'] = _num(markaSatiri['kar']) + _num(model['netKar']);
+
+      final kalemler =
+          List<Map<String, dynamic>>.from(model['maliyetKalemleri'] ?? []);
+      for (final kalem in kalemler) {
+        final ad = kalem['ad']?.toString() ?? 'Diğer';
+        maliyetDagilimi[ad] = (maliyetDagilimi[ad] ?? 0) +
+            _num(kalem['gercekBirim']) * _num(model['donemYuklenenAdet']);
+      }
+      if (_num(model['fireMaliyeti']) > 0) {
+        maliyetDagilimi['Fire Maliyeti'] =
+            (maliyetDagilimi['Fire Maliyeti'] ?? 0) +
+                _num(model['fireMaliyeti']);
+      }
+      if (_num(model['toplamOperasyonelMaliyet']) > 0) {
+        maliyetDagilimi['Operasyonel Gider'] =
+            (maliyetDagilimi['Operasyonel Gider'] ?? 0) +
+                _num(model['toplamOperasyonelMaliyet']);
+      }
+    }
+
+    final toplamGenelToplamMaliyet =
+        toplamUretimMaliyeti + toplamOperasyonelGider + toplamFireMaliyeti;
+    final markalar = markaAnalizi.values.map((marka) {
+      final ciro = _num(marka['ciro']);
+      final maliyet = _num(marka['maliyet']);
+      final kar = _num(marka['kar']);
+      return {
+        ...marka,
+        'karMarji': maliyet > 0 ? (kar / maliyet) * 100 : 0.0,
+        'netKarMarji': ciro > 0 ? (kar / ciro) * 100 : 0.0,
+      };
+    }).toList()
+      ..sort((a, b) => _num(b['kar']).compareTo(_num(a['kar'])));
+    final zararli = modeller
+        .where((model) => _num(model['netKar']) < 0)
+        .toList()
+      ..sort((a, b) => _num(a['netKar']).compareTo(_num(b['netKar'])));
+    final karli = modeller.where((model) => _num(model['netKar']) > 0).toList()
+      ..sort((a, b) => _num(b['netKar']).compareTo(_num(a['netKar'])));
+
+    return {
+      ..._rapor,
+      'modelFinanslari': modeller,
+      'durumDagilimi': durumDagilimi,
+      'markaAnalizi': markalar,
+      'maliyetDagilimi': maliyetDagilimi.entries
+          .map((entry) => {'ad': entry.key, 'tutar': entry.value})
+          .where((entry) => _num(entry['tutar']) > 0)
+          .toList()
+        ..sort((a, b) => _num(b['tutar']).compareTo(_num(a['tutar']))),
+      'enKarliModeller': karli.take(10).toList(),
+      'enZararliModeller': zararli.take(10).toList(),
+      'toplamModel': modeller.length,
+      'toplamSiparisAdedi': toplamSiparisAdedi,
+      'toplamUretilenAdet': toplamUretilenAdet,
+      'toplamDonemYuklenenAdet': toplamDonemYuklenenAdet,
+      'toplamYuklenenAdet': toplamYuklenenAdet,
+      'toplamKalanAdet': toplamKalanAdet,
+      'toplamHedefMaliyet': toplamHedefMaliyet,
+      'toplamGercekMaliyet': toplamGercekMaliyet,
+      'toplamUretimMaliyeti': toplamUretimMaliyeti,
+      'toplamOperasyonelGider': toplamOperasyonelGider,
+      'genelToplamMaliyet': toplamGenelToplamMaliyet,
+      'toplamSatisGeliri': toplamSatisGeliri,
+      'toplamBrutKar': toplamBrutKar,
+      'toplamNetKar': toplamKar,
+      'toplamKar': toplamKar,
+      'toplamKayipKazanc': toplamKayipKazanc,
+      'ortalamaKarMarji': toplamGenelToplamMaliyet > 0
+          ? (toplamKar / toplamGenelToplamMaliyet) * 100
+          : 0.0,
+      'ortalamaNetKarMarji':
+          toplamSatisGeliri > 0 ? (toplamKar / toplamSatisGeliri) * 100 : 0.0,
+      'maliyetSapmasi': toplamGercekMaliyet - toplamHedefMaliyet,
+      'maliyetSapmaOrani': toplamHedefMaliyet > 0
+          ? ((toplamGercekMaliyet - toplamHedefMaliyet) / toplamHedefMaliyet) *
+              100
+          : 0.0,
+      'toplamFireAdedi': toplamFireAdedi,
+      'toplamFireMaliyeti': toplamFireMaliyeti,
+      'fireOrani': toplamSiparisAdedi > 0
+          ? (toplamFireAdedi / toplamSiparisAdedi) * 100
+          : 0.0,
+      'zararModelSayisi': zararModelSayisi,
+      'hedefAltiSayisi': hedefAltiSayisi,
+      'fiyatEksikSayisi': fiyatEksikSayisi,
+      'maliyetEksikSayisi': maliyetEksikSayisi,
+      'hesaplanabilirModelSayisi': hesaplanabilirModelSayisi,
+    };
   }
 
   Future<void> _tarihAraligiSec() async {
@@ -325,7 +497,6 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
             onChanged: (value) async {
               if (value == null) return;
               setState(() => _markaFiltresi = value);
-              await _raporuYukle();
             },
           );
           final arama = TextField(
@@ -434,30 +605,31 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
   }
 
   Widget _buildKpiAlani() {
+    final rapor = _aktifRapor;
     final kartlar = [
-      _KpiData('Yüklenen Model', '${_rapor['toplamModel'] ?? 0}',
-          Icons.category, Colors.blue),
+      _KpiData('Yüklenen Model', '${rapor['toplamModel'] ?? 0}', Icons.category,
+          Colors.blue),
       _KpiData(
           'Dönem Yüklenen',
-          '${_adet(_rapor['toplamDonemYuklenenAdet'])} adet',
+          '${_adet(rapor['toplamDonemYuklenenAdet'])} adet',
           Icons.upload,
           Colors.indigo),
-      _KpiData('Toplam Yüklenen', '${_adet(_rapor['toplamYuklenenAdet'])} adet',
+      _KpiData('Toplam Yüklenen', '${_adet(rapor['toplamYuklenenAdet'])} adet',
           Icons.local_shipping, Colors.teal),
-      _KpiData('Kalan', '${_adet(_rapor['toplamKalanAdet'])} adet',
+      _KpiData('Kalan', '${_adet(rapor['toplamKalanAdet'])} adet',
           Icons.inventory_2, Colors.orange),
-      _KpiData('Hedef Maliyet', _para(_rapor['toplamHedefMaliyet']), Icons.flag,
+      _KpiData('Hedef Maliyet', _para(rapor['toplamHedefMaliyet']), Icons.flag,
           Colors.blueGrey),
-      _KpiData('Gerçek Maliyet', _para(_rapor['toplamGercekMaliyet']),
+      _KpiData('Gerçek Maliyet', _para(rapor['toplamGercekMaliyet']),
           Icons.receipt_long, Colors.deepPurple),
       _KpiData(
           'Kar / Zarar',
-          _para(_rapor['toplamKar']),
-          _num(_rapor['toplamKar']) >= 0
+          _para(rapor['toplamKar']),
+          _num(rapor['toplamKar']) >= 0
               ? Icons.trending_up
               : Icons.trending_down,
-          _num(_rapor['toplamKar']) >= 0 ? Colors.green : Colors.red),
-      _KpiData('Fire Maliyeti', _para(_rapor['toplamFireMaliyeti']),
+          _num(rapor['toplamKar']) >= 0 ? Colors.green : Colors.red),
+      _KpiData('Fire Maliyeti', _para(rapor['toplamFireMaliyeti']),
           Icons.warning_amber, Colors.redAccent),
     ];
 
@@ -533,13 +705,14 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
   }
 
   Widget _buildDurumOzeti() {
+    final rapor = _aktifRapor;
     final items = [
-      ('Hedefte', _rapor['durumDagilimi']?['hedefte'] ?? 0, Colors.green),
-      ('Hedef Altı', _rapor['hedefAltiSayisi'] ?? 0, Colors.orange),
-      ('Zarar Riski', _rapor['zararModelSayisi'] ?? 0, Colors.red),
-      ('Maliyet Eksik', _rapor['maliyetEksikSayisi'] ?? 0, Colors.blueGrey),
-      ('Fiyat Eksik', _rapor['fiyatEksikSayisi'] ?? 0, Colors.purple),
-      ('Hesaplanabilir', _rapor['hesaplanabilirModelSayisi'] ?? 0, Colors.teal),
+      ('Hedefte', rapor['durumDagilimi']?['hedefte'] ?? 0, Colors.green),
+      ('Hedef Altı', rapor['hedefAltiSayisi'] ?? 0, Colors.orange),
+      ('Zarar Riski', rapor['zararModelSayisi'] ?? 0, Colors.red),
+      ('Maliyet Eksik', rapor['maliyetEksikSayisi'] ?? 0, Colors.blueGrey),
+      ('Fiyat Eksik', rapor['fiyatEksikSayisi'] ?? 0, Colors.purple),
+      ('Hesaplanabilir', rapor['hesaplanabilirModelSayisi'] ?? 0, Colors.teal),
     ];
 
     return Container(
@@ -572,9 +745,10 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
   }
 
   Widget _buildDashboardGrafikleri() {
-    final aylik = List<Map<String, dynamic>>.from(_rapor['aylikAnaliz'] ?? []);
+    final rapor = _aktifRapor;
+    final aylik = List<Map<String, dynamic>>.from(rapor['aylikAnaliz'] ?? []);
     final maliyet =
-        List<Map<String, dynamic>>.from(_rapor['maliyetDagilimi'] ?? []);
+        List<Map<String, dynamic>>.from(rapor['maliyetDagilimi'] ?? []);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -584,19 +758,19 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
           icon: Icons.show_chart,
           children: [
             _metrikSatiri(
-                'Toplam Ciro', _para(_rapor['toplamSatisGeliri']), Colors.teal),
+                'Toplam Ciro', _para(rapor['toplamSatisGeliri']), Colors.teal),
             _metrikSatiri('Toplam Uretim Maliyeti',
-                _para(_rapor['toplamUretimMaliyeti']), Colors.deepPurple),
+                _para(rapor['toplamUretimMaliyeti']), Colors.deepPurple),
             _metrikSatiri('Operasyonel Gider',
-                _para(_rapor['toplamOperasyonelGider']), Colors.blueGrey),
+                _para(rapor['toplamOperasyonelGider']), Colors.blueGrey),
             _metrikSatiri(
               'Net Kar',
-              _para(_rapor['toplamNetKar'] ?? _rapor['toplamKar']),
-              _num(_rapor['toplamNetKar'] ?? _rapor['toplamKar']) >= 0
+              _para(rapor['toplamNetKar'] ?? rapor['toplamKar']),
+              _num(rapor['toplamNetKar'] ?? rapor['toplamKar']) >= 0
                   ? Colors.green
                   : Colors.red,
             ),
-            _metrikSatiri('Kayip Kazanc', _para(_rapor['toplamKayipKazanc']),
+            _metrikSatiri('Kayip Kazanc', _para(rapor['toplamKayipKazanc']),
                 Colors.orange),
           ],
         );
@@ -619,13 +793,13 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
           icon: Icons.factory,
           children: [
             _metrikSatiri('Toplam Siparis',
-                '${_adet(_rapor['toplamSiparisAdedi'])} adet', Colors.blue),
+                '${_adet(rapor['toplamSiparisAdedi'])} adet', Colors.blue),
             _metrikSatiri('Uretilen',
-                '${_adet(_rapor['toplamUretilenAdet'])} adet', Colors.indigo),
+                '${_adet(rapor['toplamUretilenAdet'])} adet', Colors.indigo),
             _metrikSatiri('Yuklenen',
-                '${_adet(_rapor['toplamYuklenenAdet'])} adet', Colors.teal),
+                '${_adet(rapor['toplamYuklenenAdet'])} adet', Colors.teal),
             _metrikSatiri(
-                'Fire', '${_adet(_rapor['toplamFireAdedi'])} adet', Colors.red),
+                'Fire', '${_adet(rapor['toplamFireAdedi'])} adet', Colors.red),
           ],
         );
 
@@ -660,7 +834,7 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
 
   Widget _buildMarkaAnalizi() {
     final markalar =
-        List<Map<String, dynamic>>.from(_rapor['markaAnalizi'] ?? []);
+        List<Map<String, dynamic>>.from(_aktifRapor['markaAnalizi'] ?? []);
     if (markalar.isEmpty) return const SizedBox.shrink();
     return _buildAnalizPaneli(
       baslik: 'Marka Bazli Karlilik',
@@ -678,9 +852,9 @@ class _GelismisRaporlarPageState extends State<GelismisRaporlarPage> {
 
   Widget _buildKarZararListeleri() {
     final karli =
-        List<Map<String, dynamic>>.from(_rapor['enKarliModeller'] ?? []);
+        List<Map<String, dynamic>>.from(_aktifRapor['enKarliModeller'] ?? []);
     final zararli =
-        List<Map<String, dynamic>>.from(_rapor['enZararliModeller'] ?? []);
+        List<Map<String, dynamic>>.from(_aktifRapor['enZararliModeller'] ?? []);
     return LayoutBuilder(
       builder: (context, constraints) {
         final sol = _buildAnalizPaneli(

@@ -670,13 +670,14 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
                   Expanded(flex: 18, child: _TableHeader('Kalem')),
                   Expanded(flex: 14, child: _TableHeader('Tutar')),
                   Expanded(flex: 22, child: _TableHeader('Açıklama')),
+                  Expanded(flex: 10, child: _TableHeader('İşlem')),
                 ],
               ),
             ),
             ...maliyetGerceklesen
                 .whereType<Map>()
                 .take(12)
-                .map(_gerceklesenMaliyetSatiri),
+                .map((kayit) => _gerceklesenMaliyetSatiri(kayit, ozet)),
           ],
           const SizedBox(height: 10),
           Align(
@@ -742,6 +743,7 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
 
   List<_DenetimSatiri> _denetimSatirlari(ModelKarlilikOzeti ozet) {
     final aktifPlan = _aktifPlan();
+    final gonderimYapilanAdet = _gonderimYapilanAdet();
     final planKaynak = aktifPlan == null
         ? 'Model alanlarından anlık hesap'
         : 'Aktif maliyet planı v${_intDeger(aktifPlan['versiyon_no'])}';
@@ -769,13 +771,13 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
       ),
       _DenetimSatiri(
         gosterge: 'Tamamlanan',
-        kaynak: ozet.tamamlananAdetKaynak,
-        formul: 'En ileri üretim aşamasındaki kabul/tamamlanan/üretilen adet',
-        kullanilanDeger: _adet(ozet.tamamlananAdet),
-        not: ozet.tamamlananAdet > 0
-            ? '${_asamaEtiketi(ozet.tamamlananAsama)} aşaması baz alınıyor'
-            : 'Üretim tamamı yok; gerçek satış ve marj kesinleşmedi',
-        uyari: ozet.tamamlananAdet <= 0,
+        kaynak: 'Yükleme / gönderim kayıtları',
+        formul: 'Gönderim yapılan yükleme kayıtları toplamı',
+        kullanilanDeger: _adet(gonderimYapilanAdet),
+        not: gonderimYapilanAdet > 0
+            ? 'Yükleme sekmesindeki gönderim adetleri baz alınıyor'
+            : 'Gönderim kaydı yok; gerçek satış ve marj kesinleşmedi',
+        uyari: gonderimYapilanAdet <= 0,
       ),
       _DenetimSatiri(
         gosterge: 'Plan Maliyet',
@@ -908,7 +910,7 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
     );
   }
 
-  Widget _gerceklesenMaliyetSatiri(Map kayit) {
+  Widget _gerceklesenMaliyetSatiri(Map kayit, ModelKarlilikOzeti ozet) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: const BoxDecoration(
@@ -935,13 +937,42 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          Expanded(
+            flex: 10,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  tooltip: 'Düzenle',
+                  icon: const Icon(Icons.edit, size: 18),
+                  color: const Color(0xFF1565C0),
+                  onPressed: _isSaving
+                      ? null
+                      : () => _gerceklesenMaliyetEkleDialog(
+                            ozet,
+                            kayit: kayit,
+                          ),
+                ),
+                IconButton(
+                  tooltip: 'Sil',
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  color: Colors.red,
+                  onPressed:
+                      _isSaving ? null : () => _gerceklesenMaliyetSil(kayit),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _maliyetKalemiSatiri(MaliyetKalemi kalem) {
-    final sapmaRengi = _sapmaRengi(kalem.sapmaBirim);
+    final karEtkisi = kalem.planBirim - kalem.gercekBirim;
+    final karEtkisiOrani =
+        kalem.planBirim > 0 ? (karEtkisi / kalem.planBirim) * 100 : 0.0;
+    final sapmaRengi = _sapmaRengi(-karEtkisi);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: const BoxDecoration(
@@ -958,7 +989,7 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
           Expanded(
             flex: 12,
             child: Text(
-              '${_para(kalem.sapmaBirim)} (${_yuzde(kalem.sapmaOrani)})',
+              '${_isaretliPara(karEtkisi)} (${_isaretliYuzde(karEtkisiOrani)})',
               style: TextStyle(color: sapmaRengi, fontWeight: FontWeight.w700),
             ),
           ),
@@ -1196,7 +1227,21 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
       NumberFormat.currency(locale: 'tr_TR', symbol: '₺', decimalDigits: 2)
           .format(value);
 
+  String _isaretliPara(double value) {
+    final formatted = _para(value.abs());
+    if (value > 0) return '+$formatted';
+    if (value < 0) return '-$formatted';
+    return formatted;
+  }
+
   String _yuzde(double value) => '%${value.toStringAsFixed(1)}';
+
+  String _isaretliYuzde(double value) {
+    final formatted = _yuzde(value.abs());
+    if (value > 0) return '+$formatted';
+    if (value < 0) return '-$formatted';
+    return formatted;
+  }
 
   String _adet(int value) => NumberFormat.decimalPattern('tr_TR').format(value);
 
@@ -1289,16 +1334,29 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
     }
   }
 
-  Future<void> _gerceklesenMaliyetEkleDialog(ModelKarlilikOzeti ozet) async {
+  Future<void> _gerceklesenMaliyetEkleDialog(
+    ModelKarlilikOzeti ozet, {
+    Map? kayit,
+  }) async {
     final model = currentModelData;
     if (model == null) return;
 
-    final tutarController = TextEditingController();
-    final miktarController = TextEditingController(text: '1');
-    final aciklamaController = TextEditingController();
-    String kalemTipi =
-        ozet.kalemler.isNotEmpty ? ozet.kalemler.first.kod : 'diger';
-    String kaynak = 'manuel';
+    final duzenleniyor = kayit != null;
+    final tutarController = TextEditingController(
+      text: duzenleniyor ? kayit['toplam_tutar']?.toString() ?? '' : '',
+    );
+    final miktarController = TextEditingController(
+      text: duzenleniyor ? kayit['miktar']?.toString() ?? '1' : '1',
+    );
+    final aciklamaController = TextEditingController(
+      text: duzenleniyor ? kayit['aciklama']?.toString() ?? '' : '',
+    );
+    String kalemTipi = duzenleniyor
+        ? kayit['kalem_tipi']?.toString() ??
+            (ozet.kalemler.isNotEmpty ? ozet.kalemler.first.kod : 'diger')
+        : (ozet.kalemler.isNotEmpty ? ozet.kalemler.first.kod : 'diger');
+    String kaynak =
+        duzenleniyor ? kayit['kaynak']?.toString() ?? 'manuel' : 'manuel';
 
     final kaydedildi = await showDialog<bool>(
       context: context,
@@ -1318,7 +1376,9 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
           final etkiRengi = _sapmaRengi(-birimFark);
 
           return AlertDialog(
-            title: const Text('Gerçekleşen Maliyet Kaydı'),
+            title: Text(duzenleniyor
+                ? 'Gerçekleşen Maliyet Kaydını Düzenle'
+                : 'Gerçekleşen Maliyet Kaydı'),
             content: SizedBox(
               width: 520,
               child: Column(
@@ -1521,7 +1581,7 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Kaydet'),
+                child: Text(duzenleniyor ? 'Güncelle' : 'Kaydet'),
               ),
             ],
           );
@@ -1556,9 +1616,9 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
           TenantManager.instance.requireFirmaId;
       final planId = _aktifPlanId();
 
-      await supabase.from(DbTables.modelMaliyetGerceklesen).insert({
-        'firma_id': firmaId,
-        'model_id': modelId,
+      final veri = {
+        if (!duzenleniyor) 'firma_id': firmaId,
+        if (!duzenleniyor) 'model_id': modelId,
         if (planId != null) 'plan_id': planId,
         'kalem_tipi': kalemTipi,
         'kaynak': kaynak,
@@ -1566,9 +1626,25 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
         'birim': 'adet',
         'birim_fiyat': miktar > 0 ? toplamTutar / miktar : toplamTutar,
         'toplam_tutar': toplamTutar,
-        'tarih': DateTime.now().toIso8601String().split('T').first,
+        if (!duzenleniyor)
+          'tarih': DateTime.now().toIso8601String().split('T').first,
         'aciklama': aciklama.isEmpty ? null : aciklama,
-      });
+      };
+
+      if (duzenleniyor) {
+        final kayitId = kayit['id']?.toString();
+        if (kayitId == null || kayitId.isEmpty) {
+          throw Exception('Güncellenecek kayıt kimliği bulunamadı');
+        }
+        await supabase
+            .from(DbTables.modelMaliyetGerceklesen)
+            .update(veri)
+            .eq('id', kayitId)
+            .eq('firma_id', firmaId)
+            .eq('model_id', modelId);
+      } else {
+        await supabase.from(DbTables.modelMaliyetGerceklesen).insert(veri);
+      }
 
       await supabase.rpc('model_karlilik_ozeti_yenile', params: {
         'p_model_id': modelId,
@@ -1576,10 +1652,73 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
       await _maliyetVerileriniGetir();
 
       if (!mounted) return;
-      context.showSuccessSnackBar('Gerçekleşen maliyet kaydedildi');
+      context.showSuccessSnackBar(duzenleniyor
+          ? 'Gerçekleşen maliyet güncellendi'
+          : 'Gerçekleşen maliyet kaydedildi');
     } catch (e) {
       if (!mounted) return;
-      context.showErrorSnackBar('Gerçekleşen maliyet kaydedilemedi: $e');
+      context.showErrorSnackBar(duzenleniyor
+          ? 'Gerçekleşen maliyet güncellenemedi: $e'
+          : 'Gerçekleşen maliyet kaydedilemedi: $e');
+    } finally {
+      _updateState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _gerceklesenMaliyetSil(Map kayit) async {
+    final model = currentModelData;
+    if (model == null) return;
+    final kayitId = kayit['id']?.toString();
+    if (kayitId == null || kayitId.isEmpty) {
+      context.showErrorSnackBar('Silinecek kayıt kimliği bulunamadı');
+      return;
+    }
+
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Gerçekleşen maliyet silinsin mi?'),
+        content: Text(
+          '${_kalemTipiEtiketi(kayit['kalem_tipi'])} kalemine ait ${_para(_doubleDeger(kayit['toplam_tutar']))} tutarındaki kayıt silinecek. Bu işlem kârlılık özetini yeniden hesaplar.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return;
+
+    _updateState(() => _isSaving = true);
+    try {
+      final modelId = model['id'].toString();
+      final firmaId = model['firma_id']?.toString() ??
+          TenantManager.instance.requireFirmaId;
+      await supabase
+          .from(DbTables.modelMaliyetGerceklesen)
+          .delete()
+          .eq('id', kayitId)
+          .eq('firma_id', firmaId)
+          .eq('model_id', modelId);
+
+      await supabase.rpc('model_karlilik_ozeti_yenile', params: {
+        'p_model_id': modelId,
+      });
+      await _maliyetVerileriniGetir();
+
+      if (!mounted) return;
+      context.showSuccessSnackBar('Gerçekleşen maliyet kaydı silindi');
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Gerçekleşen maliyet silinemedi: $e');
     } finally {
       _updateState(() => _isSaving = false);
     }
@@ -1602,6 +1741,14 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
   double? _aktifPlanDegeri(String key) {
     final plan = _aktifPlan();
     return plan == null ? null : _doubleDeger(plan[key]);
+  }
+
+  int _gonderimYapilanAdet() {
+    var toplam = 0;
+    for (final kayit in yuklemeKayitlari.whereType<Map>()) {
+      toplam += _intDeger(kayit['adet']);
+    }
+    return toplam;
   }
 
   String _tamamlananAdetKaynak() {
@@ -1689,50 +1836,6 @@ extension _MaliyetKarlilikTabExt on _ModelDetayState {
         return 'Paketleme';
       default:
         return 'Diğer';
-    }
-  }
-
-  String _asamaEtiketi(String value) {
-    switch (value) {
-      case 'model':
-        return 'Model kartı';
-      case 'sevkiyat':
-        return 'Sevkiyat';
-      case 'yukleme':
-        return 'Yükleme';
-      case 'depolama':
-        return 'Depolama';
-      case 'paketleme':
-        return 'Paketleme';
-      case 'kalite_kontrol':
-        return 'Kalite kontrol';
-      case 'kalite':
-        return 'Kalite';
-      case 'test':
-        return 'Test';
-      case 'utu':
-      case 'utu_pres':
-        return 'Ütü';
-      case 'ilik_dugme':
-        return 'İlik düğme';
-      case 'yikama':
-        return 'Yıkama';
-      case 'nakis':
-        return 'Nakış';
-      case 'baski':
-        return 'Baskı';
-      case 'konfeksiyon':
-        return 'Konfeksiyon';
-      case 'dikim':
-        return 'Dikim';
-      case 'kesim':
-        return 'Kesim';
-      case 'orgu':
-      case 'orme':
-      case 'dokuma':
-        return 'Örgü/Dokuma';
-      default:
-        return value == '-' ? 'Üretim yok' : value;
     }
   }
 

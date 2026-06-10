@@ -813,9 +813,12 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                           modulSayisi: modulSayisi,
                         ),
                         const SizedBox(height: 14),
-                        if (_modulAktif('uretim')) ...[
+                        if (_modulAktif('uretim') &&
+                            RoleUtils.isAdmin(kullaniciRolu)) ...[
                           _buildStatsRow(),
                           const SizedBox(height: 14),
+                        ],
+                        if (_modulAktif('uretim')) ...[
                           _buildFocusPanel(),
                           const SizedBox(height: 14),
                         ],

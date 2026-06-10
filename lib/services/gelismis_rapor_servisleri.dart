@@ -690,32 +690,18 @@ class GelismisRaporServisleri {
     RaporFiltresi? filtre,
   }) async {
     try {
-      var yuklemeQuery = _supabase
+      final yuklemeQuery = _supabase
           .from(DbTables.yuklemeKayitlari)
           .select('id, model_id, adet, tarih, created_at')
           .eq('firma_id', _firmaId);
-
-      if (baslangicTarihi != null) {
-        yuklemeQuery =
-            yuklemeQuery.gte('tarih', baslangicTarihi.toIso8601String());
-      }
-      if (bitisTarihi != null) {
-        final bitisDahil = DateTime(
-          bitisTarihi.year,
-          bitisTarihi.month,
-          bitisTarihi.day,
-          23,
-          59,
-          59,
-          999,
-        );
-        yuklemeQuery = yuklemeQuery.lte('tarih', bitisDahil.toIso8601String());
-      }
 
       final yuklemeler = await yuklemeQuery;
       final donemYuklemeByModel = <String, int>{};
       final donemYuklemeleriByModel = <String, List<Map<String, dynamic>>>{};
       for (final yukleme in yuklemeler) {
+        if (!_yuklemeTarihAraliginda(yukleme, baslangicTarihi, bitisTarihi)) {
+          continue;
+        }
         final modelId = yukleme['model_id']?.toString();
         if (modelId == null || modelId.isEmpty) continue;
         donemYuklemeByModel[modelId] =
@@ -1294,6 +1280,39 @@ class GelismisRaporServisleri {
     final tarih = DateTime.tryParse(tarihDegeri.toString());
     if (tarih == null) return null;
     return '${tarih.year}-${tarih.month.toString().padLeft(2, '0')}';
+  }
+
+  static bool _yuklemeTarihAraliginda(
+    Map<String, dynamic> yukleme,
+    DateTime? baslangicTarihi,
+    DateTime? bitisTarihi,
+  ) {
+    if (baslangicTarihi == null && bitisTarihi == null) return true;
+    final tarihDegeri = yukleme['tarih'] ?? yukleme['created_at'];
+    if (tarihDegeri == null) return false;
+    final tarih = DateTime.tryParse(tarihDegeri.toString());
+    if (tarih == null) return false;
+    if (baslangicTarihi != null) {
+      final baslangic = DateTime(
+        baslangicTarihi.year,
+        baslangicTarihi.month,
+        baslangicTarihi.day,
+      );
+      if (tarih.isBefore(baslangic)) return false;
+    }
+    if (bitisTarihi != null) {
+      final bitis = DateTime(
+        bitisTarihi.year,
+        bitisTarihi.month,
+        bitisTarihi.day,
+        23,
+        59,
+        59,
+        999,
+      );
+      if (tarih.isAfter(bitis)) return false;
+    }
+    return true;
   }
 
   static Map<String, dynamic> _bosYuklemeFinansAnalizi() {

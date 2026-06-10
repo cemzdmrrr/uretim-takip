@@ -183,10 +183,14 @@ Notlar:
 - Gelismis raporlar ana kar orani fiyatlandirma sekmesiyle ayni bazdadir: `gercekKarOrani = netKar / genelToplamMaliyet * 100`. Satis gelirine gore oran ayrica `netKarMarji = netKar / satisGeliri * 100` olarak tutulur; ana tablo ve hedef karsilastirmasi maliyet bazli oranla calisir.
 - Gelismis raporlar satis fiyatini eski `pesin_fiyat`, aktif plan `plan_satis_fiyati` veya `model_karlilik_ozetleri.satis_birim_fiyati` degerinden okumaz. Fiyatlandirma sekmesiyle ayni formul kullanilir: `planBirimMaliyet * (1 + kar_marji / 100)`, varsa vade orani uygulanir. `model_aksesuar` kaynakli otomatik `aksesuar` plan satirlari toplam maliyete alinmaz; manuel genel aksesuar `genel_aksesuar_fiyat` olarak kullanilir.
 - Gelismis raporlar hesaplarina faturalar bolumundeki girilen faturalar simdilik dahil edilmez. Operasyonel gider hesabi gecici olarak yalnizca `kasa_banka_hareketleri` gider/cikis/odeme hareketlerinden beslenir; satis geliri model detay fiyatlandirma/yukleme verisinden gelir.
+- Gelismis raporlar filtrelerinde tarih araligi `yukleme_kayitlari.tarih` bos ise `created_at` uzerinden degerlendirilir. Marka, durum ve arama filtreleri sayfa icinde donem model listesinden KPI, durum, marka analizi, maliyet dagilimi ve kar/zarar listelerini yeniden hesaplar; marka filtresi servise gonderilip secenek listesini daraltmaz.
 - Model detay maliyet/karlilik sayfasi fiyatlandirma sekmesiyle ayni maliyet tabanini kullanir. `genel_aksesuar_fiyat` yalnizca fiyatlandirma sekmesindeki manuel genel aksesuar degeridir; `model_aksesuar` tablosundan hesaplanan aksesuar maliyeti bu iki sekmenin toplam maliyetine otomatik eklenmez.
 - Model detay maliyet/karlilik sayfasinda satis fiyati aktif planin eski `plan_satis_fiyati` veya `model_karlilik_ozetleri.satis_birim_fiyati` degerinden okunmaz. Fiyatlandirma sekmesiyle ayni formul kullanilir: `planBirimMaliyet * (1 + kar_marji / 100)`, varsa vade orani ayrica uygulanir.
 - Model detay maliyet/karlilik sayfasinda gerceklesen maliyet kaydi varsa yalnizca ilgili kalemin gercek birim maliyeti degisir. Kaydi olmayan maliyet kalemleri plan birim maliyetle hesaba dahil edilmeye devam eder; aksi halde tek kalemlik gerceklesen kayit modelin toplam maliyetini eksik gosterir.
 - Gerceklesen maliyet kaydi "ek maliyet" degil, ilgili kalemin kullanici tarafindan girilen gercek tutaridir. Plan aksesuar 20 TL iken kullanici gercek tutari 11 TL girerse 9 TL model basina maliyet tasarrufu olarak kar etkisine yansir; negatif tutar girilmez.
+- Model detay maliyet/karlilik sayfasinda `model_maliyet_gerceklesen` kayitlari satir bazinda duzenlenebilir ve silinebilir. Duzenleme/silme islemlerinde `id + firma_id + model_id` filtresi kullanilir ve ardindan `model_karlilik_ozeti_yenile` RPC calistirilir.
+- Model detay maliyet/karlilik sayfasindaki Hesap Denetimi bolumunde `Tamamlanan` gostergesi uretim tamamlanan adetinden degil, `yukleme_kayitlari` / gonderim yapilan adet toplamindan okunur.
+- Model detay maliyet/karlilik sayfasindaki Maliyet Kalemleri tablosunda `Sapma`, finansal etki olarak gosterilir: `plan birim - gercek birim`. Gercek maliyet planin altindaysa pozitif/tasarruf, ustundeyse negatif/ek maliyet gosterilir.
 
 ## Personel, Bordro ve Donem Hafizasi
 
@@ -242,6 +246,7 @@ Notlar:
 - Web ve mobil birlikte dusunulmeli.
 - Ana sayfalar ve paneller dikey scroll'a izin vermelidir.
 - Ana sayfa KPI ozetinde toplam/yuklenen/kalan adetler model toplam adetleri ve `yukleme_kayitlari` toplamlari uzerinden hesaplanir. `Kapanan Is`, yukleme kaydi bulunan benzersiz model sayisidir.
+- Ana sayfa KPI ozet kartlari yalnizca admin kullaniciya gosterilir.
 - Mobilde sabit `Column + Expanded` yapilari ust filtre/tab alanlarini kilitleyebilir; gerekirse `SingleChildScrollView`, `CustomScrollView` veya `NestedScrollView` kullan.
 - Buton ikonlari icin mevcut Material Icons veya yerel ikon setleri kullanilmali; gorunmeyen ikonlar kontrol edilmelidir.
 - ERP ekranlari genelde kompakt KPI satirlari, filtre paneli, tablo/kart listesi ve aksiyon butonlariyla tasarlanir.
