@@ -1,26 +1,28 @@
-﻿import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uretim_takip/models/odeme_model.dart';
+import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 class OdemeService {
   final _client = Supabase.instance.client;
   String get _firmaId => TenantManager.instance.requireFirmaId;
 
-  Future<List<OdemeModel>> getOdemelerForPersonel(String personelId, {String? donem}) async {
+  Future<List<OdemeModel>> getOdemelerForPersonel(String personelId,
+      {String? donem}) async {
     try {
       debugPrint('=== OdemeService.getOdemelerForPersonel ===');
       debugPrint('personelId: "$personelId"');
       debugPrint('donem: "$donem"');
-      
+
       // Veritabanında sadece user_id var
       var query = _client
           .from(DbTables.odemeKayitlari)
           .select()
           .eq('firma_id', _firmaId)
           .eq('user_id', personelId);
-      
+
       // Eğer dönem seçilmişse, o döneme ait kayıtları filtrele
       if (donem != null && donem.isNotEmpty) {
         // Dönem formatı: "2025-08" gibi
@@ -38,7 +40,7 @@ class OdemeService {
           }
         }
       }
-      
+
       final response = await query.order('odeme_tarihi', ascending: false);
       debugPrint('Bulunan kayıt sayısı: ${(response as List).length}');
       if (response.isNotEmpty) {
@@ -55,22 +57,36 @@ class OdemeService {
     debugPrint('=== OdemeService.addOdeme ===');
     debugPrint('odeme.personelId: "${odeme.personelId}"');
     debugPrint('odeme.userId: "${odeme.userId}"');
-    
+
     final mapData = odeme.toMap();
     mapData['firma_id'] = _firmaId;
     debugPrint('toMap() sonucu: $mapData');
     debugPrint('Kaydedilecek user_id: "${mapData['user_id']}"');
-    
+
     // personelId veya userId kontrolü
     final effectiveUserId = mapData['user_id'];
     if ((effectiveUserId ?? '').toString().trim().isEmpty) {
       throw Exception('Geçerli bir personel seçilmeden ödeme kaydı eklenemez!');
     }
-    await _client.from(DbTables.odemeKayitlari).insert(mapData);
+    final response = await _client
+        .from(DbTables.odemeKayitlari)
+        .insert(mapData)
+        .select('id')
+        .single();
+    final odemeId = response['id']?.toString();
+    if (odeme.tur == 'avans' && odemeId != null && odemeId.isNotEmpty) {
+      await BildirimService().avansTalebiBildir(
+        odemeId: odemeId,
+        personelId: effectiveUserId.toString(),
+        tutar: odeme.tutar,
+        tarih: odeme.tarih.toIso8601String().split('T').first,
+      );
+    }
     debugPrint('Kayıt başarıyla eklendi');
   }
 
-  Future<void> updateOdemeDurum(int id, String yeniDurum, {String? onaylayanId}) async {
+  Future<void> updateOdemeDurum(int id, String yeniDurum,
+      {String? onaylayanId}) async {
     await _client.from(DbTables.odemeKayitlari).update({
       'durum': yeniDurum,
       if (onaylayanId != null) 'onaylayan_user_id': onaylayanId,
@@ -97,7 +113,8 @@ class OdemeService {
     return toplam;
   }
 
-  Future<Map<String, double>> getOnayliBakiyeOzet(String personelId, {String? donem}) async {
+  Future<Map<String, double>> getOnayliBakiyeOzet(String personelId,
+      {String? donem}) async {
     // Veritabanında sadece user_id var
     var query = _client
         .from(DbTables.odemeKayitlari)
@@ -105,7 +122,7 @@ class OdemeService {
         .eq('firma_id', _firmaId)
         .eq('user_id', personelId)
         .eq('durum', 'onaylandi');
-    
+
     // Eğer dönem seçilmişse, o döneme ait kayıtları filtrele
     if (donem != null && donem.isNotEmpty) {
       final parts = donem.split('-');
@@ -121,7 +138,7 @@ class OdemeService {
         }
       }
     }
-    
+
     final response = await query;
     final Map<String, double> toplamlar = {
       'avans': 0,
@@ -134,7 +151,7 @@ class OdemeService {
       final odemeTuru = e['odeme_turu']?.toString() ?? '';
       final tur = e['tur']?.toString() ?? '';
       final tutar = (e['tutar'] as num?)?.toDouble() ?? 0;
-      
+
       // Avans ve prim için odeme_turu kullan
       if (odemeTuru == 'avans') {
         toplamlar['avans'] = toplamlar['avans']! + tutar;

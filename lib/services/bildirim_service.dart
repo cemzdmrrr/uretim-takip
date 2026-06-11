@@ -1,7 +1,8 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/utils/role_utils.dart';
 
 /// Bildirim servisi - Üretim takip sistemi için bildirim yönetimi
 /// Desteklenen bildirim tipleri:
@@ -34,8 +35,23 @@ class BildirimService {
     String? atamaId,
     String? asama,
     Map<String, dynamic>? ekBilgi,
+    String? eventKey,
   }) async {
     try {
+      if (eventKey != null && eventKey.trim().isNotEmpty) {
+        final mevcut = await _supabase
+            .from(DbTables.bildirimler)
+            .select('id')
+            .eq('firma_id', _firmaId)
+            .eq('user_id', userId)
+            .eq('event_key', eventKey)
+            .maybeSingle();
+        if (mevcut != null) {
+          debugPrint('ℹ️ Bildirim tekrar gönderilmedi: $eventKey -> $userId');
+          return;
+        }
+      }
+
       await _supabase.from(DbTables.bildirimler).insert({
         'firma_id': _firmaId,
         'user_id': userId,
@@ -46,6 +62,7 @@ class BildirimService {
         'atama_id': atamaId,
         'asama': asama,
         'ek_bilgi': ekBilgi,
+        'event_key': eventKey,
         'okundu': false,
         'created_at': DateTime.now().toIso8601String(),
       });
@@ -53,6 +70,94 @@ class BildirimService {
     } catch (e) {
       debugPrint('❌ Bildirim gönderme hatası: $e');
       rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> aktifFirmaKullanicilariniGetir() async {
+    try {
+      final roller = await _supabase
+          .from(DbTables.userRoles)
+          .select('user_id, role')
+          .eq('firma_id', _firmaId)
+          .eq('aktif', true);
+
+      final Map<String, Map<String, dynamic>> kullanicilar = {};
+      for (final rol in roller) {
+        final userId = rol['user_id']?.toString();
+        if (userId == null || userId.isEmpty) continue;
+        kullanicilar.putIfAbsent(
+          userId,
+          () => {
+            'user_id': userId,
+            'role': rol['role']?.toString() ?? '',
+            'ad': '',
+            'soyad': '',
+            'tam_ad': '',
+            'departman': '',
+            'email': '',
+          },
+        );
+      }
+
+      if (kullanicilar.isEmpty) return [];
+
+      final personeller = await _supabase
+          .from(DbTables.personel)
+          .select('user_id, ad, soyad, departman, email')
+          .eq('firma_id', _firmaId);
+
+      for (final personel in personeller) {
+        final userId = personel['user_id']?.toString();
+        if (userId == null || !kullanicilar.containsKey(userId)) continue;
+        final ad = personel['ad']?.toString() ?? '';
+        final soyad = personel['soyad']?.toString() ?? '';
+        kullanicilar[userId] = {
+          ...kullanicilar[userId]!,
+          'ad': ad,
+          'soyad': soyad,
+          'tam_ad': '$ad $soyad'.trim(),
+          'departman': personel['departman']?.toString() ?? '',
+          'email': personel['email']?.toString() ?? '',
+        };
+      }
+
+      final sonuc = kullanicilar.values.toList()
+        ..sort((a, b) {
+          final left = (a['tam_ad']?.toString().isNotEmpty ?? false)
+              ? a['tam_ad'].toString()
+              : a['user_id'].toString();
+          final right = (b['tam_ad']?.toString().isNotEmpty ?? false)
+              ? b['tam_ad'].toString()
+              : b['user_id'].toString();
+          return left.toLowerCase().compareTo(right.toLowerCase());
+        });
+      return sonuc;
+    } catch (e) {
+      debugPrint('❌ Firma kullanıcıları getirilemedi: $e');
+      return [];
+    }
+  }
+
+  Future<bool> mevcutKullaniciAdminMi() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+
+    try {
+      final roller = await _supabase
+          .from(DbTables.userRoles)
+          .select('role')
+          .eq('firma_id', _firmaId)
+          .eq('user_id', userId)
+          .eq('aktif', true);
+      return (roller as List).any((r) {
+        final rol = r['role']?.toString();
+        return RoleUtils.isAdmin(rol) ||
+            rol == 'firma_admin' ||
+            rol == 'firma_sahibi';
+      });
+    } catch (e) {
+      debugPrint('❌ Admin kontrol hatası: $e');
+      return false;
     }
   }
 
@@ -65,30 +170,109 @@ class BildirimService {
     String? modelId,
     String? atamaId,
     String? asama,
+    Map<String, dynamic>? ekBilgi,
+    String? eventKey,
   }) async {
     try {
       // Bu role sahip kullanıcıları bul
       final kullanicilar = await _supabase
           .from(DbTables.userRoles)
           .select('user_id')
+          .eq('firma_id', _firmaId)
           .eq('role', rol)
           .eq('aktif', true);
 
       for (var kullanici in kullanicilar) {
+        final userId = kullanici['user_id']?.toString();
+        if (userId == null || userId.isEmpty) continue;
         await bildirimGonder(
-          userId: kullanici['user_id'],
+          userId: userId,
           baslik: baslik,
           mesaj: mesaj,
           tip: tip,
           modelId: modelId,
           atamaId: atamaId,
           asama: asama,
+          ekBilgi: ekBilgi,
+          eventKey: eventKey == null ? null : '$eventKey:$userId',
         );
       }
-      debugPrint('✅ ${kullanicilar.length} $rol kullanıcısına bildirim gönderildi');
+      debugPrint(
+          '✅ ${kullanicilar.length} $rol kullanıcısına bildirim gönderildi');
     } catch (e) {
       debugPrint('❌ Role göre bildirim gönderme hatası: $e');
     }
+  }
+
+  Future<void> kullanicilaraBildirimGonder({
+    required List<String> userIds,
+    required String baslik,
+    required String mesaj,
+    required String tip,
+    String? modelId,
+    String? atamaId,
+    String? asama,
+    Map<String, dynamic>? ekBilgi,
+    String? eventKey,
+  }) async {
+    final benzersizUserIds = userIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    for (final userId in benzersizUserIds) {
+      await bildirimGonder(
+        userId: userId,
+        baslik: baslik,
+        mesaj: mesaj,
+        tip: tip,
+        modelId: modelId,
+        atamaId: atamaId,
+        asama: asama,
+        ekBilgi: ekBilgi,
+        eventKey: eventKey == null ? null : '$eventKey:$userId',
+      );
+    }
+  }
+
+  Future<void> adminlereBildirimGonder({
+    required String baslik,
+    required String mesaj,
+    required String tip,
+    String? modelId,
+    String? atamaId,
+    String? asama,
+    Map<String, dynamic>? ekBilgi,
+    String? eventKey,
+  }) async {
+    await roleGoreBildirimGonder(
+      rol: 'admin',
+      baslik: baslik,
+      mesaj: mesaj,
+      tip: tip,
+      modelId: modelId,
+      atamaId: atamaId,
+      asama: asama,
+      ekBilgi: ekBilgi,
+      eventKey: eventKey,
+    );
+  }
+
+  Future<void> herkeseBildirimGonder({
+    required String baslik,
+    required String mesaj,
+    String tip = 'genel',
+    Map<String, dynamic>? ekBilgi,
+  }) async {
+    final kullanicilar = await aktifFirmaKullanicilariniGetir();
+    await kullanicilaraBildirimGonder(
+      userIds: kullanicilar.map((k) => k['user_id'].toString()).toList(),
+      baslik: baslik,
+      mesaj: mesaj,
+      tip: tip,
+      ekBilgi: ekBilgi,
+    );
   }
 
   /// Şoförlere sevkiyat bildirimi gönder
@@ -105,7 +289,8 @@ class BildirimService {
       await roleGoreBildirimGonder(
         rol: 'sofor',
         baslik: '🚚 Yeni Sevkiyat Talebi',
-        mesaj: '$modelAdi modeli için $adet adet ürün sevk edilecek.\n$kaynakAtelye → $hedefAtelye',
+        mesaj:
+            '$modelAdi modeli için $adet adet ürün sevk edilecek.\n$kaynakAtelye → $hedefAtelye',
         tip: 'sevkiyat_hazir',
         modelId: modelId,
         atamaId: sevkTalebiId,
@@ -127,7 +312,8 @@ class BildirimService {
       await roleGoreBildirimGonder(
         rol: 'kalite_kontrol',
         baslik: '🔍 Kalite Kontrol Bekliyor',
-        mesaj: '$modelAdi modeli $asama aşamasından $adet adet ürün kalite kontrole hazır.',
+        mesaj:
+            '$modelAdi modeli $asama aşamasından $adet adet ürün kalite kontrole hazır.',
         tip: 'kalite_onay',
         modelId: modelId,
         atamaId: atamaId,
@@ -165,15 +351,16 @@ class BildirimService {
       // Not: Tedarikci login olduğunda auth.users'a kayıt olur
       // Burada tedarikci email'i ile user'ı eşleştirmemiz gerekiyor
       // Şimdilik sadece log yapalım
-      debugPrint('📧 Tedarikci atama bildirimi: $tedarikciEmail -> $modelAdi ($adet adet $asama)');
-      
+      debugPrint(
+          '📧 Tedarikci atama bildirimi: $tedarikciEmail -> $modelAdi ($adet adet $asama)');
     } catch (e) {
       debugPrint('❌ Tedarikci atama bildirimi hatası: $e');
     }
   }
 
   /// Kullanıcının okunmamış bildirimlerini getir
-  Future<List<Map<String, dynamic>>> okunmamisBildirimleriGetir(String userId) async {
+  Future<List<Map<String, dynamic>>> okunmamisBildirimleriGetir(
+      String userId) async {
     try {
       final bildirimler = await _supabase
           .from(DbTables.bildirimler)
@@ -191,7 +378,8 @@ class BildirimService {
   }
 
   /// Kullanıcının tüm bildirimlerini getir
-  Future<List<Map<String, dynamic>>> tumBildirimleriGetir(String userId, {int limit = 50}) async {
+  Future<List<Map<String, dynamic>>> tumBildirimleriGetir(String userId,
+      {int limit = 50}) async {
     try {
       final bildirimler = await _supabase
           .from(DbTables.bildirimler)
@@ -213,8 +401,7 @@ class BildirimService {
     try {
       await _supabase
           .from(DbTables.bildirimler)
-          .update({'okundu': true})
-          .eq('id', bildirimId);
+          .update({'okundu': true}).eq('id', bildirimId);
     } catch (e) {
       debugPrint('❌ Bildirim okundu hatası: $e');
     }
@@ -318,6 +505,92 @@ class BildirimService {
     }
   }
 
+  Future<void> izinTalebiBildir({
+    required String izinId,
+    required String personelId,
+    required String izinTuru,
+    required String baslamaTarihi,
+    required String bitisTarihi,
+    required int gunSayisi,
+  }) async {
+    try {
+      if (await mevcutKullaniciAdminMi()) return;
+      await adminlereBildirimGonder(
+        baslik: 'Yeni İzin Talebi',
+        mesaj:
+            '$izinTuru izni girildi. Tarih: $baslamaTarihi - $bitisTarihi, $gunSayisi gün.',
+        tip: 'izin_talebi',
+        ekBilgi: {
+          'target': {
+            'type': 'izin',
+            'page': 'izin',
+            'personel_id': personelId,
+            'record_id': izinId,
+          },
+        },
+        eventKey: 'izin:$izinId',
+      );
+    } catch (e) {
+      debugPrint('❌ İzin talebi bildirimi gönderilemedi: $e');
+    }
+  }
+
+  Future<void> mesaiTalebiBildir({
+    required String mesaiId,
+    required String personelId,
+    required String mesaiTuru,
+    required String tarih,
+    required double saat,
+  }) async {
+    try {
+      if (await mevcutKullaniciAdminMi()) return;
+      await adminlereBildirimGonder(
+        baslik: 'Yeni Mesai Talebi',
+        mesaj: '$tarih tarihinde $mesaiTuru mesaisi girildi. Süre: $saat saat.',
+        tip: 'mesai_talebi',
+        ekBilgi: {
+          'target': {
+            'type': 'mesai',
+            'page': 'mesai',
+            'personel_id': personelId,
+            'record_id': mesaiId,
+          },
+        },
+        eventKey: 'mesai:$mesaiId',
+      );
+    } catch (e) {
+      debugPrint('❌ Mesai talebi bildirimi gönderilemedi: $e');
+    }
+  }
+
+  Future<void> avansTalebiBildir({
+    required String odemeId,
+    required String personelId,
+    required double tutar,
+    required String tarih,
+  }) async {
+    try {
+      if (await mevcutKullaniciAdminMi()) return;
+      await adminlereBildirimGonder(
+        baslik: 'Yeni Avans Talebi',
+        mesaj:
+            '$tarih tarihinde ${tutar.toStringAsFixed(2)} TL avans talebi girildi.',
+        tip: 'avans_talebi',
+        ekBilgi: {
+          'target': {
+            'type': 'avans',
+            'page': 'odeme',
+            'personel_id': personelId,
+            'record_id': odemeId,
+          },
+        },
+        eventKey: 'avans:$odemeId',
+      );
+    } catch (e) {
+      debugPrint('❌ Avans talebi bildirimi gönderilemedi: $e');
+    }
+  }
+
   // ==============================================
   // YENİ BİLDİRİM TİPLERİ
   // ==============================================
@@ -333,8 +606,21 @@ class BildirimService {
       await roleGoreBildirimGonder(
         rol: 'admin',
         baslik: '⚠️ Stok Kritik Seviyede',
-        mesaj: '$stokAdi stoğu kritik seviyeye düştü!\nMevcut: $mevcutMiktar $birim\nKritik Seviye: $kritikSeviye $birim',
+        mesaj:
+            '$stokAdi stoğu kritik seviyeye düştü!\nMevcut: $mevcutMiktar $birim\nKritik Seviye: $kritikSeviye $birim',
         tip: 'stok_uyari',
+        ekBilgi: {
+          'target': {
+            'type': 'stok',
+            'page': 'stok',
+          },
+          'stok_adi': stokAdi,
+          'mevcut_miktar': mevcutMiktar,
+          'kritik_seviye': kritikSeviye,
+          'birim': birim,
+        },
+        eventKey:
+            'stok:$stokAdi:${DateTime.now().toIso8601String().split('T').first}',
       );
     } catch (e) {
       debugPrint('❌ Stok uyarı bildirimi hatası: $e');
@@ -352,9 +638,22 @@ class BildirimService {
       await roleGoreBildirimGonder(
         rol: 'admin',
         baslik: '⏰ Termin Yaklaşıyor',
-        mesaj: '$modelAdi modeli için termin tarihi yaklaşıyor!\nTermin: ${terminTarihi.day}.${terminTarihi.month}.${terminTarihi.year}\nKalan: $kalanGun gün',
+        mesaj:
+            '$modelAdi modeli için termin tarihi yaklaşıyor!\nTermin: ${terminTarihi.day}.${terminTarihi.month}.${terminTarihi.year}\nKalan: $kalanGun gün',
         tip: 'termin_uyari',
         modelId: modelId,
+        ekBilgi: {
+          'target': {
+            'type': 'model',
+            'page': 'model_detay',
+            'model_id': modelId,
+            'tab': 'model_durumu',
+          },
+          'termin_tarihi': terminTarihi.toIso8601String(),
+          'kalan_gun': kalanGun,
+        },
+        eventKey:
+            'termin:$modelId:${DateTime.now().toIso8601String().split('T').first}',
       );
     } catch (e) {
       debugPrint('❌ Termin uyarı bildirimi hatası: $e');
@@ -372,24 +671,32 @@ class BildirimService {
       await roleGoreBildirimGonder(
         rol: 'admin',
         baslik: '📦 Yeni Sipariş Eklendi',
-        mesaj: '$marka - $itemNo modeli için $adet adetlik yeni sipariş oluşturuldu.',
+        mesaj:
+            '$marka - $itemNo modeli için $adet adetlik yeni sipariş oluşturuldu.',
         tip: 'siparis_yeni',
         modelId: modelId,
+        ekBilgi: {
+          'target': {
+            'type': 'model',
+            'page': 'model_detay',
+            'model_id': modelId,
+            'tab': 'model_durumu',
+          },
+        },
       );
     } catch (e) {
       debugPrint('❌ Yeni sipariş bildirimi hatası: $e');
     }
   }
 
-  /// Toplu bildirim gönder (tüm admin kullanıcılara)
+  /// Toplu bildirim gönder (tüm firma kullanıcılarına)
   Future<void> topluBildirimGonder({
     required String baslik,
     required String mesaj,
     String tip = 'genel',
   }) async {
     try {
-      await roleGoreBildirimGonder(
-        rol: 'admin',
+      await herkeseBildirimGonder(
         baslik: baslik,
         mesaj: mesaj,
         tip: tip,
@@ -404,7 +711,7 @@ class BildirimService {
     try {
       final now = DateTime.now();
       final birHaftaSonra = now.add(const Duration(days: 7));
-      
+
       // Yaklaşan terminleri getir
       final modeller = await _supabase
           .from(DbTables.trikoTakip)
@@ -417,7 +724,7 @@ class BildirimService {
         if (model['termin_tarihi'] != null) {
           final terminTarihi = DateTime.parse(model['termin_tarihi']);
           final kalanGun = terminTarihi.difference(now).inDays;
-          
+
           if (kalanGun <= 3) {
             await terminYaklasmaUyarisi(
               modelId: model['id'],

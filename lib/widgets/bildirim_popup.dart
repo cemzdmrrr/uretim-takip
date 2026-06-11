@@ -1,8 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
+import 'package:uretim_takip/services/bildirim_navigation_service.dart';
 import 'package:uretim_takip/pages/ayarlar/bildirimler_page.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
@@ -14,7 +15,8 @@ class BildirimPopup extends StatefulWidget {
   State<BildirimPopup> createState() => _BildirimPopupState();
 }
 
-class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProviderStateMixin {
+class _BildirimPopupState extends State<BildirimPopup>
+    with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
   final _bildirimService = BildirimService();
   List<Map<String, dynamic>> _bildirimler = [];
@@ -49,7 +51,7 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
     try {
       final currentUser = _supabase.auth.currentUser;
       if (currentUser == null) return;
-      
+
       String? firmaId;
       try {
         firmaId = TenantManager.instance.requireFirmaId;
@@ -81,29 +83,31 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
     try {
       final currentUser = _supabase.auth.currentUser;
       if (currentUser == null) return;
-      
+
       final userRole = await _supabase
           .from(DbTables.userRoles)
           .select('role')
           .eq('user_id', currentUser.id)
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .maybeSingle();
-      
+
       List<Map<String, dynamic>> bildirimler;
       if (userRole != null && userRole['role'] == 'admin') {
         bildirimler = data;
       } else {
-        bildirimler = data.where((b) => b['user_id'] == currentUser.id).toList();
+        bildirimler =
+            data.where((b) => b['user_id'] == currentUser.id).toList();
       }
-      
+
       final okunmamis = bildirimler.where((b) => b['okundu'] == false).length;
       final previousOkunmamis = _okunmamisSayisi;
-      
+
       if (mounted) {
         setState(() {
           _bildirimler = bildirimler;
           _okunmamisSayisi = okunmamis;
         });
-        
+
         if (okunmamis > previousOkunmamis && previousOkunmamis > 0) {
           _animationController.forward().then((_) {
             _animationController.reverse();
@@ -131,22 +135,25 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
 
       if (mounted) setState(() => _isLoading = true);
 
-      // Admin ise tüm bildirimleri getir, değilse sadece kendi bildirimlerini
-      final userRole = await _supabase
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', currentUser.id)
-          .maybeSingle();
-
-      List<Map<String, dynamic>> bildirimler;
-      
       String? firmaId;
       try {
         firmaId = TenantManager.instance.requireFirmaId;
       } catch (_) {
         firmaId = null;
       }
-      
+
+      // Admin ise tüm bildirimleri getir, değilse sadece kendi bildirimlerini
+      final userRole = firmaId == null
+          ? null
+          : await _supabase
+              .from(DbTables.userRoles)
+              .select('role')
+              .eq('user_id', currentUser.id)
+              .eq('firma_id', firmaId)
+              .maybeSingle();
+
+      List<Map<String, dynamic>> bildirimler;
+
       if (userRole != null && userRole['role'] == 'admin' && firmaId != null) {
         // Admin firma bazında tüm bildirimleri görebilir
         final response = await _supabase
@@ -158,7 +165,8 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
         bildirimler = List<Map<String, dynamic>>.from(response);
       } else {
         // Normal kullanıcı sadece kendi bildirimlerini görür
-        bildirimler = await _bildirimService.tumBildirimleriGetir(currentUser.id);
+        bildirimler =
+            await _bildirimService.tumBildirimleriGetir(currentUser.id);
       }
 
       final okunmamis = bildirimler.where((b) => b['okundu'] == false).length;
@@ -191,6 +199,17 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
     await _loadBildirimler();
   }
 
+  Future<void> _handleBildirimSelected(String bildirimId) async {
+    final bildirim = _bildirimler.firstWhere(
+      (b) => b['id'].toString() == bildirimId,
+      orElse: () => <String, dynamic>{},
+    );
+    await _markAsRead(bildirimId);
+    if (!mounted || bildirim.isEmpty) return;
+
+    BildirimNavigationService.navigate(context, bildirim);
+  }
+
   Future<void> _markAllAsRead() async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return;
@@ -219,6 +238,12 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
         return Icons.inventory_rounded;
       case 'termin_uyari':
         return Icons.schedule_rounded;
+      case 'izin_talebi':
+        return Icons.event_available_rounded;
+      case 'mesai_talebi':
+        return Icons.more_time_rounded;
+      case 'avans_talebi':
+        return Icons.payments_rounded;
       default:
         return Icons.notifications_rounded;
     }
@@ -244,6 +269,12 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
         return Colors.amber;
       case 'termin_uyari':
         return Colors.deepOrange;
+      case 'izin_talebi':
+        return Colors.indigo;
+      case 'mesai_talebi':
+        return Colors.cyan;
+      case 'avans_talebi':
+        return Colors.green.shade700;
       default:
         return Colors.grey;
     }
@@ -286,7 +317,8 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
           icon: Stack(
             clipBehavior: Clip.none,
             children: [
-              const Icon(Icons.notifications_rounded, color: Colors.white, size: 24),
+              const Icon(Icons.notifications_rounded,
+                  color: Colors.white, size: 24),
               if (_okunmamisSayisi > 0)
                 Positioned(
                   right: -8,
@@ -311,7 +343,9 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                     ),
                     child: Center(
                       child: Text(
-                        _okunmamisSayisi > 99 ? '99+' : _okunmamisSayisi.toString(),
+                        _okunmamisSayisi > 99
+                            ? '99+'
+                            : _okunmamisSayisi.toString(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -348,7 +382,8 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                       children: [
                         CircularProgressIndicator(),
                         SizedBox(height: 12),
-                        Text('Yükleniyor...', style: TextStyle(color: Colors.grey)),
+                        Text('Yükleniyor...',
+                            style: TextStyle(color: Colors.grey)),
                       ],
                     ),
                   ),
@@ -391,7 +426,8 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                       ),
                       if (_okunmamisSayisi > 0)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.red,
                             borderRadius: BorderRadius.circular(12),
@@ -422,7 +458,8 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.notifications_off_outlined, size: 48, color: Colors.grey),
+                        Icon(Icons.notifications_off_outlined,
+                            size: 48, color: Colors.grey),
                         SizedBox(height: 12),
                         Text(
                           'Bildirim yok',
@@ -439,18 +476,21 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                 final isOkunmamis = bildirim['okundu'] == false;
                 final tip = bildirim['tip'] as String?;
                 final color = _getBildirimColor(tip);
-                
+
                 items.add(
                   PopupMenuItem(
                     value: bildirim['id'].toString(),
                     padding: EdgeInsets.zero,
                     child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isOkunmamis ? color.withValues(alpha: 0.05) : Colors.transparent,
+                        color: isOkunmamis
+                            ? color.withValues(alpha: 0.05)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
-                        border: isOkunmamis 
+                        border: isOkunmamis
                             ? Border.all(color: color.withValues(alpha: 0.2))
                             : null,
                       ),
@@ -480,7 +520,9 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                                       child: Text(
                                         bildirim['baslik'] ?? 'Bildirim',
                                         style: TextStyle(
-                                          fontWeight: isOkunmamis ? FontWeight.bold : FontWeight.w500,
+                                          fontWeight: isOkunmamis
+                                              ? FontWeight.bold
+                                              : FontWeight.w500,
                                           fontSize: 13,
                                           color: Colors.black87,
                                         ),
@@ -513,7 +555,8 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                                 const SizedBox(height: 6),
                                 Row(
                                   children: [
-                                    Icon(Icons.access_time, size: 12, color: Colors.grey[400]),
+                                    Icon(Icons.access_time,
+                                        size: 12, color: Colors.grey[400]),
                                     const SizedBox(width: 4),
                                     Text(
                                       _formatDate(bildirim['created_at']),
@@ -553,7 +596,8 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                               _markAllAsRead();
                             },
                             icon: const Icon(Icons.done_all, size: 16),
-                            label: const Text('Tümünü Oku', style: TextStyle(fontSize: 12)),
+                            label: const Text('Tümünü Oku',
+                                style: TextStyle(fontSize: 12)),
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.green,
                             ),
@@ -565,11 +609,13 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
                             Navigator.pop(context);
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const BildirimlerPage()),
+                              MaterialPageRoute(
+                                  builder: (_) => const BildirimlerPage()),
                             );
                           },
                           icon: const Icon(Icons.open_in_new, size: 16),
-                          label: const Text('Tümünü Gör', style: TextStyle(fontSize: 12)),
+                          label: const Text('Tümünü Gör',
+                              style: TextStyle(fontSize: 12)),
                           style: TextButton.styleFrom(
                             foregroundColor: const Color(0xFF1565C0),
                           ),
@@ -584,7 +630,7 @@ class _BildirimPopupState extends State<BildirimPopup> with SingleTickerProvider
             return items;
           },
           onSelected: (bildirimId) {
-            _markAsRead(bildirimId);
+            _handleBildirimSelected(bildirimId);
           },
         ),
       ),

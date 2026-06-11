@@ -674,13 +674,13 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
     bool modelYukleniyor = true;
     final aksesuarId = aksesuar['id']?.toString();
     final List<String> iliskiliModelIds = (aksesuarId != null
-        ? (_modelKullanimlari[aksesuarId] ?? [])
-          .map((k) => k['model_id']?.toString())
-        : const Iterable<String?>.empty())
-      .where((id) => id != null && id!.isNotEmpty)
-      .cast<String>()
-      .toSet()
-      .toList();
+            ? (_modelKullanimlari[aksesuarId] ?? [])
+                .map((k) => k['model_id']?.toString())
+            : const Iterable<String?>.empty())
+        .where((id) => id != null && id!.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
 
     showDialog(
       context: context,
@@ -914,10 +914,13 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                         .eq('id', seciliBeden!['id']);
 
                     // 2. Sarf hareketi kaydı
-                    final tedLabel = (seciliFirma!['sirket'] != null && seciliFirma!['sirket'].toString().isNotEmpty)
+                    final tedLabel = (seciliFirma!['sirket'] != null &&
+                            seciliFirma!['sirket'].toString().isNotEmpty)
                         ? seciliFirma!['sirket'].toString()
                         : seciliFirma!['ad']?.toString() ?? '';
-                    await supabase.from(DbTables.aksesuarStokHareketleri).insert({
+                    await supabase
+                        .from(DbTables.aksesuarStokHareketleri)
+                        .insert({
                       'aksesuar_beden_id': seciliBeden!['id'].toString(),
                       'firma_id': firmaId,
                       'hareket_tipi': 'cikis',
@@ -928,12 +931,25 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                           ? null
                           : aciklamaController.text.trim(),
                       'tedarikci_adi': tedLabel.isNotEmpty ? tedLabel : null,
-                      if (seciliModel != null) 'model_id': seciliModel!['id'].toString(),
+                      if (seciliModel != null)
+                        'model_id': seciliModel!['id'].toString(),
                       'kullanici_id': supabase.auth.currentUser?.id,
                     });
 
                     await _aksesuarToplamStokGuncelle(
                         aksesuar['id'].toString());
+
+                    final yeniStok = stok - adet;
+                    final minimumStok =
+                        (aksesuar['minimum_stok'] as num?)?.toDouble() ?? 10;
+                    if (yeniStok <= minimumStok) {
+                      await BildirimService().stokKritikUyarisi(
+                        stokAdi: '${aksesuar['ad']} - ${seciliBeden!['beden']}',
+                        mevcutMiktar: yeniStok.toDouble(),
+                        kritikSeviye: minimumStok,
+                        birim: 'adet',
+                      );
+                    }
 
                     if (!dialogContext.mounted) return;
                     Navigator.pop(dialogContext);

@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
+import 'package:uretim_takip/services/bildirim_navigation_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 /// Gelişmiş Bildirimler Sayfası
@@ -13,10 +14,11 @@ class BildirimlerPage extends StatefulWidget {
   State<BildirimlerPage> createState() => _BildirimlerPageState();
 }
 
-class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProviderStateMixin {
+class _BildirimlerPageState extends State<BildirimlerPage>
+    with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
   final _bildirimService = BildirimService();
-  
+
   late TabController _tabController;
   List<Map<String, dynamic>> _tumBildirimler = [];
   List<Map<String, dynamic>> _okunmamisBildirimler = [];
@@ -26,12 +28,29 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
 
   final List<Map<String, dynamic>> _filterOptions = [
     {'value': 'tumu', 'label': 'Tümü', 'icon': Icons.all_inbox},
-    {'value': 'atama_bekliyor', 'label': 'Atama Bekliyor', 'icon': Icons.pending_actions},
-    {'value': 'atama_onaylandi', 'label': 'Onaylanan', 'icon': Icons.check_circle},
+    {
+      'value': 'atama_bekliyor',
+      'label': 'Atama Bekliyor',
+      'icon': Icons.pending_actions
+    },
+    {
+      'value': 'atama_onaylandi',
+      'label': 'Onaylanan',
+      'icon': Icons.check_circle
+    },
     {'value': 'atama_reddedildi', 'label': 'Reddedilen', 'icon': Icons.cancel},
     {'value': 'uretim_tamamlandi', 'label': 'Üretim', 'icon': Icons.done_all},
     {'value': 'kalite_onay', 'label': 'Kalite', 'icon': Icons.verified},
-    {'value': 'sevkiyat_hazir', 'label': 'Sevkiyat', 'icon': Icons.local_shipping},
+    {
+      'value': 'sevkiyat_hazir',
+      'label': 'Sevkiyat',
+      'icon': Icons.local_shipping
+    },
+    {'value': 'izin_talebi', 'label': 'İzin', 'icon': Icons.event_available},
+    {'value': 'mesai_talebi', 'label': 'Mesai', 'icon': Icons.more_time},
+    {'value': 'avans_talebi', 'label': 'Avans', 'icon': Icons.payments},
+    {'value': 'stok_uyari', 'label': 'Stok', 'icon': Icons.inventory},
+    {'value': 'termin_uyari', 'label': 'Termin', 'icon': Icons.schedule},
   ];
 
   @override
@@ -49,7 +68,7 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
 
   Future<void> _loadBildirimler() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final currentUser = _supabase.auth.currentUser;
       if (currentUser == null) return;
@@ -59,12 +78,13 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
           .from(DbTables.userRoles)
           .select('role')
           .eq('user_id', currentUser.id)
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .maybeSingle();
-      
+
       _userRole = userRole?['role'];
 
       List<Map<String, dynamic>> bildirimler;
-      
+
       if (_userRole == 'admin') {
         // Admin tüm bildirimleri görür
         final response = await _supabase
@@ -77,14 +97,15 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
       } else {
         // Normal kullanıcı kendi bildirimlerini görür
         bildirimler = await _bildirimService.tumBildirimleriGetir(
-          currentUser.id, 
+          currentUser.id,
           limit: 200,
         );
       }
 
       setState(() {
         _tumBildirimler = bildirimler;
-        _okunmamisBildirimler = bildirimler.where((b) => b['okundu'] == false).toList();
+        _okunmamisBildirimler =
+            bildirimler.where((b) => b['okundu'] == false).toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -94,7 +115,8 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
   }
 
   List<Map<String, dynamic>> get _filteredBildirimler {
-    final list = _tabController.index == 0 ? _tumBildirimler : _okunmamisBildirimler;
+    final list =
+        _tabController.index == 0 ? _tumBildirimler : _okunmamisBildirimler;
     if (_selectedFilter == 'tumu') return list;
     return list.where((b) => b['tip'] == _selectedFilter).toList();
   }
@@ -104,13 +126,26 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
     await _loadBildirimler();
   }
 
+  Future<void> _handleBildirimTap(Map<String, dynamic> bildirim) async {
+    final bildirimId = bildirim['id']?.toString();
+    if (bildirim['okundu'] == false && bildirimId != null) {
+      await _markAsRead(bildirimId);
+    }
+    if (!mounted) return;
+
+    final navigated = BildirimNavigationService.navigate(context, bildirim);
+    if (!navigated) {
+      _showBildirimDetay(bildirim);
+    }
+  }
+
   Future<void> _markAllAsRead() async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return;
-    
+
     await _bildirimService.tumBildirimlerOkundu(currentUser.id);
     await _loadBildirimler();
-    
+
     if (mounted) {
       context.showSuccessSnackBar('Tüm bildirimler okundu olarak işaretlendi');
     }
@@ -120,10 +155,12 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
     try {
       await _supabase.from(DbTables.bildirimler).delete().eq('id', bildirimId);
       await _loadBildirimler();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bildirim silindi'), backgroundColor: Colors.orange),
+          const SnackBar(
+              content: Text('Bildirim silindi'),
+              backgroundColor: Colors.orange),
         );
       }
     } catch (e) {
@@ -150,7 +187,8 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
             const Text('Okunanları Sil'),
           ],
         ),
-        content: const Text('Tüm okunmuş bildirimler silinecek. Devam etmek istiyor musunuz?'),
+        content: const Text(
+            'Tüm okunmuş bildirimler silinecek. Devam etmek istiyor musunuz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -175,9 +213,9 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
             .delete()
             .eq('user_id', currentUser.id)
             .eq('okundu', true);
-        
+
         await _loadBildirimler();
-        
+
         if (mounted) {
           context.showSuccessSnackBar('Okunmuş bildirimler silindi');
         }
@@ -185,6 +223,250 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
         debugPrint('❌ Toplu silme hatası: $e');
       }
     }
+  }
+
+  Future<void> _showYeniBildirimDialog() async {
+    final baslikController = TextEditingController();
+    final mesajController = TextEditingController();
+    final aramaController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final currentUser = _supabase.auth.currentUser;
+    List<Map<String, dynamic>> kullanicilar = [];
+    final Set<String> seciliUserIds = {};
+    bool tumFirma = false;
+    bool gonderiliyor = false;
+    String arama = '';
+
+    try {
+      kullanicilar = await _bildirimService.aktifFirmaKullanicilariniGetir();
+    } catch (e) {
+      debugPrint('Alıcı listesi yüklenemedi: $e');
+    }
+
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (innerContext, setDialogState) {
+            final filtreliKullanicilar = kullanicilar.where((k) {
+              final metin = [
+                k['tam_ad'],
+                k['email'],
+                k['departman'],
+                k['role'],
+                k['user_id'],
+              ].whereType<Object>().join(' ').toLowerCase();
+              return metin.contains(arama.toLowerCase());
+            }).toList();
+
+            Future<void> gonder() async {
+              if (!(formKey.currentState?.validate() ?? false)) return;
+              final alicilar = tumFirma
+                  ? kullanicilar.map((k) => k['user_id'].toString()).toList()
+                  : seciliUserIds.toList();
+              if (alicilar.isEmpty) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('En az bir alıcı seçin')),
+                );
+                return;
+              }
+
+              setDialogState(() => gonderiliyor = true);
+              try {
+                await _bildirimService.kullanicilaraBildirimGonder(
+                  userIds: alicilar,
+                  baslik: baslikController.text.trim(),
+                  mesaj: mesajController.text.trim(),
+                  tip: 'genel',
+                  ekBilgi: {
+                    'sender_user_id': currentUser?.id,
+                    'target': {
+                      'type': 'genel',
+                      'page': 'bildirim_detay',
+                    },
+                  },
+                );
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Bildirim gönderildi')),
+                );
+                await _loadBildirimler();
+              } catch (e) {
+                debugPrint('Bildirim gönderme hatası: $e');
+                if (!dialogContext.mounted) return;
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  SnackBar(content: Text('Bildirim gönderilemedi: $e')),
+                );
+              } finally {
+                if (dialogContext.mounted) {
+                  setDialogState(() => gonderiliyor = false);
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Yeni Bildirim Gönder'),
+              content: SizedBox(
+                width: 560,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          controller: baslikController,
+                          decoration: const InputDecoration(
+                            labelText: 'Başlık',
+                            prefixIcon: Icon(Icons.title),
+                          ),
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
+                                  ? 'Başlık girin'
+                                  : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: mesajController,
+                          decoration: const InputDecoration(
+                            labelText: 'Mesaj',
+                            prefixIcon: Icon(Icons.notes),
+                          ),
+                          maxLines: 4,
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
+                                  ? 'Mesaj girin'
+                                  : null,
+                        ),
+                        const SizedBox(height: 16),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: tumFirma,
+                          title: const Text('Tüm firmaya gönder'),
+                          subtitle:
+                              Text('${kullanicilar.length} aktif kullanıcı'),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              tumFirma = value;
+                              if (value) seciliUserIds.clear();
+                            });
+                          },
+                        ),
+                        if (!tumFirma) ...[
+                          TextField(
+                            controller: aramaController,
+                            decoration: const InputDecoration(
+                              labelText: 'Kullanıcı ara',
+                              prefixIcon: Icon(Icons.search),
+                            ),
+                            onChanged: (value) =>
+                                setDialogState(() => arama = value),
+                          ),
+                          const SizedBox(height: 12),
+                          if (seciliUserIds.isNotEmpty)
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: seciliUserIds.map((userId) {
+                                final kullanici = kullanicilar.firstWhere(
+                                  (k) => k['user_id'].toString() == userId,
+                                  orElse: () => {'user_id': userId},
+                                );
+                                final label = _kullaniciGorunenAdi(kullanici);
+                                return InputChip(
+                                  label: Text(label),
+                                  onDeleted: () {
+                                    setDialogState(() {
+                                      seciliUserIds.remove(userId);
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          const SizedBox(height: 12),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 260),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: filtreliKullanicilar.length,
+                              itemBuilder: (context, index) {
+                                final kullanici = filtreliKullanicilar[index];
+                                final userId = kullanici['user_id'].toString();
+                                final secili = seciliUserIds.contains(userId);
+                                return CheckboxListTile(
+                                  dense: true,
+                                  value: secili,
+                                  title: Text(_kullaniciGorunenAdi(kullanici)),
+                                  subtitle: Text(
+                                    [
+                                      kullanici['departman'],
+                                      kullanici['role'],
+                                      kullanici['email'],
+                                    ]
+                                        .where((v) =>
+                                            v != null &&
+                                            v.toString().trim().isNotEmpty)
+                                        .join(' • '),
+                                  ),
+                                  onChanged: (value) {
+                                    setDialogState(() {
+                                      if (value == true) {
+                                        seciliUserIds.add(userId);
+                                      } else {
+                                        seciliUserIds.remove(userId);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      gonderiliyor ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('İptal'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: gonderiliyor ? null : gonder,
+                  icon: gonderiliyor
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  label: const Text('Gönder'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    baslikController.dispose();
+    mesajController.dispose();
+    aramaController.dispose();
+  }
+
+  String _kullaniciGorunenAdi(Map<String, dynamic> kullanici) {
+    final tamAd = kullanici['tam_ad']?.toString() ?? '';
+    if (tamAd.trim().isNotEmpty) return tamAd;
+    final email = kullanici['email']?.toString() ?? '';
+    if (email.trim().isNotEmpty) return email;
+    return kullanici['user_id']?.toString() ?? 'Kullanıcı';
   }
 
   IconData _getBildirimIcon(String? tip) {
@@ -207,6 +489,12 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
         return Icons.inventory_rounded;
       case 'termin_uyari':
         return Icons.schedule_rounded;
+      case 'izin_talebi':
+        return Icons.event_available_rounded;
+      case 'mesai_talebi':
+        return Icons.more_time_rounded;
+      case 'avans_talebi':
+        return Icons.payments_rounded;
       default:
         return Icons.notifications_rounded;
     }
@@ -232,6 +520,12 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
         return Colors.amber;
       case 'termin_uyari':
         return Colors.deepOrange;
+      case 'izin_talebi':
+        return Colors.indigo;
+      case 'mesai_talebi':
+        return Colors.cyan;
+      case 'avans_talebi':
+        return Colors.green.shade700;
       default:
         return Colors.grey;
     }
@@ -257,6 +551,12 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
         return 'Stok Uyarısı';
       case 'termin_uyari':
         return 'Termin Uyarısı';
+      case 'izin_talebi':
+        return 'İzin Talebi';
+      case 'mesai_talebi':
+        return 'Mesai Talebi';
+      case 'avans_talebi':
+        return 'Avans Talebi';
       default:
         return 'Genel';
     }
@@ -325,6 +625,12 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
           ],
         ),
         actions: [
+          if (_userRole == 'admin')
+            IconButton(
+              icon: const Icon(Icons.send_rounded),
+              tooltip: 'Yeni Bildirim Gönder',
+              onPressed: _showYeniBildirimDialog,
+            ),
           if (_okunmamisBildirimler.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.done_all),
@@ -386,7 +692,9 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
                           Icon(
                             filter['icon'] as IconData,
                             size: 16,
-                            color: isSelected ? Colors.white : Colors.grey.shade700,
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.grey.shade700,
                           ),
                           const SizedBox(width: 6),
                           Text(filter['label'] as String),
@@ -515,12 +823,8 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
       },
       onDismissed: (_) => _deleteBildirim(bildirim['id'].toString()),
       child: GestureDetector(
-        onTap: () {
-          if (isOkunmamis) {
-            _markAsRead(bildirim['id'].toString());
-          }
-          _showBildirimDetay(bildirim);
-        },
+        onTap: () => _handleBildirimTap(bildirim),
+        onLongPress: () => _showBildirimDetay(bildirim),
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
@@ -586,7 +890,9 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
                                   bildirim['baslik'] ?? 'Bildirim',
                                   style: TextStyle(
                                     fontSize: 15,
-                                    fontWeight: isOkunmamis ? FontWeight.bold : FontWeight.w500,
+                                    fontWeight: isOkunmamis
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
                                     color: Colors.grey.shade800,
                                   ),
                                 ),
@@ -617,7 +923,8 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: color.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
@@ -632,7 +939,8 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
                                 ),
                               ),
                               const Spacer(),
-                              Icon(Icons.access_time, size: 14, color: Colors.grey.shade400),
+                              Icon(Icons.access_time,
+                                  size: 14, color: Colors.grey.shade400),
                               const SizedBox(width: 4),
                               Text(
                                 _formatDate(bildirim['created_at']),
@@ -716,7 +1024,8 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
                   ),
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -755,15 +1064,18 @@ class _BildirimlerPageState extends State<BildirimlerPage> with SingleTickerProv
                       _buildMetaItem(Icons.layers, 'Aşama', bildirim['asama']),
                     ],
                     if (bildirim['model_id'] != null) ...[
-                      _buildMetaItem(Icons.inventory_2, 'Model ID', bildirim['model_id']),
+                      _buildMetaItem(
+                          Icons.inventory_2, 'Model ID', bildirim['model_id']),
                     ],
                     _buildMetaItem(
-                      Icons.schedule, 
-                      'Tarih', 
+                      Icons.schedule,
+                      'Tarih',
                       _formatDate(bildirim['created_at']),
                     ),
                     _buildMetaItem(
-                      bildirim['okundu'] == true ? Icons.mark_email_read : Icons.mark_email_unread,
+                      bildirim['okundu'] == true
+                          ? Icons.mark_email_read
+                          : Icons.mark_email_unread,
                       'Durum',
                       bildirim['okundu'] == true ? 'Okundu' : 'Okunmadı',
                     ),

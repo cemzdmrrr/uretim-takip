@@ -476,6 +476,15 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                     });
                   }
 
+                  if (yeniMiktar <= 10) {
+                    await BildirimService().stokKritikUyarisi(
+                      stokAdi: stok['ad']?.toString() ?? 'İplik stoğu',
+                      mevcutMiktar: yeniMiktar,
+                      kritikSeviye: 10,
+                      birim: stok['birim']?.toString() ?? 'kg',
+                    );
+                  }
+
                   if (context.mounted) {
                     Navigator.pop(context);
                     await _verileriYukle();

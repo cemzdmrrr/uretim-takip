@@ -42,6 +42,7 @@ import 'package:uretim_takip/pages/uretim/genel_uretim_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/platform_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/migrasyon_durumu_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
+import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/user_role_service.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
 import 'package:uretim_takip/services/sayfa_yetki_service.dart';
@@ -131,6 +132,9 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
 
       // Dashboard verilerini yükle
       await _dashboardVerileriniYukle();
+      if (RoleUtils.isAdmin(kullaniciRolu)) {
+        await BildirimService().terminKontrolEt();
+      }
       _startAutoRefresh();
 
       setState(() => yukleniyor = false);

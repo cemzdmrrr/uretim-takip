@@ -1,24 +1,27 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/models/mesai_model.dart';
+import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 
 class MesaiService {
   final _client = Supabase.instance.client;
   String get _firmaId => TenantManager.instance.requireFirmaId;
 
-  Future<List<MesaiModel>> getMesailerForPersonel(String personelId, {String? donem}) async {
+  Future<List<MesaiModel>> getMesailerForPersonel(String personelId,
+      {String? donem}) async {
     try {
-      debugPrint('MesaiService.getMesailerForPersonel: personelId=$personelId, donem=$donem');
+      debugPrint(
+          'MesaiService.getMesailerForPersonel: personelId=$personelId, donem=$donem');
       // Veritabanında sadece user_id var
       var query = _client
           .from(DbTables.mesai)
           .select()
           .eq('firma_id', _firmaId)
           .eq('user_id', personelId);
-      
+
       // Eğer dönem seçilmişse, o döneme ait kayıtları filtrele
       if (donem != null && donem.isNotEmpty) {
         final parts = donem.split('-');
@@ -34,9 +37,10 @@ class MesaiService {
           }
         }
       }
-      
+
       final response = await query.order('tarih', ascending: false);
-      debugPrint('MesaiService.getMesailerForPersonel: ${(response as List).length} kayıt bulundu');
+      debugPrint(
+          'MesaiService.getMesailerForPersonel: ${(response as List).length} kayıt bulundu');
       return response.map((e) => MesaiModel.fromMap(e)).toList();
     } catch (e) {
       debugPrint('MesaiService.getMesailerForPersonel HATA: $e');
@@ -47,31 +51,53 @@ class MesaiService {
   Future<void> addMesai(MesaiModel mesai) async {
     final mesaiData = mesai.toMap();
     mesaiData['firma_id'] = _firmaId;
-    await _client.from(DbTables.mesai).insert(mesaiData);
+    final response = await _client
+        .from(DbTables.mesai)
+        .insert(mesaiData)
+        .select('id')
+        .single();
+    final mesaiId = response['id']?.toString();
+    if (mesaiId != null && mesaiId.isNotEmpty) {
+      await BildirimService().mesaiTalebiBildir(
+        mesaiId: mesaiId,
+        personelId: (mesai.userId ?? '').trim().isNotEmpty
+            ? mesai.userId!
+            : mesai.personelId,
+        mesaiTuru: mesai.mesaiTuru,
+        tarih: mesai.tarih.toIso8601String().split('T').first,
+        saat: mesai.saat ?? 0,
+      );
+    }
   }
 
   Future<void> addMesaiRaw(Map<String, dynamic> data) async {
     debugPrint('=== MesaiService.addMesaiRaw ===');
     debugPrint('Gelen data: $data');
-    
+
     // baslangic_saati ve bitis_saati alanlarını sadece saat:dk formatında gönder
     if (data['baslangic_saati'] is DateTime) {
       final dt = data['baslangic_saati'] as DateTime;
-      data['baslangic_saati'] = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } else if (data['baslangic_saati'] is String && data['baslangic_saati'].contains('T')) {
+      data['baslangic_saati'] =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } else if (data['baslangic_saati'] is String &&
+        data['baslangic_saati'].contains('T')) {
       // Eğer yanlışlıkla string DateTime gelirse
       final t = DateTime.tryParse(data['baslangic_saati']);
       if (t != null) {
-        data['baslangic_saati'] = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        data['baslangic_saati'] =
+            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
       }
     }
     if (data['bitis_saati'] is DateTime) {
       final dt = data['bitis_saati'] as DateTime;
-      data['bitis_saati'] = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } else if (data['bitis_saati'] is String && data['bitis_saati'].contains('T')) {
+      data['bitis_saati'] =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } else if (data['bitis_saati'] is String &&
+        data['bitis_saati'].contains('T')) {
       final t = DateTime.tryParse(data['bitis_saati']);
       if (t != null) {
-        data['bitis_saati'] = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        data['bitis_saati'] =
+            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
       }
     }
     // Saat hesapla ve ekle
@@ -97,24 +123,43 @@ class MesaiService {
         data['saat'] = double.parse((diff / 60).toStringAsFixed(2));
       }
     }
-    
+
     // carpan alanını double olarak gönder (veritabanı tipi numeric/decimal olmalı)
     if (data['carpan'] != null) {
-      data['carpan'] = (data['carpan'] is num) ? data['carpan'].toDouble() : double.tryParse(data['carpan'].toString()) ?? 1.0;
+      data['carpan'] = (data['carpan'] is num)
+          ? data['carpan'].toDouble()
+          : double.tryParse(data['carpan'].toString()) ?? 1.0;
     }
-    
+
     // mesai_ucret ve yemek_ucreti de double olmalı
     if (data['mesai_ucret'] != null) {
-      data['mesai_ucret'] = (data['mesai_ucret'] is num) ? data['mesai_ucret'].toDouble() : double.tryParse(data['mesai_ucret'].toString()) ?? 0.0;
+      data['mesai_ucret'] = (data['mesai_ucret'] is num)
+          ? data['mesai_ucret'].toDouble()
+          : double.tryParse(data['mesai_ucret'].toString()) ?? 0.0;
     }
     if (data['yemek_ucreti'] != null) {
-      data['yemek_ucreti'] = (data['yemek_ucreti'] is num) ? data['yemek_ucreti'].toDouble() : double.tryParse(data['yemek_ucreti'].toString()) ?? 0.0;
+      data['yemek_ucreti'] = (data['yemek_ucreti'] is num)
+          ? data['yemek_ucreti'].toDouble()
+          : double.tryParse(data['yemek_ucreti'].toString()) ?? 0.0;
     }
-    
+
     data['firma_id'] = _firmaId;
     debugPrint('Insert edilecek data: $data');
     try {
-      await _client.from(DbTables.mesai).insert(data);
+      final response =
+          await _client.from(DbTables.mesai).insert(data).select('id').single();
+      final mesaiId = response['id']?.toString();
+      if (mesaiId != null && mesaiId.isNotEmpty) {
+        await BildirimService().mesaiTalebiBildir(
+          mesaiId: mesaiId,
+          personelId: data['user_id']?.toString() ?? '',
+          mesaiTuru: data['mesai_turu']?.toString() ?? '',
+          tarih: data['tarih']?.toString() ?? '',
+          saat: (data['saat'] is num)
+              ? (data['saat'] as num).toDouble()
+              : double.tryParse(data['saat']?.toString() ?? '0') ?? 0,
+        );
+      }
       debugPrint('Mesai insert başarılı');
     } catch (e) {
       debugPrint('Mesai insert hatası: $e');
@@ -131,20 +176,26 @@ class MesaiService {
     // baslangic_saati ve bitis_saati alanlarını sadece saat:dk formatında gönder
     if (data['baslangic_saati'] is DateTime) {
       final dt = data['baslangic_saati'] as DateTime;
-      data['baslangic_saati'] = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } else if (data['baslangic_saati'] is String && data['baslangic_saati'].contains('T')) {
+      data['baslangic_saati'] =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } else if (data['baslangic_saati'] is String &&
+        data['baslangic_saati'].contains('T')) {
       final t = DateTime.tryParse(data['baslangic_saati']);
       if (t != null) {
-        data['baslangic_saati'] = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        data['baslangic_saati'] =
+            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
       }
     }
     if (data['bitis_saati'] is DateTime) {
       final dt = data['bitis_saati'] as DateTime;
-      data['bitis_saati'] = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } else if (data['bitis_saati'] is String && data['bitis_saati'].contains('T')) {
+      data['bitis_saati'] =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } else if (data['bitis_saati'] is String &&
+        data['bitis_saati'].contains('T')) {
       final t = DateTime.tryParse(data['bitis_saati']);
       if (t != null) {
-        data['bitis_saati'] = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        data['bitis_saati'] =
+            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
       }
     }
     // Saat hesapla ve ekle
@@ -173,7 +224,8 @@ class MesaiService {
   }
 
   /// Belirli personelin belirtilen yıl ve ay için toplam onaylı fazla mesai saatini döndürür
-  Future<double> getAylikFazlaMesaiSaati(String personelId, int yil, int ay) async {
+  Future<double> getAylikFazlaMesaiSaati(
+      String personelId, int yil, int ay) async {
     final response = await _client
         .from(DbTables.mesai)
         .select('saat, tarih, onay_durumu')
@@ -182,7 +234,13 @@ class MesaiService {
     return response.where((e) {
       final t = DateTime.tryParse(e['tarih'] ?? '');
       return t != null && t.year == yil && t.month == ay;
-    }).fold<double>(0, (sum, e) => sum + ((e['saat'] is num) ? e['saat'] : double.tryParse(e['saat']?.toString() ?? '0') ?? 0));
+    }).fold<double>(
+        0,
+        (sum, e) =>
+            sum +
+            ((e['saat'] is num)
+                ? e['saat']
+                : double.tryParse(e['saat']?.toString() ?? '0') ?? 0));
   }
 
   /// Belirli personelin belirtilen yıl için toplam onaylı fazla mesai saatini döndürür
@@ -195,16 +253,24 @@ class MesaiService {
     return response.where((e) {
       final t = DateTime.tryParse(e['tarih'] ?? '');
       return t != null && t.year == yil;
-    }).fold<double>(0, (sum, e) => sum + ((e['saat'] is num) ? e['saat'] : double.tryParse(e['saat']?.toString() ?? '0') ?? 0));
+    }).fold<double>(
+        0,
+        (sum, e) =>
+            sum +
+            ((e['saat'] is num)
+                ? e['saat']
+                : double.tryParse(e['saat']?.toString() ?? '0') ?? 0));
   }
 
   /// Aynı gün ve saat aralığında çakışan mesai var mı kontrolü
-  Future<bool> mesaiCakisiyorMu(String personelId, DateTime tarih, String baslangicSaati, String bitisSaati, {String? excludeId}) async {
+  Future<bool> mesaiCakisiyorMu(String personelId, DateTime tarih,
+      String baslangicSaati, String bitisSaati,
+      {String? excludeId}) async {
     final response = await _client
         .from(DbTables.mesai)
         .select('id, baslangic_saati, bitis_saati, tarih')
         .eq('user_id', personelId)
-        .eq('tarih', tarih.toIso8601String().substring(0,10));
+        .eq('tarih', tarih.toIso8601String().substring(0, 10));
     for (final e in response) {
       if (excludeId != null && e['id'].toString() == excludeId) continue;
       final bas = e['baslangic_saati'];
@@ -224,7 +290,8 @@ class MesaiService {
   }
 
   /// Mesai onay/red ve onaylayan kişi güncelleme
-  Future<void> updateMesaiOnay(String id, String yeniDurum, {String? onaylayanId}) async {
+  Future<void> updateMesaiOnay(String id, String yeniDurum,
+      {String? onaylayanId}) async {
     await _client.from(DbTables.mesai).update({
       'onay_durumu': yeniDurum,
       if (onaylayanId != null) 'onaylayan_user_id': onaylayanId,
@@ -232,8 +299,12 @@ class MesaiService {
   }
 
   /// Mesai ücreti otomatik hesaplama
-  double hesaplaMesaiUcreti({required double saatlikUcret, required double mesaiSaati, double zamOrani = 1.5}) {
-    return double.parse((saatlikUcret * mesaiSaati * zamOrani).toStringAsFixed(2));
+  double hesaplaMesaiUcreti(
+      {required double saatlikUcret,
+      required double mesaiSaati,
+      double zamOrani = 1.5}) {
+    return double.parse(
+        (saatlikUcret * mesaiSaati * zamOrani).toStringAsFixed(2));
   }
 
   /// Saat stringini Duration olarak döndürür (servis katmanında TimeOfDay kullanılmaz)

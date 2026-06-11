@@ -222,6 +222,24 @@ Notlar:
 - Bordro sayfasi kapanis kontrolu, arama, filtre, onayli/onaysiz/bordrosuz durumlari, PDF ve yazdirma aksiyonlarini desteklemelidir.
 - Donem bazli filtreleme `donemler` ve secili yil/ay mantigiyla uyumlu olmalidir.
 
+## Bildirim Sistemi Hafizasi
+
+Ilgili dosyalar:
+
+- `lib/services/bildirim_service.dart`
+- `lib/services/bildirim_navigation_service.dart`
+- `lib/widgets/bildirim_popup.dart`
+- `lib/pages/ayarlar/bildirimler_page.dart`
+
+Notlar:
+
+- Bildirimler firma kapsaminda calisir; alici/rol sorgularinda `firma_id` ve `aktif=true` filtresi kullanilmalidir.
+- Bildirim hedef navigasyonu `ek_bilgi.target` icinde tutulur. Ornek hedefler: `izin`, `mesai`, `avans`, `stok`, `model`.
+- Duplicate sistem uyarilari icin `bildirimler.event_key` kullanilir. Stok ve termin uyarilari gunluk tekil uretilmelidir.
+- Admin kullanici bildirimler sayfasindan ayni firmadaki tek veya birden fazla aktif kullaniciya `genel` bildirim gonderebilir.
+- Personel tarafindan girilen izin, mesai ve avans kayitlari servis katmaninda adminlere bildirim uretir; sayfa icinde kopya bildirim dongusu yazilmamalidir.
+- Bildirime tiklandiginda once okundu isaretlenir, sonra `BildirimNavigationService` ile ilgili ekrana gidilir. Hedef yoksa detay modalinda kalinir.
+
 ## Stok, Iplik, Aksesuar Hafizasi
 
 Ilgili tablolar:

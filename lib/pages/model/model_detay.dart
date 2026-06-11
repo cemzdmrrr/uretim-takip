@@ -32,11 +32,13 @@ part 'model_detay_maliyet_karlilik.dart';
 class ModelDetay extends StatefulWidget {
   final String modelId;
   final Map<String, dynamic>? modelData;
+  final String? initialTab;
 
   const ModelDetay({
     Key? key,
     required this.modelId,
     this.modelData,
+    this.initialTab,
   }) : super(key: key);
 
   @override
@@ -502,7 +504,33 @@ class _ModelDetayState extends State<ModelDetay>
     }
 
     if (mounted) {
-      _tabController = TabController(length: tabCount, vsync: this);
+      _tabController = TabController(
+        length: tabCount,
+        vsync: this,
+        initialIndex: _initialTabIndex(tabCount),
+      );
+    }
+  }
+
+  int _initialTabIndex(int tabCount) {
+    switch (widget.initialTab) {
+      case 'model_durumu':
+        return 1;
+      case 'uretim':
+      case 'uretim_durumu':
+        return 2;
+      case 'fiyatlandirma':
+        return kullaniciRolu == 'admin' ? 3 : 0;
+      case 'maliyet':
+      case 'maliyet_karlilik':
+        return kullaniciRolu == 'admin' ? 4 : 0;
+      case 'aksesuar':
+      case 'aksesuarlar':
+        return kullaniciRolu == 'admin' ? 5 : 3;
+      case 'yukleme':
+        return kullaniciRolu == 'admin' ? 6 : 0;
+      default:
+        return 0;
     }
   }
 

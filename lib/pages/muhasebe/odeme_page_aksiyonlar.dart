@@ -378,26 +378,6 @@ extension _AksiyonExt on _OdemePageState {
                                 'Gönderilen ödeme map: \x1B[33m\x1B[0m${odeme.toMap()}');
                             try {
                               await OdemeService().addOdeme(odeme);
-                              // Bildirim: Personel talep oluşturduğunda tüm adminlere gönder
-                              try {
-                                final adminList = await Supabase.instance.client
-                                    .from(DbTables.userRoles)
-                                    .select('user_id')
-                                    .eq('role', 'admin')
-                                    .eq('aktif', true);
-                                for (final admin in adminList) {
-                                  await NotificationService().sendNotification(
-                                    userId: admin['user_id'],
-                                    title: 'Yeni Avans/Ödeme Talebi',
-                                    message:
-                                        '${personel?.ad ?? 'Bir personel'} yeni bir $tur talebinde bulundu.',
-                                  );
-                                }
-                              } catch (bildirimHata) {
-                                debugPrint(
-                                    'Bildirim gönderme hatası: $bildirimHata');
-                                // Bildirim hatası olsa bile işlemi devam ettir
-                              }
                               if (!context.mounted) return;
                               Navigator.pop(ctx);
                               // ignore: use_build_context_synchronously
