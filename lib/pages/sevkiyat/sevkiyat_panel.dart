@@ -87,6 +87,14 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
     super.dispose();
   }
 
+  String _displayMergeKey(Map<String, dynamic> kayit) {
+    final sourceTable = kayit['_display_source_table']?.toString() ??
+        kayit['kaynak_tablo']?.toString() ??
+        kayit['kaynak_atama_tablosu']?.toString() ??
+        DbTables.sevkiyatKayitlari;
+    return '$sourceTable:${kayit['id']}';
+  }
+
   Future<void> _verileriYukle() async {
     setState(() => yukleniyor = true);
 
@@ -124,6 +132,7 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
             kayit['adet'] = finalAdet;
             kayit['talep_edilen_adet'] = finalAdet;
             kayit['tamamlanan_adet'] = kayit['sevk_edilen_adet'];
+            kayit['_display_source_table'] = DbTables.sevkiyatKayitlari;
             zenginKayitlar.add(kayit);
           }
         }
@@ -188,6 +197,7 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
             kayit['talep_edilen_adet'] = finalAdet;
             kayit['tamamlanan_adet'] =
                 (kayit['sevk_edilen_adet'] as num?)?.toInt() ?? 0;
+            kayit['_display_source_table'] = DbTables.sevkiyatKayitlari;
             zenginKayitlar.add(kayit);
           }
 
@@ -216,6 +226,7 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
         for (var paket in paketlemeResponse) {
           if (paket[DbTables.trikoTakip] != null) {
             paket['kaynak_tablo'] = DbTables.paketlemeAtamalari;
+            paket['_display_source_table'] = DbTables.paketlemeAtamalari;
             zenginKayitlar.add(paket);
           }
         }
@@ -223,6 +234,24 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
 
       final birlesikKayitlar =
           AtamaBirlestirmeService.mergeForDisplay(zenginKayitlar);
+      final zenginKayitById = <String, Map<String, dynamic>>{
+        for (final kayit in zenginKayitlar)
+          if (kayit['id'] != null) _displayMergeKey(kayit): kayit,
+      };
+      for (final kayit in birlesikKayitlar) {
+        final mergedSourceTable = kayit['_display_source_table']?.toString() ??
+            kayit['kaynak_tablo']?.toString() ??
+            kayit['kaynak_atama_tablosu']?.toString() ??
+            DbTables.sevkiyatKayitlari;
+        final ids = List<dynamic>.from(kayit['_merged_record_ids'] ?? []);
+        final kaynakKayitlar = ids
+            .map((id) => zenginKayitById['$mergedSourceTable:$id'])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+        if (kaynakKayitlar.isNotEmpty) {
+          kayit['_merged_records'] = kaynakKayitlar;
+        }
+      }
 
       setState(() {
         // Bekleyenler: beklemede, atandi durumu

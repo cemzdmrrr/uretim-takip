@@ -102,7 +102,11 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
             // Bilgiler
             _buildBilgiSatiri('Renk', model['renk']),
-            _buildBilgiSatiri('Sevk Edilecek Adet', '$adet adet', isBold: true),
+            if (tip == 'tamamlanan')
+              _buildAsamaBazliAdetler(sevk)
+            else
+              _buildBilgiSatiri('Sevk Edilecek Adet', '$adet adet',
+                  isBold: true),
             if (bedenDetayi.isNotEmpty)
               _buildBilgiSatiri(
                 'Beden Dağılımı',
@@ -125,8 +129,7 @@ extension _WidgetsExt on _SevkiyatPanelState {
                     .format(DateTime.parse(sevk['atama_tarihi'])),
               ),
 
-            if (sevk['notlar'] != null && sevk['notlar'].toString().isNotEmpty)
-              _buildBilgiSatiri('Notlar', sevk['notlar']),
+            if (_kartNotu(sevk).isNotEmpty) _buildKisaNotlar(sevk),
 
             // Aksiyon butonları
             const SizedBox(height: 12),
@@ -190,6 +193,126 @@ extension _WidgetsExt on _SevkiyatPanelState {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildAsamaBazliAdetler(Map<String, dynamic> sevk) {
+    final dagilim = _asamaBazliAdetDagilimi(sevk);
+    final toplam = dagilim.values.fold<int>(0, (sum, adet) => sum + adet);
+
+    if (dagilim.isEmpty || toplam <= 0) {
+      return _buildBilgiSatiri(
+        'Toplam Adet',
+        '${_sevkiyatTamamlananAdet(sevk)} adet',
+        isBold: true,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Aşama Bazlı Adetler',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: dagilim.entries.map((entry) {
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.indigo.shade100),
+                ),
+                child: Text(
+                  '${_asamaGorunenAdi(entry.key)}: ${entry.value}',
+                  style: TextStyle(
+                    color: Colors.indigo.shade700,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Toplam: $toplam adet',
+            style: const TextStyle(
+              color: Color(0xFF475569),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKisaNotlar(Map<String, dynamic> sevk) {
+    final not = _kartNotu(sevk);
+    final uzunNot = not.length > 120 || not.contains('\n');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: MediaQuery.sizeOf(context).width < 640 ? 0 : 140,
+            child: MediaQuery.sizeOf(context).width < 640
+                ? const SizedBox.shrink()
+                : Text(
+                    'Notlar:',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (MediaQuery.sizeOf(context).width < 640)
+                  Text(
+                    'Notlar:',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  ),
+                Text(
+                  not,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.black87),
+                ),
+                if (uzunNot)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => _showDetayDialog(sevk),
+                    child: const Text('Devamını gör'),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -504,6 +627,34 @@ extension _WidgetsExt on _SevkiyatPanelState {
     return tamamlanan > 0 ? tamamlanan : _sevkiyatRaporAdet(item);
   }
 
+  int _sevkiyatAsamaAdet(Map<String, dynamic> item) {
+    final bedenToplam = _toplamBedenAdedi(
+      _parseBedenDetayi(item['beden_detaylari'] ?? item['beden_dagilimi']),
+    );
+    if (bedenToplam > 0) return bedenToplam;
+
+    final displaySourceTable = item['_display_source_table']?.toString();
+    final sevkiyatKaydi = displaySourceTable == DbTables.sevkiyatKayitlari ||
+        item.containsKey('alinan_adet');
+
+    final alinan = _sevkiyatInt(item['alinan_adet']);
+    if (sevkiyatKaydi && alinan > 0) return alinan;
+
+    final adet = _sevkiyatInt(item['adet']);
+    if (adet > 0) return adet;
+
+    final talep = _sevkiyatInt(item['talep_edilen_adet']);
+    if (talep > 0) return talep;
+
+    final tamamlanan = _sevkiyatInt(item['tamamlanan_adet']);
+    if (tamamlanan > 0) return tamamlanan;
+
+    final sevkEdilen = _sevkiyatInt(item['sevk_edilen_adet']);
+    return sevkiyatKaydi && alinan > 0 && sevkEdilen > alinan
+        ? alinan
+        : sevkEdilen;
+  }
+
   int _sevkiyatInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
@@ -625,6 +776,57 @@ extension _WidgetsExt on _SevkiyatPanelState {
     return null;
   }
 
+  Map<String, int> _asamaBazliAdetDagilimi(Map<String, dynamic> sevk) {
+    final kaynakKayitlar = (sevk['_merged_records'] is List)
+        ? List<dynamic>.from(sevk['_merged_records'])
+            .whereType<Map<String, dynamic>>()
+            .toList()
+        : <Map<String, dynamic>>[];
+    final hesaplanacak = kaynakKayitlar.isNotEmpty ? kaynakKayitlar : [sevk];
+    final result = <String, int>{};
+
+    for (final kayit in hesaplanacak) {
+      final asama = _kaynakAsamaKodu(kayit) ?? 'belirsiz';
+      final adet = _sevkiyatAsamaAdet(kayit);
+      if (adet <= 0) continue;
+      result[asama] = (result[asama] ?? 0) + adet;
+    }
+
+    return Map.fromEntries(
+      result.entries.toList()
+        ..sort((a, b) => _asamaGorunenAdi(a.key).compareTo(
+              _asamaGorunenAdi(b.key),
+            )),
+    );
+  }
+
+  String _asamaGorunenAdi(String? kod) {
+    switch (_normalizeAsamaKodu(kod)) {
+      case 'dokuma':
+        return 'Dokuma';
+      case 'nakis':
+        return 'Nakış';
+      case 'konfeksiyon':
+        return 'Konfeksiyon';
+      case 'yikama':
+        return 'Yıkama';
+      case 'utu':
+        return 'Ütü';
+      case 'ilik_dugme':
+        return 'İlik Düğme';
+      case 'paketleme':
+        return 'Paketleme';
+      case 'kalite_kontrol':
+        return 'Kalite Kontrol';
+      case 'sevkiyat':
+        return 'Sevkiyat';
+      case 'depo':
+        return 'Depo';
+      default:
+        return 'Belirsiz';
+    }
+  }
+
   List<Map<String, dynamic>> _izinliHedefAsamalar(Map<String, dynamic> sevk) {
     final kaynak = _kaynakAsamaKodu(sevk);
     if (kaynak == null ||
@@ -649,6 +851,21 @@ extension _WidgetsExt on _SevkiyatPanelState {
         .trim();
 
     return temiz.isEmpty ? '-' : temiz;
+  }
+
+  String _kartNotu(Map<String, dynamic> sevk) {
+    final temiz = _temizSevkNotu(sevk['notlar']);
+    if (temiz == '-') return '';
+    final satirlar = temiz
+        .split(RegExp(r'\n+'))
+        .map((line) => line.trim())
+        .where((line) =>
+            line.isNotEmpty &&
+            !line.startsWith('[SEVK]') &&
+            !line.contains('İrsaliye:') &&
+            !line.contains('Sevkiyattan geldi'))
+        .toList();
+    return satirlar.join('\n');
   }
 
   String? _missingColumnName(Object error) {
@@ -1873,8 +2090,8 @@ extension _WidgetsExt on _SevkiyatPanelState {
 
   void _showDetayDialog(Map<String, dynamic> sevk) {
     final model = sevk[DbTables.trikoTakip] as Map<String, dynamic>? ?? {};
-    final modelId = sevk['model_id'] ?? model['id'];
     final bedenDetayi = _parseBedenDetayi(sevk['beden_detaylari']);
+    final asamaDagilimi = _asamaBazliAdetDagilimi(sevk);
 
     showDialog(
       context: context,
@@ -1903,6 +2120,14 @@ extension _WidgetsExt on _SevkiyatPanelState {
                 _buildDetaySatiri('Model No', model['item_no']),
                 _buildDetaySatiri('Renk', model['renk']),
                 _buildDetaySatiri('Adet', '${sevk['adet'] ?? model['adet']}'),
+                if (asamaDagilimi.isNotEmpty)
+                  _buildDetaySatiri(
+                    'Aşama Adetleri',
+                    asamaDagilimi.entries
+                        .map((entry) =>
+                            '${_asamaGorunenAdi(entry.key)}: ${entry.value}')
+                        .join(' | '),
+                  ),
                 if (bedenDetayi.isNotEmpty)
                   _buildDetaySatiri(
                     'Beden Dağılımı',

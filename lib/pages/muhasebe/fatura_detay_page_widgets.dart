@@ -167,6 +167,7 @@ extension _WidgetExt on _FaturaDetayPageState {
                     DataColumn(label: Text('Sıra')),
                     DataColumn(label: Text('Ürün Kodu')),
                     DataColumn(label: Text('Ürün Adı')),
+                    DataColumn(label: Text('Kategori')),
                     DataColumn(label: Text('Miktar')),
                     DataColumn(label: Text('Birim')),
                     DataColumn(label: Text('Birim Fiyat')),
@@ -206,6 +207,12 @@ extension _WidgetExt on _FaturaDetayPageState {
                                   ),
                               ],
                             ),
+                          ),
+                        ),
+                        DataCell(
+                          Chip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text(FaturaKategori.etiket(kalem.kategori)),
                           ),
                         ),
                         DataCell(Text(kalem.miktar.toString())),
@@ -843,6 +850,7 @@ class _FaturaDetayKalemiDialogState extends State<_FaturaDetayKalemiDialog> {
   late final TextEditingController _birimFiyatController;
   late final TextEditingController _kdvOraniController;
   late String _secilenBirim;
+  late String _secilenKategori;
 
   @override
   void initState() {
@@ -857,6 +865,7 @@ class _FaturaDetayKalemiDialogState extends State<_FaturaDetayKalemiDialog> {
     _kdvOraniController =
         TextEditingController(text: kalem.kdvOrani.toString());
     _secilenBirim = kalem.birim;
+    _secilenKategori = FaturaKategori.normalize(kalem.kategori);
   }
 
   @override
@@ -888,6 +897,7 @@ class _FaturaDetayKalemiDialogState extends State<_FaturaDetayKalemiDialog> {
         urunKodu:
             _urunKoduController.text.isEmpty ? null : _urunKoduController.text,
         urunAdi: _urunAdiController.text,
+        kategori: _secilenKategori,
         aciklama:
             _aciklamaController.text.isEmpty ? null : _aciklamaController.text,
         miktar: miktar,
@@ -929,6 +939,28 @@ class _FaturaDetayKalemiDialogState extends State<_FaturaDetayKalemiDialog> {
                   validator: (value) => value == null || value.isEmpty
                       ? 'Ürün adı gerekli'
                       : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _secilenKategori,
+                  decoration: const InputDecoration(
+                    labelText: 'Kategori *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: FaturaKategori.tumu
+                      .map(
+                        (kategori) => DropdownMenuItem(
+                          value: kategori,
+                          child: Text(FaturaKategori.etiket(kategori)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _secilenKategori = FaturaKategori.normalize(
+                          value ?? FaturaKategori.diger);
+                    });
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

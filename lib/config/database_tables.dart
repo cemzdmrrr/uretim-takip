@@ -106,6 +106,8 @@ class DbTables {
   static const users = 'users';
   static const bildirimler = 'bildirimler';
   static const notifications = 'notifications';
+  static const yapilacaklar = 'yapilacaklar';
+  static const yapilacakTamamlanmaKayitlari = 'yapilacak_tamamlanma_kayitlari';
   static const sistemAyarlari = 'sistem_ayarlari';
   static const sirketBilgileri = 'sirket_bilgileri';
   static const atolyeler = 'atolyeler';

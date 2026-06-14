@@ -394,9 +394,29 @@ extension _WidgetExt on _FaturaEklePageState {
                           if (kalem.urunKodu != null &&
                               kalem.urunKodu!.isNotEmpty)
                             Text('Kod: ${kalem.urunKodu}'),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              Chip(
+                                visualDensity: VisualDensity.compact,
+                                label: Text(
+                                  FaturaKategori.etiket(kalem.kategori),
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              Chip(
+                                visualDensity: VisualDensity.compact,
+                                label: Text(
+                                  'KDV: %${kalem.kdvOrani}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
                           Text(
                               '${kalem.miktar} ${kalem.birim} x ${_currencyFormat.format(kalem.birimFiyat)}'),
-                          Text('KDV: %${kalem.kdvOrani}'),
                         ],
                       ),
                       trailing: Row(
@@ -539,6 +559,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
   final _kdvOraniController = TextEditingController(text: '20');
 
   String _secilenBirim = 'adet';
+  String _secilenKategori = FaturaKategori.diger;
 
   final NumberFormat _currencyFormat =
       NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
@@ -554,6 +575,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
       _aciklamaController.text = kalem.aciklama ?? '';
       _miktarController.text = kalem.miktar.toString();
       _secilenBirim = kalem.birim;
+      _secilenKategori = FaturaKategori.normalize(kalem.kategori);
       _birimFiyatController.text = kalem.birimFiyat.toString();
       _kdvOraniController.text = kalem.kdvOrani.toString();
     }
@@ -587,6 +609,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
     final kalem = FaturaKalemiModel(
       kalemId: widget.duzenlenecekKalem?.kalemId,
       faturaId: 0, // Fatura kaydedilirken atanacak
+      kategori: _secilenKategori,
       urunKodu:
           _urunKoduController.text.isEmpty ? null : _urunKoduController.text,
       urunAdi: _urunAdiController.text,
@@ -655,6 +678,30 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                     return 'Ürün adı gerekli';
                   }
                   return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Kategori
+              DropdownButtonFormField<String>(
+                initialValue: _secilenKategori,
+                decoration: const InputDecoration(
+                  labelText: 'Kategori *',
+                  border: OutlineInputBorder(),
+                ),
+                items: FaturaKategori.tumu
+                    .map(
+                      (kategori) => DropdownMenuItem(
+                        value: kategori,
+                        child: Text(FaturaKategori.etiket(kategori)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _secilenKategori =
+                        FaturaKategori.normalize(value ?? FaturaKategori.diger);
+                  });
                 },
               ),
               const SizedBox(height: 16),

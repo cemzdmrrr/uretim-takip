@@ -4,6 +4,7 @@ import 'package:uretim_takip/pages/muhasebe/izin_page.dart';
 import 'package:uretim_takip/pages/muhasebe/mesai_page.dart';
 import 'package:uretim_takip/pages/muhasebe/odeme_page.dart';
 import 'package:uretim_takip/pages/stok/stok_yonetimi.dart';
+import 'package:uretim_takip/widgets/yapilacaklar_popup.dart';
 
 class BildirimNavigationService {
   BildirimNavigationService._();
@@ -47,6 +48,13 @@ class BildirimNavigationService {
         context,
         MaterialPageRoute(builder: (_) => const StokYonetimiPage()),
       );
+      return true;
+    }
+
+    if (type == 'yapilacak' ||
+        page == 'yapilacak_popup' ||
+        tip == 'yapilacak_hatirlatici') {
+      YapilacaklarPopup.openPanel(context);
       return true;
     }
 

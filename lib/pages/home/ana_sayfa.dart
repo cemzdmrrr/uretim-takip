@@ -4,6 +4,7 @@ import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:uretim_takip/pages/model/model_ekle.dart';
+import 'package:uretim_takip/pages/model/model_detay.dart';
 import 'package:uretim_takip/pages/model/toplu_model_ekle.dart';
 import 'package:uretim_takip/pages/model/model_listele.dart';
 import 'package:uretim_takip/pages/raporlar/gelismis_raporlar_page.dart';
@@ -12,7 +13,9 @@ import 'package:uretim_takip/pages/ayarlar/kullanici_listesi.dart';
 import 'package:uretim_takip/pages/stok/stok_yonetimi.dart';
 import 'package:uretim_takip/pages/sevkiyat/tamamlanan_siparisler_page.dart';
 import 'package:uretim_takip/pages/personel/personel_anasayfa.dart';
+import 'package:uretim_takip/pages/personel/personel_detay_page.dart';
 import 'package:uretim_takip/pages/tedarikci/tedarikci_listesi_page.dart';
+import 'package:uretim_takip/pages/tedarikci/tedarikci_detay_page.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/kasa_banka_listesi_page.dart';
 import 'package:uretim_takip/pages/muhasebe/kasa_banka_hareket_listesi_page.dart';
@@ -30,6 +33,7 @@ import 'package:uretim_takip/pages/sevkiyat/sevkiyat_panel.dart';
 import 'package:uretim_takip/pages/uretim/uretim_raporu_page.dart';
 import 'package:uretim_takip/pages/raporlar/uretim_plani_page.dart';
 import 'package:uretim_takip/widgets/bildirim_popup.dart';
+import 'package:uretim_takip/widgets/yapilacaklar_popup.dart';
 
 import 'package:provider/provider.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
@@ -43,6 +47,7 @@ import 'package:uretim_takip/pages/platform_admin/platform_dashboard.dart';
 import 'package:uretim_takip/pages/platform_admin/migrasyon_durumu_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
+import 'package:uretim_takip/services/yapilacak_service.dart';
 import 'package:uretim_takip/services/user_role_service.dart';
 import 'package:uretim_takip/utils/role_utils.dart';
 import 'package:uretim_takip/services/sayfa_yetki_service.dart';
@@ -215,6 +220,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
           };
         });
       }
+      await YapilacakService().hatirlaticilariKontrolEt();
     } catch (e) {
       debugPrint('Dashboard veri hatası: $e');
     }
@@ -249,6 +255,416 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  Future<void> _aramaDialoguGoster() async {
+    final controller = TextEditingController();
+    var loading = false;
+    var arama = '';
+    var sonuclar = <Map<String, dynamic>>[];
+
+    Future<void> ara(StateSetter setDialogState) async {
+      final q = controller.text.trim();
+      setDialogState(() {
+        arama = q;
+        loading = true;
+      });
+
+      try {
+        sonuclar = q.length < 2 ? [] : await _genelAramaSonuclari(q);
+      } finally {
+        if (mounted) setDialogState(() => loading = false);
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.search, color: Color(0xFF1565C0)),
+                  SizedBox(width: 10),
+                  Text('Genel Arama'),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width < 720
+                    ? MediaQuery.of(context).size.width * 0.92
+                    : 680,
+                height: MediaQuery.of(context).size.height * 0.64,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText:
+                            'Model, personel, stok, fatura, tedarikçi ara',
+                        prefixIcon:
+                            const Icon(Icons.search, color: Color(0xFF1565C0)),
+                        suffixIcon: controller.text.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  controller.clear();
+                                  setDialogState(() {
+                                    arama = '';
+                                    sonuclar = [];
+                                  });
+                                },
+                              ),
+                      ),
+                      onChanged: (_) => ara(setDialogState),
+                      onSubmitted: (_) => ara(setDialogState),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _aramaSonucListesi(
+                              arama: arama,
+                              sonuclar: sonuclar,
+                              dialogContext: dialogContext,
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Kapat'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+  }
+
+  Widget _aramaSonucListesi({
+    required String arama,
+    required List<Map<String, dynamic>> sonuclar,
+    required BuildContext dialogContext,
+  }) {
+    if (arama.trim().length < 2) {
+      return const Center(
+        child: Text('Arama yapmak için en az 2 karakter yazın.'),
+      );
+    }
+
+    if (sonuclar.isEmpty) {
+      return const Center(child: Text('Eşleşen kayıt bulunamadı.'));
+    }
+
+    return ListView.separated(
+      itemCount: sonuclar.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final sonuc = sonuclar[index];
+        final icon = sonuc['icon'] as IconData? ?? Icons.search;
+        final color = sonuc['color'] as Color? ?? const Color(0xFF1565C0);
+
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundColor: color.withValues(alpha: 0.12),
+            child: Icon(icon, color: color),
+          ),
+          title: Text(
+            sonuc['baslik']?.toString() ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text(
+            [
+              sonuc['tip']?.toString() ?? '',
+              sonuc['altBaslik']?.toString() ?? '',
+            ].where((e) => e.trim().isNotEmpty).join(' / '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () => _aramaSonucunaGit(dialogContext, sonuc),
+        );
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _genelAramaSonuclari(String q) async {
+    final arama = q.toLowerCase();
+    final sonucGruplari = await Future.wait([
+      _modelAramaSonuclari(arama),
+      _personelAramaSonuclari(arama),
+      _tedarikciAramaSonuclari(arama),
+      _faturaAramaSonuclari(arama),
+      _sevkIrsaliyeAramaSonuclari(arama),
+      _iplikStokAramaSonuclari(arama),
+      _aksesuarAramaSonuclari(arama),
+      _yapilacakOdemeAramaSonuclari(arama),
+    ]);
+
+    return sonucGruplari.expand((liste) => liste).take(80).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _tabloAra({
+    required String tablo,
+    required String arama,
+    required String tip,
+    required IconData icon,
+    required Color color,
+    required String route,
+    required String Function(Map<String, dynamic>) baslik,
+    required String Function(Map<String, dynamic>) altBaslik,
+    String? idAlan,
+    int limit = 300,
+  }) async {
+    try {
+      final response = await Supabase.instance.client
+          .from(tablo)
+          .select('*')
+          .eq('firma_id', _firmaId)
+          .limit(limit);
+
+      return List<Map<String, dynamic>>.from(response)
+          .where((row) => _rowAramaMetni(row).contains(arama))
+          .take(20)
+          .map((row) {
+        return {
+          'tip': tip,
+          'icon': icon,
+          'color': color,
+          'route': route,
+          'id':
+              idAlan == null ? row['id']?.toString() : row[idAlan]?.toString(),
+          'baslik': baslik(row),
+          'altBaslik': altBaslik(row),
+          'data': row,
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('$tip arama atlandı: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _modelAramaSonuclari(String arama) {
+    return _tabloAra(
+      tablo: DbTables.trikoTakip,
+      arama: arama,
+      tip: 'Model',
+      icon: Icons.inventory_2,
+      color: const Color(0xFF1565C0),
+      route: 'model',
+      baslik: (row) => [
+        row['marka']?.toString() ?? '',
+        row['item_no']?.toString() ?? '',
+      ].where((e) => e.trim().isNotEmpty).join(' - '),
+      altBaslik: (row) => [
+        row['model_adi']?.toString() ?? '',
+        _modelRenkMetni(row),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _personelAramaSonuclari(String arama) {
+    return _tabloAra(
+      tablo: DbTables.personel,
+      arama: arama,
+      tip: 'Personel',
+      icon: Icons.person,
+      color: const Color(0xFF7C3AED),
+      route: 'personel',
+      baslik: (row) => _ilkDolu(row, ['tam_ad', 'ad_soyad', 'ad', 'isim']),
+      altBaslik: (row) => [
+        _ilkDolu(row, ['departman']),
+        _ilkDolu(row, ['pozisyon', 'gorev']),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _tedarikciAramaSonuclari(String arama) {
+    return _tabloAra(
+      tablo: DbTables.tedarikciler,
+      arama: arama,
+      tip: 'Tedarikçi',
+      icon: Icons.business,
+      color: const Color(0xFF0F766E),
+      route: 'tedarikci',
+      baslik: (row) => _ilkDolu(row, ['ad', 'sirket', 'firma_adi']),
+      altBaslik: (row) => [
+        _ilkDolu(row, ['telefon']),
+        _ilkDolu(row, ['email']),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _faturaAramaSonuclari(String arama) {
+    return _tabloAra(
+      tablo: DbTables.faturalar,
+      arama: arama,
+      tip: 'Fatura',
+      icon: Icons.receipt_long,
+      color: const Color(0xFF2563EB),
+      route: 'faturalar',
+      baslik: (row) => _ilkDolu(row, ['fatura_no', 'belge_no', 'id']),
+      altBaslik: (row) => [
+        _ilkDolu(row, ['cari_unvan', 'musteri_adi', 'tedarikci_adi']),
+        _ilkDolu(row, ['toplam_tutar', 'genel_toplam']),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _sevkIrsaliyeAramaSonuclari(
+    String arama,
+  ) {
+    return _tabloAra(
+      tablo: DbTables.sevkIrsaliyeleri,
+      arama: arama,
+      tip: 'Sevk İrsaliyesi',
+      icon: Icons.local_shipping,
+      color: const Color(0xFFEA580C),
+      route: 'sevk_irsaliyeleri',
+      baslik: (row) => _ilkDolu(row, ['irsaliye_no', 'sevk_no', 'id']),
+      altBaslik: (row) => [
+        _ilkDolu(row, ['hedef_asama', 'durum']),
+        _ilkDolu(row, ['toplam_adet', 'adet']),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _iplikStokAramaSonuclari(String arama) {
+    return _tabloAra(
+      tablo: DbTables.iplikStoklari,
+      arama: arama,
+      tip: 'İplik Stok',
+      icon: Icons.layers,
+      color: const Color(0xFF0891B2),
+      route: 'stok',
+      baslik: (row) => _ilkDolu(row, ['iplik_adi', 'iplik_cinsi', 'ad', 'kod']),
+      altBaslik: (row) => [
+        _ilkDolu(row, ['renk_kodu', 'renk']),
+        _ilkDolu(row, ['lot_no', 'lot']),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _aksesuarAramaSonuclari(String arama) {
+    return _tabloAra(
+      tablo: DbTables.aksesuarlar,
+      arama: arama,
+      tip: 'Aksesuar',
+      icon: Icons.category,
+      color: const Color(0xFF9333EA),
+      route: 'stok',
+      baslik: (row) => _ilkDolu(row, ['ad', 'aksesuar_adi', 'sku', 'kod']),
+      altBaslik: (row) => [
+        _ilkDolu(row, ['kategori', 'tip']),
+        _ilkDolu(row, ['renk']),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _yapilacakOdemeAramaSonuclari(
+    String arama,
+  ) {
+    return _tabloAra(
+      tablo: DbTables.yapilacakOdemeler,
+      arama: arama,
+      tip: 'Yapılacak Ödeme',
+      icon: Icons.payments,
+      color: const Color(0xFF16A34A),
+      route: 'yapilacak_odemeler',
+      baslik: (row) => _ilkDolu(row, ['baslik', 'odeme_adi', 'aciklama']),
+      altBaslik: (row) => [
+        _ilkDolu(row, ['tutar', 'odeme_tutari']),
+        _ilkDolu(row, ['odeme_tarihi', 'vade_tarihi']),
+      ].where((e) => e.trim().isNotEmpty).join(' / '),
+    );
+  }
+
+  String _modelRenkMetni(Map<String, dynamic> model) {
+    final renk = model['renk'];
+    if (renk is List) return renk.join(', ');
+    final renkText = renk?.toString() ?? '';
+    if (renkText.trim().isNotEmpty) return renkText;
+    final anaRenkler = model['ana_renkler'];
+    if (anaRenkler is List) return anaRenkler.join(', ');
+    return anaRenkler?.toString() ?? '';
+  }
+
+  String _rowAramaMetni(Map<String, dynamic> row) {
+    return row.values
+        .map((value) => value?.toString().toLowerCase() ?? '')
+        .join(' ');
+  }
+
+  String _ilkDolu(Map<String, dynamic> row, List<String> alanlar) {
+    for (final alan in alanlar) {
+      final value = row[alan]?.toString() ?? '';
+      if (value.trim().isNotEmpty && value != 'null') return value;
+    }
+    return '';
+  }
+
+  void _aramaSonucunaGit(
+    BuildContext dialogContext,
+    Map<String, dynamic> sonuc,
+  ) {
+    Navigator.pop(dialogContext);
+
+    final route = sonuc['route']?.toString();
+    final id = sonuc['id']?.toString();
+    final data = sonuc['data'];
+
+    Widget? page;
+    switch (route) {
+      case 'model':
+        if (id != null && id.isNotEmpty) page = ModelDetay(modelId: id);
+        break;
+      case 'personel':
+        if (id != null && id.isNotEmpty) page = PersonelDetayPage(id: id);
+        break;
+      case 'tedarikci':
+        final tedarikciId = int.tryParse(id ?? '');
+        if (tedarikciId != null) {
+          page = TedarikciDetayPage(tedarikciId: tedarikciId);
+        }
+        break;
+      case 'faturalar':
+        page = const FaturaListesiPage();
+        break;
+      case 'sevk_irsaliyeleri':
+        page = const SevkIrsaliyeListesiPage();
+        break;
+      case 'stok':
+        page = const StokYonetimiPage();
+        break;
+      case 'yapilacak_odemeler':
+        page = const YapilacakOdemelerPage();
+        break;
+    }
+
+    if (page != null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page!));
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          data is Map
+              ? 'Bu sonuç için detay ekranı bulunamadı.'
+              : 'Sonuç açılamadı.',
+        ),
+      ),
+    );
   }
 
   Future<int> _aktifUretimModelSayisi(SupabaseClient supabase) async {
@@ -781,6 +1197,20 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                 );
               },
             ),
+          Container(
+            margin: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1976D2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.search, color: Colors.white, size: 24),
+              tooltip: 'Ara',
+              onPressed: _aramaDialoguGoster,
+            ),
+          ),
+          const YapilacaklarPopup(),
           const BildirimPopup(),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white, size: 22),

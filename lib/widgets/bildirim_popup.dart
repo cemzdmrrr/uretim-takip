@@ -244,6 +244,8 @@ class _BildirimPopupState extends State<BildirimPopup>
         return Icons.more_time_rounded;
       case 'avans_talebi':
         return Icons.payments_rounded;
+      case 'yapilacak_hatirlatici':
+        return Icons.task_alt_rounded;
       default:
         return Icons.notifications_rounded;
     }
@@ -275,6 +277,8 @@ class _BildirimPopupState extends State<BildirimPopup>
         return Colors.cyan;
       case 'avans_talebi':
         return Colors.green.shade700;
+      case 'yapilacak_hatirlatici':
+        return Colors.orange.shade700;
       default:
         return Colors.grey;
     }

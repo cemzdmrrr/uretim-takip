@@ -1,8 +1,55 @@
 /// Fatura kalemi modeli - Her fatura satırı için
+class FaturaKategori {
+  static const iplik = 'iplik';
+  static const aksesuar = 'aksesuar';
+  static const fasonUretim = 'fason_uretim';
+  static const genelGider = 'genel_gider';
+  static const nakliye = 'nakliye';
+  static const personel = 'personel';
+  static const diger = 'diger';
+
+  static const tumu = [
+    iplik,
+    aksesuar,
+    fasonUretim,
+    genelGider,
+    nakliye,
+    personel,
+    diger,
+  ];
+
+  static String etiket(String kategori) {
+    switch (kategori) {
+      case iplik:
+        return 'İplik';
+      case aksesuar:
+        return 'Aksesuar';
+      case fasonUretim:
+        return 'Fason Üretim';
+      case genelGider:
+        return 'Genel Gider';
+      case nakliye:
+        return 'Nakliye';
+      case personel:
+        return 'Personel';
+      case diger:
+        return 'Diğer';
+      default:
+        return kategori;
+    }
+  }
+
+  static String normalize(String? kategori) {
+    if (kategori == null || kategori.isEmpty) return diger;
+    return tumu.contains(kategori) ? kategori : diger;
+  }
+}
+
 class FaturaKalemiModel {
   final int? kalemId;
   final int faturaId;
   final int siraNo;
+  final String kategori;
   final String? urunKodu;
   final String urunAdi;
   final String? aciklama;
@@ -23,6 +70,7 @@ class FaturaKalemiModel {
     this.kalemId,
     required this.faturaId,
     required this.siraNo,
+    this.kategori = FaturaKategori.diger,
     this.urunKodu,
     required this.urunAdi,
     this.aciklama,
@@ -46,6 +94,7 @@ class FaturaKalemiModel {
       kalemId: (json['id'] ?? json['kalem_id'])?.toInt(),
       faturaId: json['fatura_id']?.toInt() ?? 0,
       siraNo: json['sira_no']?.toInt() ?? (json['id']?.toInt() ?? 1),
+      kategori: FaturaKategori.normalize(json['kategori']?.toString()),
       urunKodu: json['urun_kodu'],
       urunAdi: json['urun_adi'] ?? '',
       aciklama: json['aciklama'],
@@ -73,6 +122,7 @@ class FaturaKalemiModel {
     return {
       if (kalemId != null) 'kalem_id': kalemId,
       'fatura_id': faturaId,
+      'kategori': kategori,
       if (urunKodu != null) 'urun_kodu': urunKodu,
       'urun_adi': urunAdi,
       if (aciklama != null) 'aciklama': aciklama,
@@ -138,6 +188,7 @@ class FaturaKalemiModel {
     int? kalemId,
     int? faturaId,
     int? siraNo,
+    String? kategori,
     String? urunKodu,
     String? urunAdi,
     String? aciklama,
@@ -158,6 +209,7 @@ class FaturaKalemiModel {
       kalemId: kalemId ?? this.kalemId,
       faturaId: faturaId ?? this.faturaId,
       siraNo: siraNo ?? this.siraNo,
+      kategori: kategori ?? this.kategori,
       urunKodu: urunKodu ?? this.urunKodu,
       urunAdi: urunAdi ?? this.urunAdi,
       aciklama: aciklama ?? this.aciklama,
@@ -178,7 +230,7 @@ class FaturaKalemiModel {
 
   @override
   String toString() {
-    return 'FaturaKalemiModel(kalemId: $kalemId, urunAdi: $urunAdi, miktar: $miktar, satirTutar: $satirTutar)';
+    return 'FaturaKalemiModel(kalemId: $kalemId, kategori: $kategori, urunAdi: $urunAdi, miktar: $miktar, satirTutar: $satirTutar)';
   }
 
   @override

@@ -39,6 +39,7 @@ class FaturaService {
     return {
       'fatura_id': faturaId,
       'firma_id': _firmaId,
+      'kategori': FaturaKategori.normalize(kalem.kategori),
       'urun_kodu': kalem.urunKodu,
       'urun_adi': kalem.urunAdi,
       'aciklama': kalem.aciklama,
@@ -87,6 +88,7 @@ class FaturaService {
     String? odemeDurumu,
     DateTime? baslangicTarihi,
     DateTime? bitisTarihi,
+    String? kategori,
     int limit = 20,
     int offset = 0,
   }) async {
@@ -122,6 +124,22 @@ class FaturaService {
         query = query.lte('fatura_tarihi', bitisTarihi.toIso8601String());
       }
 
+      if (kategori != null && kategori.isNotEmpty) {
+        final kalemler = await _supabase
+            .from(DbTables.faturaKalemleri)
+            .select('fatura_id')
+            .eq('firma_id', _firmaId)
+            .eq('kategori', FaturaKategori.normalize(kategori));
+        final faturaIds = (kalemler as List)
+            .map((item) => item['fatura_id'])
+            .whereType<num>()
+            .map((id) => id.toInt())
+            .toSet()
+            .toList();
+        if (faturaIds.isEmpty) return [];
+        query = query.inFilter('fatura_id', faturaIds);
+      }
+
       // Sıralama ve sayfalama
       final response = await query
           .order('fatura_tarihi', ascending: false)
@@ -143,6 +161,7 @@ class FaturaService {
     String? odemeDurumu,
     DateTime? baslangicTarihi,
     DateTime? bitisTarihi,
+    String? kategori,
   }) async {
     try {
       var query = _supabase
@@ -168,6 +187,21 @@ class FaturaService {
       }
       if (bitisTarihi != null) {
         query = query.lte('fatura_tarihi', bitisTarihi.toIso8601String());
+      }
+      if (kategori != null && kategori.isNotEmpty) {
+        final kalemler = await _supabase
+            .from(DbTables.faturaKalemleri)
+            .select('fatura_id')
+            .eq('firma_id', _firmaId)
+            .eq('kategori', FaturaKategori.normalize(kategori));
+        final faturaIds = (kalemler as List)
+            .map((item) => item['fatura_id'])
+            .whereType<num>()
+            .map((id) => id.toInt())
+            .toSet()
+            .toList();
+        if (faturaIds.isEmpty) return 0;
+        query = query.inFilter('fatura_id', faturaIds);
       }
 
       final response = await query;
@@ -267,6 +301,7 @@ class FaturaService {
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
           .select('*')
+          .eq('firma_id', _firmaId)
           .eq('fatura_id', faturaId)
           .order('id', ascending: true);
 
@@ -275,6 +310,31 @@ class FaturaService {
           .toList();
     } catch (e) {
       throw Exception('Fatura kalemleri getirilirken hata oluştu: $e');
+    }
+  }
+
+  static Future<Map<int, List<String>>> faturaKategoriOzetleriGetir(
+      List<int> faturaIds) async {
+    if (faturaIds.isEmpty) return {};
+
+    try {
+      final response = await _supabase
+          .from(DbTables.faturaKalemleri)
+          .select('fatura_id, kategori')
+          .eq('firma_id', _firmaId)
+          .inFilter('fatura_id', faturaIds);
+
+      final sonuc = <int, Set<String>>{};
+      for (final item in response as List) {
+        final faturaId = item['fatura_id'];
+        if (faturaId is! num) continue;
+        final kategori = FaturaKategori.normalize(item['kategori']?.toString());
+        sonuc.putIfAbsent(faturaId.toInt(), () => <String>{}).add(kategori);
+      }
+
+      return sonuc.map((key, value) => MapEntry(key, value.toList()..sort()));
+    } catch (e) {
+      return {};
     }
   }
 
@@ -303,6 +363,8 @@ class FaturaService {
       }
       kalemVerileri.remove('sira_no');
       kalemVerileri.remove('kalem_id');
+      kalemVerileri['kategori'] =
+          FaturaKategori.normalize(kalemVerileri['kategori']?.toString());
       _kalemTutarlariniTamamla(kalemVerileri);
 
       final response = await _supabase
@@ -325,10 +387,14 @@ class FaturaService {
       kalemVerileri.remove('kalem_id');
       kalemVerileri.remove('sira_no');
       kalemVerileri.remove('olusturma_tarihi');
+      kalemVerileri['firma_id'] = _firmaId;
+      kalemVerileri['kategori'] =
+          FaturaKategori.normalize(kalemVerileri['kategori']?.toString());
       _kalemTutarlariniTamamla(kalemVerileri);
       final response = await _supabase
           .from(DbTables.faturaKalemleri)
           .update(kalemVerileri)
+          .eq('firma_id', _firmaId)
           .eq('id', kalemId)
           .select()
           .single();
@@ -345,9 +411,14 @@ class FaturaService {
       final kalem = await _supabase
           .from(DbTables.faturaKalemleri)
           .select('fatura_id')
+          .eq('firma_id', _firmaId)
           .eq('id', kalemId)
           .maybeSingle();
-      await _supabase.from(DbTables.faturaKalemleri).delete().eq('id', kalemId);
+      await _supabase
+          .from(DbTables.faturaKalemleri)
+          .delete()
+          .eq('firma_id', _firmaId)
+          .eq('id', kalemId);
       final faturaId = kalem?['fatura_id'];
       if (faturaId is int) {
         await faturaToplamlariniKalemlerdenGuncelle(faturaId);

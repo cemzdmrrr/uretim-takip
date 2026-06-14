@@ -1919,6 +1919,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_helper.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_role_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/workflow_state_machine.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/workflow_transition_service.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/yapilacak_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/yetki_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/theme/app_theme.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/utils/app_exceptions.dart
@@ -1931,6 +1932,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/widgets/bildirim_popup.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/widgets/common_widgets.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/widgets/donem_secici.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/widgets/model_kritikleri_dialog.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/widgets/yapilacaklar_popup.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/widgets/yeni_donem_dialog.dart
 file:///C:/flutter/bin/cache/dart-sdk/lib/libraries.json
 file:///C:/flutter/bin/cache/flutter_web_sdk/kernel/dart2js_platform.dill

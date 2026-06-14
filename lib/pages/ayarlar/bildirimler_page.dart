@@ -51,6 +51,11 @@ class _BildirimlerPageState extends State<BildirimlerPage>
     {'value': 'avans_talebi', 'label': 'Avans', 'icon': Icons.payments},
     {'value': 'stok_uyari', 'label': 'Stok', 'icon': Icons.inventory},
     {'value': 'termin_uyari', 'label': 'Termin', 'icon': Icons.schedule},
+    {
+      'value': 'yapilacak_hatirlatici',
+      'label': 'Yapılacak',
+      'icon': Icons.task_alt
+    },
   ];
 
   @override
@@ -495,6 +500,8 @@ class _BildirimlerPageState extends State<BildirimlerPage>
         return Icons.more_time_rounded;
       case 'avans_talebi':
         return Icons.payments_rounded;
+      case 'yapilacak_hatirlatici':
+        return Icons.task_alt_rounded;
       default:
         return Icons.notifications_rounded;
     }
@@ -526,6 +533,8 @@ class _BildirimlerPageState extends State<BildirimlerPage>
         return Colors.cyan;
       case 'avans_talebi':
         return Colors.green.shade700;
+      case 'yapilacak_hatirlatici':
+        return Colors.orange.shade700;
       default:
         return Colors.grey;
     }
@@ -557,6 +566,8 @@ class _BildirimlerPageState extends State<BildirimlerPage>
         return 'Mesai Talebi';
       case 'avans_talebi':
         return 'Avans Talebi';
+      case 'yapilacak_hatirlatici':
+        return 'Yapılacak Hatırlatıcı';
       default:
         return 'Genel';
     }

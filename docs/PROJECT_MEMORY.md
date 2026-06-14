@@ -176,6 +176,7 @@ Notlar:
 - Fatura kalemlerinde virgullu/ondalik birim fiyat kabul edilmelidir.
 - Fatura olusturulduktan sonra detayda KDV tutar ve toplam hesaplamalari calismalidir.
 - Fatura duzenlemede mevcut kalemler sifirlanmamali; kalem bazli duzenle/sil olmalidir.
+- Fatura gider/alis kategorileri fatura basliginda degil `fatura_kalemleri.kategori` alaninda tutulur. Tek faturada birden fazla kategori olabilir; kategori ozetleri ve filtreler kalemlerden hesaplanir. Gecerli kategoriler: `iplik`, `aksesuar`, `fason_uretim`, `genel_gider`, `nakliye`, `personel`, `diger`.
 - Finans operasyon panelleri ERP ekranlari gibi kompakt ve tek satir KPI kullanacak sekilde tasarlanmalidir.
 - Gelismis raporlar sayfasi yukleme finans raporu olarak tek amacli calisir. Ana veri `yukleme_kayitlari`dir; tarih filtresi yukleme tarihine uygulanir. Gerceklesen maliyet yoksa model fiyatlandirma/aktif plan maliyetiyle proforma analiz yapilir; gerceklesen maliyet varsa yalnizca ilgili maliyet kaleminin birim degeri degisir.
 - Gelismis raporlar model bazli finans detayinda model satiri acilarak maliyet kirilimi gosterilir. Kirma verisi once aktif `model_maliyet_planlari` + `model_maliyet_kalemleri`, yoksa model detay fiyatlandirma alanlarindan (`iplik_maliyeti`, `orgu_fiyat`, `dikim_fiyat`, vb.) alinir.
@@ -239,6 +240,23 @@ Notlar:
 - Admin kullanici bildirimler sayfasindan ayni firmadaki tek veya birden fazla aktif kullaniciya `genel` bildirim gonderebilir.
 - Personel tarafindan girilen izin, mesai ve avans kayitlari servis katmaninda adminlere bildirim uretir; sayfa icinde kopya bildirim dongusu yazilmamalidir.
 - Bildirime tiklandiginda once okundu isaretlenir, sonra `BildirimNavigationService` ile ilgili ekrana gidilir. Hedef yoksa detay modalinda kalinir.
+- Yapilacak hatirlaticilari `tip='yapilacak_hatirlatici'` ve `ek_bilgi.target.page='yapilacak_popup'` ile tutulur; tiklaninca ana sayfadaki popup acilir.
+
+## Yapilacaklar / Rutin Gorev Hafizasi
+
+Ilgili dosyalar:
+
+- `lib/services/yapilacak_service.dart`
+- `lib/widgets/yapilacaklar_popup.dart`
+- `supabase/migrations/20260614000100_yapilacaklar.sql`
+
+Notlar:
+
+- Gunluk/haftalik/aylik/tek seferlik rutinler `yapilacaklar` tablosunda, donem bazli tamamlanma bilgisi `yapilacak_tamamlanma_kayitlari` tablosunda tutulur.
+- Donem reseti kayit silerek degil `donem_anahtari` ile hesaplanir: gunluk `YYYY-MM-DD`, haftalik `YYYY-WNN`, aylik `YYYY-MM`.
+- Popup icinde dogrudan Supabase is kurali yazilmaz; ekleme, guncelleme, silme, tamamlama ve hatirlatici kontrolu `YapilacakService` uzerinden calisir.
+- Tum sorgular `TenantManager.instance.requireFirmaId` ve `DbTables` sabitlerini kullanmalidir.
+- Hatirlatici duplicate engeli `BildirimService` `event_key` sozlesmesiyle yapilir: `yapilacak:<id>:<donem>`.
 
 ## Stok, Iplik, Aksesuar Hafizasi
 

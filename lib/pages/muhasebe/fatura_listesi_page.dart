@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:uretim_takip/models/fatura_model.dart';
+import 'package:uretim_takip/models/fatura_kalemi_model.dart';
 import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_ekle_page.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_detay_page.dart';
@@ -22,10 +23,12 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
       NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
 
   List<FaturaModel> _faturalar = [];
+  Map<int, List<String>> _faturaKategoriOzetleri = {};
   bool _yukleniyor = false;
   String _secilenFaturaTuru = '';
   String _secilenDurum = '';
   String _secilenOdemeDurumu = '';
+  String _secilenKategori = '';
   DateTime? _baslangicTarihi;
   DateTime? _bitisTarihi;
 
@@ -55,13 +58,18 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
         faturaTuru: _secilenFaturaTuru.isEmpty ? null : _secilenFaturaTuru,
         durum: _secilenDurum.isEmpty ? null : _secilenDurum,
         odemeDurumu: _secilenOdemeDurumu.isEmpty ? null : _secilenOdemeDurumu,
+        kategori: _secilenKategori.isEmpty ? null : _secilenKategori,
         baslangicTarihi: _baslangicTarihi,
         bitisTarihi: _bitisTarihi,
         limit: 100,
       );
+      final kategoriOzetleri = await FaturaService.faturaKategoriOzetleriGetir(
+        faturalar.map((fatura) => fatura.faturaId).whereType<int>().toList(),
+      );
 
       setState(() {
         _faturalar = faturalar;
+        _faturaKategoriOzetleri = kategoriOzetleri;
       });
     } catch (e) {
       debugPrint('Fatura yükleme hatası: $e'); // Debug için
@@ -150,6 +158,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
       _secilenFaturaTuru = '';
       _secilenDurum = '';
       _secilenOdemeDurumu = '';
+      _secilenKategori = '';
       _baslangicTarihi = null;
       _bitisTarihi = null;
     });
@@ -268,6 +277,43 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                 ),
                 const SizedBox(height: 16),
 
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue:
+                            _secilenKategori.isEmpty ? null : _secilenKategori,
+                        decoration: const InputDecoration(
+                          labelText: 'Kategori',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Tümü'),
+                          ),
+                          ...FaturaKategori.tumu.map(
+                            (kategori) => DropdownMenuItem(
+                              value: kategori,
+                              child: Text(FaturaKategori.etiket(kategori)),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _secilenKategori = value ?? '';
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(child: SizedBox.shrink()),
+                    const SizedBox(width: 16),
+                    const Expanded(child: SizedBox.shrink()),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
                 // Tarih aralığı
                 Row(
                   children: [
@@ -362,6 +408,9 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
 
   Widget _buildFaturaKarti(FaturaModel fatura) {
     final adminMi = context.watch<AuthProvider>().isAdmin;
+    final kategoriOzetleri = fatura.faturaId == null
+        ? <String>[]
+        : _faturaKategoriOzetleri[fatura.faturaId!] ?? <String>[];
     Color durumRengi;
     Color odemeDurumRengi;
 
@@ -456,6 +505,24 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                 ),
               ],
             ),
+            if (kategoriOzetleri.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: kategoriOzetleri
+                    .map(
+                      (kategori) => Chip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(
+                          FaturaKategori.etiket(kategori),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
           ],
         ),
         trailing: Row(
