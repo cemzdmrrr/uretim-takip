@@ -168,6 +168,9 @@ extension _WidgetExt on _FaturaDetayPageState {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
+                  dataRowMinHeight: 64,
+                  dataRowMaxHeight: 82,
+                  columnSpacing: 20,
                   columns: const [
                     DataColumn(label: Text('Sıra')),
                     DataColumn(label: Text('Ürün Kodu')),
@@ -188,26 +191,48 @@ extension _WidgetExt on _FaturaDetayPageState {
                     return DataRow(
                       cells: [
                         DataCell(Text('${index + 1}')),
-                        DataCell(Text(kalem.urunKodu ?? '-')),
                         DataCell(
                           SizedBox(
-                            width: 200,
+                            width: 86,
+                            child: Text(
+                              kalem.urunKodu ?? '-',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          SizedBox(
+                            width: 240,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(
-                                  kalem.urunAdi,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
+                                Tooltip(
+                                  message: kalem.urunAdi,
+                                  child: Text(
+                                    kalem.urunAdi,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      height: 1.15,
+                                    ),
+                                  ),
                                 ),
                                 if (kalem.aciklama != null &&
                                     kalem.aciklama!.isNotEmpty)
-                                  Text(
-                                    kalem.aciklama!,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600,
+                                  Tooltip(
+                                    message: kalem.aciklama!,
+                                    child: Text(
+                                      kalem.aciklama!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        height: 1.1,
+                                        color: Colors.grey.shade600,
+                                      ),
                                     ),
                                   ),
                               ],
@@ -857,6 +882,30 @@ class _FaturaDetayKalemiDialogState extends State<_FaturaDetayKalemiDialog> {
   late String _secilenBirim;
   late String _secilenKategori;
 
+  List<DropdownMenuItem<String>> get _birimSecenekleri {
+    const standartBirimler = <String, String>{
+      'adet': 'Adet',
+      'kg': 'Kg',
+      'metre': 'Metre',
+      'litre': 'Litre',
+      'takım': 'Takım',
+      'top': 'Top',
+    };
+    final birimler = <String, String>{...standartBirimler};
+    if (_secilenBirim.trim().isNotEmpty &&
+        !birimler.containsKey(_secilenBirim)) {
+      birimler[_secilenBirim] = _secilenBirim;
+    }
+    return birimler.entries
+        .map(
+          (entry) => DropdownMenuItem<String>(
+            value: entry.key,
+            child: Text(entry.value),
+          ),
+        )
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1005,17 +1054,7 @@ class _FaturaDetayKalemiDialogState extends State<_FaturaDetayKalemiDialog> {
                           labelText: 'Birim',
                           border: OutlineInputBorder(),
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 'adet', child: Text('Adet')),
-                          DropdownMenuItem(value: 'kg', child: Text('Kg')),
-                          DropdownMenuItem(
-                              value: 'metre', child: Text('Metre')),
-                          DropdownMenuItem(
-                              value: 'litre', child: Text('Litre')),
-                          DropdownMenuItem(
-                              value: 'takım', child: Text('Takım')),
-                          DropdownMenuItem(value: 'top', child: Text('Top')),
-                        ],
+                        items: _birimSecenekleri,
                         onChanged: (value) =>
                             setState(() => _secilenBirim = value ?? 'adet'),
                       ),

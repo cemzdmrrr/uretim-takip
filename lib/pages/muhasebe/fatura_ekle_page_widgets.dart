@@ -628,6 +628,30 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
   String _secilenBirim = 'adet';
   String _secilenKategori = FaturaKategori.diger;
 
+  List<DropdownMenuItem<String>> get _birimSecenekleri {
+    const standartBirimler = <String, String>{
+      'adet': 'Adet',
+      'kg': 'Kg',
+      'metre': 'Metre',
+      'litre': 'Litre',
+      'takım': 'Takım',
+      'top': 'Top',
+    };
+    final birimler = <String, String>{...standartBirimler};
+    if (_secilenBirim.trim().isNotEmpty &&
+        !birimler.containsKey(_secilenBirim)) {
+      birimler[_secilenBirim] = _secilenBirim;
+    }
+    return birimler.entries
+        .map(
+          (entry) => DropdownMenuItem<String>(
+            value: entry.key,
+            child: Text(entry.value),
+          ),
+        )
+        .toList();
+  }
+
   final NumberFormat _currencyFormat =
       NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
 
@@ -819,14 +843,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                         labelText: 'Birim',
                         border: OutlineInputBorder(),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'adet', child: Text('Adet')),
-                        DropdownMenuItem(value: 'kg', child: Text('Kg')),
-                        DropdownMenuItem(value: 'metre', child: Text('Metre')),
-                        DropdownMenuItem(value: 'litre', child: Text('Litre')),
-                        DropdownMenuItem(value: 'takım', child: Text('Takım')),
-                        DropdownMenuItem(value: 'top', child: Text('Top')),
-                      ],
+                      items: _birimSecenekleri,
                       onChanged: (value) {
                         setState(() {
                           _secilenBirim = value!;
