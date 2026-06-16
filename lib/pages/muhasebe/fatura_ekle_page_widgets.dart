@@ -238,38 +238,105 @@ extension _WidgetExt on _FaturaEklePageState {
             ),
             const SizedBox(height: 16),
 
-            // Tedarikçi seçimi (sadece alış faturası için)
+            // Tedarikçi seçimi veya serbest cari unvan girişi (sadece alış faturası için)
             if (_secilenFaturaTuru == 'alis')
-              DropdownButtonFormField<TedarikciModel>(
-                initialValue: _secilenTedarikci,
-                decoration: const InputDecoration(
-                  labelText: 'Tedarikçi Seçin *',
-                  border: OutlineInputBorder(),
-                ),
-                items: _tedarikciler.map((tedarikci) {
-                  return DropdownMenuItem(
-                    value: tedarikci,
-                    child: Text(
-                        '${tedarikci.ad} ${tedarikci.soyad ?? ''} - ${tedarikci.sirket ?? ''}'),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _secilenTedarikci = value;
-                    if (value != null) {
-                      _faturaAdresController.text =
-                          ''; // Adres alanı kaldırıldı
-                      _vergiDairesiController.text =
-                          ''; // Vergi dairesi alanı kaldırıldı
-                      _vergiNoController.text = value.vergiNo ?? '';
-                    }
-                  });
-                },
-                validator: (value) {
-                  if (_secilenFaturaTuru == 'alis' && value == null) {
-                    return 'Alış faturası için tedarikçi seçimi zorunlu';
+              RawAutocomplete<TedarikciModel>(
+                textEditingController: _cariUnvanController,
+                focusNode: _cariUnvanFocusNode,
+                displayStringForOption: _tedarikciUnvani,
+                optionsBuilder: (textEditingValue) {
+                  final arama = textEditingValue.text.trim().toLowerCase();
+                  if (arama.isEmpty) {
+                    return _tedarikciler.take(20);
                   }
-                  return null;
+                  return _tedarikciler.where((tedarikci) {
+                    final unvan = _tedarikciUnvani(tedarikci).toLowerCase();
+                    final vergiNo = (tedarikci.vergiNo ?? '').toLowerCase();
+                    final telefon = tedarikci.telefon.toLowerCase();
+                    return unvan.contains(arama) ||
+                        vergiNo.contains(arama) ||
+                        telefon.contains(arama);
+                  }).take(20);
+                },
+                onSelected: _tedarikciBilgileriniDoldur,
+                fieldViewBuilder: (
+                  context,
+                  textEditingController,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  return TextFormField(
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    decoration: InputDecoration(
+                      labelText: 'Tedarikçi / Şirket Unvanı *',
+                      hintText:
+                          'Kayıtlı tedarikçi seçin veya şirket unvanı yazın',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _secilenTedarikci == null
+                          ? const Icon(Icons.edit_note)
+                          : IconButton(
+                              tooltip: 'Seçimi temizle',
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                setState(() {
+                                  _secilenTedarikci = null;
+                                  _cariUnvanController.clear();
+                                });
+                              },
+                            ),
+                    ),
+                    onChanged: (value) {
+                      if (_secilenTedarikci != null &&
+                          value.trim() !=
+                              _tedarikciUnvani(_secilenTedarikci!)) {
+                        setState(() {
+                          _secilenTedarikci = null;
+                        });
+                      }
+                    },
+                    validator: (value) {
+                      if (_secilenFaturaTuru == 'alis' &&
+                          (value == null || value.trim().isEmpty)) {
+                        return 'Alış faturası için tedarikçi unvanı gerekli';
+                      }
+                      return null;
+                    },
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  final liste = options.toList();
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(8),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxHeight: 280,
+                          maxWidth: 520,
+                        ),
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: liste.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final tedarikci = liste[index];
+                            final altBilgi = _tedarikciAltBilgi(tedarikci);
+                            return ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.business),
+                              title: Text(_tedarikciUnvani(tedarikci)),
+                              subtitle:
+                                  altBilgi.isEmpty ? null : Text(altBilgi),
+                              onTap: () => onSelected(tedarikci),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
                 },
               ),
 

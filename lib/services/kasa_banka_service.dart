@@ -1,4 +1,4 @@
-﻿import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/models/kasa_banka_model.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
@@ -24,7 +24,8 @@ class KasaBankaService {
 
       // Filtreleme
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
-        query = query.or('hesap_adi.ilike.%$aramaKelimesi%,hesap_no.ilike.%$aramaKelimesi%');
+        query = query.or(
+            'hesap_adi.ilike.%$aramaKelimesi%,hesap_no.ilike.%$aramaKelimesi%');
       }
 
       if (hesapTuru != null && hesapTuru.isNotEmpty) {
@@ -32,8 +33,10 @@ class KasaBankaService {
       }
 
       if (aktif != null) {
-        final String durumu = aktif ? 'aktif' : 'pasif';
-        query = query.eq('durumu', durumu);
+        query = query.inFilter(
+          'durumu',
+          aktif ? ['aktif', 'AKTIF'] : ['pasif', 'PASIF'],
+        );
       }
 
       if (kur != null && kur.isNotEmpty) {
@@ -45,7 +48,9 @@ class KasaBankaService {
           .order('olusturma_tarihi', ascending: false)
           .range(offset, offset + limit - 1);
 
-      return (response as List).map((json) => KasaBankaModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => KasaBankaModel.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Kasa/Banka hesapları getirilirken hata oluştu: $e');
     }
@@ -59,10 +64,14 @@ class KasaBankaService {
     String? kur,
   }) async {
     try {
-      var query = _supabase.from(DbTables.kasaBankaHesaplari).select('*').eq('firma_id', _firmaId);
-      
+      var query = _supabase
+          .from(DbTables.kasaBankaHesaplari)
+          .select('*')
+          .eq('firma_id', _firmaId);
+
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
-        query = query.or('hesap_adi.ilike.%$aramaKelimesi%,hesap_no.ilike.%$aramaKelimesi%');
+        query = query.or(
+            'hesap_adi.ilike.%$aramaKelimesi%,hesap_no.ilike.%$aramaKelimesi%');
       }
       if (hesapTuru != null && hesapTuru.isNotEmpty) {
         query = query.eq('tip', hesapTuru.toLowerCase());
@@ -74,7 +83,7 @@ class KasaBankaService {
       if (kur != null && kur.isNotEmpty) {
         query = query.eq('doviz_kodu', kur);
       }
-      
+
       final response = await query;
       return (response as List).length;
     } catch (e) {
@@ -149,7 +158,9 @@ class KasaBankaService {
           .eq('durumu', 'AKTIF')
           .order('ad');
 
-      return (response as List).map((json) => KasaBankaModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => KasaBankaModel.fromJson(json))
+          .toList();
     } catch (e) {
       return [];
     }
@@ -165,11 +176,11 @@ class KasaBankaService {
           .eq('durumu', 'aktif');
 
       final Map<String, double> toplamlar = {};
-      
+
       for (final hesap in response) {
         final kur = (hesap['doviz_kodu'] ?? 'TRY') as String;
         final bakiye = (hesap['bakiye'] ?? 0.0).toDouble();
-        
+
         toplamlar[kur] = (toplamlar[kur] ?? 0.0) + bakiye;
       }
 
@@ -189,7 +200,7 @@ class KasaBankaService {
           .eq('durumu', 'AKTIF');
 
       final Map<String, int> dagilim = {};
-      
+
       for (final hesap in response) {
         final tur = hesap['tip'] as String;
         dagilim[tur] = (dagilim[tur] ?? 0) + 1;
@@ -204,13 +215,10 @@ class KasaBankaService {
   // Bakiye güncelle (hareket sonrası)
   static Future<void> bakiyeGuncelle(int hesapId, double yeniBakiye) async {
     try {
-      await _supabase
-          .from(DbTables.kasaBankaHesaplari)
-          .update({
-            'bakiye': yeniBakiye,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', hesapId);
+      await _supabase.from(DbTables.kasaBankaHesaplari).update({
+        'bakiye': yeniBakiye,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', hesapId);
     } catch (e) {
       throw Exception('Bakiye güncellenirken hata oluştu: $e');
     }
@@ -219,13 +227,10 @@ class KasaBankaService {
   // Hesap durumunu değiştir (aktif/pasif)
   static Future<void> hesapDurumDegistir(int hesapId, bool aktif) async {
     try {
-      await _supabase
-          .from(DbTables.kasaBankaHesaplari)
-          .update({
-            'durumu': aktif ? 'AKTIF' : 'PASIF',
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', hesapId);
+      await _supabase.from(DbTables.kasaBankaHesaplari).update({
+        'durumu': aktif ? 'AKTIF' : 'PASIF',
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', hesapId);
     } catch (e) {
       throw Exception('Hesap durumu değiştirilirken hata oluştu: $e');
     }
@@ -237,7 +242,7 @@ class KasaBankaService {
       final data = kasaBanka.toJson();
       data.remove('id'); // ID'yi otomatik oluşturacak
       data['firma_id'] = _firmaId;
-      
+
       final response = await _supabase
           .from(DbTables.kasaBankaHesaplari)
           .insert(data)
@@ -254,7 +259,7 @@ class KasaBankaService {
     try {
       final data = kasaBanka.toJson();
       data['updated_at'] = DateTime.now().toIso8601String();
-      
+
       final response = await _supabase
           .from(DbTables.kasaBankaHesaplari)
           .update(data)
@@ -285,10 +290,7 @@ class KasaBankaService {
 
   Future<void> kasaBankaSil(int id) async {
     try {
-      await _supabase
-          .from(DbTables.kasaBankaHesaplari)
-          .delete()
-          .eq('id', id);
+      await _supabase.from(DbTables.kasaBankaHesaplari).delete().eq('id', id);
     } catch (e) {
       throw Exception('Kasa/Banka hesabı silinirken hata oluştu: $e');
     }

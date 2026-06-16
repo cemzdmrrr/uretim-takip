@@ -123,6 +123,11 @@ extension _WidgetExt on _FaturaDetayPageState {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+            if (_fatura.cariUnvan != null && _fatura.cariUnvan!.isNotEmpty)
+              _buildBilgiSatiri(
+                _fatura.faturaTuru == 'alis' ? 'Tedarikçi' : 'Cari Unvan',
+                _fatura.cariUnvan!,
+              ),
             _buildBilgiSatiri('Fatura Adresi', _fatura.faturaAdres),
             if (_fatura.vergiDairesi != null &&
                 _fatura.vergiDairesi!.isNotEmpty)
@@ -584,7 +589,7 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
     });
 
     try {
-      final odemeTutari = double.parse(_odemeController.text);
+      final odemeTutari = parseLocalizedDecimal(_odemeController.text)!;
       final yeniToplamOdeme = widget.fatura.odenenTutar + odemeTutari;
 
       String yeniOdemeDurumu;
@@ -724,7 +729,7 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
                   if (value == null || value.isEmpty) {
                     return 'Ödeme tutarı gerekli';
                   }
-                  final tutar = double.tryParse(value);
+                  final tutar = parseLocalizedDecimal(value);
                   if (tutar == null || tutar <= 0) {
                     return 'Geçerli bir tutar girin';
                   }

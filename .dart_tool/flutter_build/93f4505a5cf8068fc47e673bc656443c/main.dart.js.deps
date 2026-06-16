@@ -1759,6 +1759,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/odeme_model.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/personel_model.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/rapor_filtresi.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/tedarikci_model.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/models/uyumsoft_gelen_fatura_model.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/abonelik/abonelik_plan_fiyat_yonetimi_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/abonelik/abonelik_yonetimi_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/abonelik/odeme_page.dart
@@ -1811,6 +1812,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/muhasebe/odeme_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/muhasebe/odeme_page_aksiyonlar.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/muhasebe/puantaj_tablo_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/muhasebe/sevk_irsaliye_listesi_page.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/muhasebe/uyumsoft_gelen_faturalar_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/muhasebe/yapilacak_odemeler_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/onboarding/davet_katil_page.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/pages/onboarding/firma_bilgileri_page.dart
@@ -1917,6 +1919,7 @@ file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/tenant_manager.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/uretim_raporu_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_helper.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/user_role_service.dart
+file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/uyumsoft_fatura_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/workflow_state_machine.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/workflow_transition_service.dart
 file:///C:/Users/jem_b/Desktop/uretim_takip/lib/services/yapilacak_service.dart

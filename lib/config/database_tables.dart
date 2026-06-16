@@ -50,6 +50,9 @@ class DbTables {
   // ─── Finans ───
   static const faturalar = 'faturalar';
   static const faturaKalemleri = 'fatura_kalemleri';
+  static const uyumsoftGelenFaturalar = 'uyumsoft_gelen_faturalar';
+  static const uyumsoftGelenFaturaKalemleri = 'uyumsoft_gelen_fatura_kalemleri';
+  static const uyumsoftEntegrasyonAyarlari = 'uyumsoft_entegrasyon_ayarlari';
   static const kasaBankaHesaplari = 'kasa_banka_hesaplari';
   static const kasaBankaHareketleri = 'kasa_banka_hareketleri';
   static const odemeKayitlari = 'odeme_kayitlari';

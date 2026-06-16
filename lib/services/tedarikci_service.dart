@@ -1,4 +1,4 @@
-﻿import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/models/tedarikci_model.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
@@ -6,6 +6,59 @@ import 'package:uretim_takip/services/tenant_manager.dart';
 class TedarikciService {
   static final _supabase = Supabase.instance.client;
   static String get _firmaId => TenantManager.instance.requireFirmaId;
+
+  static String? _eksikKolonAdi(Object hata) {
+    final text = hata.toString();
+    final patterns = [
+      RegExp(r"Could not find the '([^']+)' column"),
+      RegExp(r'column "([^"]+)" of relation'),
+    ];
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null) return match.group(1);
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>> _tedarikciInsert(
+    Map<String, dynamic> veri,
+  ) async {
+    final data = Map<String, dynamic>.from(veri);
+    while (true) {
+      try {
+        return await _supabase
+            .from(DbTables.tedarikciler)
+            .insert(data)
+            .select()
+            .single();
+      } catch (e) {
+        final kolon = _eksikKolonAdi(e);
+        if (kolon != null && data.remove(kolon) != null) continue;
+        rethrow;
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>> _tedarikciUpdate(
+    int tedarikciId,
+    Map<String, dynamic> veri,
+  ) async {
+    final data = Map<String, dynamic>.from(veri);
+    while (true) {
+      try {
+        return await _supabase
+            .from(DbTables.tedarikciler)
+            .update(data)
+            .eq('id', tedarikciId)
+            .select()
+            .single();
+      } catch (e) {
+        final kolon = _eksikKolonAdi(e);
+        if (kolon != null && data.remove(kolon) != null) continue;
+        rethrow;
+      }
+    }
+  }
 
   // Tedarikçileri listele (sayfalama ve filtreleme ile)
   static Future<List<TedarikciModel>> tedarikcileriListele({
@@ -24,7 +77,8 @@ class TedarikciService {
 
       // Filtreleme
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
-        query = query.or('ad.ilike.%$aramaKelimesi%,sirket.ilike.%$aramaKelimesi%,telefon.ilike.%$aramaKelimesi%');
+        query = query.or(
+            'ad.ilike.%$aramaKelimesi%,sirket.ilike.%$aramaKelimesi%,telefon.ilike.%$aramaKelimesi%');
       }
 
       if (tedarikciTipi != null && tedarikciTipi.isNotEmpty) {
@@ -44,7 +98,9 @@ class TedarikciService {
           .order('kayit_tarihi', ascending: false)
           .range(offset, offset + limit - 1);
 
-      return (response as List).map((json) => TedarikciModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => TedarikciModel.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Tedarikçiler getirilirken hata oluştu: $e');
     }
@@ -58,10 +114,14 @@ class TedarikciService {
     String? faaliyet,
   }) async {
     try {
-      var query = _supabase.from(DbTables.tedarikciler).select('*').eq('firma_id', _firmaId);
-      
+      var query = _supabase
+          .from(DbTables.tedarikciler)
+          .select('*')
+          .eq('firma_id', _firmaId);
+
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
-        query = query.or('ad.ilike.%$aramaKelimesi%,sirket.ilike.%$aramaKelimesi%,telefon.ilike.%$aramaKelimesi%');
+        query = query.or(
+            'ad.ilike.%$aramaKelimesi%,sirket.ilike.%$aramaKelimesi%,telefon.ilike.%$aramaKelimesi%');
       }
       if (tedarikciTipi != null && tedarikciTipi.isNotEmpty) {
         query = query.eq('tedarikci_tipi', tedarikciTipi);
@@ -72,7 +132,7 @@ class TedarikciService {
       if (faaliyet != null && faaliyet.isNotEmpty) {
         query = query.eq('faaliyet', faaliyet);
       }
-      
+
       final response = await query;
       return (response as List).length;
     } catch (e) {
@@ -81,16 +141,13 @@ class TedarikciService {
   }
 
   // Tedarikçi ekle
-  static Future<TedarikciModel> tedarikciEkle(Map<String, dynamic> tedarikciVerileri) async {
+  static Future<TedarikciModel> tedarikciEkle(
+      Map<String, dynamic> tedarikciVerileri) async {
     try {
       tedarikciVerileri['kayit_tarihi'] = DateTime.now().toIso8601String();
       tedarikciVerileri['firma_id'] = _firmaId;
-      
-      final response = await _supabase
-          .from(DbTables.tedarikciler)
-          .insert(tedarikciVerileri)
-          .select()
-          .single();
+
+      final response = await _tedarikciInsert(tedarikciVerileri);
 
       return TedarikciModel.fromJson(response);
     } catch (e) {
@@ -99,16 +156,12 @@ class TedarikciService {
   }
 
   // Tedarikçi güncelle
-  static Future<TedarikciModel> tedarikciGuncelle(int tedarikciId, Map<String, dynamic> tedarikciVerileri) async {
+  static Future<TedarikciModel> tedarikciGuncelle(
+      int tedarikciId, Map<String, dynamic> tedarikciVerileri) async {
     try {
       tedarikciVerileri['guncelleme_tarihi'] = DateTime.now().toIso8601String();
-      
-      final response = await _supabase
-          .from(DbTables.tedarikciler)
-          .update(tedarikciVerileri)
-          .eq('id', tedarikciId)
-          .select()
-          .single();
+
+      final response = await _tedarikciUpdate(tedarikciId, tedarikciVerileri);
 
       return TedarikciModel.fromJson(response);
     } catch (e) {
@@ -128,59 +181,54 @@ class TedarikciService {
         DbTables.ilikDugmeAtamalari,
         DbTables.utuAtamalari,
       ];
-      
+
       for (final tablo in atamaTablolari) {
         try {
           // tedarikci_id referanslarını null yap
           await _supabase
               .from(tablo)
-              .update({'tedarikci_id': null})
-              .eq('tedarikci_id', tedarikciId);
+              .update({'tedarikci_id': null}).eq('tedarikci_id', tedarikciId);
         } catch (e) {
           // Tablo veya sütun yoksa devam et
         }
       }
-      
+
       // İplik stokları referanslarını null yap
       try {
         await _supabase
             .from(DbTables.iplikStoklari)
-            .update({'tedarikci_id': null})
-            .eq('tedarikci_id', tedarikciId);
+            .update({'tedarikci_id': null}).eq('tedarikci_id', tedarikciId);
       } catch (e) {
         // Tablo veya sütun yoksa devam et
       }
-      
+
       // Aksesuar stokları referanslarını null yap
       try {
         await _supabase
             .from(DbTables.aksesuarStok)
-            .update({'tedarikci_id': null})
-            .eq('tedarikci_id', tedarikciId);
+            .update({'tedarikci_id': null}).eq('tedarikci_id', tedarikciId);
       } catch (e) {
         // Tablo veya sütun yoksa devam et
       }
-      
+
       // İplik siparişleri referanslarını null yap
       try {
         await _supabase
             .from(DbTables.iplikSiparisleri)
-            .update({'tedarikci_id': null})
-            .eq('tedarikci_id', tedarikciId);
+            .update({'tedarikci_id': null}).eq('tedarikci_id', tedarikciId);
       } catch (e) {
         // Tablo veya sütun yoksa devam et
       }
-      
+
       // Faturalar referanslarını null yap
       try {
         await _supabase
             .from(DbTables.faturalar)
-            .update({'tedarikci_id': null})
-            .eq('tedarikci_id', tedarikciId);
+            .update({'tedarikci_id': null}).eq('tedarikci_id', tedarikciId);
       } catch (e) {
         // Tablo veya sütun yoksa devam et
       }
-      
+
       // Tedarikçiyi sil
       await _supabase
           .from(DbTables.tedarikciler)
@@ -217,7 +265,9 @@ class TedarikciService {
           .eq('durum', 'aktif')
           .order('ad', ascending: true);
 
-      return (response as List).map((json) => TedarikciModel.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => TedarikciModel.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Aktif tedarikçiler getirilirken hata oluştu: $e');
     }
@@ -251,15 +301,12 @@ class TedarikciService {
 
   // Durumları getir
   static List<String> durumlariGetir() {
-    return [
-      'aktif',
-      'pasif',
-      'beklemede'
-    ];
+    return ['aktif', 'pasif', 'beklemede'];
   }
 
   // Tedarikçiye ait siparişleri getir
-  static Future<List<Map<String, dynamic>>> tedarikciSiparisleriniGetir(int tedarikciId) async {
+  static Future<List<Map<String, dynamic>>> tedarikciSiparisleriniGetir(
+      int tedarikciId) async {
     try {
       final response = await _supabase
           .from(DbTables.tedarikciSiparisleri)
@@ -274,7 +321,8 @@ class TedarikciService {
   }
 
   // Tedarikçiye ait ödemeleri getir
-  static Future<List<Map<String, dynamic>>> tedarikciOdemeleriniGetir(int tedarikciId) async {
+  static Future<List<Map<String, dynamic>>> tedarikciOdemeleriniGetir(
+      int tedarikciId) async {
     try {
       final response = await _supabase
           .from(DbTables.tedarikciOdemeleri)
@@ -291,15 +339,15 @@ class TedarikciService {
   // İstatistikleri getir
   static Future<Map<String, dynamic>> istatistikleriGetir() async {
     try {
-      final tumTedarikciler = await _supabase
-          .from(DbTables.tedarikciler)
-          .select('durum');
+      final tumTedarikciler =
+          await _supabase.from(DbTables.tedarikciler).select('durum');
 
       final list = tumTedarikciler as List;
       final toplam = list.length;
       final aktif = list.where((item) => item['durum'] == 'aktif').length;
       final pasif = list.where((item) => item['durum'] == 'pasif').length;
-      final beklemede = list.where((item) => item['durum'] == 'beklemede').length;
+      final beklemede =
+          list.where((item) => item['durum'] == 'beklemede').length;
 
       return {
         'toplam': toplam,

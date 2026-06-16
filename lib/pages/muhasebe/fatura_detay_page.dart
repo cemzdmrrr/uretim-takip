@@ -31,6 +31,7 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
   late FaturaModel _fatura;
   List<FaturaKalemiModel> _faturaKalemleri = [];
   bool _yukleniyor = false;
+  bool _degisiklikVar = false;
 
   double get _gosterilecekAraToplam {
     if (_faturaKalemleri.isEmpty) return _fatura.araToplamTutar;
@@ -119,6 +120,7 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
       await FaturaService.faturaToplamlariniKalemlerdenGuncelle(
           _fatura.faturaId!);
       await _faturayiYenidenYukle();
+      _degisiklikVar = true;
       if (mounted) {
         context.showSuccessSnackBar('Fatura kalemi güncellendi');
       }
@@ -162,6 +164,7 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
       setState(() => _yukleniyor = true);
       await FaturaService.faturaKalemiSil(kalem.kalemId!);
       await _faturayiYenidenYukle();
+      _degisiklikVar = true;
       if (mounted) {
         context.showSuccessSnackBar('Fatura kalemi silindi');
       }
@@ -190,6 +193,7 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
           setState(() {
             _fatura = guncelFatura;
           });
+          _degisiklikVar = true;
           _faturaKalemleriniYukle();
         }
       } catch (e) {
@@ -243,6 +247,7 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
       if (!mounted) return;
       setState(() {
         _fatura = _fatura.copyWith(durum: yeniDurum);
+        _degisiklikVar = true;
       });
       if (mounted) {
         context.showSuccessSnackBar(
@@ -266,6 +271,7 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
               odenenTutar: yeniOdenenTutar,
               odemeDurumu: yeniOdemeDurumu,
             );
+            _degisiklikVar = true;
           });
         },
       ),
@@ -276,130 +282,137 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
   Widget build(BuildContext context) {
     final adminMi = context.watch<AuthProvider>().isAdmin;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Fatura - ${_fatura.faturaNo}'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              switch (value) {
-                case 'duzenle':
-                  _faturaduzenle();
-                  break;
-                case 'sil':
-                  if (adminMi || _fatura.durum == 'taslak') {
-                    _faturaSil();
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Bu faturayı silmek için admin yetkisi gerekir',
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pop(context, _degisiklikVar);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Fatura - ${_fatura.faturaNo}'),
+          backgroundColor: Colors.indigo,
+          foregroundColor: Colors.white,
+          actions: [
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                switch (value) {
+                  case 'duzenle':
+                    _faturaduzenle();
+                    break;
+                  case 'sil':
+                    if (adminMi || _fatura.durum == 'taslak') {
+                      _faturaSil();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Bu faturayı silmek için admin yetkisi gerekir',
+                          ),
+                          backgroundColor: Colors.orange,
                         ),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                  }
-                  break;
-                case 'onayla':
-                  _faturaDurumGuncelle('onaylandi');
-                  break;
-                case 'gonder':
-                  _faturaDurumGuncelle('gonderildi');
-                  break;
-                case 'iptal':
-                  _faturaDurumGuncelle('iptal');
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'duzenle',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit),
-                    SizedBox(width: 8),
-                    Text('Düzenle'),
-                  ],
-                ),
-              ),
-              if (adminMi || _fatura.durum == 'taslak')
+                      );
+                    }
+                    break;
+                  case 'onayla':
+                    _faturaDurumGuncelle('onaylandi');
+                    break;
+                  case 'gonder':
+                    _faturaDurumGuncelle('gonderildi');
+                    break;
+                  case 'iptal':
+                    _faturaDurumGuncelle('iptal');
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
                 const PopupMenuItem(
-                  value: 'sil',
+                  value: 'duzenle',
                   child: Row(
                     children: [
-                      Icon(Icons.delete, color: Colors.red),
+                      Icon(Icons.edit),
                       SizedBox(width: 8),
-                      Text('Sil'),
+                      Text('Düzenle'),
                     ],
                   ),
                 ),
-              if (_fatura.durum == 'taslak')
-                const PopupMenuItem(
-                  value: 'onayla',
-                  child: Row(
-                    children: [
-                      Icon(Icons.check, color: Colors.green),
-                      SizedBox(width: 8),
-                      Text('Onayla'),
-                    ],
+                if (adminMi || _fatura.durum == 'taslak')
+                  const PopupMenuItem(
+                    value: 'sil',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Sil'),
+                      ],
+                    ),
                   ),
-                ),
-              if (_fatura.durum == 'onaylandi')
-                const PopupMenuItem(
-                  value: 'gonder',
-                  child: Row(
-                    children: [
-                      Icon(Icons.send, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text('Gönder'),
-                    ],
+                if (_fatura.durum == 'taslak')
+                  const PopupMenuItem(
+                    value: 'onayla',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Onayla'),
+                      ],
+                    ),
                   ),
-                ),
-              if (_fatura.durum != 'iptal')
-                const PopupMenuItem(
-                  value: 'iptal',
-                  child: Row(
-                    children: [
-                      Icon(Icons.cancel, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('İptal Et'),
-                    ],
+                if (_fatura.durum == 'onaylandi')
+                  const PopupMenuItem(
+                    value: 'gonder',
+                    child: Row(
+                      children: [
+                        Icon(Icons.send, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Text('Gönder'),
+                      ],
+                    ),
                   ),
-                ),
+                if (_fatura.durum != 'iptal')
+                  const PopupMenuItem(
+                    value: 'iptal',
+                    child: Row(
+                      children: [
+                        Icon(Icons.cancel, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('İptal Et'),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Fatura durum kartı
+              _buildDurumKarti(),
+              const SizedBox(height: 16),
+
+              // Temel bilgiler kartı
+              _buildTemelBilgilerKarti(),
+              const SizedBox(height: 16),
+
+              // Müşteri/Tedarikçi bilgileri kartı
+              _buildMusteriTedarikciKarti(),
+              const SizedBox(height: 16),
+
+              // Fatura kalemleri kartı
+              _buildFaturaKalemleriKarti(),
+              const SizedBox(height: 16),
+
+              // Tutar bilgileri kartı
+              _buildTutarBilgileriKarti(),
+              const SizedBox(height: 16),
+
+              // Ödeme bilgileri kartı
+              if (_fatura.faturaTuru == 'satis') _buildOdemeBilgileriKarti(),
             ],
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Fatura durum kartı
-            _buildDurumKarti(),
-            const SizedBox(height: 16),
-
-            // Temel bilgiler kartı
-            _buildTemelBilgilerKarti(),
-            const SizedBox(height: 16),
-
-            // Müşteri/Tedarikçi bilgileri kartı
-            _buildMusteriTedarikciKarti(),
-            const SizedBox(height: 16),
-
-            // Fatura kalemleri kartı
-            _buildFaturaKalemleriKarti(),
-            const SizedBox(height: 16),
-
-            // Tutar bilgileri kartı
-            _buildTutarBilgileriKarti(),
-            const SizedBox(height: 16),
-
-            // Ödeme bilgileri kartı
-            if (_fatura.faturaTuru == 'satis') _buildOdemeBilgileriKarti(),
-          ],
         ),
       ),
     );

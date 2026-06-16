@@ -6,6 +6,7 @@ import 'package:uretim_takip/models/fatura_kalemi_model.dart';
 import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_ekle_page.dart';
 import 'package:uretim_takip/pages/muhasebe/fatura_detay_page.dart';
+import 'package:uretim_takip/pages/muhasebe/uyumsoft_gelen_faturalar_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -31,6 +32,25 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
   String _secilenKategori = '';
   DateTime? _baslangicTarihi;
   DateTime? _bitisTarihi;
+
+  Iterable<FaturaModel> get _aktifFaturalar =>
+      _faturalar.where((fatura) => fatura.durum != 'iptal');
+
+  Iterable<FaturaModel> get _satisFaturalari =>
+      _aktifFaturalar.where((fatura) => fatura.faturaTuru == 'satis');
+
+  Iterable<FaturaModel> get _alisFaturalari =>
+      _aktifFaturalar.where((fatura) => fatura.faturaTuru == 'alis');
+
+  double get _toplamSatisTutari => _satisFaturalari.fold<double>(
+        0,
+        (sum, fatura) => sum + fatura.toplamTutar,
+      );
+
+  double get _toplamAlisTutari => _alisFaturalari.fold<double>(
+        0,
+        (sum, fatura) => sum + fatura.toplamTutar,
+      );
 
   @override
   void initState() {
@@ -113,6 +133,16 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
     if (result == true) {
       _faturalariYukle();
     }
+  }
+
+  Future<void> _uyumsoftGelenFaturalariAc() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const UyumsoftGelenFaturalarPage(),
+      ),
+    );
+    _faturalariYukle();
   }
 
   Future<void> _faturaSil(FaturaModel fatura) async {
@@ -406,6 +436,77 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
     );
   }
 
+  Widget _buildKpiCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      color: Colors.white,
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: color.withValues(alpha: 0.22)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Row(
+          children: [
+            Container(width: 4, color: color),
+            Expanded(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(icon, color: color, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: color,
+                            ),
+                          ),
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFaturaKarti(FaturaModel fatura) {
     final adminMi = context.watch<AuthProvider>().isAdmin;
     final kategoriOzetleri = fatura.faturaId == null
@@ -465,6 +566,13 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_dateFormat.format(fatura.faturaTarihi)),
+            if (fatura.cariUnvan != null && fatura.cariUnvan!.trim().isNotEmpty)
+              Text(
+                fatura.cariUnvan!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -631,6 +739,59 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
         actions: [
+          if (context.watch<AuthProvider>().isAdmin ||
+              context.watch<AuthProvider>().isFirmaAdmin)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Tooltip(
+                message: 'Uyumsoft Gelen Faturalar',
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final darEkran = MediaQuery.sizeOf(context).width < 520;
+                    final style = TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.white.withValues(alpha: 0.16),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: darEkran ? 10 : 12,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.30),
+                        ),
+                      ),
+                    );
+
+                    if (darEkran) {
+                      return TextButton(
+                        style: style,
+                        onPressed: _uyumsoftGelenFaturalariAc,
+                        child: const Icon(
+                          Icons.download,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      );
+                    }
+
+                    return TextButton.icon(
+                      style: style,
+                      onPressed: _uyumsoftGelenFaturalariAc,
+                      icon: const Icon(
+                        Icons.download,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      label: const Text(
+                        'Uyumsoft',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _faturalariYukle,
@@ -644,99 +805,48 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
 
           // İstatistik kartları
           if (_faturalar.isNotEmpty)
-            Container(
-              height: 80,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Card(
-                      color: Colors.blue.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${_faturalar.length}',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
-                            const Text(
-                              'Toplam Fatura',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final ikiSutun = constraints.maxWidth < 760;
+                  final kartlar = [
+                    _buildKpiCard(
+                      title: 'Satış Faturası',
+                      value: '${_satisFaturalari.length}',
+                      icon: Icons.trending_up,
+                      color: Colors.green.shade700,
                     ),
-                  ),
-                  Expanded(
-                    child: Card(
-                      color: Colors.green.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _currencyFormat.format(
-                                _faturalar.fold<double>(
-                                  0,
-                                  (sum, fatura) => sum + fatura.toplamTutar,
-                                ),
-                              ),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                            const Text(
-                              'Toplam Tutar',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _buildKpiCard(
+                      title: 'Satış Tutarı',
+                      value: _currencyFormat.format(_toplamSatisTutari),
+                      icon: Icons.payments,
+                      color: Colors.teal.shade700,
                     ),
-                  ),
-                  Expanded(
-                    child: Card(
-                      color: Colors.red.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _currencyFormat.format(
-                                _faturalar.fold<double>(
-                                  0,
-                                  (sum, fatura) =>
-                                      sum +
-                                      (fatura.toplamTutar - fatura.odenenTutar),
-                                ),
-                              ),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red,
-                              ),
-                            ),
-                            const Text(
-                              'Alacak',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _buildKpiCard(
+                      title: 'Alış Faturası',
+                      value: '${_alisFaturalari.length}',
+                      icon: Icons.trending_down,
+                      color: Colors.orange.shade800,
                     ),
-                  ),
-                ],
+                    _buildKpiCard(
+                      title: 'Alış Tutarı',
+                      value: _currencyFormat.format(_toplamAlisTutari),
+                      icon: Icons.description,
+                      color: Colors.red.shade700,
+                    ),
+                  ];
+
+                  return GridView.count(
+                    crossAxisCount: ikiSutun ? 2 : 4,
+                    childAspectRatio: ikiSutun ? 3.2 : 3.8,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: kartlar,
+                  );
+                },
               ),
             ),
 
@@ -749,7 +859,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.receipt_long,
+                            Icon(Icons.description,
                                 size: 64, color: Colors.grey),
                             SizedBox(height: 16),
                             Text(

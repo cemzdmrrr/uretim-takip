@@ -23,6 +23,8 @@ class FaturaEklePage extends StatefulWidget {
 class _FaturaEklePageState extends State<FaturaEklePage> {
   final _formKey = GlobalKey<FormState>();
   final _faturaNoController = TextEditingController();
+  final _cariUnvanController = TextEditingController();
+  final _cariUnvanFocusNode = FocusNode();
   final _faturaAdresController = TextEditingController();
   final _vergiDairesiController = TextEditingController();
   final _vergiNoController = TextEditingController();
@@ -70,6 +72,8 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
   @override
   void dispose() {
     _faturaNoController.dispose();
+    _cariUnvanController.dispose();
+    _cariUnvanFocusNode.dispose();
     _faturaAdresController.dispose();
     _vergiDairesiController.dispose();
     _vergiNoController.dispose();
@@ -101,6 +105,11 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
               : _tedarikciler
                   .where((tedarikci) => tedarikci.tedarikciId == tedarikciId)
                   .firstOrNull;
+          if (_secilenTedarikci != null) {
+            if (_cariUnvanController.text.trim().isEmpty) {
+              _cariUnvanController.text = _secilenTedarikci!.unvan;
+            }
+          }
           _faturaKalemleri
             ..clear()
             ..addAll(kalemler);
@@ -123,6 +132,7 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
 
     setState(() {
       _faturaNoController.text = fatura.faturaNo;
+      _cariUnvanController.text = fatura.cariUnvan ?? '';
       _secilenFaturaTuru = fatura.faturaTuru;
       _faturaTarihi = fatura.faturaTarihi;
       _vadeTarihi = fatura.vadeTarihi;
@@ -205,12 +215,43 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     _toplamTutar = toplamTutar;
   }
 
+  String _tedarikciUnvani(TedarikciModel tedarikci) {
+    return tedarikci.unvan.trim();
+  }
+
+  String _tedarikciAltBilgi(TedarikciModel tedarikci) {
+    final parcalar = <String>[
+      if ((tedarikci.vergiNo ?? '').trim().isNotEmpty)
+        'Vergi No: ${tedarikci.vergiNo}',
+      if ((tedarikci.telefon).trim().isNotEmpty) 'Tel: ${tedarikci.telefon}',
+      if ((tedarikci.email ?? '').trim().isNotEmpty) tedarikci.email!,
+    ];
+    return parcalar.join(' • ');
+  }
+
+  void _tedarikciBilgileriniDoldur(TedarikciModel? tedarikci) {
+    setState(() {
+      _secilenTedarikci = tedarikci;
+      if (tedarikci == null) return;
+      _cariUnvanController.text = _tedarikciUnvani(tedarikci);
+      final adres = tedarikci.adres?.trim();
+      if (adres != null && adres.isNotEmpty) {
+        _faturaAdresController.text = adres;
+      }
+      final vergiDairesi = tedarikci.vergiDairesi?.trim();
+      if (vergiDairesi != null && vergiDairesi.isNotEmpty) {
+        _vergiDairesiController.text = vergiDairesi;
+      }
+      _vergiNoController.text = tedarikci.vergiNo ?? '';
+    });
+  }
+
   Future<void> _faturaKaydet() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_faturaKalemleri.isEmpty) {
+    if (_secilenFaturaTuru != 'satis' && _faturaKalemleri.isEmpty) {
       context.showErrorSnackBar('En az bir fatura kalemi eklemelisiniz');
       return;
     }
@@ -220,6 +261,14 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     });
 
     try {
+      final kaydedilecekKalemler = _secilenFaturaTuru == 'satis'
+          ? <FaturaKalemiModel>[]
+          : _faturaKalemleri;
+      final araToplamTutar =
+          _secilenFaturaTuru == 'satis' ? 0.0 : _araToplamTutar;
+      final kdvTutari = _secilenFaturaTuru == 'satis' ? 0.0 : _kdvTutari;
+      final toplamTutar = _secilenFaturaTuru == 'satis' ? 0.0 : _toplamTutar;
+
       final fatura = FaturaModel(
           faturaId: _duzenlemeModu ? widget.duzenlenecekFatura!.faturaId : null,
           faturaNo: _faturaNoController.text,
@@ -227,15 +276,18 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
           faturaTarihi: _faturaTarihi,
           musteriId: null,
           tedarikciId: _secilenTedarikci?.tedarikciId,
+          cariUnvan: _cariUnvanController.text.trim().isEmpty
+              ? null
+              : _cariUnvanController.text.trim(),
           faturaAdres: _faturaAdresController.text,
           vergiDairesi: _vergiDairesiController.text.isEmpty
               ? null
               : _vergiDairesiController.text,
           vergiNo:
               _vergiNoController.text.isEmpty ? null : _vergiNoController.text,
-          araToplamTutar: _araToplamTutar,
-          kdvTutari: _kdvTutari,
-          toplamTutar: _toplamTutar,
+          araToplamTutar: araToplamTutar,
+          kdvTutari: kdvTutari,
+          toplamTutar: toplamTutar,
           durum: _secilenDurum,
           aciklama: _aciklamaController.text.isEmpty
               ? null
@@ -250,9 +302,9 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
               Supabase.instance.client.auth.currentUser?.id ?? 'bilinmeyen');
 
       if (_duzenlemeModu) {
-        await FaturaService.faturaGuncelle(fatura, _faturaKalemleri);
+        await FaturaService.faturaGuncelle(fatura, kaydedilecekKalemler);
       } else {
-        await FaturaService.faturaEkle(fatura, _faturaKalemleri);
+        await FaturaService.faturaEkle(fatura, kaydedilecekKalemler);
       }
 
       if (mounted) {
@@ -308,13 +360,15 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
                     _buildMusteritedarikciKarti(),
                     const SizedBox(height: 16),
 
-                    // Fatura kalemleri kartı
-                    _buildFaturaKalemleriKarti(),
-                    const SizedBox(height: 16),
+                    if (_secilenFaturaTuru != 'satis') ...[
+                      // Fatura kalemleri kartı
+                      _buildFaturaKalemleriKarti(),
+                      const SizedBox(height: 16),
 
-                    // Toplam tutarlar kartı
-                    _buildToplamTutarlarKarti(),
-                    const SizedBox(height: 24),
+                      // Toplam tutarlar kartı
+                      _buildToplamTutarlarKarti(),
+                      const SizedBox(height: 24),
+                    ],
 
                     // Kaydet butonu
                     SizedBox(

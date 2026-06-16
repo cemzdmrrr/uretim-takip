@@ -831,34 +831,7 @@ class GelismisRaporServisleri {
             (hedef['fire'] ?? 0) + _doubleDeger(kayit['fire_adedi']);
       }
 
-      final fireByModelId = <String, int>{};
-      try {
-        var fireQuery = _supabase
-            .from(DbTables.fireKayitlari)
-            .select('model_id, adet, tarih')
-            .inFilter('model_id', modelIds);
-        if (baslangicTarihi != null) {
-          fireQuery = fireQuery.gte(
-            'tarih',
-            baslangicTarihi.toIso8601String().split('T').first,
-          );
-        }
-        if (bitisTarihi != null) {
-          fireQuery = fireQuery.lte(
-            'tarih',
-            bitisTarihi.toIso8601String().split('T').first,
-          );
-        }
-        final fireler = await fireQuery;
-        for (final fire in fireler) {
-          final modelId = fire['model_id']?.toString();
-          if (modelId == null || modelId.isEmpty) continue;
-          fireByModelId[modelId] =
-              (fireByModelId[modelId] ?? 0) + _intDeger(fire['adet']);
-        }
-      } catch (e) {
-        AppLogger.debug('Fire kayıtları yükleme finansına eklenemedi: $e');
-      }
+      final fireByModelId = await _yuklemeFinansFireAdetleriGetir(modelIds);
 
       final operasyonelGiderler = await _operasyonelGiderleriGetir(
         baslangicTarihi: baslangicTarihi,
@@ -940,8 +913,10 @@ class GelismisRaporServisleri {
           planBirimMaliyet,
           hedefKarOrani,
         );
-        final fireAdedi =
-            fireByModelId[modelId] ?? _intDeger(ozet?['fire_adedi']);
+        final fireAdedi = [
+          fireByModelId[modelId] ?? 0,
+          _intDeger(ozet?['fire_adedi']),
+        ].reduce((a, b) => a >= b ? a : b);
         final double? hedefMaliyet =
             planBirimMaliyet > 0 ? planBirimMaliyet * donemYuklenenAdet : null;
         final double? gercekMaliyet = gercekBirimMaliyet > 0
@@ -1280,6 +1255,106 @@ class GelismisRaporServisleri {
     final tarih = DateTime.tryParse(tarihDegeri.toString());
     if (tarih == null) return null;
     return '${tarih.year}-${tarih.month.toString().padLeft(2, '0')}';
+  }
+
+  static Future<Map<String, int>> _yuklemeFinansFireAdetleriGetir(
+    List<String> modelIds,
+  ) async {
+    if (modelIds.isEmpty) return {};
+
+    final detayliFire = await _fireKayitlariAdetleriGetir(modelIds);
+    final asamaFire = await _asamaAtamaFireAdetleriGetir(modelIds);
+    final sonuc = <String, int>{};
+
+    for (final modelId in modelIds) {
+      final detayAdet = detayliFire[modelId] ?? 0;
+      final asamaAdet = asamaFire[modelId] ?? 0;
+      final adet = detayAdet >= asamaAdet ? detayAdet : asamaAdet;
+      if (adet > 0) sonuc[modelId] = adet;
+    }
+
+    return sonuc;
+  }
+
+  static Future<Map<String, int>> _fireKayitlariAdetleriGetir(
+    List<String> modelIds,
+  ) async {
+    Future<List<dynamic>> sorgula({required bool firmaFiltresi}) async {
+      var query = _supabase
+          .from(DbTables.fireKayitlari)
+          .select('model_id, adet')
+          .inFilter('model_id', modelIds);
+      if (firmaFiltresi) {
+        query = query.eq('firma_id', _firmaId);
+      }
+      return await query;
+    }
+
+    try {
+      return _fireSatirlariniTopla(await sorgula(firmaFiltresi: true));
+    } catch (e) {
+      AppLogger.debug(
+        'Fire kayıtları firma filtresiyle okunamadı, filtresiz deneniyor: $e',
+      );
+      try {
+        return _fireSatirlariniTopla(await sorgula(firmaFiltresi: false));
+      } catch (retryError) {
+        AppLogger.debug(
+          'Fire kayıtları yükleme finansına eklenemedi: $retryError',
+        );
+        return {};
+      }
+    }
+  }
+
+  static Future<Map<String, int>> _asamaAtamaFireAdetleriGetir(
+    List<String> modelIds,
+  ) async {
+    const tablolar = [
+      DbTables.dokumaAtamalari,
+      DbTables.konfeksiyonAtamalari,
+      DbTables.nakisAtamalari,
+      DbTables.yikamaAtamalari,
+      DbTables.ilikDugmeAtamalari,
+      DbTables.utuAtamalari,
+      DbTables.kaliteKontrolAtamalari,
+      DbTables.paketlemeAtamalari,
+    ];
+
+    final sonuc = <String, int>{};
+    for (final tablo in tablolar) {
+      try {
+        final satirlar = await _supabase
+            .from(tablo)
+            .select('model_id, fire_adet')
+            .eq('firma_id', _firmaId)
+            .inFilter('model_id', modelIds);
+        for (final satir in satirlar) {
+          final modelId = satir['model_id']?.toString();
+          if (modelId == null || modelId.isEmpty) continue;
+          final fireAdet = _intDeger(satir['fire_adet']);
+          if (fireAdet <= 0) continue;
+          sonuc[modelId] = (sonuc[modelId] ?? 0) + fireAdet;
+        }
+      } catch (e) {
+        AppLogger.debug('$tablo fire adetleri okunamadı: $e');
+      }
+    }
+
+    return sonuc;
+  }
+
+  static Map<String, int> _fireSatirlariniTopla(List<dynamic> satirlar) {
+    final sonuc = <String, int>{};
+    for (final satir in satirlar) {
+      if (satir is! Map) continue;
+      final modelId = satir['model_id']?.toString();
+      if (modelId == null || modelId.isEmpty) continue;
+      final adet = _intDeger(satir['adet']);
+      if (adet <= 0) continue;
+      sonuc[modelId] = (sonuc[modelId] ?? 0) + adet;
+    }
+    return sonuc;
   }
 
   static bool _yuklemeTarihAraliginda(

@@ -9,6 +9,7 @@ class FaturaModel {
   final DateTime faturaTarihi;
   final int? musteriId; // null ise nakit satış
   final int? tedarikciId; // alış faturaları için
+  final String? cariUnvan; // kayıtlı olmayan tedarikçi/müşteri unvanı
   final String faturaAdres;
   final String? vergiDairesi;
   final String? vergiNo;
@@ -37,6 +38,7 @@ class FaturaModel {
     required this.faturaTarihi,
     this.musteriId,
     this.tedarikciId,
+    this.cariUnvan,
     required this.faturaAdres,
     this.vergiDairesi,
     this.vergiNo,
@@ -65,11 +67,12 @@ class FaturaModel {
       faturaId: json['fatura_id']?.toInt(),
       faturaNo: json['fatura_no'] ?? '',
       faturaTuru: json['fatura_turu'] ?? 'satis',
-      faturaTarihi: json['fatura_tarihi'] != null 
-          ? DateTime.parse(json['fatura_tarihi']) 
+      faturaTarihi: json['fatura_tarihi'] != null
+          ? DateTime.parse(json['fatura_tarihi'])
           : DateTime.now(),
       musteriId: json['musteri_id']?.toInt(),
       tedarikciId: json['tedarikci_id']?.toInt(),
+      cariUnvan: json['cari_unvan'],
       faturaAdres: json['fatura_adres'] ?? '',
       vergiDairesi: json['vergi_dairesi'],
       vergiNo: json['vergi_no'],
@@ -78,23 +81,23 @@ class FaturaModel {
       toplamTutar: (json['toplam_tutar'] ?? 0.0).toDouble(),
       durum: json['durum'] ?? 'taslak',
       aciklama: json['aciklama'],
-      vadeTarihi: json['vade_tarihi'] != null 
-          ? DateTime.parse(json['vade_tarihi']) 
+      vadeTarihi: json['vade_tarihi'] != null
+          ? DateTime.parse(json['vade_tarihi'])
           : null,
       odemeDurumu: json['odeme_durumu'] ?? 'odenmedi',
       odenenTutar: (json['odenen_tutar'] ?? 0.0).toDouble(),
       kur: json['kur'] ?? 'TRY',
       kurOrani: (json['kur_orani'] ?? 1.0).toDouble(),
       efatturaUuid: json['efatura_uuid'],
-      efaturaTarihi: json['efatura_tarihi'] != null 
-          ? DateTime.parse(json['efatura_tarihi']) 
+      efaturaTarihi: json['efatura_tarihi'] != null
+          ? DateTime.parse(json['efatura_tarihi'])
           : null,
       efaturaDurum: json['efatura_durum'],
-      olusturmaTarihi: json['olusturma_tarihi'] != null 
-          ? DateTime.parse(json['olusturma_tarihi']) 
+      olusturmaTarihi: json['olusturma_tarihi'] != null
+          ? DateTime.parse(json['olusturma_tarihi'])
           : DateTime.now(),
-      guncellemeTarihi: json['guncelleme_tarihi'] != null 
-          ? DateTime.parse(json['guncelleme_tarihi']) 
+      guncellemeTarihi: json['guncelleme_tarihi'] != null
+          ? DateTime.parse(json['guncelleme_tarihi'])
           : null,
       olusturanKullanici: json['olusturan_kullanici'] ?? '',
       firmaId: json['firma_id'],
@@ -110,6 +113,7 @@ class FaturaModel {
       'fatura_tarihi': faturaTarihi.toIso8601String(),
       if (musteriId != null) 'musteri_id': musteriId,
       if (tedarikciId != null) 'tedarikci_id': tedarikciId,
+      if (cariUnvan != null) 'cari_unvan': cariUnvan,
       'fatura_adres': faturaAdres,
       if (vergiDairesi != null) 'vergi_dairesi': vergiDairesi,
       if (vergiNo != null) 'vergi_no': vergiNo,
@@ -124,10 +128,12 @@ class FaturaModel {
       'kur': kur,
       'kur_orani': kurOrani,
       if (efatturaUuid != null) 'efatura_uuid': efatturaUuid,
-      if (efaturaTarihi != null) 'efatura_tarihi': efaturaTarihi!.toIso8601String(),
+      if (efaturaTarihi != null)
+        'efatura_tarihi': efaturaTarihi!.toIso8601String(),
       if (efaturaDurum != null) 'efatura_durum': efaturaDurum,
       'olusturma_tarihi': olusturmaTarihi.toIso8601String(),
-      if (guncellemeTarihi != null) 'guncelleme_tarihi': guncellemeTarihi!.toIso8601String(),
+      if (guncellemeTarihi != null)
+        'guncelleme_tarihi': guncellemeTarihi!.toIso8601String(),
       'olusturan_kullanici': olusturanKullanici,
       if (firmaId != null) 'firma_id': firmaId,
     };
@@ -138,43 +144,62 @@ class FaturaModel {
 
   // Getter metodları
   String get formattedFaturaNo => faturaNo;
-  String get formattedTarih => "${faturaTarihi.day.toString().padLeft(2, '0')}.${faturaTarihi.month.toString().padLeft(2, '0')}.${faturaTarihi.year}";
+  String get formattedTarih =>
+      "${faturaTarihi.day.toString().padLeft(2, '0')}.${faturaTarihi.month.toString().padLeft(2, '0')}.${faturaTarihi.year}";
   String get formattedTutar => '${toplamTutar.toStringAsFixed(2)} $kur';
   String get durumText {
     switch (durum) {
-      case 'taslak': return 'Taslak';
-      case 'onaylandi': return 'Onaylandı';
-      case 'iptal': return 'İptal';
-      case 'gonderildi': return 'Gönderildi';
-      default: return durum;
+      case 'taslak':
+        return 'Taslak';
+      case 'onaylandi':
+        return 'Onaylandı';
+      case 'iptal':
+        return 'İptal';
+      case 'gonderildi':
+        return 'Gönderildi';
+      default:
+        return durum;
     }
   }
-  
+
   String get odemeDurumuText {
     switch (odemeDurumu) {
-      case 'odenmedi': return 'Ödenmedi';
-      case 'kismi': return 'Kısmi Ödendi';
-      case 'odendi': return 'Ödendi';
-      default: return odemeDurumu;
+      case 'odenmedi':
+        return 'Ödenmedi';
+      case 'kismi':
+        return 'Kısmi Ödendi';
+      case 'odendi':
+        return 'Ödendi';
+      default:
+        return odemeDurumu;
     }
   }
 
   Color get durumColor {
     switch (durum) {
-      case 'taslak': return Colors.orange;
-      case 'onaylandi': return Colors.green;
-      case 'iptal': return Colors.red;
-      case 'gonderildi': return Colors.blue;
-      default: return Colors.grey;
+      case 'taslak':
+        return Colors.orange;
+      case 'onaylandi':
+        return Colors.green;
+      case 'iptal':
+        return Colors.red;
+      case 'gonderildi':
+        return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
 
   Color get odemeDurumuColor {
     switch (odemeDurumu) {
-      case 'odenmedi': return Colors.red;
-      case 'kismi': return Colors.orange;
-      case 'odendi': return Colors.green;
-      default: return Colors.grey;
+      case 'odenmedi':
+        return Colors.red;
+      case 'kismi':
+        return Colors.orange;
+      case 'odendi':
+        return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -201,6 +226,7 @@ class FaturaModel {
     DateTime? faturaTarihi,
     int? musteriId,
     int? tedarikciId,
+    String? cariUnvan,
     String? faturaAdres,
     String? vergiDairesi,
     String? vergiNo,
@@ -229,6 +255,7 @@ class FaturaModel {
       faturaTarihi: faturaTarihi ?? this.faturaTarihi,
       musteriId: musteriId ?? this.musteriId,
       tedarikciId: tedarikciId ?? this.tedarikciId,
+      cariUnvan: cariUnvan ?? this.cariUnvan,
       faturaAdres: faturaAdres ?? this.faturaAdres,
       vergiDairesi: vergiDairesi ?? this.vergiDairesi,
       vergiNo: vergiNo ?? this.vergiNo,

@@ -58,3 +58,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/platform-rapor/deno.json"
 entrypoint = "./functions/platform-rapor/index.ts"
+
+[functions.uyumsoft-gelen-faturalar-sync]
+enabled = true
+verify_jwt = true
+import_map = "./functions/uyumsoft-gelen-faturalar-sync/deno.json"
+entrypoint = "./functions/uyumsoft-gelen-faturalar-sync/index.ts"

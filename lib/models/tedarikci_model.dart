@@ -7,10 +7,14 @@ class TedarikciModel {
   final String? sirket;
   final String telefon;
   final String? email;
-  final String tedarikciTipi; // 'Üretici', 'İthalatçı', 'Distribütör', 'Bayi', 'Hizmet Sağlayıcı', 'Diğer'
-  final String? faaliyet; // 'Tekstil', 'İplik', 'Aksesuar', 'Makine', 'Kimyasal', 'Ambalaj', 'Lojistik', 'Diğer'
+  final String
+      tedarikciTipi; // 'Üretici', 'İthalatçı', 'Distribütör', 'Bayi', 'Hizmet Sağlayıcı', 'Diğer'
+  final String?
+      faaliyet; // 'Tekstil', 'İplik', 'Aksesuar', 'Makine', 'Kimyasal', 'Ambalaj', 'Lojistik', 'Diğer'
   final String durum; // 'aktif', 'pasif', 'beklemede'
   final String? vergiNo;
+  final String? vergiDairesi;
+  final String? adres;
   final String? tcKimlik;
   final String? ibanNo;
   final DateTime kayitTarihi;
@@ -18,7 +22,9 @@ class TedarikciModel {
   final String? firmaId;
 
   // Getter'lar TedarikciDetayPage için
-  String get unvan => sirket?.isNotEmpty == true ? sirket! : '$ad${soyad != null ? ' $soyad' : ''}';
+  String get unvan => sirket?.isNotEmpty == true
+      ? sirket!
+      : '$ad${soyad != null ? ' $soyad' : ''}';
   String get kod => id?.toString() ?? '';
   String get tur => tedarikciTipi;
   String? get fasonFaaliyet => faaliyet;
@@ -38,6 +44,8 @@ class TedarikciModel {
     this.faaliyet,
     this.durum = 'aktif',
     this.vergiNo,
+    this.vergiDairesi,
+    this.adres,
     this.tcKimlik,
     this.ibanNo,
     required this.kayitTarihi,
@@ -58,6 +66,8 @@ class TedarikciModel {
       faaliyet: json['faaliyet'] as String?,
       durum: json['durum'] as String? ?? 'aktif',
       vergiNo: json['vergi_no'] as String?,
+      vergiDairesi: json['vergi_dairesi'] as String?,
+      adres: json['adres'] as String?,
       tcKimlik: json['tc_kimlik'] as String?,
       ibanNo: json['iban_no'] as String?,
       kayitTarihi: DateTime.parse(json['kayit_tarihi'] as String),
@@ -81,6 +91,8 @@ class TedarikciModel {
       'faaliyet': faaliyet,
       'durum': durum,
       'vergi_no': vergiNo,
+      'vergi_dairesi': vergiDairesi,
+      'adres': adres,
       'tc_kimlik': tcKimlik,
       'iban_no': ibanNo,
       'kayit_tarihi': kayitTarihi.toIso8601String(),
@@ -178,21 +190,21 @@ class TedarikciModel {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    
+
     return other is TedarikciModel &&
-      other.id == id &&
-      other.ad == ad &&
-      other.soyad == soyad &&
-      other.telefon == telefon &&
-      other.tedarikciTipi == tedarikciTipi;
+        other.id == id &&
+        other.ad == ad &&
+        other.soyad == soyad &&
+        other.telefon == telefon &&
+        other.tedarikciTipi == tedarikciTipi;
   }
 
   @override
   int get hashCode {
     return id.hashCode ^
-      ad.hashCode ^
-      soyad.hashCode ^
-      telefon.hashCode ^
-      tedarikciTipi.hashCode;
+        ad.hashCode ^
+        soyad.hashCode ^
+        telefon.hashCode ^
+        tedarikciTipi.hashCode;
   }
 }

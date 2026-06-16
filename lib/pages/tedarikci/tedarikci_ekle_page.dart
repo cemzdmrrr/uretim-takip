@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,6 +29,8 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
   final _faaliyetController = TextEditingController();
   final _durumController = TextEditingController();
   final _vergiNoController = TextEditingController();
+  final _vergiDairesiController = TextEditingController();
+  final _adresController = TextEditingController();
   final _ibanNoController = TextEditingController();
 
   bool _yukleniyor = false;
@@ -60,6 +62,8 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
     _faaliyetController.text = tedarikci.faaliyet ?? '';
     _durumController.text = tedarikci.durum;
     _vergiNoController.text = tedarikci.vergiNo ?? '';
+    _vergiDairesiController.text = tedarikci.vergiDairesi ?? '';
+    _adresController.text = tedarikci.adres ?? '';
     _ibanNoController.text = tedarikci.ibanNo ?? '';
   }
 
@@ -75,27 +79,32 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
     try {
       final email = _emailController.text.trim();
       final parola = _parolaController.text.trim();
-      
+
       // Yeni tedarikci eklerken ve kullanıcı oluşturma seçiliyse
       String? createdUserId;
-      if (!_duzenlemeModunda && _kullaniciOlustur && email.isNotEmpty && parola.isNotEmpty) {
+      if (!_duzenlemeModunda &&
+          _kullaniciOlustur &&
+          email.isNotEmpty &&
+          parola.isNotEmpty) {
         // 1. Önce Supabase Auth'ta kullanıcı oluştur
         try {
-          final authResponse = await Supabase.instance.client.auth.admin.createUser(
+          final authResponse =
+              await Supabase.instance.client.auth.admin.createUser(
             AdminUserAttributes(
               email: email,
               password: parola,
               emailConfirm: true, // Email onaysız giriş yapabilsin
             ),
           );
-          
+
           if (authResponse.user != null) {
             createdUserId = authResponse.user!.id;
             debugPrint('✅ Kullanıcı oluşturuldu: $createdUserId');
           }
         } catch (authError) {
           // Admin API çalışmazsa normal signUp dene
-          debugPrint('⚠️ Admin API hatası, normal signUp deneniyor: $authError');
+          debugPrint(
+              '⚠️ Admin API hatası, normal signUp deneniyor: $authError');
           try {
             final signUpResponse = await Supabase.instance.client.auth.signUp(
               email: email,
@@ -148,33 +157,58 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
       // 2. Tedarikci verilerini hazırla
       final tedarikciVerileri = <String, dynamic>{
         'ad': _adController.text.trim(),
-        'soyad': _soyadController.text.trim().isEmpty ? null : _soyadController.text.trim(),
-        'sirket': _sirketController.text.trim().isEmpty ? null : _sirketController.text.trim(),
+        'soyad': _soyadController.text.trim().isEmpty
+            ? null
+            : _soyadController.text.trim(),
+        'sirket': _sirketController.text.trim().isEmpty
+            ? null
+            : _sirketController.text.trim(),
         'telefon': _telefonController.text.trim(),
         'email': email.isEmpty ? null : email,
-        'tedarikci_tipi': _tedarikciTipiController.text.trim().isEmpty ? 'Üretici' : _tedarikciTipiController.text.trim(),
-        'faaliyet': _faaliyetController.text.trim().isEmpty ? null : _faaliyetController.text.trim(),
-        'durum': _durumController.text.trim().isEmpty ? 'aktif' : _durumController.text.trim(),
-        'vergi_no': _vergiNoController.text.trim().isEmpty ? null : _vergiNoController.text.trim(),
-        'iban_no': _ibanNoController.text.trim().isEmpty ? null : _ibanNoController.text.trim(),
+        'tedarikci_tipi': _tedarikciTipiController.text.trim().isEmpty
+            ? 'Üretici'
+            : _tedarikciTipiController.text.trim(),
+        'faaliyet': _faaliyetController.text.trim().isEmpty
+            ? null
+            : _faaliyetController.text.trim(),
+        'durum': _durumController.text.trim().isEmpty
+            ? 'aktif'
+            : _durumController.text.trim(),
+        'vergi_no': _vergiNoController.text.trim().isEmpty
+            ? null
+            : _vergiNoController.text.trim(),
+        'vergi_dairesi': _vergiDairesiController.text.trim().isEmpty
+            ? null
+            : _vergiDairesiController.text.trim(),
+        'adres': _adresController.text.trim().isEmpty
+            ? null
+            : _adresController.text.trim(),
+        'iban_no': _ibanNoController.text.trim().isEmpty
+            ? null
+            : _ibanNoController.text.trim(),
       };
 
       // 3. Tedarikci kaydı oluştur/güncelle
       if (_duzenlemeModunda) {
-        await TedarikciService.tedarikciGuncelle(widget.tedarikci!.id!, tedarikciVerileri);
+        await TedarikciService.tedarikciGuncelle(
+            widget.tedarikci!.id!, tedarikciVerileri);
       } else {
         await TedarikciService.tedarikciEkle(tedarikciVerileri);
       }
 
       if (mounted) {
-        String mesaj = _duzenlemeModunda 
-            ? 'Tedarikçi başarıyla güncellendi' 
+        String mesaj = _duzenlemeModunda
+            ? 'Tedarikçi başarıyla güncellendi'
             : 'Tedarikçi başarıyla eklendi';
-        
-        if (!_duzenlemeModunda && _kullaniciOlustur && email.isNotEmpty && parola.isNotEmpty) {
-          mesaj += '\n✅ Kullanıcı hesabı oluşturuldu. Tedarikçi artık giriş yapabilir.';
+
+        if (!_duzenlemeModunda &&
+            _kullaniciOlustur &&
+            email.isNotEmpty &&
+            parola.isNotEmpty) {
+          mesaj +=
+              '\n✅ Kullanıcı hesabı oluşturuldu. Tedarikçi artık giriş yapabilir.';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(mesaj),
@@ -238,7 +272,7 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
-              
+
               // Temel Bilgiler Kartı
               _buildSectionCard(
                 title: 'Temel Bilgiler',
@@ -270,13 +304,13 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                       ),
                     ],
                   ),
-                  
+
                   _buildTextFormField(
                     controller: _sirketController,
                     label: 'Şirket/Firma Adı',
                     prefixIcon: Icons.business,
                   ),
-                  
+
                   Row(
                     children: [
                       Expanded(
@@ -308,7 +342,8 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                               }
                             }
                             if (value != null && value.isNotEmpty) {
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                  .hasMatch(value)) {
                                 return 'Geçerli bir e-posta adresi girin';
                               }
                             }
@@ -318,7 +353,7 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                       ),
                     ],
                   ),
-                  
+
                   // Kullanıcı Hesabı Bölümü (Sadece yeni eklemede)
                   if (!_duzenlemeModunda) ...[
                     const SizedBox(height: 16),
@@ -334,7 +369,8 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.account_circle, color: Colors.blue.shade700),
+                              Icon(Icons.account_circle,
+                                  color: Colors.blue.shade700),
                               const SizedBox(width: 8),
                               Text(
                                 'Kullanıcı Hesabı',
@@ -358,7 +394,7 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _kullaniciOlustur 
+                            _kullaniciOlustur
                                 ? 'Tedarikçi için giriş yapabilir kullanıcı hesabı oluşturulacak.'
                                 : 'Kullanıcı hesabı oluşturulmayacak.',
                             style: TextStyle(
@@ -375,7 +411,9 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                                 labelText: 'Parola',
                                 prefixIcon: const Icon(Icons.lock),
                                 suffixIcon: IconButton(
-                                  icon: Icon(_parolaGoster ? Icons.visibility_off : Icons.visibility),
+                                  icon: Icon(_parolaGoster
+                                      ? Icons.visibility_off
+                                      : Icons.visibility),
                                   onPressed: () {
                                     setState(() {
                                       _parolaGoster = !_parolaGoster;
@@ -408,9 +446,9 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                   ],
                 ],
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // İş Bilgileri Kartı
               _buildSectionCard(
                 title: 'İş Bilgileri',
@@ -424,7 +462,16 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                           label: 'Tedarikçi Türü',
                           isRequired: true,
                           prefixIcon: Icons.category,
-                          items: ['Üretici', 'İthalatçı', 'Distribütör', 'Bayi', 'Hizmet Sağlayıcı', 'İplik Firması', 'Aksesuar Firması', 'Diğer'],
+                          items: [
+                            'Üretici',
+                            'İthalatçı',
+                            'Distribütör',
+                            'Bayi',
+                            'Hizmet Sağlayıcı',
+                            'İplik Firması',
+                            'Aksesuar Firması',
+                            'Diğer'
+                          ],
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Tedarikçi türü gerekli';
@@ -439,12 +486,27 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                           controller: _faaliyetController,
                           label: 'Faaliyet Alanı',
                           prefixIcon: Icons.business_center,
-                          items: ['Tekstil', 'İplik', 'Örgü', 'Dokuma', 'Konfeksiyon', 'Nakış', 'Ütü Paket', 'Yıkama', 'İlik Düğme', 'Aksesuar', 'Makine', 'Kimyasal', 'Ambalaj', 'Lojistik', 'Diğer'],
+                          items: [
+                            'Tekstil',
+                            'İplik',
+                            'Örgü',
+                            'Dokuma',
+                            'Konfeksiyon',
+                            'Nakış',
+                            'Ütü Paket',
+                            'Yıkama',
+                            'İlik Düğme',
+                            'Aksesuar',
+                            'Makine',
+                            'Kimyasal',
+                            'Ambalaj',
+                            'Lojistik',
+                            'Diğer'
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  
                   _buildDropdownField(
                     controller: _durumController,
                     label: 'Durum',
@@ -460,9 +522,9 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // Mali Bilgiler Kartı
               _buildSectionCard(
                 title: 'Mali Bilgiler',
@@ -475,7 +537,17 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
-                  
+                  _buildTextFormField(
+                    controller: _vergiDairesiController,
+                    label: 'Vergi Dairesi',
+                    prefixIcon: Icons.account_balance,
+                  ),
+                  _buildTextFormField(
+                    controller: _adresController,
+                    label: 'Fatura Adresi',
+                    prefixIcon: Icons.location_on_outlined,
+                    maxLines: 3,
+                  ),
                   _buildTextFormField(
                     controller: _ibanNoController,
                     label: 'IBAN Numarası',
@@ -488,9 +560,9 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Alt İptal butonu
               SizedBox(
                 width: double.infinity,
@@ -602,7 +674,8 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+            borderSide:
+                BorderSide(color: Theme.of(context).primaryColor, width: 2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -649,7 +722,8 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+            borderSide:
+                BorderSide(color: Theme.of(context).primaryColor, width: 2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -691,6 +765,8 @@ class _TedarikciEklePageState extends State<TedarikciEklePage> {
     _faaliyetController.dispose();
     _durumController.dispose();
     _vergiNoController.dispose();
+    _vergiDairesiController.dispose();
+    _adresController.dispose();
     _ibanNoController.dispose();
     super.dispose();
   }

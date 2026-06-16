@@ -32,6 +32,63 @@ class FaturaService {
     kalemVerileri['toplam_tutar'] = kdvHaricTutar + kdvTutar;
   }
 
+  static String? _eksikKolonAdi(Object hata) {
+    final text = hata.toString();
+    final patterns = [
+      RegExp(r"Could not find the '([^']+)' column"),
+      RegExp(r'column "([^"]+)" of relation'),
+    ];
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null) return match.group(1);
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>> _faturaInsert(
+    Map<String, dynamic> faturaData,
+    String select,
+  ) async {
+    final data = Map<String, dynamic>.from(faturaData);
+    while (true) {
+      try {
+        return await _supabase
+            .from(DbTables.faturalar)
+            .insert(data)
+            .select(select)
+            .single();
+      } catch (e) {
+        final kolon = _eksikKolonAdi(e);
+        if (kolon != null && data.remove(kolon) != null) continue;
+        rethrow;
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>?> _faturaUpdate(
+    int faturaId,
+    Map<String, dynamic> faturaData, {
+    String select = '*',
+  }) async {
+    final data = Map<String, dynamic>.from(faturaData)
+      ..remove('fatura_id')
+      ..remove('olusturma_tarihi');
+    while (true) {
+      try {
+        return await _supabase
+            .from(DbTables.faturalar)
+            .update(data)
+            .eq('fatura_id', faturaId)
+            .select(select)
+            .maybeSingle();
+      } catch (e) {
+        final kolon = _eksikKolonAdi(e);
+        if (kolon != null && data.remove(kolon) != null) continue;
+        rethrow;
+      }
+    }
+  }
+
   static Map<String, dynamic> _kalemInsertData(
     FaturaKalemiModel kalem,
     int faturaId,
@@ -222,11 +279,7 @@ class FaturaService {
       faturaVerileri['olusturma_tarihi'] = DateTime.now().toIso8601String();
       faturaVerileri['firma_id'] = _firmaId;
 
-      final response = await _supabase
-          .from(DbTables.faturalar)
-          .insert(faturaVerileri)
-          .select()
-          .single();
+      final response = await _faturaInsert(faturaVerileri, '*');
 
       return FaturaModel.fromJson(response);
     } catch (e) {
@@ -240,12 +293,10 @@ class FaturaService {
     try {
       faturaVerileri['guncelleme_tarihi'] = DateTime.now().toIso8601String();
 
-      final response = await _supabase
-          .from(DbTables.faturalar)
-          .update(faturaVerileri)
-          .eq('fatura_id', faturaId)
-          .select()
-          .single();
+      final response = await _faturaUpdate(faturaId, faturaVerileri);
+      if (response == null) {
+        throw Exception('Fatura bulunamadı veya güncelleme yetkiniz yok');
+      }
 
       return FaturaModel.fromJson(response);
     } catch (e) {
@@ -668,6 +719,7 @@ class FaturaService {
       final faturaResponse = await _supabase
           .from(DbTables.faturalar)
           .select('odenen_tutar, toplam_tutar, fatura_no')
+          .eq('firma_id', _firmaId)
           .eq('fatura_id', faturaId)
           .single();
 
@@ -688,36 +740,42 @@ class FaturaService {
         yeniOdemeDurumu = 'odenmedi';
       }
 
-      // Faturayı güncelle
-      await _supabase.from(DbTables.faturalar).update({
-        'odenen_tutar': yeniOdenenTutar,
-        'odeme_durumu': yeniOdemeDurumu,
-        'guncelleme_tarihi': DateTime.now().toIso8601String(),
-      }).eq('fatura_id', faturaId);
-
       // Kasa/Banka hareket kaydı ekle (eğer kasa/banka hesabı belirtilmişse)
       if (kasaBankaId != null) {
-        // Kasa/Banka Hareket Service'ini import etmemiz gerekiyor
-        // Bu entegrasyonu başka bir metodla yapacağız
+        final kasaBankaIdNum = int.tryParse(kasaBankaId);
+        if (kasaBankaIdNum == null) {
+          throw Exception('Geçerli bir kasa/banka hesabı seçin');
+        }
+
         final hareketData = {
-          'kasa_banka_id': kasaBankaId,
+          'kasa_banka_id': kasaBankaIdNum,
           'hareket_tipi': 'cikis',
           'tutar': odemeTutari,
-          'para_birimi': paraBirimi ?? 'TRY',
+          'doviz_turu': paraBirimi ?? 'TRY',
           'aciklama': aciklama ?? 'Fatura ödemesi - $faturaNo',
           'kategori': 'fatura_odeme',
-          'fatura_id': faturaId.toString(),
+          'fatura_id': faturaId,
           'referans_no': referansNo,
           'islem_tarihi': (islemTarihi ?? DateTime.now()).toIso8601String(),
-          'olusturma_tarihi': DateTime.now().toIso8601String(),
-          'olusturan_kullanici': _supabase.auth.currentUser?.email ?? 'sistem',
+          'created_at': DateTime.now().toIso8601String(),
+          'created_by': _supabase.auth.currentUser?.email ?? 'sistem',
           'onaylanmis_mi': true, // Fatura ödemeleri otomatik onaylı
+          'firma_id': _firmaId,
         };
-
-        hareketData['firma_id'] = _firmaId;
 
         await _supabase.from(DbTables.kasaBankaHareketleri).insert(hareketData);
       }
+
+      // Faturayı güncelle
+      await _supabase
+          .from(DbTables.faturalar)
+          .update({
+            'odenen_tutar': yeniOdenenTutar,
+            'odeme_durumu': yeniOdemeDurumu,
+            'guncelleme_tarihi': DateTime.now().toIso8601String(),
+          })
+          .eq('firma_id', _firmaId)
+          .eq('fatura_id', faturaId);
 
       // Ödeme geçmişi tablosuna kayıt ekle (gelecekte)
       // await _supabase.from(DbTables.odemeGecmisi).insert({...});
@@ -783,11 +841,7 @@ class FaturaService {
       // Önce faturayı ekle
       final faturaData = fatura.toMap();
       faturaData['firma_id'] = _firmaId;
-      final faturaResponse = await _supabase
-          .from(DbTables.faturalar)
-          .insert(faturaData)
-          .select('fatura_id')
-          .single();
+      final faturaResponse = await _faturaInsert(faturaData, 'fatura_id');
 
       final faturaId = faturaResponse['fatura_id'] as int;
 
@@ -810,10 +864,7 @@ class FaturaService {
       FaturaModel fatura, List<FaturaKalemiModel> kalemler) async {
     try {
       // Önce faturayı güncelle
-      await _supabase
-          .from(DbTables.faturalar)
-          .update(fatura.toMap())
-          .eq('fatura_id', fatura.faturaId!);
+      await _faturaUpdate(fatura.faturaId!, fatura.toMap());
 
       // Mevcut kalemleri sil
       await _supabase

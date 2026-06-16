@@ -396,7 +396,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
 
     if (kayitlar.isEmpty) return;
 
-    var kolonlar = kayitlar.first.keys.toSet();
+    final kolonlar = kayitlar.first.keys.toSet();
     while (true) {
       try {
         await supabase.from(DbTables.fireKayitlari).insert(
@@ -431,6 +431,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
       'ilik_dugme': 'İlik Düğme',
       'utu': 'Ütü',
       'paketleme': 'Paketleme',
+      'kayip': 'Kayıp',
       'diger': 'Diğer',
     };
     final fireKaynakAsamaKodlari = fireKaynakAsamaEtiketleri.keys.toList();
@@ -503,7 +504,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             toplamKalan += kalan;
           }
 
-          void kaydet(String action) {
+          Future<void> kaydet(String action) async {
             var satirHataVar = false;
             for (final beden in hedefBedenDagilimi.keys) {
               final hedef = hedefBedenDagilimi[beden] ?? 0;
@@ -570,6 +571,34 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
               return;
             }
 
+            if (action == 'tamamla' && toplamKalan > 0) {
+              final onay = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Kalan Adet Kayıp Kaydedilsin mi?'),
+                  content: Text(
+                    'Tamamla işlemiyle $toplamKalan adet kalan iş kapatılacak ve kayıp olarak fire kayıtlarına yazılacak.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Vazgeç'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                      ),
+                      child: const Text('Kayıp Olarak Kapat'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (onay != true) return;
+              if (!context.mounted) return;
+            }
+
             Navigator.pop(context, action);
           }
 
@@ -607,6 +636,26 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                         ],
                       ),
                     ),
+                    if (toplamKalan > 0) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Text(
+                          'Tamamla butonuna basarsanız kalan $toplamKalan adet kayıp olarak kapatılır. Devam edecek adet varsa Kısmi Kaydet kullanın.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange[900],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     const Text(
                       'Beden Bazlı Tamamlama / Fire',
@@ -935,11 +984,18 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             tamamlananBeden.values.fold<int>(0, (s, v) => s + v);
         final toplamFire = fireBeden.values.fold<int>(0, (s, v) => s + v);
         final kalanAdet = kalanBeden.values.fold<int>(0, (s, v) => s + v);
+        final kayipBeden =
+            kismiKayit ? <String, int>{} : Map<String, int>.from(kalanBeden);
+        final toplamKayip = kayipBeden.values.fold<int>(0, (s, v) => s + v);
+        final toplamFireVeKayip = toplamFire + toplamKayip;
         final firmaId = TenantManager.instance.requireFirmaId;
         final now = DateTime.now().toIso8601String();
 
         final fireNotu =
             fireBeden.isNotEmpty ? '[FIRE] ${_bedenMapMetni(fireBeden)}' : '';
+        final kayipNotu = kayipBeden.isNotEmpty
+            ? '[KAYIP] ${_bedenMapMetni(kayipBeden)}'
+            : '';
         final fireAsamaSatirlari = <String>[];
         for (final bedenEntry in fireKaynakBeden.entries) {
           for (final kaynakEntry in bedenEntry.value.entries) {
@@ -956,6 +1012,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
         final notParcalari = <String>[
           if (notController.text.trim().isNotEmpty) notController.text.trim(),
           if (fireNotu.isNotEmpty) fireNotu,
+          if (kayipNotu.isNotEmpty) kayipNotu,
           if (fireAsamaNotu.isNotEmpty) fireAsamaNotu,
         ];
         final notMetni = notParcalari.join('\n');
@@ -963,14 +1020,14 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
         final transitionFields = <String, dynamic>{
           'tamamlanan_adet': toplamTamamlanan,
           'talep_edilen_adet': talepAdet,
-          'fire_adet': toplamFire,
+          'fire_adet': toplamFireVeKayip,
           'tamamlama_tarihi': now,
           'updated_at': now,
           if (tamamlananBeden.isNotEmpty) 'beden_detaylari': tamamlananBeden,
           if (notMetni.isNotEmpty) 'notlar': notMetni,
         };
 
-        if (kalanAdet == 0) {
+        if (!kismiKayit) {
           await _workflowTransitionService.applyTransition(
             tableName: DbTables.utuAtamalari,
             recordId: atama['id'],
@@ -1016,10 +1073,21 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           );
         }
 
+        final fireKayitBeden = <String, Map<String, int>>{
+          for (final entry in fireKaynakBeden.entries)
+            entry.key: Map<String, int>.from(entry.value),
+        };
+        for (final entry in kayipBeden.entries) {
+          if (entry.value <= 0) continue;
+          final kaynaklar =
+              fireKayitBeden.putIfAbsent(entry.key, () => <String, int>{});
+          kaynaklar['kayip'] = (kaynaklar['kayip'] ?? 0) + entry.value;
+        }
+
         await _utuFireKayitlariniKaydet(
           modelId: atama['model_id'],
           atamaId: atama['id'],
-          fireKaynakBeden: fireKaynakBeden,
+          fireKaynakBeden: fireKayitBeden,
           notlar: notController.text,
         );
 
@@ -1030,7 +1098,9 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           final mesajParcalari = <String>[
             '$toplamTamamlanan adet tamamlandı',
             if (toplamFire > 0) '$toplamFire adet fire işlendi',
-            if (kalanAdet > 0) '$kalanAdet adet işlemde devam ediyor',
+            if (toplamKayip > 0) '$toplamKayip adet kayıp kapatıldı',
+            if (kismiKayit && kalanAdet > 0)
+              '$kalanAdet adet işlemde devam ediyor',
           ];
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1040,7 +1110,11 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           );
           await _verileriYukle();
           if (mounted) {
-            _tabController.animateTo(1);
+            setState(() {
+              secilenAnaTab = 0;
+              utuDurumTab = kismiKayit ? 2 : 3;
+            });
+            _tabController.animateTo(0);
           }
         }
       } catch (e) {
