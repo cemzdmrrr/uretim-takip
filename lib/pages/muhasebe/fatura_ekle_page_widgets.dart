@@ -605,9 +605,11 @@ extension _WidgetExt on _FaturaEklePageState {
 class _FaturaKalemiEkleDialog extends StatefulWidget {
   final Function(FaturaKalemiModel) onKalemEklendi;
   final FaturaKalemiModel? duzenlenecekKalem;
+  final String faturaTuru;
 
   const _FaturaKalemiEkleDialog({
     required this.onKalemEklendi,
+    required this.faturaTuru,
     this.duzenlenecekKalem,
   });
 
@@ -627,6 +629,8 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
 
   String _secilenBirim = 'adet';
   String _secilenKategori = FaturaKategori.diger;
+
+  bool get _satisFaturasiMi => widget.faturaTuru == 'satis';
 
   List<DropdownMenuItem<String>> get _birimSecenekleri {
     const standartBirimler = <String, String>{
@@ -666,9 +670,13 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
       _aciklamaController.text = kalem.aciklama ?? '';
       _miktarController.text = kalem.miktar.toString();
       _secilenBirim = kalem.birim;
-      _secilenKategori = FaturaKategori.normalize(kalem.kategori);
+      _secilenKategori = _satisFaturasiMi
+          ? FaturaKategori.diger
+          : FaturaKategori.normalize(kalem.kategori);
       _birimFiyatController.text = kalem.birimFiyat.toString();
       _kdvOraniController.text = kalem.kdvOrani.toString();
+    } else if (_satisFaturasiMi) {
+      _secilenKategori = FaturaKategori.diger;
     }
   }
 
@@ -700,7 +708,7 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
     final kalem = FaturaKalemiModel(
       kalemId: widget.duzenlenecekKalem?.kalemId,
       faturaId: 0, // Fatura kaydedilirken atanacak
-      kategori: _secilenKategori,
+      kategori: _satisFaturasiMi ? FaturaKategori.diger : _secilenKategori,
       urunKodu:
           _urunKoduController.text.isEmpty ? null : _urunKoduController.text,
       urunAdi: _urunAdiController.text,
@@ -776,9 +784,11 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
               // Kategori
               DropdownButtonFormField<String>(
                 initialValue: _secilenKategori,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Kategori *',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  helperText:
+                      _satisFaturasiMi ? 'Satış faturasında sabittir' : null,
                 ),
                 items: FaturaKategori.tumu
                     .map(
@@ -788,12 +798,15 @@ class _FaturaKalemiEkleDialogState extends State<_FaturaKalemiEkleDialog> {
                       ),
                     )
                     .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _secilenKategori =
-                        FaturaKategori.normalize(value ?? FaturaKategori.diger);
-                  });
-                },
+                onChanged: _satisFaturasiMi
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _secilenKategori = FaturaKategori.normalize(
+                            value ?? FaturaKategori.diger,
+                          );
+                        });
+                      },
               ),
               const SizedBox(height: 16),
 

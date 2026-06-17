@@ -19,21 +19,29 @@ class _UyumsoftGelenFaturalarPageState
   final _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
   final _dateFormat = DateFormat('dd.MM.yyyy');
   final _redSebebiController = TextEditingController();
+  final _limitController = TextEditingController(text: '50');
 
   List<UyumsoftGelenFatura> _faturalar = [];
   bool _yukleniyor = false;
   bool _islemde = false;
   String _durumFiltresi = 'beklemede';
+  String _apiTarihTipi = 'fatura';
+  late DateTime _apiBaslangicTarihi;
+  late DateTime _apiBitisTarihi;
 
   @override
   void initState() {
     super.initState();
+    final bugun = DateTime.now();
+    _apiBaslangicTarihi = bugun.subtract(const Duration(days: 30));
+    _apiBitisTarihi = bugun;
     _faturalariYukle();
   }
 
   @override
   void dispose() {
     _redSebebiController.dispose();
+    _limitController.dispose();
     super.dispose();
   }
 
@@ -55,9 +63,21 @@ class _UyumsoftGelenFaturalarPageState
   Future<void> _apiIleCek() async {
     setState(() => _islemde = true);
     try {
-      final sayi = await UyumsoftFaturaService.apiIleSenkronizeEt();
+      final sonuc = await UyumsoftFaturaService.apiIleSenkronizeEt(
+        baslangicTarihi: _gunBaslangici(_apiBaslangicTarihi),
+        bitisTarihi: _gunBitisi(_apiBitisTarihi),
+        tarihTipi: _apiTarihTipi,
+        limit: int.tryParse(_limitController.text.trim()) ?? 50,
+      );
       if (!mounted) return;
-      context.showSuccessSnackBar('$sayi fatura senkronize edildi');
+      context.showSuccessSnackBar(
+        '${sonuc.bulunan} fatura bulundu, ${sonuc.aktarilan} fatura senkronize edildi',
+      );
+      if (sonuc.hatalar.isNotEmpty) {
+        context.showErrorSnackBar(
+          '${sonuc.hatalar.length} fatura detay indirilemedi. Hata filtresinde listelendi.',
+        );
+      }
       await _faturalariYukle();
     } catch (e) {
       if (mounted) context.showErrorSnackBar(e.toString());
@@ -69,15 +89,49 @@ class _UyumsoftGelenFaturalarPageState
   Future<void> _xmlYukle() async {
     setState(() => _islemde = true);
     try {
-      await UyumsoftFaturaService.xmlUblDosyasiYukle();
+      final sonuc = await UyumsoftFaturaService.xmlUblDosyalariYukle();
       if (!mounted) return;
-      context.showSuccessSnackBar('XML/UBL fatura onay kuyruğuna eklendi');
+      context.showSuccessSnackBar(
+        '${sonuc.secilen} dosya seçildi, ${sonuc.eklenen} eklendi, '
+        '${sonuc.zatenVardi} zaten vardı, ${sonuc.hatali} hatalı',
+      );
+      if (sonuc.hatalar.isNotEmpty) {
+        context.showErrorSnackBar(sonuc.hatalar.take(3).join('\n'));
+      }
       await _faturalariYukle();
     } catch (e) {
       if (mounted) context.showErrorSnackBar(e.toString());
     } finally {
       if (mounted) setState(() => _islemde = false);
     }
+  }
+
+  DateTime _gunBaslangici(DateTime tarih) {
+    return DateTime(tarih.year, tarih.month, tarih.day);
+  }
+
+  DateTime _gunBitisi(DateTime tarih) {
+    return DateTime(tarih.year, tarih.month, tarih.day, 23, 59, 59, 999);
+  }
+
+  Future<void> _tarihAraligiSec() async {
+    final secilen = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(DateTime.now().year + 2),
+      initialDateRange: DateTimeRange(
+        start: _apiBaslangicTarihi,
+        end: _apiBitisTarihi,
+      ),
+      helpText: 'Uyumsoft çekim tarih aralığı',
+      cancelText: 'Vazgeç',
+      confirmText: 'Seç',
+    );
+    if (secilen == null) return;
+    setState(() {
+      _apiBaslangicTarihi = secilen.start;
+      _apiBitisTarihi = secilen.end;
+    });
   }
 
   Future<void> _onayla(UyumsoftGelenFatura fatura) async {
@@ -189,6 +243,9 @@ class _UyumsoftGelenFaturalarPageState
               _detaySatiri('KDV', _currencyFormat.format(fatura.kdvTutari)),
               _detaySatiri(
                   'Toplam', _currencyFormat.format(fatura.toplamTutar)),
+              if (fatura.durum == 'hata' &&
+                  (fatura.redSebebi?.trim().isNotEmpty ?? false))
+                _detaySatiri('Hata', fatura.redSebebi!),
               const Divider(height: 32),
               Text(
                 'Kalemler',
@@ -275,6 +332,7 @@ class _UyumsoftGelenFaturalarPageState
                 ButtonSegment(value: 'beklemede', label: Text('Bekleyen')),
                 ButtonSegment(value: 'aktarildi', label: Text('Aktarılan')),
                 ButtonSegment(value: 'reddedildi', label: Text('Reddedilen')),
+                ButtonSegment(value: 'hata', label: Text('Hata')),
                 ButtonSegment(value: 'tumu', label: Text('Tümü')),
               ],
               selected: {_durumFiltresi},
@@ -284,6 +342,51 @@ class _UyumsoftGelenFaturalarPageState
               },
             ),
             const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _islemde ? null : _tarihAraligiSec,
+              icon: const Icon(Icons.date_range),
+              label: Text(
+                '${_dateFormat.format(_apiBaslangicTarihi)} - '
+                '${_dateFormat.format(_apiBitisTarihi)}',
+              ),
+            ),
+            SizedBox(
+              width: 150,
+              child: DropdownButtonFormField<String>(
+                initialValue: _apiTarihTipi,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Tarih tipi',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'fatura', child: Text('Fatura')),
+                  DropdownMenuItem(
+                    value: 'olusturma',
+                    child: Text('Oluşturma'),
+                  ),
+                ],
+                onChanged: _islemde
+                    ? null
+                    : (value) {
+                        if (value == null) return;
+                        setState(() => _apiTarihTipi = value);
+                      },
+              ),
+            ),
+            SizedBox(
+              width: 92,
+              child: TextField(
+                controller: _limitController,
+                enabled: !_islemde,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Limit',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
             ElevatedButton.icon(
               onPressed: _islemde ? null : _apiIleCek,
               icon: const Icon(Icons.sync, color: Colors.white),
@@ -292,7 +395,7 @@ class _UyumsoftGelenFaturalarPageState
             OutlinedButton.icon(
               onPressed: _islemde ? null : _xmlYukle,
               icon: const Icon(Icons.file_upload, color: Colors.blue),
-              label: const Text('XML/UBL Yükle'),
+              label: const Text('XML/UBL Toplu Yükle'),
             ),
             IconButton(
               tooltip: 'Yenile',

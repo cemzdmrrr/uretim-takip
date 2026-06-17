@@ -210,6 +210,8 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                   controller: _aramaController,
                   decoration: const InputDecoration(
                     labelText: 'Fatura No veya Açıklama Ara',
+                    helperText:
+                        'Firma/cari unvan, vergi no ve adres dahil aranir',
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(),
                   ),

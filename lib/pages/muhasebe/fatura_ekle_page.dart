@@ -163,6 +163,7 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     showDialog(
       context: context,
       builder: (context) => _FaturaKalemiEkleDialog(
+        faturaTuru: _secilenFaturaTuru,
         onKalemEklendi: (kalem) {
           setState(() {
             _faturaKalemleri.add(kalem);
@@ -177,6 +178,7 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     showDialog(
       context: context,
       builder: (context) => _FaturaKalemiEkleDialog(
+        faturaTuru: _secilenFaturaTuru,
         duzenlenecekKalem: _faturaKalemleri[index],
         onKalemEklendi: (kalem) {
           setState(() {
@@ -261,13 +263,11 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
     });
 
     try {
-      final kaydedilecekKalemler = _secilenFaturaTuru == 'satis'
-          ? <FaturaKalemiModel>[]
-          : _faturaKalemleri;
+      final kaydedilecekKalemler = _faturaKalemleri;
       final araToplamTutar =
-          _secilenFaturaTuru == 'satis' ? 0.0 : _araToplamTutar;
-      final kdvTutari = _secilenFaturaTuru == 'satis' ? 0.0 : _kdvTutari;
-      final toplamTutar = _secilenFaturaTuru == 'satis' ? 0.0 : _toplamTutar;
+          kaydedilecekKalemler.isEmpty ? 0.0 : _araToplamTutar;
+      final kdvTutari = kaydedilecekKalemler.isEmpty ? 0.0 : _kdvTutari;
+      final toplamTutar = kaydedilecekKalemler.isEmpty ? 0.0 : _toplamTutar;
 
       final fatura = FaturaModel(
           faturaId: _duzenlemeModu ? widget.duzenlenecekFatura!.faturaId : null,
@@ -360,7 +360,7 @@ class _FaturaEklePageState extends State<FaturaEklePage> {
                     _buildMusteritedarikciKarti(),
                     const SizedBox(height: 16),
 
-                    if (_secilenFaturaTuru != 'satis') ...[
+                    ...[
                       // Fatura kalemleri kartı
                       _buildFaturaKalemleriKarti(),
                       const SizedBox(height: 16),

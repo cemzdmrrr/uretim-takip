@@ -160,6 +160,7 @@ Notlar:
 - Fire kaynakları adet bazlı ve birden fazla kaynak aşamaya bölünebilir olmalıdır.
 - Utu tamamla/kismi kaydet fire girisleri `fire_kayitlari` tablosuna yazilir. Mevcut semada `asama` alani fire kaynak asamasi olarak kullanilir; uretim raporu utu fire kaynak verisini once bu tablodan okur, kayit yoksa eski not fallback'ini kullanir.
 - Utu sekmesinde `Tamamla`, kalan beden adedi varsa isi kapatir ve kalanlari `fire_kayitlari.asama='kayip'` olarak yazar; yeni islemde kayit acmaz. Kalan adet uretimde devam edecekse kullanici `Kismi Kaydet` kullanmalidir.
+- Utu tamamla modalinda tamamlanan adet hedef adedi asabilir; fazla girilen adet fire veya kayip sayilmaz. Kalan hesaplamasi `max(hedef - tamamlanan - fire, 0)` olarak kalir ve UI fazla adedi bilgi olarak gosterir.
 
 ## Finans ve Fatura Hafizasi
 
@@ -177,13 +178,17 @@ Notlar:
 - Fatura kalemlerinde virgullu/ondalik birim fiyat kabul edilmelidir.
 - Fatura olusturulduktan sonra detayda KDV tutar ve toplam hesaplamalari calismalidir.
 - Fatura duzenlemede mevcut kalemler sifirlanmamali; kalem bazli duzenle/sil olmalidir.
-- Satis faturasi eklerken fatura kalemi secme/girme zorunlulugu yoktur; kalem karti satis turunde gosterilmez ve satis faturasi kalemsiz kaydedilir.
+- Satis faturasi eklerken fatura kalemi secme/girme zorunlulugu yoktur; kalem karti satis turunde de gorunur. Kullanici kalem girerse tutarlar kalemlerden hesaplanir, kalem girmezse satis faturasi kalemsiz kaydedilebilir. Satis faturasi kalem modalinda kategori secimi pasiftir ve kalem kategorisi `diger` olarak tutulur.
 - Alis faturasi eklerken kayitli tedarikci secimi zorunlu degildir. Kullanicinin yazdigi sirket/cari unvan `faturalar.cari_unvan` alaninda saklanir; kayitli tedarikci secilirse mevcut bilgiler fatura formuna otomatik doldurulur.
 - Tedarikci kaydinda fatura adresi ve vergi dairesi `tedarikciler.adres` ve `tedarikciler.vergi_dairesi` alanlarinda tutulur; alis faturasi formunda kayitli tedarikci secilince bu bilgiler otomatik doldurulur.
 - Fatura gider/alis kategorileri fatura basliginda degil `fatura_kalemleri.kategori` alaninda tutulur. Tek faturada birden fazla kategori olabilir; kategori ozetleri ve filtreler kalemlerden hesaplanir. Gecerli kategoriler: `iplik`, `aksesuar`, `fason_uretim`, `genel_gider`, `nakliye`, `personel`, `diger`.
 - Uyumsoft gelen faturalar mevcut `faturalar` tablosuna dogrudan yazilmaz. Once `uyumsoft_gelen_faturalar` ve `uyumsoft_gelen_fatura_kalemleri` onay kuyruguna alinir; admin onaylarsa mevcut fatura sistemine `fatura_turu='alis'` ve `durum='taslak'` olarak aktarilir. Reddedilen veya bekleyen kayitlar normal fatura listesinde gorunmez.
 - Uyumsoft XML/UBL yukleme Flutter tarafinda `UyumsoftFaturaService.xmlUblDosyasiYukle()` ile kuyruga eklenir. API senkronizasyonu `uyumsoft-gelen-faturalar-sync` Edge Function uzerinden tasarlanmistir; credential istemciye gomulmemelidir.
 - Uyumsoft API credential bilgileri repo veya Flutter kodunda tutulmaz. Edge Function `UYUMSOFT_USERNAME`, `UYUMSOFT_PASSWORD`, `UYUMSOFT_VKN` ve opsiyonel `UYUMSOFT_ENDPOINT` Supabase secret'larini okur. "Uyumsoft'tan Cek" butonu bu Edge Function'i cagirir.
+- Uyumsoft API icin portal giris kullanicisi degil, Uyumsoft'un verdigi Web Servis Kullanicisi ve Web Servis Sifresi kullanilir. Varsayilan e-Fatura endpointi `https://edonusumapi.uyum.com.tr/Services/Integration` olmalidir.
+- Uyumsoft API cekimi tarih araligi, tarih tipi (`fatura` veya `olusturma`) ve limit parametreleriyle calisir. XML/UBL yukleme tek tek degil coklu dosya secimiyle de onay kuyruguna ekleme yapar; duplicate kontrolu `firma_id,kaynak,ettn` uzerinden korunur.
+- Uyumsoft API liste sorgusunda bulunup detay XML/UBL verisi indirilemeyen faturalar kaybolmaz; `uyumsoft_gelen_faturalar.durum='hata'` olarak kuyrukta tutulur ve `red_sebebi` alaninda Uyumsoft detay hatasi saklanir. Bekleyen faturalarla karismamasi icin Uyumsoft gelen faturalar ekraninda `Hata` filtresi vardir.
+- Uyumsoft veya XML/UBL kaynakli gelen faturalarda ayni firma icinde ayni `fatura_no` ya da `efatura_uuid` zaten mevcutsa yeni fatura numarasi uretmek icin suffix eklenmez. Kayit `aktarildi` olarak mevcut faturaya baglanir veya onay aninda islem durdurulur; ayni fatura numarasiyla ikinci fatura olusturulmaz.
 - Uyumsoft aktariminda duplicate kontrolu `(firma_id, kaynak, ettn)` ve mevcut fatura tarafinda `efatura_uuid` ile yapilir. Tedarikci `vergi_no` ile eslesirse `tedarikci_id` doldurulur, eslesmezse `cari_unvan` ile taslak fatura olusturulur.
 - Finans operasyon panelleri ERP ekranlari gibi kompakt ve tek satir KPI kullanacak sekilde tasarlanmalidir.
 - Gelismis raporlar sayfasi yukleme finans raporu olarak tek amacli calisir. Ana veri `yukleme_kayitlari`dir; tarih filtresi yukleme tarihine uygulanir. Gerceklesen maliyet yoksa model fiyatlandirma/aktif plan maliyetiyle proforma analiz yapilir; gerceklesen maliyet varsa yalnizca ilgili maliyet kaleminin birim degeri degisir.

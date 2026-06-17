@@ -492,25 +492,28 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           int toplamTamam = 0;
           int toplamFire = 0;
           int toplamKalan = 0;
+          int toplamFazla = 0;
 
           for (final beden in hedefBedenDagilimi.keys) {
             final hedef = hedefBedenDagilimi[beden] ?? 0;
             final tamam = _toInt(tamamControllers[beden]?.text);
             final fire = _toInt(fireControllers[beden]?.text);
-            final kalan = (hedef - tamam - fire).clamp(0, 999999999);
+            final fark = hedef - tamam - fire;
+            final kalan = fark.clamp(0, 999999999).toInt();
+            final fazla = fark < 0 ? -fark : 0;
 
             toplamTamam += tamam;
             toplamFire += fire;
             toplamKalan += kalan;
+            toplamFazla += fazla;
           }
 
           Future<void> kaydet(String action) async {
             var satirHataVar = false;
             for (final beden in hedefBedenDagilimi.keys) {
-              final hedef = hedefBedenDagilimi[beden] ?? 0;
               final tamam = _toInt(tamamControllers[beden]?.text);
               final fire = _toInt(fireControllers[beden]?.text);
-              if (tamam < 0 || fire < 0 || (tamam + fire) > hedef) {
+              if (tamam < 0 || fire < 0) {
                 satirHataVar = true;
                 break;
               }
@@ -520,7 +523,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
               ScaffoldMessenger.of(this.context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    'Beden satırlarında Tamam + Fire değeri hedef adedi aşamaz.',
+                    'Beden satırlarında negatif tamamlanan veya fire adedi girilemez.',
                   ),
                   backgroundColor: Colors.red,
                 ),
@@ -555,16 +558,6 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
               ScaffoldMessenger.of(this.context).showSnackBar(
                 const SnackBar(
                   content: Text('En az bir beden için adet girmelisiniz.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-              return;
-            }
-
-            if ((toplamTamam + toplamFire) > talepAdet) {
-              ScaffoldMessenger.of(this.context).showSnackBar(
-                const SnackBar(
-                  content: Text('Toplam Tamam + Fire, talep adedini aşamaz.'),
                   backgroundColor: Colors.red,
                 ),
               );
@@ -721,7 +714,9 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                       final hedef = hedefBedenDagilimi[beden] ?? 0;
                       final tamam = _toInt(tamamControllers[beden]?.text);
                       final fire = _toInt(fireControllers[beden]?.text);
-                      final kalan = hedef - tamam - fire;
+                      final fark = hedef - tamam - fire;
+                      final kalan = fark < 0 ? 0 : fark;
+                      final fazla = fark < 0 ? -fark : 0;
 
                       return Container(
                         padding: const EdgeInsets.symmetric(
@@ -784,14 +779,29 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                             ),
                             const SizedBox(width: 4),
                             Expanded(
-                              child: Text(
-                                '${kalan < 0 ? 0 : kalan}',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: kalan < 0 ? Colors.red : Colors.green,
-                                ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '$kalan',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                  if (fazla > 0)
+                                    Text(
+                                      'Fazla: $fazla',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.blue[700],
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ],
@@ -814,6 +824,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
                           Text('Tamamlanan: $toplamTamam'),
                           Text('Fire: $toplamFire'),
                           Text('Kalan: $toplamKalan'),
+                          if (toplamFazla > 0) Text('Fazla: $toplamFazla'),
                         ],
                       ),
                     ),
@@ -964,7 +975,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
           final hedef = hedefBedenDagilimi[beden] ?? 0;
           final tamam = _toInt(tamamControllers[beden]?.text);
           final fire = _toInt(fireControllers[beden]?.text);
-          final kalan = (hedef - tamam - fire).clamp(0, 999999999);
+          final kalan = (hedef - tamam - fire).clamp(0, 999999999).toInt();
 
           if (tamam > 0) tamamlananBeden[beden] = tamam;
           if (fire > 0) fireBeden[beden] = fire;
@@ -1049,28 +1060,30 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             extraFields: transitionFields,
           );
 
-          await AtamaBirlestirmeService(client: supabase).insertOrMerge(
-            tableName: DbTables.utuAtamalari,
-            firmaId: firmaId,
-            modelId: atama['model_id'],
-            idempotencyKey: 'utu:${atama['id']}:kalan:$kalanAdet',
-            values: {
-              'model_id': atama['model_id'],
-              'tedarikci_id': atama['tedarikci_id'],
-              if (atama['atanan_kullanici_id'] != null)
-                'atanan_kullanici_id': atama['atanan_kullanici_id'],
-              'talep_edilen_adet': kalanAdet,
-              'adet': kalanAdet,
-              'tamamlanan_adet': 0,
-              'durum': 'uretimde',
-              'atama_tarihi': now,
-              'uretim_baslangic_tarihi': now,
-              if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
-              'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
-              'firma_id': firmaId,
-            },
-            quantityFields: const ['talep_edilen_adet', 'adet'],
-          );
+          if (kalanAdet > 0) {
+            await AtamaBirlestirmeService(client: supabase).insertOrMerge(
+              tableName: DbTables.utuAtamalari,
+              firmaId: firmaId,
+              modelId: atama['model_id'],
+              idempotencyKey: 'utu:${atama['id']}:kalan:$kalanAdet',
+              values: {
+                'model_id': atama['model_id'],
+                'tedarikci_id': atama['tedarikci_id'],
+                if (atama['atanan_kullanici_id'] != null)
+                  'atanan_kullanici_id': atama['atanan_kullanici_id'],
+                'talep_edilen_adet': kalanAdet,
+                'adet': kalanAdet,
+                'tamamlanan_adet': 0,
+                'durum': 'uretimde',
+                'atama_tarihi': now,
+                'uretim_baslangic_tarihi': now,
+                if (kalanBeden.isNotEmpty) 'beden_detaylari': kalanBeden,
+                'notlar': 'Kısmi tamamlamadan devam - Kalan adet: $kalanAdet',
+                'firma_id': firmaId,
+              },
+              quantityFields: const ['talep_edilen_adet', 'adet'],
+            );
+          }
         }
 
         final fireKayitBeden = <String, Map<String, int>>{

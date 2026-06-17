@@ -10,6 +10,34 @@ import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/user_role_service.dart';
 
+class UyumsoftTopluYuklemeSonucu {
+  final int secilen;
+  final int eklenen;
+  final int zatenVardi;
+  final int hatali;
+  final List<String> hatalar;
+
+  const UyumsoftTopluYuklemeSonucu({
+    required this.secilen,
+    required this.eklenen,
+    required this.zatenVardi,
+    required this.hatali,
+    required this.hatalar,
+  });
+}
+
+class UyumsoftApiSenkronSonucu {
+  final int bulunan;
+  final int aktarilan;
+  final List<String> hatalar;
+
+  const UyumsoftApiSenkronSonucu({
+    required this.bulunan,
+    required this.aktarilan,
+    required this.hatalar,
+  });
+}
+
 class UyumsoftFaturaService {
   UyumsoftFaturaService._();
 
@@ -34,10 +62,13 @@ class UyumsoftFaturaService {
 
   static String _apiHatasiniTemizle(Object error) {
     final text = error.toString();
+    if (text.contains('uyumsoft_kimlik_hatasi')) {
+      return 'Uyumsoft web servis kullanıcı adı veya şifresi hatalı görünüyor. Portal giriş bilgisi değil, Uyumsoft Web Servis bilgileri kullanılmalıdır.';
+    }
     if (text.contains('uyumsoft_yetki_yok') ||
         text.contains('gerekli yetkiniz yok') ||
         text.contains('yetkiniz yok')) {
-      return 'Uyumsoft entegrasyon yetkisi yok. Uyumsoft portalında API/web servis yetkisini ve gerekiyorsa IP erişim iznini aktif edin.';
+      return 'Uyumsoft entegrasyon yetkisi yok. Portal kullanıcısı yerine Web Servis Kullanıcısı kullanılmalı; Uyumsoft web servis yetkisini ve gerekiyorsa IP erişim iznini kontrol edin.';
     }
     return text
         .replaceAll(RegExp(r'<[^>]+>'), ' ')
@@ -55,17 +86,38 @@ class UyumsoftFaturaService {
     }
   }
 
-  static Future<int> apiIleSenkronizeEt() async {
+  static Future<UyumsoftApiSenkronSonucu> apiIleSenkronizeEt({
+    DateTime? baslangicTarihi,
+    DateTime? bitisTarihi,
+    String tarihTipi = 'fatura',
+    int limit = 50,
+  }) async {
     await _adminYetkisiniDogrula();
     try {
       final response = await _client.functions.invoke(
         'uyumsoft-gelen-faturalar-sync',
-        body: {'firma_id': _firmaId},
+        body: {
+          'firma_id': _firmaId,
+          if (baslangicTarihi != null)
+            'baslangic_tarihi': baslangicTarihi.toIso8601String(),
+          if (bitisTarihi != null)
+            'bitis_tarihi': bitisTarihi.toIso8601String(),
+          'tarih_tipi': tarihTipi,
+          'limit': limit,
+        },
       );
       final data = response.data;
       if (data is Map && data['success'] == true) {
-        final sayi = data['aktarilan'] ?? data['count'] ?? 0;
-        return sayi is num ? sayi.toInt() : 0;
+        final aktarilan = data['aktarilan'] ?? data['count'] ?? 0;
+        final bulunan = data['bulunan'] ?? 0;
+        final hatalarRaw = data['hatalar'];
+        return UyumsoftApiSenkronSonucu(
+          bulunan: bulunan is num ? bulunan.toInt() : 0,
+          aktarilan: aktarilan is num ? aktarilan.toInt() : 0,
+          hatalar: hatalarRaw is List
+              ? hatalarRaw.map((item) => item.toString()).toList()
+              : const [],
+        );
       }
       final mesaj = data is Map ? data['error']?.toString() : null;
       final code = data is Map ? data['code']?.toString() : null;
@@ -99,6 +151,51 @@ class UyumsoftFaturaService {
     return xmlUblYukleVeCozumle(xml, dosyaAdi: file.name);
   }
 
+  static Future<UyumsoftTopluYuklemeSonucu> xmlUblDosyalariYukle() async {
+    await _adminYetkisiniDogrula();
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['xml', 'ubl'],
+      withData: true,
+      allowMultiple: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      throw Exception('Dosya seçilmedi.');
+    }
+
+    var eklenen = 0;
+    var zatenVardi = 0;
+    final hatalar = <String>[];
+
+    for (final file in result.files) {
+      try {
+        final bytes = file.bytes;
+        if (bytes == null || bytes.isEmpty) {
+          throw Exception('Dosya okunamadı.');
+        }
+        final xml = utf8.decode(bytes, allowMalformed: true);
+        final parsed = _parseUblXml(xml, dosyaAdi: file.name);
+        final mevcut = await _uyumsoftKaydiVarMi(parsed.ustVeri['ettn']);
+        await _xmlUblParsedKaydet(parsed);
+        if (mevcut) {
+          zatenVardi++;
+        } else {
+          eklenen++;
+        }
+      } catch (e) {
+        hatalar.add('${file.name}: $e');
+      }
+    }
+
+    return UyumsoftTopluYuklemeSonucu(
+      secilen: result.files.length,
+      eklenen: eklenen,
+      zatenVardi: zatenVardi,
+      hatali: hatalar.length,
+      hatalar: hatalar,
+    );
+  }
+
   static Future<UyumsoftGelenFatura> xmlUblYukleVeCozumle(
     String xml, {
     String? dosyaAdi,
@@ -106,26 +203,7 @@ class UyumsoftFaturaService {
     await _adminYetkisiniDogrula();
     final parsed = _parseUblXml(xml, dosyaAdi: dosyaAdi);
     try {
-      final upserted = await _client
-          .from(DbTables.uyumsoftGelenFaturalar)
-          .upsert(parsed.ustVeri, onConflict: 'firma_id,kaynak,ettn')
-          .select('id')
-          .single();
-      final gelenFaturaId = upserted['id'].toString();
-
-      await _client
-          .from(DbTables.uyumsoftGelenFaturaKalemleri)
-          .delete()
-          .eq('firma_id', _firmaId)
-          .eq('gelen_fatura_id', gelenFaturaId);
-
-      if (parsed.kalemler.isNotEmpty) {
-        await _client.from(DbTables.uyumsoftGelenFaturaKalemleri).insert(
-              parsed.kalemler
-                  .map((kalem) => kalem.toInsertMap(gelenFaturaId, _firmaId))
-                  .toList(),
-            );
-      }
+      final gelenFaturaId = await _xmlUblParsedKaydet(parsed);
 
       final kayitlar = await bekleyenleriGetir(durum: null);
       return kayitlar.firstWhere((item) => item.id == gelenFaturaId);
@@ -133,6 +211,58 @@ class UyumsoftFaturaService {
       if (_tabloEksikMi(e)) throw _migrationHatasi();
       rethrow;
     }
+  }
+
+  static Future<bool> _uyumsoftKaydiVarMi(dynamic ettn) async {
+    if (ettn == null || ettn.toString().trim().isEmpty) return false;
+    try {
+      final response = await _client
+          .from(DbTables.uyumsoftGelenFaturalar)
+          .select('id')
+          .eq('firma_id', _firmaId)
+          .eq('kaynak', 'xml')
+          .eq('ettn', ettn.toString())
+          .maybeSingle();
+      return response != null;
+    } catch (e) {
+      if (_tabloEksikMi(e)) throw _migrationHatasi();
+      rethrow;
+    }
+  }
+
+  static Future<String> _xmlUblParsedKaydet(_ParsedUbl parsed) async {
+    final mevcutFaturaId = await _mevcutFaturaIdBul(
+      parsed.ustVeri['fatura_no']?.toString() ?? '',
+      parsed.ustVeri['ettn']?.toString() ?? '',
+    );
+    if (mevcutFaturaId != null) {
+      parsed.ustVeri['durum'] = 'aktarildi';
+      parsed.ustVeri['fatura_id'] = mevcutFaturaId;
+      parsed.ustVeri['red_sebebi'] = null;
+    }
+
+    final upserted = await _client
+        .from(DbTables.uyumsoftGelenFaturalar)
+        .upsert(parsed.ustVeri, onConflict: 'firma_id,kaynak,ettn')
+        .select('id')
+        .single();
+    final gelenFaturaId = upserted['id'].toString();
+
+    await _client
+        .from(DbTables.uyumsoftGelenFaturaKalemleri)
+        .delete()
+        .eq('firma_id', _firmaId)
+        .eq('gelen_fatura_id', gelenFaturaId);
+
+    if (parsed.kalemler.isNotEmpty) {
+      await _client.from(DbTables.uyumsoftGelenFaturaKalemleri).insert(
+            parsed.kalemler
+                .map((kalem) => kalem.toInsertMap(gelenFaturaId, _firmaId))
+                .toList(),
+          );
+    }
+
+    return gelenFaturaId;
   }
 
   static Future<List<UyumsoftGelenFatura>> bekleyenleriGetir({
@@ -175,9 +305,30 @@ class UyumsoftFaturaService {
 
       final tedarikciId =
           gelen.tedarikciId ?? await _tedarikciIdBul(gelen.vergiNo);
-      final faturaNo = await _benzersizFaturaNo(gelen.faturaNo, gelen.ettn);
+      final mevcutFaturaId =
+          await _mevcutFaturaIdBul(gelen.faturaNo, gelen.ettn);
+      if (mevcutFaturaId != null) {
+        await _client
+            .from(DbTables.uyumsoftGelenFaturalar)
+            .update({
+              'durum': 'aktarildi',
+              'fatura_id': mevcutFaturaId,
+              'tedarikci_id': tedarikciId,
+              'red_sebebi':
+                  'AynÄ± fatura numarasÄ± veya ETTN ile kayÄ±tlÄ± fatura mevcut.',
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('firma_id', _firmaId)
+            .eq('id', gelenFaturaId);
+        throw Exception(
+          '${gelen.faturaNo} numaralÄ± fatura sistemde zaten kayÄ±tlÄ±. '
+          'AynÄ± fatura numarasÄ± ile tekrar fatura oluÅŸturulamaz.',
+        );
+      }
+
       final fatura = FaturaModel(
-        faturaNo: faturaNo,
+        faturaNo:
+            gelen.faturaNo.trim().isEmpty ? 'UYUMSOFT' : gelen.faturaNo.trim(),
         faturaTuru: 'alis',
         faturaTarihi: gelen.faturaTarihi,
         tedarikciId: tedarikciId,
@@ -284,22 +435,40 @@ class UyumsoftFaturaService {
     }
   }
 
-  static Future<String> _benzersizFaturaNo(String faturaNo, String ettn) async {
-    final temizNo = faturaNo.trim().isEmpty ? 'UYUMSOFT' : faturaNo.trim();
+  static Future<int?> _mevcutFaturaIdBul(String faturaNo, String ettn) async {
+    final temizNo = faturaNo.trim();
     try {
-      final mevcut = await _client
-          .from(DbTables.faturalar)
-          .select('fatura_id')
-          .eq('fatura_no', temizNo)
-          .maybeSingle();
-      if (mevcut == null) return temizNo;
-    } catch (_) {
-      return temizNo;
-    }
+      if (temizNo.isNotEmpty) {
+        final mevcutNo = await _client
+            .from(DbTables.faturalar)
+            .select('fatura_id')
+            .eq('firma_id', _firmaId)
+            .eq('fatura_no', temizNo)
+            .neq('durum', 'iptal')
+            .limit(1);
+        final id = mevcutNo.isNotEmpty
+            ? (mevcutNo.first['fatura_id'] as num?)?.toInt()
+            : null;
+        if (id != null) return id;
+      }
 
-    final ek = ettn.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
-    final suffix = ek.length > 6 ? ek.substring(ek.length - 6) : ek;
-    return '$temizNo-UYS$suffix';
+      final temizEttn = ettn.trim();
+      if (temizEttn.isNotEmpty) {
+        final mevcutEttn = await _client
+            .from(DbTables.faturalar)
+            .select('fatura_id')
+            .eq('firma_id', _firmaId)
+            .eq('efatura_uuid', temizEttn)
+            .neq('durum', 'iptal')
+            .limit(1);
+        return mevcutEttn.isNotEmpty
+            ? (mevcutEttn.first['fatura_id'] as num?)?.toInt()
+            : null;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   static _ParsedUbl _parseUblXml(String xml, {String? dosyaAdi}) {

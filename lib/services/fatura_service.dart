@@ -158,7 +158,13 @@ class FaturaService {
       // Filtreleme
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
         query = query.or(
-            'fatura_no.ilike.%$aramaKelimesi%,aciklama.ilike.%$aramaKelimesi%');
+          'fatura_no.ilike.%$aramaKelimesi%,'
+          'cari_unvan.ilike.%$aramaKelimesi%,'
+          'vergi_no.ilike.%$aramaKelimesi%,'
+          'vergi_dairesi.ilike.%$aramaKelimesi%,'
+          'fatura_adres.ilike.%$aramaKelimesi%,'
+          'aciklama.ilike.%$aramaKelimesi%',
+        );
       }
 
       if (faturaTuru != null && faturaTuru.isNotEmpty) {
@@ -228,7 +234,13 @@ class FaturaService {
 
       if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
         query = query.or(
-            'fatura_no.ilike.%$aramaKelimesi%,aciklama.ilike.%$aramaKelimesi%');
+          'fatura_no.ilike.%$aramaKelimesi%,'
+          'cari_unvan.ilike.%$aramaKelimesi%,'
+          'vergi_no.ilike.%$aramaKelimesi%,'
+          'vergi_dairesi.ilike.%$aramaKelimesi%,'
+          'fatura_adres.ilike.%$aramaKelimesi%,'
+          'aciklama.ilike.%$aramaKelimesi%',
+        );
       }
       if (faturaTuru != null && faturaTuru.isNotEmpty) {
         query = query.eq('fatura_turu', faturaTuru);

@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const uyumsoftEndpoint =
   Deno.env.get("UYUMSOFT_ENDPOINT") ??
-  "https://efatura.uyumsoft.com.tr/Services/Integration";
+  "https://edonusumapi.uyum.com.tr/Services/Integration";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -28,7 +28,7 @@ Deno.serve(async (req: Request) => {
       return json({
         success: false,
         error:
-          "Uyumsoft secret bilgileri eksik. UYUMSOFT_USERNAME, UYUMSOFT_PASSWORD ve UYUMSOFT_VKN tanımlayın.",
+          "Uyumsoft web servis secret bilgileri eksik. UYUMSOFT_USERNAME, UYUMSOFT_PASSWORD ve UYUMSOFT_VKN tanimlayin. Portal kullanicisi yerine Web Servis Kullanicisi kullanilmalidir.",
       }, 400);
     }
 
@@ -38,20 +38,24 @@ Deno.serve(async (req: Request) => {
     );
 
     const now = new Date();
-    const startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - Number(body.gun ?? 30));
+    const startDate = parseDate(body.baslangic_tarihi) ?? new Date(now);
+    if (!body.baslangic_tarihi) {
+      startDate.setDate(startDate.getDate() - Number(body.gun ?? 30));
+    }
+    const endDate = parseDate(body.bitis_tarihi) ?? now;
+    const tarihTipi = body.tarih_tipi === "olusturma" ? "olusturma" : "fatura";
+    const limit = normalizeLimit(body.limit);
 
     const listXml = await soapCall(
       "GetInboxInvoiceList",
-      buildGetInboxInvoiceListBody(startDate, now),
+      buildGetInboxInvoiceListBody(startDate, endDate, tarihTipi, limit),
       username,
       password,
     );
     assertSuccess(listXml, "GetInboxInvoiceList");
 
-    const invoiceIds = extractTagValues(listXml, "InvoiceId")
-      .filter((id, index, arr) => id && arr.indexOf(id) === index)
-      .slice(0, Number(body.limit ?? 50));
+    const invoiceIds = extractInvoiceIds(listXml)
+      .slice(0, limit);
 
     let aktarilan = 0;
     const hatalar: string[] = [];
@@ -64,13 +68,62 @@ Deno.serve(async (req: Request) => {
           username,
           password,
         );
-        assertSuccess(dataXml, "GetInboxInvoiceData");
-        const base64Data = firstTagValue(dataXml, "Data");
-        if (!base64Data) continue;
-
-        const invoiceXml = decodeBase64Utf8(base64Data);
+        let invoiceXml = extractInvoiceXml(dataXml);
+        if (!invoiceXml) {
+          assertSuccess(dataXml, "GetInboxInvoiceData");
+          invoiceXml = extractInvoiceXml(dataXml);
+        }
+        if (!invoiceXml) {
+          const preview = dataXml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")
+            .trim().slice(0, 240);
+          throw new Error(
+            `Detay cevabinda UBL/XML data alani bulunamadi. Cevap: ${preview}`,
+          );
+        }
         const parsed = parseUblInvoice(invoiceXml);
         const ettn = parsed.ettn || invoiceId;
+        const faturaNo = (parsed.faturaNo || invoiceId).trim();
+        const mevcutFatura = await mevcutFaturaBul(
+          supabaseAdmin,
+          firmaId,
+          faturaNo,
+          ettn,
+        );
+        if (mevcutFatura) {
+          await supabaseAdmin
+            .from("uyumsoft_gelen_faturalar")
+            .upsert({
+              firma_id: firmaId,
+              kaynak: "api",
+              durum: "aktarildi",
+              ettn,
+              fatura_no: faturaNo,
+              fatura_tarihi: parsed.faturaTarihi,
+              senaryo: parsed.senaryo,
+              cari_unvan: parsed.cariUnvan || "Bilinmeyen Tedarikçi",
+              vergi_no: parsed.vergiNo,
+              vergi_dairesi: parsed.vergiDairesi,
+              fatura_adres: parsed.faturaAdres,
+              para_birimi: parsed.paraBirimi || "TRY",
+              ara_toplam_tutar: parsed.araToplamTutar,
+              kdv_tutari: parsed.kdvTutari,
+              toplam_tutar: parsed.toplamTutar,
+              fatura_id: mevcutFatura.fatura_id,
+              red_sebebi: null,
+              ham_xml: invoiceXml,
+              ham_json: {
+                invoice_id: invoiceId,
+                vkn,
+                kaynak: "uyumsoft_api",
+                eslesen_fatura_id: mevcutFatura.fatura_id,
+                eslesme_nedeni: mevcutFatura.eslesme_nedeni,
+                sync_tarihi: now.toISOString(),
+              },
+              updated_at: now.toISOString(),
+            }, { onConflict: "firma_id,kaynak,ettn" });
+          aktarilan++;
+          continue;
+        }
 
         const { data: upserted, error: upsertError } = await supabaseAdmin
           .from("uyumsoft_gelen_faturalar")
@@ -79,7 +132,7 @@ Deno.serve(async (req: Request) => {
             kaynak: "api",
             durum: "beklemede",
             ettn,
-            fatura_no: parsed.faturaNo || invoiceId,
+            fatura_no: faturaNo,
             fatura_tarihi: parsed.faturaTarihi,
             senaryo: parsed.senaryo,
             cari_unvan: parsed.cariUnvan || "Bilinmeyen Tedarikçi",
@@ -123,7 +176,16 @@ Deno.serve(async (req: Request) => {
 
         aktarilan++;
       } catch (err) {
-        hatalar.push(`${invoiceId}: ${(err as Error).message}`);
+        const hataMesaji = (err as Error).message;
+        hatalar.push(`${invoiceId}: ${hataMesaji}`);
+        await hataKaydiYaz(
+          supabaseAdmin,
+          firmaId,
+          invoiceId,
+          hataMesaji,
+          now,
+          vkn,
+        );
       }
     }
 
@@ -135,7 +197,15 @@ Deno.serve(async (req: Request) => {
         endpoint: uyumsoftEndpoint,
         kullanici_adi: username,
         son_senkronizasyon_tarihi: now.toISOString(),
-        ek_bilgi: { vkn },
+        ek_bilgi: {
+          vkn,
+          son_sorgu: {
+            baslangic_tarihi: startDate.toISOString(),
+            bitis_tarihi: endDate.toISOString(),
+            tarih_tipi: tarihTipi,
+            limit,
+          },
+        },
         updated_at: now.toISOString(),
       }, { onConflict: "firma_id" });
 
@@ -144,6 +214,10 @@ Deno.serve(async (req: Request) => {
       bulunan: invoiceIds.length,
       aktarilan,
       hatalar,
+      baslangic_tarihi: startDate.toISOString(),
+      bitis_tarihi: endDate.toISOString(),
+      tarih_tipi: tarihTipi,
+      limit,
     });
   } catch (err) {
     const message = (err as Error).message;
@@ -152,20 +226,124 @@ Deno.serve(async (req: Request) => {
       message.includes("yetkiniz yok") ||
       message.includes("Unauthorized") ||
       message.includes("Forbidden");
+    const kimlikHatasi =
+      message.includes("password") ||
+      message.includes("Password") ||
+      message.includes("kullanici") ||
+      message.includes("Kullanici") ||
+      message.includes("user") ||
+      message.includes("User");
 
     return json(
       {
         success: false,
-        code: yetkiHatasi ? "uyumsoft_yetki_yok" : "uyumsoft_sync_error",
+        code: yetkiHatasi
+          ? "uyumsoft_yetki_yok"
+          : kimlikHatasi
+            ? "uyumsoft_kimlik_hatasi"
+            : "uyumsoft_sync_error",
         error: yetkiHatasi
-          ? "Uyumsoft entegrasyon yetkisi yok. Uyumsoft portalinda API/web servis yetkisini ve gerekiyorsa Supabase Edge Function IP erisim iznini kontrol edin."
-          : `Uyumsoft senkronizasyon hatasi: ${message}`,
+          ? "Uyumsoft entegrasyon yetkisi yok. Web Servis Kullanicisi yetkisini ve gerekiyorsa Supabase Edge Function IP erisim iznini kontrol edin."
+          : kimlikHatasi
+            ? "Uyumsoft web servis kullanici adi veya sifresi hatali gorunuyor. Portal kullanicisi degil, Uyumsoft'un verdigi Web Servis Kullanicisi ve sifresi kullanilmalidir."
+            : `Uyumsoft senkronizasyon hatasi: ${message}`,
         detail: message,
       },
       yetkiHatasi ? 403 : 500,
     );
   }
 });
+
+async function mevcutFaturaBul(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  firmaId: string,
+  faturaNo: string,
+  ettn: string,
+) {
+  const temizFaturaNo = faturaNo.trim();
+  if (temizFaturaNo) {
+    const { data: faturaNoEslesme } = await supabaseAdmin
+      .from("faturalar")
+      .select("fatura_id")
+      .eq("firma_id", firmaId)
+      .eq("fatura_no", temizFaturaNo)
+      .neq("durum", "iptal")
+      .limit(1)
+      .maybeSingle();
+    if (faturaNoEslesme) {
+      return {
+        fatura_id: faturaNoEslesme.fatura_id,
+        eslesme_nedeni: "fatura_no",
+      };
+    }
+  }
+
+  const temizEttn = ettn.trim();
+  if (temizEttn) {
+    const { data: ettnEslesme } = await supabaseAdmin
+      .from("faturalar")
+      .select("fatura_id")
+      .eq("firma_id", firmaId)
+      .eq("efatura_uuid", temizEttn)
+      .neq("durum", "iptal")
+      .limit(1)
+      .maybeSingle();
+    if (ettnEslesme) {
+      return {
+        fatura_id: ettnEslesme.fatura_id,
+        eslesme_nedeni: "efatura_uuid",
+      };
+    }
+  }
+
+  return null;
+}
+
+async function hataKaydiYaz(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  firmaId: string,
+  invoiceId: string,
+  hataMesaji: string,
+  now: Date,
+  vkn: string,
+) {
+  const { data: mevcut } = await supabaseAdmin
+    .from("uyumsoft_gelen_faturalar")
+    .select("id,durum")
+    .eq("firma_id", firmaId)
+    .eq("kaynak", "api")
+    .eq("ettn", invoiceId)
+    .maybeSingle();
+
+  if (mevcut?.durum && mevcut.durum !== "hata") {
+    return;
+  }
+
+  await supabaseAdmin
+    .from("uyumsoft_gelen_faturalar")
+    .upsert({
+      firma_id: firmaId,
+      kaynak: "api",
+      durum: "hata",
+      ettn: invoiceId,
+      fatura_no: invoiceId,
+      fatura_tarihi: now.toISOString(),
+      cari_unvan: "Detay indirilemedi",
+      para_birimi: "TRY",
+      ara_toplam_tutar: 0,
+      kdv_tutari: 0,
+      toplam_tutar: 0,
+      red_sebebi: hataMesaji,
+      ham_json: {
+        invoice_id: invoiceId,
+        vkn,
+        kaynak: "uyumsoft_api",
+        hata: hataMesaji,
+        sync_tarihi: now.toISOString(),
+      },
+      updated_at: now.toISOString(),
+    }, { onConflict: "firma_id,kaynak,ettn" });
+}
 
 async function soapCall(
   operation: string,
@@ -205,12 +383,26 @@ async function soapCall(
   return text;
 }
 
-function buildGetInboxInvoiceListBody(startDate: Date, endDate: Date) {
-  return `<tem:query PageIndex="0" PageSize="50" OnlyNewestInvoices="true">
-    <tem:ExecutionStartDate>${startDate.toISOString()}</tem:ExecutionStartDate>
-    <tem:ExecutionEndDate>${endDate.toISOString()}</tem:ExecutionEndDate>
-    <tem:CreateStartDate i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
-    <tem:CreateEndDate i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
+function buildGetInboxInvoiceListBody(
+  startDate: Date,
+  endDate: Date,
+  tarihTipi: "fatura" | "olusturma",
+  limit: number,
+) {
+  const executionStart =
+    tarihTipi === "fatura" ? startDate.toISOString() : nilTag("ExecutionStartDate");
+  const executionEnd =
+    tarihTipi === "fatura" ? endDate.toISOString() : nilTag("ExecutionEndDate");
+  const createStart =
+    tarihTipi === "olusturma" ? startDate.toISOString() : nilTag("CreateStartDate");
+  const createEnd =
+    tarihTipi === "olusturma" ? endDate.toISOString() : nilTag("CreateEndDate");
+
+  return `<tem:query PageIndex="0" PageSize="${limit}" OnlyNewestInvoices="true">
+    ${dateTag("ExecutionStartDate", executionStart)}
+    ${dateTag("ExecutionEndDate", executionEnd)}
+    ${dateTag("CreateStartDate", createStart)}
+    ${dateTag("CreateEndDate", createEnd)}
     <tem:Status i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
     <tem:SortColumn i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
     <tem:SortMode i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
@@ -218,13 +410,138 @@ function buildGetInboxInvoiceListBody(startDate: Date, endDate: Date) {
   </tem:query>`;
 }
 
+function dateTag(name: string, value: string) {
+  return value.startsWith("<")
+    ? value
+    : `<tem:${name}>${escapeXml(value)}</tem:${name}>`;
+}
+
+function nilTag(name: string) {
+  return `<tem:${name} i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>`;
+}
+
+function parseDate(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function normalizeLimit(value: unknown) {
+  const parsed = Number(value ?? 50);
+  if (!Number.isFinite(parsed)) return 50;
+  return Math.min(Math.max(Math.trunc(parsed), 1), 500);
+}
+
 function assertSuccess(xml: string, operation: string) {
   const result = firstTagBlock(xml, `${operation}Result`) ?? xml;
-  const isSucceded = /IsSucceded=["']true["']/i.test(result);
-  if (!isSucceded) {
-    const message = attr(result, "Message") || firstTagValue(result, "faultstring");
-    throw new Error(`${operation} başarısız: ${message || "Bilinmeyen hata"}`);
+  const fault = firstTagValue(xml, "faultstring");
+  if (fault) {
+    throw new Error(`${operation} başarısız: ${fault}`);
   }
+
+  const successText =
+    firstTagValue(result, "IsSucceded") ??
+    firstTagValue(result, "IsSucceeded") ??
+    firstTagValue(result, "Succeeded") ??
+    firstTagValue(result, "Success") ??
+    firstTagValue(result, "Status") ??
+    firstTagValue(result, "State");
+  const isSucceded =
+    /IsSucceded=["']true["']/i.test(result) ||
+    /IsSucceeded=["']true["']/i.test(result) ||
+    successText?.toLocaleLowerCase("tr-TR") === "true" ||
+    successText?.toLocaleLowerCase("tr-TR") === "completedsuccessfully" ||
+    /\bCompletedSuccessfully\b/i.test(result) ||
+    />\s*1300\s*</.test(result) ||
+    /\b1300\b/.test(result);
+
+  if (!isSucceded) {
+    const message =
+      attr(result, "Message") ||
+      firstTagValue(result, "Message") ||
+      firstTagValue(result, "ErrorMessage") ||
+      firstTagValue(result, "Description") ||
+      firstTagValue(result, "ResultMessage") ||
+      firstTagValue(result, "StatusMessage");
+    const preview = result.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+      .slice(0, 240);
+    throw new Error(
+      `${operation} başarısız: ${message || preview || "Bilinmeyen hata"}`,
+    );
+  }
+}
+
+function extractInvoiceIds(xml: string) {
+  const guidMatches =
+    xml.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi) ??
+      [];
+  const strongIds = [
+    ...extractTagValues(xml, "UUID"),
+    ...extractTagValues(xml, "ETTN"),
+    ...extractTagValues(xml, "DocumentUUID"),
+    ...extractTagValues(xml, "EnvelopeUUID"),
+    ...guidMatches,
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+  if (strongIds.length > 0) return strongIds;
+
+  return [
+    ...extractTagValues(xml, "InvoiceId"),
+    ...extractTagValues(xml, "InvoiceID"),
+    ...extractTagValues(xml, "DocumentId"),
+    ...extractTagValues(xml, "DocumentID"),
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+}
+
+function extractInvoiceXml(dataXml: string) {
+  const rawData =
+    firstTagValue(dataXml, "Data") ??
+    firstTagValue(dataXml, "InvoiceData") ??
+    firstTagValue(dataXml, "DocumentData") ??
+    firstTagValue(dataXml, "Value") ??
+    firstTagValue(dataXml, "Content") ??
+    firstTagValue(dataXml, "Xml") ??
+    firstTagValue(dataXml, "XML") ??
+    firstTagValue(dataXml, "UBL") ??
+    firstTagValue(dataXml, "Message") ??
+    firstTagValue(dataXml, "ResultMessage");
+
+  if (rawData) {
+    const trimmed = rawData.trim();
+    if (trimmed.startsWith("<")) return trimmed;
+    try {
+      const decoded = decodeBase64Utf8(trimmed);
+      if (decoded.trim().startsWith("<")) return decoded;
+    } catch (_) {
+      // Data alani base64 degilse asagida tam cevap icinde UBL aranir.
+    }
+  }
+
+  const invoiceBlock =
+    firstTagBlock(dataXml, "Invoice") ??
+    firstTagBlock(dataXml, "CreditNote");
+  if (invoiceBlock) {
+    const tag = firstTagBlock(dataXml, "Invoice") ? "Invoice" : "CreditNote";
+    return `<${tag}>${invoiceBlock}</${tag}>`;
+  }
+
+  const base64Candidates =
+    dataXml.match(/[A-Za-z0-9+/=]{120,}/g) ?? [];
+  for (const candidate of base64Candidates) {
+    try {
+      const decoded = decodeBase64Utf8(candidate);
+      if (decoded.trim().startsWith("<")) return decoded;
+    } catch (_) {
+      // Base64'e benzeyen her parca gercek data olmayabilir.
+    }
+  }
+
+  return undefined;
 }
 
 function parseUblInvoice(xml: string) {
