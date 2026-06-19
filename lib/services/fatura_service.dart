@@ -8,6 +8,59 @@ class FaturaService {
   static final _supabase = Supabase.instance.client;
   static String get _firmaId => TenantManager.instance.requireFirmaId;
 
+  static String? _aramaDegeriniHazirla(String? aramaKelimesi) {
+    final trimmed = aramaKelimesi?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+
+    final temiz = trimmed
+        .replaceAll(RegExp(r'[,()]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return temiz.isEmpty ? null : temiz;
+  }
+
+  static String _aramaFiltresiOlustur(
+    String aramaKelimesi, {
+    List<int> kalemFaturaIds = const [],
+  }) {
+    final pattern = '%$aramaKelimesi%';
+    final filtreler = [
+      'fatura_no.ilike.$pattern',
+      'cari_unvan.ilike.$pattern',
+      'vergi_no.ilike.$pattern',
+      'vergi_dairesi.ilike.$pattern',
+      'fatura_adres.ilike.$pattern',
+      'aciklama.ilike.$pattern',
+    ];
+
+    if (kalemFaturaIds.isNotEmpty) {
+      filtreler.add('fatura_id.in.(${kalemFaturaIds.join(',')})');
+    }
+
+    return filtreler.join(',');
+  }
+
+  static Future<List<int>> _kalemAramaFaturaIds(String aramaKelimesi) async {
+    final pattern = '%$aramaKelimesi%';
+    final response = await _supabase
+        .from(DbTables.faturaKalemleri)
+        .select('fatura_id')
+        .eq('firma_id', _firmaId)
+        .or(
+          'urun_adi.ilike.$pattern,'
+          'urun_kodu.ilike.$pattern,'
+          'aciklama.ilike.$pattern,'
+          'kategori.ilike.$pattern',
+        );
+
+    return (response as List)
+        .map((item) => item['fatura_id'])
+        .whereType<num>()
+        .map((id) => id.toInt())
+        .toSet()
+        .toList();
+  }
+
   static double _doubleDeger(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? 0.0;
@@ -156,14 +209,14 @@ class FaturaService {
           .eq('firma_id', _firmaId);
 
       // Filtreleme
-      if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
+      final arama = _aramaDegeriniHazirla(aramaKelimesi);
+      if (arama != null) {
+        final kalemFaturaIds = await _kalemAramaFaturaIds(arama);
         query = query.or(
-          'fatura_no.ilike.%$aramaKelimesi%,'
-          'cari_unvan.ilike.%$aramaKelimesi%,'
-          'vergi_no.ilike.%$aramaKelimesi%,'
-          'vergi_dairesi.ilike.%$aramaKelimesi%,'
-          'fatura_adres.ilike.%$aramaKelimesi%,'
-          'aciklama.ilike.%$aramaKelimesi%',
+          _aramaFiltresiOlustur(
+            arama,
+            kalemFaturaIds: kalemFaturaIds,
+          ),
         );
       }
 
@@ -232,14 +285,14 @@ class FaturaService {
           .select('*')
           .eq('firma_id', _firmaId);
 
-      if (aramaKelimesi != null && aramaKelimesi.isNotEmpty) {
+      final arama = _aramaDegeriniHazirla(aramaKelimesi);
+      if (arama != null) {
+        final kalemFaturaIds = await _kalemAramaFaturaIds(arama);
         query = query.or(
-          'fatura_no.ilike.%$aramaKelimesi%,'
-          'cari_unvan.ilike.%$aramaKelimesi%,'
-          'vergi_no.ilike.%$aramaKelimesi%,'
-          'vergi_dairesi.ilike.%$aramaKelimesi%,'
-          'fatura_adres.ilike.%$aramaKelimesi%,'
-          'aciklama.ilike.%$aramaKelimesi%',
+          _aramaFiltresiOlustur(
+            arama,
+            kalemFaturaIds: kalemFaturaIds,
+          ),
         );
       }
       if (faturaTuru != null && faturaTuru.isNotEmpty) {

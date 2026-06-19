@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:uretim_takip/models/fatura_model.dart';
@@ -209,9 +209,9 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                 TextField(
                   controller: _aramaController,
                   decoration: const InputDecoration(
-                    labelText: 'Fatura No veya Açıklama Ara',
+                    labelText: 'Fatura no, firma, kalem veya aciklama ara',
                     helperText:
-                        'Firma/cari unvan, vergi no ve adres dahil aranir',
+                        'Cari unvan, fatura bilgileri ve kalemler icinde arar',
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(),
                   ),

@@ -42,6 +42,7 @@ class UyumsoftFaturaService {
   UyumsoftFaturaService._();
 
   static final SupabaseClient _client = Supabase.instance.client;
+  static const _silinebilirDurumlar = ['beklemede', 'reddedildi', 'hata'];
 
   static String get _firmaId => TenantManager.instance.requireFirmaId;
 
@@ -173,9 +174,14 @@ class UyumsoftFaturaService {
         if (bytes == null || bytes.isEmpty) {
           throw Exception('Dosya okunamadı.');
         }
-        final xml = utf8.decode(bytes, allowMalformed: true);
-        final parsed = _parseUblXml(xml, dosyaAdi: file.name);
-        final mevcut = await _uyumsoftKaydiVarMi(parsed.ustVeri['ettn']);
+        final parsed = _parseUblXml(
+          utf8.decode(bytes, allowMalformed: true),
+          dosyaAdi: file.name,
+        );
+        final mevcut = await _uyumsoftKaydiVarMi(
+          parsed.ustVeri['ettn'],
+          kaynak: parsed.ustVeri['kaynak']?.toString() ?? 'xml',
+        );
         await _xmlUblParsedKaydet(parsed);
         if (mevcut) {
           zatenVardi++;
@@ -213,15 +219,20 @@ class UyumsoftFaturaService {
     }
   }
 
-  static Future<bool> _uyumsoftKaydiVarMi(dynamic ettn) async {
-    if (ettn == null || ettn.toString().trim().isEmpty) return false;
+  static Future<bool> _uyumsoftKaydiVarMi(
+    dynamic ettn, {
+    String kaynak = 'xml',
+  }) async {
+    final temizEttn = _postgresSafeString(ettn?.toString() ?? '');
+    final temizKaynak = _postgresSafeString(kaynak);
+    if (temizEttn.isEmpty) return false;
     try {
       final response = await _client
           .from(DbTables.uyumsoftGelenFaturalar)
           .select('id')
           .eq('firma_id', _firmaId)
-          .eq('kaynak', 'xml')
-          .eq('ettn', ettn.toString())
+          .eq('kaynak', temizKaynak)
+          .eq('ettn', temizEttn)
           .maybeSingle();
       return response != null;
     } catch (e) {
@@ -241,9 +252,10 @@ class UyumsoftFaturaService {
       parsed.ustVeri['red_sebebi'] = null;
     }
 
+    final ustVeri = _postgresSafeMap(parsed.ustVeri);
     final upserted = await _client
         .from(DbTables.uyumsoftGelenFaturalar)
-        .upsert(parsed.ustVeri, onConflict: 'firma_id,kaynak,ettn')
+        .upsert(ustVeri, onConflict: 'firma_id,kaynak,ettn')
         .select('id')
         .single();
     final gelenFaturaId = upserted['id'].toString();
@@ -257,7 +269,11 @@ class UyumsoftFaturaService {
     if (parsed.kalemler.isNotEmpty) {
       await _client.from(DbTables.uyumsoftGelenFaturaKalemleri).insert(
             parsed.kalemler
-                .map((kalem) => kalem.toInsertMap(gelenFaturaId, _firmaId))
+                .map(
+                  (kalem) => _postgresSafeMap(
+                    kalem.toInsertMap(gelenFaturaId, _firmaId),
+                  ),
+                )
                 .toList(),
           );
     }
@@ -417,6 +433,52 @@ class UyumsoftFaturaService {
       if (_tabloEksikMi(e)) throw _migrationHatasi();
       rethrow;
     }
+  }
+
+  static Future<int> gelenFaturalariSil(List<String> gelenFaturaIds) async {
+    await _adminYetkisiniDogrula();
+    final ids = gelenFaturaIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return 0;
+
+    try {
+      final silinecekler = await _client
+          .from(DbTables.uyumsoftGelenFaturalar)
+          .select('id')
+          .eq('firma_id', _firmaId)
+          .inFilter('id', ids)
+          .inFilter('durum', _silinebilirDurumlar);
+      final silinecekIds = (silinecekler as List)
+          .map((item) => item['id']?.toString())
+          .whereType<String>()
+          .toList();
+      if (silinecekIds.isEmpty) return 0;
+
+      await _client
+          .from(DbTables.uyumsoftGelenFaturaKalemleri)
+          .delete()
+          .eq('firma_id', _firmaId)
+          .inFilter('gelen_fatura_id', silinecekIds);
+
+      final deleted = await _client
+          .from(DbTables.uyumsoftGelenFaturalar)
+          .delete()
+          .eq('firma_id', _firmaId)
+          .inFilter('id', silinecekIds)
+          .inFilter('durum', _silinebilirDurumlar)
+          .select('id');
+      return (deleted as List).length;
+    } catch (e) {
+      if (_tabloEksikMi(e)) throw _migrationHatasi();
+      throw Exception('Uyumsoft gelen faturalar silinemedi: $e');
+    }
+  }
+
+  static Future<int> gelenFaturaSil(String gelenFaturaId) {
+    return gelenFaturalariSil([gelenFaturaId]);
   }
 
   static Future<int?> _tedarikciIdBul(String? vergiNo) async {
@@ -664,6 +726,36 @@ class UyumsoftFaturaService {
       _text(supplier, 'Name'),
     ].where((item) => item != null && item.trim().isNotEmpty).cast<String>();
     return parts.join(' ');
+  }
+
+  static Map<String, dynamic> _postgresSafeMap(Map<String, dynamic> input) {
+    return input.map((key, value) => MapEntry(key, _postgresSafeValue(value)));
+  }
+
+  static dynamic _postgresSafeValue(dynamic value) {
+    if (value is String) return _postgresSafeString(value);
+    if (value is Map) {
+      return value.map(
+        (key, item) => MapEntry(key.toString(), _postgresSafeValue(item)),
+      );
+    }
+    if (value is List) {
+      return value.map(_postgresSafeValue).toList();
+    }
+    return value;
+  }
+
+  static String _postgresSafeString(String value) {
+    final buffer = StringBuffer();
+    for (final rune in value.runes) {
+      if (rune == 0) continue;
+      if (rune == 0x09 || rune == 0x0A || rune == 0x0D || rune >= 0x20) {
+        buffer.writeCharCode(rune);
+      } else {
+        buffer.write(' ');
+      }
+    }
+    return buffer.toString().trim();
   }
 }
 

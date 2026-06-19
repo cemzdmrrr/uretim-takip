@@ -29,6 +29,11 @@ class _UyumsoftGelenFaturalarPageState
   late DateTime _apiBaslangicTarihi;
   late DateTime _apiBitisTarihi;
 
+  static const _silinebilirDurumlar = {'beklemede', 'reddedildi', 'hata'};
+
+  bool get _topluSilinebilir =>
+      _silinebilirDurumlar.contains(_durumFiltresi) && _faturalar.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -174,7 +179,7 @@ class _UyumsoftGelenFaturalarPageState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Vazgeç'),
+            child: const Text('Vazgec'),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(
@@ -197,6 +202,101 @@ class _UyumsoftGelenFaturalarPageState
       );
       if (!mounted) return;
       context.showSuccessSnackBar('Fatura reddedildi');
+      await _faturalariYukle();
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar(e.toString());
+    } finally {
+      if (mounted) setState(() => _islemde = false);
+    }
+  }
+
+  Future<void> _sil(UyumsoftGelenFatura fatura) async {
+    if (!_silinebilirDurumlar.contains(fatura.durum)) {
+      context.showErrorSnackBar('Aktarilan faturalar buradan silinemez.');
+      return;
+    }
+
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gelen Faturayi Sil'),
+        content: Text(
+          '${fatura.faturaNo} numarali gelen fatura kaydi silinsin mi?\n\n'
+          'Bu islem mevcut fatura sistemine aktarilmis faturalari silmez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgec'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.delete),
+            label: const Text('Sil'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return;
+
+    setState(() => _islemde = true);
+    try {
+      final silinen = await UyumsoftFaturaService.gelenFaturaSil(fatura.id);
+      if (!mounted) return;
+      context.showSuccessSnackBar('$silinen gelen fatura kaydi silindi');
+      await _faturalariYukle();
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar(e.toString());
+    } finally {
+      if (mounted) setState(() => _islemde = false);
+    }
+  }
+
+  Future<void> _topluSil() async {
+    if (!_topluSilinebilir) return;
+    final ids = _faturalar
+        .where((fatura) => _silinebilirDurumlar.contains(fatura.durum))
+        .map((fatura) => fatura.id)
+        .toList();
+    if (ids.isEmpty) return;
+
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Listedeki Kayitlari Sil'),
+        content: Text(
+          '${ids.length} adet ${_durumMetni(_durumFiltresi).toLowerCase()} '
+          'gelen fatura kaydi silinsin mi?\n\n'
+          'Aktarilan fatura kayitlari ve mevcut fatura sistemi etkilenmez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgec'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.delete_sweep),
+            label: const Text('Toplu Sil'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return;
+
+    setState(() => _islemde = true);
+    try {
+      final silinen = await UyumsoftFaturaService.gelenFaturalariSil(ids);
+      if (!mounted) return;
+      context.showSuccessSnackBar('$silinen gelen fatura kaydi silindi');
       await _faturalariYukle();
     } catch (e) {
       if (mounted) context.showErrorSnackBar(e.toString());
@@ -277,6 +377,17 @@ class _UyumsoftGelenFaturalarPageState
                     OutlinedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
+                        _sil(fatura);
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Sil'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
                         _reddet(fatura);
                       },
                       icon: const Icon(Icons.block),
@@ -289,6 +400,26 @@ class _UyumsoftGelenFaturalarPageState
                       },
                       icon: const Icon(Icons.check),
                       label: const Text('Onayla'),
+                    ),
+                  ],
+                ),
+              if (fatura.durum != 'beklemede' &&
+                  _silinebilirDurumlar.contains(fatura.durum))
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _sil(fatura);
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Sil'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
                     ),
                   ],
                 ),
@@ -395,8 +526,17 @@ class _UyumsoftGelenFaturalarPageState
             OutlinedButton.icon(
               onPressed: _islemde ? null : _xmlYukle,
               icon: const Icon(Icons.file_upload, color: Colors.blue),
-              label: const Text('XML/UBL Toplu Yükle'),
+              label: const Text('XML/UBL Toplu Yukle'),
             ),
+            if (_topluSilinebilir)
+              OutlinedButton.icon(
+                onPressed: _islemde ? null : _topluSil,
+                icon: const Icon(Icons.delete_sweep, color: Colors.red),
+                label: Text('Listedekileri Sil (${_faturalar.length})'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                ),
+              ),
             IconButton(
               tooltip: 'Yenile',
               onPressed: _islemde ? null : _faturalariYukle,
@@ -502,6 +642,14 @@ class _UyumsoftGelenFaturalarPageState
                     spacing: 8,
                     children: [
                       OutlinedButton.icon(
+                        onPressed: _islemde ? null : () => _sil(fatura),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Sil'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                      ),
+                      OutlinedButton.icon(
                         onPressed: _islemde ? null : () => _reddet(fatura),
                         icon: const Icon(Icons.block),
                         label: const Text('Reddet'),
@@ -512,6 +660,21 @@ class _UyumsoftGelenFaturalarPageState
                         label: const Text('Onayla'),
                       ),
                     ],
+                  ),
+                ),
+              ],
+              if (fatura.durum != 'beklemede' &&
+                  _silinebilirDurumlar.contains(fatura.durum)) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: _islemde ? null : () => _sil(fatura),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Sil'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
                   ),
                 ),
               ],
