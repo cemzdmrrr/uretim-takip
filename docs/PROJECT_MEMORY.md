@@ -238,6 +238,7 @@ Notlar:
 - Tum personel sayfalari mobilde asagi kaydirilabilir olmalidir.
 - Bordro sayfasi kapanis kontrolu, arama, filtre, onayli/onaysiz/bordrosuz durumlari, PDF ve yazdirma aksiyonlarini desteklemelidir.
 - Donem bazli filtreleme `donemler` ve secili yil/ay mantigiyla uyumlu olmalidir.
+- Personel olusturma/yonetme Edge Function'lari `user_roles` kaydini firma kapsamli tutar: `user_id + firma_id + role='personel'`. `user_roles` icin tek basina `onConflict: 'user_id'` kullanilmaz; kayit once sorgulanir, varsa `aktif=true` yapilir, yoksa `firma_id` ile insert edilir.
 
 ## Bildirim Sistemi Hafizasi
 

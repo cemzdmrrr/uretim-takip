@@ -23,6 +23,22 @@ class SevkiyatPanel extends StatefulWidget {
 
 class _SevkiyatPanelState extends State<SevkiyatPanel>
     with SingleTickerProviderStateMixin {
+  static const int _tamamlananSevkIlkYuklemeLimiti = 100;
+  static const List<String> _bekleyenSevkDurumlari = [
+    'atandi',
+    'beklemede',
+  ];
+  static const List<String> _devamEdenSevkDurumlari = [
+    'kismen_sevk',
+    'baslandi',
+    'uretimde',
+    'sevk_ediliyor',
+  ];
+  static const List<String> _tamamlananSevkDurumlari = [
+    'tamamlandi',
+    'sevk_edildi',
+  ];
+
   final supabase = Supabase.instance.client;
   final SevkIrsaliyeService _sevkIrsaliyeService = SevkIrsaliyeService();
   final WorkflowTransitionService _workflowTransitionService =
@@ -95,6 +111,158 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
     return '$sourceTable:${kayit['id']}';
   }
 
+  int _intValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  void _addUniqueByTextKey(Map<String, dynamic> target, dynamic value) {
+    if (value == null) return;
+    target.putIfAbsent(value.toString(), () => value);
+  }
+
+  List<String> get _aktifSevkDurumlari => [
+        ..._bekleyenSevkDurumlari,
+        ..._devamEdenSevkDurumlari,
+      ];
+
+  Future<List<dynamic>> _sevkiyatKayitlariniGetir(
+    String selectExpression,
+  ) async {
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final responses = await Future.wait([
+      supabase
+          .from(DbTables.sevkiyatKayitlari)
+          .select(selectExpression)
+          .eq('firma_id', firmaId)
+          .inFilter('durum', _aktifSevkDurumlari)
+          .order('created_at', ascending: false),
+      supabase
+          .from(DbTables.sevkiyatKayitlari)
+          .select(selectExpression)
+          .eq('firma_id', firmaId)
+          .inFilter('durum', _tamamlananSevkDurumlari)
+          .order('created_at', ascending: false)
+          .limit(_tamamlananSevkIlkYuklemeLimiti),
+    ]);
+
+    return [
+      ...List<dynamic>.from(responses[0]),
+      ...List<dynamic>.from(responses[1]),
+    ];
+  }
+
+  Future<List<dynamic>> _paketlemeKayitlariniGetir(
+    String selectExpression,
+  ) async {
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final responses = await Future.wait([
+      supabase
+          .from(DbTables.paketlemeAtamalari)
+          .select(selectExpression)
+          .eq('firma_id', firmaId)
+          .inFilter('durum', _aktifSevkDurumlari)
+          .order('created_at', ascending: false),
+      supabase
+          .from(DbTables.paketlemeAtamalari)
+          .select(selectExpression)
+          .eq('firma_id', firmaId)
+          .inFilter('durum', _tamamlananSevkDurumlari)
+          .order('created_at', ascending: false)
+          .limit(_tamamlananSevkIlkYuklemeLimiti),
+    ]);
+
+    return [
+      ...List<dynamic>.from(responses[0]),
+      ...List<dynamic>.from(responses[1]),
+    ];
+  }
+
+  Future<void> _legacySevkiyatKayitlariniZenginlestir(
+    List<Map<String, dynamic>> legacyKayitlar,
+    List<Map<String, dynamic>> zenginKayitlar,
+  ) async {
+    final kaliteIdByKey = <String, dynamic>{};
+    for (final kayit in legacyKayitlar) {
+      _addUniqueByTextKey(kaliteIdByKey, kayit['kalite_kontrol_id']);
+    }
+
+    final kaliteById = <String, Map<String, dynamic>>{};
+    if (kaliteIdByKey.isNotEmpty) {
+      final kaliteResponse = await supabase
+          .from(DbTables.kaliteKontrolAtamalari)
+          .select('id, model_id, kontrol_edilecek_adet')
+          .inFilter('id', kaliteIdByKey.values.toList());
+
+      for (final kalite in List<Map<String, dynamic>>.from(kaliteResponse)) {
+        final id = kalite['id'];
+        if (id != null) {
+          kaliteById[id.toString()] = kalite;
+        }
+      }
+    }
+
+    final modelIdByKey = <String, dynamic>{};
+    for (final kayit in legacyKayitlar) {
+      dynamic modelId = kayit['model_id'];
+      final kaliteId = kayit['kalite_kontrol_id'];
+      final kalite = kaliteId == null ? null : kaliteById[kaliteId.toString()];
+      modelId ??= kalite?['model_id'];
+      _addUniqueByTextKey(modelIdByKey, modelId);
+    }
+
+    final modelById = <String, Map<String, dynamic>>{};
+    if (modelIdByKey.isNotEmpty) {
+      final modelResponse = await supabase
+          .from(DbTables.trikoTakip)
+          .select('id, marka, item_no, renk, adet, termin_tarihi')
+          .inFilter('id', modelIdByKey.values.toList());
+
+      for (final model in List<Map<String, dynamic>>.from(modelResponse)) {
+        final id = model['id'];
+        if (id != null) {
+          modelById[id.toString()] = model;
+        }
+      }
+    }
+
+    for (final kayit in legacyKayitlar) {
+      dynamic modelId = kayit['model_id'];
+      int kontrolAdet = 0;
+
+      final kaliteId = kayit['kalite_kontrol_id'];
+      final kalite = kaliteId == null ? null : kaliteById[kaliteId.toString()];
+      if (kalite != null) {
+        modelId ??= kalite['model_id'];
+        kontrolAdet = _intValue(kalite['kontrol_edilecek_adet']);
+      }
+
+      if (modelId == null) {
+        continue;
+      }
+
+      final model = modelById[modelId.toString()];
+      if (model == null) {
+        continue;
+      }
+
+      kayit[DbTables.trikoTakip] = model;
+      kayit['model_id'] = modelId;
+
+      final alinanAdet = _intValue(kayit['alinan_adet']);
+      final finalAdet = alinanAdet > 0
+          ? alinanAdet
+          : (kontrolAdet > 0 ? kontrolAdet : _intValue(model['adet']));
+
+      kayit['adet'] = finalAdet;
+      kayit['talep_edilen_adet'] = finalAdet;
+      kayit['tamamlanan_adet'] = _intValue(kayit['sevk_edilen_adet']);
+      kayit['_display_source_table'] = DbTables.sevkiyatKayitlari;
+      zenginKayitlar.add(kayit);
+    }
+  }
+
   Future<void> _verileriYukle() async {
     setState(() => yukleniyor = true);
 
@@ -105,9 +273,7 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
 
       try {
         // JOIN ile tek sorguda model bilgilerini al (N+1 problemi çözümü)
-        final sevkiyatResponse = await supabase
-            .from(DbTables.sevkiyatKayitlari)
-            .select('''
+        final sevkiyatResponse = await _sevkiyatKayitlariniGetir('''
               *,
               triko_takip:model_id (
                 id, marka, item_no, renk, adet, termin_tarihi
@@ -115,23 +281,21 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
               kalite_kontrol:kalite_kontrol_id (
                 kontrol_edilecek_adet
               )
-            ''')
-            .eq('firma_id', TenantManager.instance.requireFirmaId)
-            .order('created_at', ascending: false);
+            ''');
 
         // Model bilgisi olan kayıtları filtrele ve zenginleştir
         for (var kayit in sevkiyatResponse) {
           if (kayit[DbTables.trikoTakip] != null) {
             // Adet alanlarını uyumlu hale getir
             // alinan_adet 0 ise kalite_kontrol tablosundan kontrol_edilecek_adet çek
-            final alinanAdet = kayit['alinan_adet'] ?? 0;
+            final alinanAdet = _intValue(kayit['alinan_adet']);
             final kontrolAdet =
-                kayit['kalite_kontrol']?['kontrol_edilecek_adet'] ?? 0;
+                _intValue(kayit['kalite_kontrol']?['kontrol_edilecek_adet']);
             final finalAdet = alinanAdet > 0 ? alinanAdet : kontrolAdet;
 
             kayit['adet'] = finalAdet;
             kayit['talep_edilen_adet'] = finalAdet;
-            kayit['tamamlanan_adet'] = kayit['sevk_edilen_adet'];
+            kayit['tamamlanan_adet'] = _intValue(kayit['sevk_edilen_adet']);
             kayit['_display_source_table'] = DbTables.sevkiyatKayitlari;
             zenginKayitlar.add(kayit);
           }
@@ -139,67 +303,12 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
       } catch (e) {
         // Legacy şema desteği: model_id relation yoksa modeli manuel zenginleştir.
         try {
-          final legacyResponse = await supabase
-              .from(DbTables.sevkiyatKayitlari)
-              .select('*')
-              .eq('firma_id', TenantManager.instance.requireFirmaId)
-              .order('created_at', ascending: false);
+          final legacyResponse = await _sevkiyatKayitlariniGetir('*');
 
-          for (final kayit in List<Map<String, dynamic>>.from(legacyResponse)) {
-            dynamic modelId = kayit['model_id'];
-            int kontrolAdet = 0;
-
-            if (kayit['kalite_kontrol_id'] != null) {
-              try {
-                final kalite = await supabase
-                    .from(DbTables.kaliteKontrolAtamalari)
-                    .select('model_id, kontrol_edilecek_adet')
-                    .eq('id', kayit['kalite_kontrol_id'])
-                    .maybeSingle();
-                if (kalite != null) {
-                  modelId ??= kalite['model_id'];
-                  kontrolAdet =
-                      (kalite['kontrol_edilecek_adet'] as num?)?.toInt() ?? 0;
-                }
-              } catch (_) {}
-            }
-
-            if (modelId == null) {
-              continue;
-            }
-
-            Map<String, dynamic>? model;
-            try {
-              model = await supabase
-                  .from(DbTables.trikoTakip)
-                  .select('id, marka, item_no, renk, adet, termin_tarihi')
-                  .eq('id', modelId)
-                  .maybeSingle();
-            } catch (_) {
-              model = null;
-            }
-
-            if (model == null) {
-              continue;
-            }
-
-            kayit[DbTables.trikoTakip] = model;
-            kayit['model_id'] = modelId;
-
-            final alinanAdet = (kayit['alinan_adet'] as num?)?.toInt() ?? 0;
-            final finalAdet = alinanAdet > 0
-                ? alinanAdet
-                : (kontrolAdet > 0
-                    ? kontrolAdet
-                    : (model['adet'] as num?)?.toInt() ?? 0);
-
-            kayit['adet'] = finalAdet;
-            kayit['talep_edilen_adet'] = finalAdet;
-            kayit['tamamlanan_adet'] =
-                (kayit['sevk_edilen_adet'] as num?)?.toInt() ?? 0;
-            kayit['_display_source_table'] = DbTables.sevkiyatKayitlari;
-            zenginKayitlar.add(kayit);
-          }
+          await _legacySevkiyatKayitlariniZenginlestir(
+            List<Map<String, dynamic>>.from(legacyResponse),
+            zenginKayitlar,
+          );
 
           if (zenginKayitlar.isEmpty) {
             sevkiyatTablosuVar = false;
@@ -212,16 +321,12 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
       // Eğer sevkiyat_kayitlari tablosu yoksa veya boşsa, paketleme_atamalari kullan
       if (!sevkiyatTablosuVar || zenginKayitlar.isEmpty) {
         // JOIN ile tek sorguda model bilgilerini al
-        final paketlemeResponse = await supabase
-            .from(DbTables.paketlemeAtamalari)
-            .select('''
+        final paketlemeResponse = await _paketlemeKayitlariniGetir('''
               *,
               triko_takip:model_id (
                 id, marka, item_no, renk, adet, termin_tarihi
               )
-            ''')
-            .eq('firma_id', TenantManager.instance.requireFirmaId)
-            .order('created_at', ascending: false);
+            ''');
 
         for (var paket in paketlemeResponse) {
           if (paket[DbTables.trikoTakip] != null) {
@@ -256,22 +361,17 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
       setState(() {
         // Bekleyenler: beklemede, atandi durumu
         bekleyenSevkler = birlesikKayitlar
-            .where((p) => p['durum'] == 'atandi' || p['durum'] == 'beklemede')
+            .where((p) => _bekleyenSevkDurumlari.contains(p['durum']))
             .toList();
 
         // Devam edenler: kismen_sevk, baslandi, uretimde, sevk_ediliyor
         devamEdenSevkler = birlesikKayitlar
-            .where((p) =>
-                p['durum'] == 'kismen_sevk' ||
-                p['durum'] == 'baslandi' ||
-                p['durum'] == 'uretimde' ||
-                p['durum'] == 'sevk_ediliyor')
+            .where((p) => _devamEdenSevkDurumlari.contains(p['durum']))
             .toList();
 
         // Tamamlananlar
         tamamlananSevkler = birlesikKayitlar
-            .where((p) =>
-                p['durum'] == 'tamamlandi' || p['durum'] == 'sevk_edildi')
+            .where((p) => _tamamlananSevkDurumlari.contains(p['durum']))
             .toList();
 
         yukleniyor = false;

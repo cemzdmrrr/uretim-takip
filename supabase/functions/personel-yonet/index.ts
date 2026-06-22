@@ -72,6 +72,64 @@ async function bestEffortDelete(
   throw new Error(`${table} silinemedi: ${error.message}`);
 }
 
+async function kullaniciPlatformAdminMi(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("aktif", true);
+
+  if (error) {
+    throw new Error(`Rol kontrolu yapilamadi: ${error.message}`);
+  }
+
+  return (data ?? []).some((row: { role?: string }) => row.role === "admin");
+}
+
+async function personelRolunuAktiflestir(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+  firmaId: string,
+) {
+  const { data: mevcut, error: mevcutError } = await supabaseAdmin
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("firma_id", firmaId)
+    .eq("role", "personel")
+    .maybeSingle();
+
+  if (mevcutError) {
+    throw new Error(`user_roles kontrol edilemedi: ${mevcutError.message}`);
+  }
+
+  if (mevcut?.id != null) {
+    const { error } = await supabaseAdmin
+      .from("user_roles")
+      .update({ aktif: true })
+      .eq("id", mevcut.id);
+
+    if (error) {
+      throw new Error(`user_roles kaydi guncellenemedi: ${error.message}`);
+    }
+    return;
+  }
+
+  const { error } = await supabaseAdmin.from("user_roles").insert({
+    user_id: userId,
+    firma_id: firmaId,
+    role: "personel",
+    aktif: true,
+  });
+
+  if (error) {
+    throw new Error(`user_roles kaydi olusturulamadi: ${error.message}`);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -120,13 +178,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const [{ data: platformRole }, { data: firmaRole }] = await Promise.all([
-      supabaseAdmin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("aktif", true)
-        .maybeSingle(),
+    const [{ data: firmaRole }, isPlatformAdmin] = await Promise.all([
       supabaseAdmin
         .from("firma_kullanicilari")
         .select("rol")
@@ -134,9 +186,9 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", user.id)
         .eq("aktif", true)
         .maybeSingle(),
+      kullaniciPlatformAdminMi(supabaseAdmin, user.id),
     ]);
 
-    const isPlatformAdmin = platformRole?.role === "admin";
     const isFirmaAdmin =
       firmaRole?.rol === "firma_sahibi" || firmaRole?.rol === "firma_admin";
 
@@ -251,14 +303,7 @@ Deno.serve(async (req: Request) => {
         { onConflict: "firma_id,user_id" },
       );
 
-      await supabaseAdmin.from("user_roles").upsert(
-        {
-          user_id: userId,
-          role: "personel",
-          aktif: true,
-        },
-        { onConflict: "user_id" },
-      );
+      await personelRolunuAktiflestir(supabaseAdmin, userId, firmaId);
 
       await supabaseAdmin.from("kullanici_aktif_firma").upsert(
         {
@@ -302,7 +347,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const [{ count: firmaBagSayisi }, { data: rol }] = await Promise.all([
+      const [{ count: firmaBagSayisi }, { data: roller }] = await Promise.all([
         supabaseAdmin
           .from("firma_kullanicilari")
           .select("id", { count: "exact", head: true })
@@ -311,10 +356,14 @@ Deno.serve(async (req: Request) => {
           .from("user_roles")
           .select("role")
           .eq("user_id", userId)
-          .maybeSingle(),
+          .eq("aktif", true),
       ]);
 
-      if ((firmaBagSayisi ?? 0) == 0 && rol?.role === "personel") {
+      const sadecePersonelRoluVar =
+        (roller ?? []).length > 0 &&
+        (roller ?? []).every((row: { role?: string }) => row.role === "personel");
+
+      if ((firmaBagSayisi ?? 0) == 0 && sadecePersonelRoluVar) {
         await bestEffortDelete(supabaseAdmin, "user_roles", "user_id", userId);
         await bestEffortDelete(supabaseAdmin, "users", "id", userId);
         const { error: authSilmeError } = await supabaseAdmin.auth.admin.deleteUser(

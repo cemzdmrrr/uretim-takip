@@ -44,6 +44,64 @@ async function usersTableUpsert(
   throw new Error(`users tablosu guncellenemedi: ${error.message}`);
 }
 
+async function kullaniciPlatformAdminMi(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("aktif", true);
+
+  if (error) {
+    throw new Error(`Rol kontrolu yapilamadi: ${error.message}`);
+  }
+
+  return (data ?? []).some((row: { role?: string }) => row.role === "admin");
+}
+
+async function personelRolunuAktiflestir(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+  firmaId: string,
+) {
+  const { data: mevcut, error: mevcutError } = await supabaseAdmin
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("firma_id", firmaId)
+    .eq("role", "personel")
+    .maybeSingle();
+
+  if (mevcutError) {
+    throw new Error(`user_roles kontrol edilemedi: ${mevcutError.message}`);
+  }
+
+  if (mevcut?.id != null) {
+    const { error } = await supabaseAdmin
+      .from("user_roles")
+      .update({ aktif: true })
+      .eq("id", mevcut.id);
+
+    if (error) {
+      throw new Error(`user_roles kaydi guncellenemedi: ${error.message}`);
+    }
+    return;
+  }
+
+  const { error } = await supabaseAdmin.from("user_roles").insert({
+    user_id: userId,
+    firma_id: firmaId,
+    role: "personel",
+    aktif: true,
+  });
+
+  if (error) {
+    throw new Error(`user_roles kaydi olusturulamadi: ${error.message}`);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -96,13 +154,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Parola en az 6 karakter olmali" }, 400);
     }
 
-    const [{ data: platformRole }, { data: firmaRole }] = await Promise.all([
-      supabaseAdmin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("aktif", true)
-        .maybeSingle(),
+    const [{ data: firmaRole }, isPlatformAdmin] = await Promise.all([
       supabaseAdmin
         .from("firma_kullanicilari")
         .select("rol")
@@ -110,9 +162,9 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", user.id)
         .eq("aktif", true)
         .maybeSingle(),
+      kullaniciPlatformAdminMi(supabaseAdmin, user.id),
     ]);
 
-    const isPlatformAdmin = platformRole?.role === "admin";
     const isFirmaAdmin =
       firmaRole?.rol === "firma_sahibi" || firmaRole?.rol === "firma_admin";
 
@@ -180,16 +232,7 @@ Deno.serve(async (req: Request) => {
       durum: "aktif",
     };
 
-    const { error: userRoleError } = await supabaseAdmin
-      .from("user_roles")
-      .upsert(
-        { user_id: olusanUserId, role: "personel", aktif: true },
-        { onConflict: "user_id" },
-      );
-
-    if (userRoleError) {
-      throw new Error(`user_roles kaydi olusturulamadi: ${userRoleError.message}`);
-    }
+    await personelRolunuAktiflestir(supabaseAdmin, olusanUserId, firmaId);
 
     const { error: firmaKullaniciError } = await supabaseAdmin
       .from("firma_kullanicilari")
