@@ -31,21 +31,27 @@ class OdemeModel {
       OdemeModel.fromMap(json);
 
   factory OdemeModel.fromMap(Map<String, dynamic> map) {
-    // Veritabanında sadece user_id var
-    final userId = map['user_id']?.toString() ?? '';
+    final userId =
+        map['user_id']?.toString() ?? map['personel_id']?.toString() ?? '';
+    final rawTarih =
+        map['odeme_tarihi']?.toString() ?? map['tarih']?.toString();
+    final tarih = DateTime.tryParse(rawTarih ?? '');
+    if (tarih == null) {
+      throw FormatException('Geçersiz ödeme tarihi', rawTarih);
+    }
     return OdemeModel(
-      id: map['id'] as int?,
-      personelId:
-          userId, // user_id'yi personelId olarak da ata (geriye dönük uyumluluk)
+      id: map['id'] is int
+          ? map['id'] as int
+          : int.tryParse(map['id']?.toString() ?? ''),
+      personelId: userId,
       userId: userId,
-      tur: map['odeme_turu']?.toString() ?? 'avans',
+      tur: map['odeme_turu']?.toString() ?? map['tur']?.toString() ?? 'avans',
       tutar: (map['tutar'] as num?)?.toDouble() ?? 0.0,
       aciklama: map['aciklama']?.toString() ?? '',
-      tarih: map['odeme_tarihi'] != null
-          ? DateTime.parse(map['odeme_tarihi'])
-          : DateTime.now(),
+      tarih: tarih,
       durum: map['durum']?.toString() ?? 'beklemede',
-      onaylayanId: map['onaylayan_user_id']?.toString(),
+      onaylayanId: map['onaylayan_user_id']?.toString() ??
+          map['onaylayan_id']?.toString(),
       firmaId: map['firma_id'],
     );
   }

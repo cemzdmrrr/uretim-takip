@@ -15,7 +15,6 @@ class MesaiService {
     try {
       debugPrint(
           'MesaiService.getMesailerForPersonel: personelId=$personelId, donem=$donem');
-      // Veritabanında sadece user_id var
       var query = _client
           .from(DbTables.mesai)
           .select()
@@ -30,10 +29,11 @@ class MesaiService {
           final ay = int.tryParse(parts[1]);
           if (yil != null && ay != null) {
             final baslangicTarihi = DateTime(yil, ay, 1);
-            final bitisTarihi = DateTime(yil, ay + 1, 0, 23, 59, 59);
+            final sonrakiDonemBaslangici = DateTime(yil, ay + 1, 1);
             query = query
                 .gte('tarih', baslangicTarihi.toIso8601String().split('T')[0])
-                .lte('tarih', bitisTarihi.toIso8601String().split('T')[0]);
+                .lt('tarih',
+                    sonrakiDonemBaslangici.toIso8601String().split('T')[0]);
           }
         }
       }
@@ -41,11 +41,23 @@ class MesaiService {
       final response = await query.order('tarih', ascending: false);
       debugPrint(
           'MesaiService.getMesailerForPersonel: ${(response as List).length} kayıt bulundu');
-      return response.map((e) => MesaiModel.fromMap(e)).toList();
+      return _mesaiListesiOlustur(response);
     } catch (e) {
       debugPrint('MesaiService.getMesailerForPersonel HATA: $e');
       return [];
     }
+  }
+
+  List<MesaiModel> _mesaiListesiOlustur(List<dynamic> response) {
+    final mesailer = <MesaiModel>[];
+    for (final row in response) {
+      try {
+        mesailer.add(MesaiModel.fromMap(Map<String, dynamic>.from(row as Map)));
+      } catch (e) {
+        debugPrint('MesaiService satır parse edilemedi: $e, row=$row');
+      }
+    }
+    return mesailer;
   }
 
   Future<void> addMesai(MesaiModel mesai) async {
@@ -115,13 +127,13 @@ class MesaiService {
         eSaat = int.tryParse(parts[0]) ?? 0;
         eDak = int.tryParse(parts[1]) ?? 0;
       }
-      final start = Duration(hours: bSaat, minutes: bDak);
-      final end = Duration(hours: eSaat, minutes: eDak);
-      final diff = end.inMinutes - start.inMinutes;
-      if (diff > 0) {
-        // saat alanını double olarak gönder (string değil)
-        data['saat'] = double.parse((diff / 60).toStringAsFixed(2));
-      }
+      final diff = _mesaiDakikasiHesapla(
+        baslangicSaat: bSaat,
+        baslangicDakika: bDak,
+        bitisSaat: eSaat,
+        bitisDakika: eDak,
+      );
+      data['saat'] = double.parse((diff / 60).toStringAsFixed(2));
     }
 
     // carpan alanını double olarak gönder (veritabanı tipi numeric/decimal olmalı)
@@ -213,12 +225,13 @@ class MesaiService {
         eSaat = int.tryParse(parts[0]) ?? 0;
         eDak = int.tryParse(parts[1]) ?? 0;
       }
-      final start = Duration(hours: bSaat, minutes: bDak);
-      final end = Duration(hours: eSaat, minutes: eDak);
-      final diff = end.inMinutes - start.inMinutes;
-      if (diff > 0) {
-        data['saat'] = (diff / 60).toStringAsFixed(2);
-      }
+      final diff = _mesaiDakikasiHesapla(
+        baslangicSaat: bSaat,
+        baslangicDakika: bDak,
+        bitisSaat: eSaat,
+        bitisDakika: eDak,
+      );
+      data['saat'] = double.parse((diff / 60).toStringAsFixed(2));
     }
     await _client.from(DbTables.mesai).update(data).eq('id', id);
   }
@@ -276,13 +289,10 @@ class MesaiService {
       final bas = e['baslangic_saati'];
       final bit = e['bitis_saati'];
       if (bas == null || bit == null) continue;
-      final b1 = _parseSaatToDuration(baslangicSaati);
-      final e1 = _parseSaatToDuration(bitisSaati);
-      final b2 = _parseSaatToDuration(bas);
-      final e2 = _parseSaatToDuration(bit);
-      if (b1 == null || e1 == null || b2 == null || e2 == null) continue;
-      // Çakışma kontrolü: iki aralık tamamen ayrık değilse çakışır
-      if (!(e1 <= b2 || b1 >= e2)) {
+      final aralik1 = _saatAraligi(baslangicSaati, bitisSaati);
+      final aralik2 = _saatAraligi(bas.toString(), bit.toString());
+      if (aralik1 == null || aralik2 == null) continue;
+      if (_araliklarCakisiyor(aralik1, aralik2)) {
         return true;
       }
     }
@@ -307,13 +317,44 @@ class MesaiService {
         (saatlikUcret * mesaiSaati * zamOrani).toStringAsFixed(2));
   }
 
-  /// Saat stringini Duration olarak döndürür (servis katmanında TimeOfDay kullanılmaz)
-  Duration? _parseSaatToDuration(String s) {
+  int _mesaiDakikasiHesapla({
+    required int baslangicSaat,
+    required int baslangicDakika,
+    required int bitisSaat,
+    required int bitisDakika,
+  }) {
+    final start = baslangicSaat * 60 + baslangicDakika;
+    var end = bitisSaat * 60 + bitisDakika;
+    if (end <= start) {
+      end += const Duration(days: 1).inMinutes;
+    }
+    return end - start;
+  }
+
+  ({int start, int end})? _saatAraligi(String baslangic, String bitis) {
+    final start = _parseSaatToMinute(baslangic);
+    final endRaw = _parseSaatToMinute(bitis);
+    if (start == null || endRaw == null) return null;
+    var end = endRaw;
+    if (end <= start) {
+      end += const Duration(days: 1).inMinutes;
+    }
+    return (start: start, end: end);
+  }
+
+  bool _araliklarCakisiyor(
+    ({int start, int end}) first,
+    ({int start, int end}) second,
+  ) {
+    return first.start < second.end && second.start < first.end;
+  }
+
+  int? _parseSaatToMinute(String s) {
     if (!s.contains(':')) return null;
     final parts = s.split(':');
     final h = int.tryParse(parts[0]);
     final m = int.tryParse(parts[1]);
     if (h == null || m == null) return null;
-    return Duration(hours: h, minutes: m);
+    return h * 60 + m;
   }
 }

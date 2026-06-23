@@ -563,7 +563,7 @@ function parseUblInvoice(xml: string) {
     faturaNo: text(xml, "ID"),
     faturaTarihi: text(xml, "IssueDate") ?? new Date().toISOString(),
     senaryo: text(xml, "ProfileID") ?? text(xml, "InvoiceTypeCode"),
-    cariUnvan: text(supplier, "Name"),
+    cariUnvan: partyTitle(supplier),
     vergiNo: text(supplier, "CompanyID"),
     vergiDairesi: text(section(supplier, "TaxScheme"), "Name"),
     faturaAdres: buildAddress(supplier),
@@ -575,6 +575,26 @@ function parseUblInvoice(xml: string) {
     toplamTutar: toplam,
     kalemler: invoiceLines(xml),
   };
+}
+
+function partyTitle(partyWrapper: string) {
+  const party = section(partyWrapper, "Party") || partyWrapper;
+  return firstNonEmpty([
+    text(section(party, "PartyLegalEntity"), "RegistrationName"),
+    text(section(party, "PartyName"), "Name"),
+    text(party, "RegistrationName"),
+    text(party, "Name"),
+    text(partyWrapper, "RegistrationName"),
+    text(partyWrapper, "Name"),
+  ]);
+}
+
+function firstNonEmpty(values: Array<string | undefined>) {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
 }
 
 function invoiceLines(xml: string) {

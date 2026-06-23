@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
+import 'package:uretim_takip/models/izin_model.dart';
 import 'package:uretim_takip/models/personel_model.dart';
 import 'package:uretim_takip/services/izin_service.dart';
 import 'package:uretim_takip/services/mesai_service.dart';
@@ -45,6 +46,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
   int normalCalismaGunu = 0;
   int izinGunu = 0;
   int raporGunu = 0;
+  int devamsizlikGunu = 0;
   int toplamCalismaGunu = 0;
 
   double performansPuani = 0;
@@ -705,13 +707,13 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
             runSpacing: 12,
             children: [
               _buildMiniStat(
-                'Calisma Gunu',
+                'Calisilan Gun',
                 '$toplamCalismaGunu gun',
                 const Color(0xFF2563EB),
                 Icons.calendar_today,
               ),
               _buildMiniStat(
-                'Normal Calisma',
+                'Calisilabilir Gun',
                 '$normalCalismaGunu gun',
                 const Color(0xFF059669),
                 Icons.check_circle,
@@ -727,6 +729,12 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                 '$raporGunu gun',
                 const Color(0xFFDC2626),
                 Icons.local_hospital,
+              ),
+              _buildMiniStat(
+                'Devamsizlik',
+                '$devamsizlikGunu gun',
+                const Color(0xFFB45309),
+                Icons.warning_amber,
               ),
             ],
           ),

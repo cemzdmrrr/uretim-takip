@@ -225,7 +225,9 @@ extension _AksiyonExt on _OdemePageState {
                                     const SizedBox(height: 16),
                                     TextFormField(
                                       controller: tutarController,
-                                      keyboardType: TextInputType.number,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                              decimal: true),
                                       decoration: InputDecoration(
                                         labelText: 'Tutar',
                                         labelStyle:
@@ -254,11 +256,19 @@ extension _AksiyonExt on _OdemePageState {
                                       ),
                                       style:
                                           const TextStyle(color: Colors.blue),
-                                      validator: (v) => v == null || v.isEmpty
-                                          ? 'Zorunlu'
-                                          : null,
+                                      validator: (v) {
+                                        if (v == null || v.trim().isEmpty) {
+                                          return 'Zorunlu';
+                                        }
+                                        final parsed =
+                                            parseLocalizedDecimal(v.trim());
+                                        if (parsed == null || parsed <= 0) {
+                                          return 'Geçerli bir tutar girin';
+                                        }
+                                        return null;
+                                      },
                                       onChanged: (v) =>
-                                          tutar = double.tryParse(v),
+                                          tutar = parseLocalizedDecimal(v),
                                     ),
                                     const SizedBox(height: 16),
                                     TextFormField(
@@ -322,6 +332,7 @@ extension _AksiyonExt on _OdemePageState {
                             if (formKey.currentState?.validate() != true) {
                               return;
                             }
+                            tutar = parseLocalizedDecimal(tutarController.text);
                             if (tutar == null) return;
                             if ((seciliPersonelId ?? '').trim().isEmpty) {
                               ScaffoldMessenger.of(ctx).showSnackBar(
@@ -380,10 +391,13 @@ extension _AksiyonExt on _OdemePageState {
                               await OdemeService().addOdeme(odeme);
                               if (!context.mounted) return;
                               Navigator.pop(ctx);
+                              if (modalDonem != seciliDonem) {
+                                this.setState(() => seciliDonem = modalDonem);
+                              }
                               // ignore: use_build_context_synchronously
                               context.showSnackBar(
                                   'Avans/Ödeme talebi başarıyla oluşturuldu!');
-                              _getOdemeler();
+                              await _getOdemeler();
                             } catch (e) {
                               debugPrint('Ödeme ekleme hatası: $e');
                               if (!context.mounted) return;
@@ -414,148 +428,6 @@ extension _AksiyonExt on _OdemePageState {
     );
   }
 
-  Widget _buildOdemeHeroSection(BuildContext context, double width) {
-    final isWide = width >= 1100;
-    final bekleyenAdet =
-        odemeler.where((o) => o.durum == 'beklemede').length.toString();
-    final onayliToplam = odemeler
-        .where((o) => o.durum == 'onaylandi')
-        .fold<double>(0, (sum, odeme) => sum + odeme.tutar);
-    final toplamHareket = odemeler.length.toString();
-
-    final metrics = [
-      _buildHeroMetricCard(
-        icon: Icons.receipt_long,
-        label: 'Toplam hareket',
-        value: toplamHareket,
-      ),
-      _buildHeroMetricCard(
-        icon: Icons.pending_actions,
-        label: 'Bekleyen kayıt',
-        value: bekleyenAdet,
-      ),
-      _buildHeroMetricCard(
-        icon: Icons.task_alt,
-        label: 'Onaylanan Avans',
-        value: _formatTutar(onayliToplam),
-      ),
-    ];
-
-    final left = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-              ),
-              child: const Text(
-                'Finans Operasyon Paneli',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: personel?.ad ?? 'Personel ödeme hareketleri',
-                      style: TextStyle(
-                        fontSize: isWide ? 32 : 26,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                    TextSpan(
-                      text:
-                          '  •  ${personel?.departman ?? 'Departman yok'} • ${_donemEtiketi(seciliDonem)} dönemi için avans, prim, mesai ve kesinti hareketleri tek ekranda.',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white.withValues(alpha: 0.88),
-                      ),
-                    ),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _buildInlineInfoChip(
-                Icons.person_outline, 'Personel', personel?.ad ?? '-'),
-            _buildInlineInfoChip(Icons.payments_outlined, 'Net maaş',
-                _formatTutar(double.tryParse(personel?.netMaas ?? '0') ?? 0)),
-            _buildInlineInfoChip(Icons.calendar_month_outlined, 'Dönem',
-                _donemEtiketi(seciliDonem)),
-          ],
-        ),
-      ],
-    );
-
-    final right = Wrap(
-      spacing: 14,
-      runSpacing: 14,
-      children: metrics
-          .map((metric) => SizedBox(
-                width: width >= 1280 ? 220 : (width >= 900 ? 200 : width),
-                child: metric,
-              ))
-          .toList(),
-    );
-
-    return Container(
-      padding: EdgeInsets.all(isWide ? 28 : 22),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1947B3), Color(0xFF2F6FED)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A1D4ED8),
-            blurRadius: 24,
-            offset: Offset(0, 16),
-          ),
-        ],
-      ),
-      child: isWide
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(flex: 5, child: left),
-                const SizedBox(width: 24),
-                Expanded(flex: 4, child: right),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                left,
-                const SizedBox(height: 18),
-                right,
-              ],
-            ),
-    );
-  }
-
   Widget _buildOdemeSummarySection(
     BuildContext context,
     double width, {
@@ -571,14 +443,20 @@ extension _AksiyonExt on _OdemePageState {
         double.tryParse(personel?.gunlukCalismaSaati ?? '0') ?? 0;
     final prim = (ozetBakiyeler['prim'] ?? 0).toDouble();
     final avans = (ozetBakiyeler['avans'] ?? 0).toDouble();
+    final ikramiye = (ozetBakiyeler['ikramiye'] ?? 0).toDouble();
     final toplamYemekUcreti = yemek + mesaiYemekUcreti;
     final ucretsizIzin = (ucretsizIzinGun ?? 0).toDouble();
     final ucretsizIzinTutari =
         gunlukSaat > 0 ? (maas / 30) * ucretsizIzin : 0.0;
     final toplamKesinti = kesintiTutar + ucretsizIzinTutari;
+    final bekleyenTalep =
+        odemeler.where((odeme) => odeme.durum == 'beklemede').length;
+    final ekKazanc =
+        mesaiTutar + prim + ikramiye + yolUcreti + toplamYemekUcreti;
     final toplamKazanc = maas +
         mesaiTutar +
         prim +
+        ikramiye +
         yolUcreti +
         toplamYemekUcreti -
         toplamKesinti -
@@ -588,7 +466,7 @@ extension _AksiyonExt on _OdemePageState {
 
     final cards = [
       _buildSummaryCard(
-        title: 'Kalan ücret',
+        title: 'Kalan Ücret',
         value: _formatTutar(kalanUcret),
         subtitle: 'Maaş, ek kazanç ve kesintiler sonrası',
         icon: kalanUcret >= 0
@@ -598,50 +476,62 @@ extension _AksiyonExt on _OdemePageState {
             kalanUcret >= 0 ? const Color(0xFF2F6FED) : const Color(0xFFDC2626),
       ),
       _buildSummaryCard(
-        title: 'Banka ödemesi',
-        value: _formatTutar(bankadanMaas),
-        subtitle: 'Bankadan yatırılan sabit ödeme',
-        icon: Icons.account_balance,
+        title: 'Onaylı Avans',
+        value: _formatTutar(avans),
+        subtitle: 'Bu dönemde maaştan düşülecek avans',
+        icon: Icons.payments_outlined,
         color: const Color(0xFF0F766E),
       ),
       _buildSummaryCard(
-        title: 'Toplam kesinti',
-        value: _formatTutar(toplamKesinti),
-        subtitle: 'Kesinti ve ücretsiz izin etkisi',
-        icon: Icons.trending_down,
+        title: 'Bekleyen Talep',
+        value: '$bekleyenTalep kayıt',
+        subtitle: 'Onay bekleyen avans/ödeme hareketi',
+        icon: Icons.pending_actions,
         color: const Color(0xFFB45309),
       ),
       _buildSummaryCard(
-        title: 'Mesai + prim',
-        value: _formatTutar(mesaiTutar + prim),
-        subtitle: 'Onaylı fazla mesai ve prim toplamı',
-        icon: Icons.bolt,
+        title: 'Ek Kazanç',
+        value: _formatTutar(ekKazanc),
+        subtitle: 'Mesai, prim, ikramiye, yol ve yemek',
+        icon: Icons.trending_up,
         color: const Color(0xFF7C3AED),
+      ),
+      _buildSummaryCard(
+        title: 'Kesinti',
+        value: _formatTutar(toplamKesinti),
+        subtitle: 'Kesinti ve ücretsiz izin etkisi',
+        icon: Icons.trending_down,
+        color: const Color(0xFFDC2626),
       ),
     ];
 
-    final financeRows = [
+    final gelirRows = [
       ('Net maaş', maas),
       ('Toplam mesai', mesaiTutar),
       ('Prim', prim),
+      ('İkramiye', ikramiye),
       ('Yol', yolUcreti),
       ('Yemek', toplamYemekUcreti),
-      ('Avans', -avans),
-      ('Kesintiler', -toplamKesinti),
+    ];
+    final kesintiRows = [
+      ('Avans', avans),
+      ('Kesinti kayıtları', kesintiTutar),
+      ('Ücretsiz izin', ucretsizIzinTutari),
+      ('Banka ödemesi', bankadanMaas),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Wrap(
-          spacing: 16,
-          runSpacing: 16,
+          spacing: width >= 700 ? 16 : 10,
+          runSpacing: width >= 700 ? 16 : 10,
           children: cards
               .map((card) => SizedBox(
                     width: width >= 1280
-                        ? 300
-                        : width >= 900
-                            ? (width - 64) / 2
+                        ? (width - 64) / 3
+                        : width >= 760
+                            ? (width - 48) / 2
                             : width,
                     child: card,
                   ))
@@ -662,7 +552,20 @@ extension _AksiyonExt on _OdemePageState {
                   children: [
                     Expanded(
                       flex: 3,
-                      child: _buildFinanceBreakdown(financeRows),
+                      child: _buildFinanceBreakdown(
+                        title: 'Gelirler',
+                        rows: gelirRows,
+                        negative: false,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      flex: 3,
+                      child: _buildFinanceBreakdown(
+                        title: 'Kesintiler ve Mahsuplar',
+                        rows: kesintiRows,
+                        negative: true,
+                      ),
                     ),
                     const SizedBox(width: 20),
                     Expanded(
@@ -679,7 +582,17 @@ extension _AksiyonExt on _OdemePageState {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildFinanceBreakdown(financeRows),
+                    _buildFinanceBreakdown(
+                      title: 'Gelirler',
+                      rows: gelirRows,
+                      negative: false,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildFinanceBreakdown(
+                      title: 'Kesintiler ve Mahsuplar',
+                      rows: kesintiRows,
+                      negative: true,
+                    ),
                     const SizedBox(height: 20),
                     _buildFinanceSnapshot(
                       toplamKazanc: toplamKazanc,
@@ -699,11 +612,12 @@ extension _AksiyonExt on _OdemePageState {
         filtreDurum != null ||
         filtreBaslangic != null ||
         filtreBitis != null;
-    final isWide = width >= 1024;
+    final isWide = width >= 1040;
+    final isNarrow = width < 560;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isNarrow ? 14 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -712,19 +626,22 @@ extension _AksiyonExt on _OdemePageState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE8F0FF),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.tune, color: Color(0xFF2F6FED)),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
+              SizedBox(
+                width: isNarrow ? width - 92 : width - (hasFilter ? 210 : 92),
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -739,6 +656,8 @@ extension _AksiyonExt on _OdemePageState {
                     Text(
                       'Dönem, tür, durum ve tarih aralığı ile ödeme akışını daraltın.',
                       style: TextStyle(color: Color(0xFF64748B)),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -825,7 +744,7 @@ extension _AksiyonExt on _OdemePageState {
                 ),
                 const SizedBox(width: 14),
                 SizedBox(
-                  width: 160,
+                  width: 170,
                   child: _buildDateRangeButton(context),
                 ),
               ],
@@ -896,11 +815,12 @@ extension _AksiyonExt on _OdemePageState {
 
   Widget _buildOdemeListSection(BuildContext context, double width) {
     final kayitlar = _filtreliOdemeler;
-    final isDesktop = width >= 1100;
+    final isDesktop = width >= 1180;
+    final isNarrow = width < 560;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isNarrow ? 14 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -911,15 +831,17 @@ extension _AksiyonExt on _OdemePageState {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F0FF),
-                  borderRadius: BorderRadius.circular(8),
+              if (!isNarrow) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F0FF),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.view_list, color: Color(0xFF2F6FED)),
                 ),
-                child: const Icon(Icons.view_list, color: Color(0xFF2F6FED)),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -956,84 +878,6 @@ extension _AksiyonExt on _OdemePageState {
     );
   }
 
-  Widget _buildHeroMetricCard({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.white.withValues(alpha: 0.82),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInlineInfoChip(IconData icon, String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: Colors.white),
-          const SizedBox(width: 8),
-          Text(
-            '$label: $value',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSummaryCard({
     required String title,
     required String value,
@@ -1042,7 +886,8 @@ extension _AksiyonExt on _OdemePageState {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      constraints: const BoxConstraints(minHeight: 96),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -1052,51 +897,59 @@ extension _AksiyonExt on _OdemePageState {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: color),
+            child: Icon(icon, color: color, size: 19),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Text(
             title,
             style: const TextStyle(
               color: Color(0xFF64748B),
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 24,
+              fontSize: 19,
               fontWeight: FontWeight.w700,
               color: Color(0xFF0F172A),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             subtitle,
             style: const TextStyle(
               color: Color(0xFF94A3B8),
-              height: 1.4,
+              fontSize: 11,
+              height: 1.25,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFinanceBreakdown(List<(String, double)> rows) {
+  Widget _buildFinanceBreakdown({
+    required String title,
+    required List<(String, double)> rows,
+    required bool negative,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Maaş bileşeni',
-          style: TextStyle(
+        Text(
+          title,
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
             color: Color(0xFF0F172A),
@@ -1104,7 +957,6 @@ extension _AksiyonExt on _OdemePageState {
         ),
         const SizedBox(height: 14),
         ...rows.map((row) {
-          final isNegative = row.$2 < 0;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
@@ -1118,7 +970,7 @@ extension _AksiyonExt on _OdemePageState {
                 Text(
                   _formatTutar(row.$2),
                   style: TextStyle(
-                    color: isNegative
+                    color: negative && row.$2 > 0
                         ? const Color(0xFFDC2626)
                         : const Color(0xFF0F172A),
                     fontWeight: FontWeight.w700,
@@ -1536,17 +1388,24 @@ extension _AksiyonExt on _OdemePageState {
         if (adminMi && odeme.durum == 'beklemede') {
           buttons.addAll([
             _actionButton(
+              label: 'Onayla',
+              icon: Icons.check_circle_outline,
+              color: const Color(0xFF059669),
+              onPressed: () => _onaylaOdemeKaydi(context, odeme),
+            ),
+            _actionButton(
+              label: 'Düzenle',
+              icon: Icons.edit_outlined,
+              color: const Color(0xFFB45309),
+              onPressed: () =>
+                  _duzenleOdemeKaydi(context, odeme, avansTalebi: false),
+            ),
+            _actionButton(
               label: 'Sil',
               icon: Icons.delete_outline,
               color: const Color(0xFFDC2626),
               onPressed: () =>
                   _silOdemeKaydi(context, odeme, avansTalebi: false),
-            ),
-            _actionButton(
-              label: 'Onayla',
-              icon: Icons.check_circle_outline,
-              color: const Color(0xFF059669),
-              onPressed: () => _onaylaOdemeKaydi(context, odeme),
             ),
           ]);
         }
@@ -1734,10 +1593,17 @@ extension _AksiyonExt on _OdemePageState {
             children: [
               TextFormField(
                 controller: tutarController,
-                keyboardType: TextInputType.number,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Tutar'),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Zorunlu' : null,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return 'Zorunlu';
+                  final parsed = parseLocalizedDecimal(value.trim());
+                  if (parsed == null || parsed <= 0) {
+                    return 'Geçerli bir tutar girin';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -1758,7 +1624,7 @@ extension _AksiyonExt on _OdemePageState {
                 return;
               }
               final yeniTutar =
-                  double.tryParse(tutarController.text) ?? odeme.tutar;
+                  parseLocalizedDecimal(tutarController.text) ?? odeme.tutar;
               Navigator.pop(
                 ctx,
                 odeme.copyWith(
@@ -1826,36 +1692,6 @@ extension _AksiyonExt on _OdemePageState {
     final day = value.day.toString().padLeft(2, '0');
     final month = value.month.toString().padLeft(2, '0');
     return '$day.$month.${value.year}';
-  }
-
-  String _donemEtiketi(String? donem) {
-    if (donem == null || donem.isEmpty) {
-      return 'Tüm dönemler';
-    }
-    final parcalar = donem.split('-');
-    if (parcalar.length != 2) {
-      return donem;
-    }
-    final aylar = [
-      '',
-      'Ocak',
-      'Şubat',
-      'Mart',
-      'Nisan',
-      'Mayıs',
-      'Haziran',
-      'Temmuz',
-      'Ağustos',
-      'Eylül',
-      'Ekim',
-      'Kasım',
-      'Aralık',
-    ];
-    final ay = int.tryParse(parcalar[1]) ?? 0;
-    if (ay < 1 || ay > 12) {
-      return donem;
-    }
-    return '${aylar[ay]} ${parcalar[0]}';
   }
 
   String _turEtiketi(String tur) {
@@ -1933,19 +1769,11 @@ extension _AksiyonExt on _OdemePageState {
     }
   }
 
-  double get saatlikMesaiUcreti {
-    if (personel == null) return 0;
-    final maas = double.tryParse(personel!.netMaas) ?? 0;
-    final gunlukSaat = double.tryParse(personel!.gunlukCalismaSaati) ?? 0;
-    if (gunlukSaat == 0) return 0;
-    return (maas / 30 / gunlukSaat) * 1.5; // Saatlik mesai için x1.5 çarpanı
-  }
-
   Future<double> _getAylikToplamMesaiUcreti() async {
     if (personel == null) return 0;
-    final now = DateTime.now();
-    final mesailer =
-        await MesaiService().getMesailerForPersonel(personel!.userId);
+    final raporTarihi = _raporTarihi();
+    final mesailer = await MesaiService()
+        .getMesailerForPersonel(personel!.userId, donem: seciliDonem);
 
     final netMaas = double.tryParse(personel!.netMaas) ?? 0;
     final gunlukSaat = double.tryParse(personel!.gunlukCalismaSaati) ?? 0;
@@ -1956,8 +1784,8 @@ extension _AksiyonExt on _OdemePageState {
 
     for (final m in mesailer) {
       if (m.onayDurumu != 'onaylandi') continue;
-      // Sadece bu ay içindeki mesaileri hesapla
-      if (m.tarih.month == now.month && m.tarih.year == now.year) {
+      if (m.tarih.month == raporTarihi.month &&
+          m.tarih.year == raporTarihi.year) {
         if (m.saat != null) {
           // Mesai ücretini hesapla - türe göre farklı hesaplama yöntemleri
           double hesaplananUcret = 0;
@@ -1986,16 +1814,16 @@ extension _AksiyonExt on _OdemePageState {
 
   Future<double> _getAylikMesaiYemekUcreti() async {
     if (personel == null) return 0;
-    final now = DateTime.now();
-    final mesailer =
-        await MesaiService().getMesailerForPersonel(personel!.userId);
+    final raporTarihi = _raporTarihi();
+    final mesailer = await MesaiService()
+        .getMesailerForPersonel(personel!.userId, donem: seciliDonem);
 
     double toplamYemekUcreti = 0;
 
     for (final m in mesailer) {
       if (m.onayDurumu != 'onaylandi') continue;
-      // Sadece bu ay içindeki mesaileri hesapla
-      if (m.tarih.month == now.month && m.tarih.year == now.year) {
+      if (m.tarih.month == raporTarihi.month &&
+          m.tarih.year == raporTarihi.year) {
         // Pazar ve Bayram mesaileri için yemek ücreti var
         if (m.mesaiTuru == 'Pazar' || m.mesaiTuru == 'Bayram') {
           toplamYemekUcreti += m.yemekUcreti ?? 0;
@@ -2008,13 +1836,19 @@ extension _AksiyonExt on _OdemePageState {
 
   Future<double> _getKesintiTutari() async {
     if (personel == null) return 0;
-    final izinler = await IzinService().getIzinlerForPersonel(personel!.userId);
+    final raporTarihi = _raporTarihi();
+    final izinler = await IzinService()
+        .getIzinlerForPersonel(personel!.userId, donem: seciliDonem);
     final maas = double.tryParse(personel!.netMaas) ?? 0;
     const toplamGun = 30; // Standart ay
     final gunlukUcret = maas / toplamGun;
     double toplamKesinti = 0;
     for (final izin in izinler) {
       if (izin.onayDurumu != 'onaylandi') continue;
+      if (izin.baslangic.month != raporTarihi.month ||
+          izin.baslangic.year != raporTarihi.year) {
+        continue;
+      }
       if (izin.izinTuru == 'Raporlu') {
         // Raporlu günler için
         final raporluGun = izin.gunSayisi;
@@ -2046,5 +1880,21 @@ extension _AksiyonExt on _OdemePageState {
     // Personel tablosundaki yol ücreti + eğer varsa ek yol ücretleri
     final yolUcreti = double.tryParse(personel!.yolUcreti) ?? 0;
     return yolUcreti;
+  }
+
+  DateTime _raporTarihi() {
+    final donem = seciliDonem;
+    if (donem != null && donem.isNotEmpty) {
+      final parts = donem.split('-');
+      if (parts.length == 2) {
+        final yil = int.tryParse(parts[0]);
+        final ay = int.tryParse(parts[1]);
+        if (yil != null && ay != null) {
+          return DateTime(yil, ay, 1);
+        }
+      }
+    }
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, 1);
   }
 }

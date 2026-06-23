@@ -65,14 +65,20 @@ class _MesaiPageState extends State<MesaiPage> {
         .getAylikFazlaMesaiSaati(widget.personelId!, now.year, now.month);
     yillikFazlaMesai = await MesaiService()
         .getYillikFazlaMesaiSaati(widget.personelId!, now.year);
+    if (!mounted) return;
     setState(() {});
   }
 
   Future<void> _getMesailer() async {
     setState(() => yukleniyor = true);
-    if (widget.personelId == null) return;
+    if (widget.personelId == null) {
+      if (!mounted) return;
+      setState(() => yukleniyor = false);
+      return;
+    }
     final response = await MesaiService()
         .getMesailerForPersonel(widget.personelId!, donem: seciliDonem);
+    if (!mounted) return;
     setState(() {
       mesaiList = response
           .map((e) => {
@@ -83,6 +89,7 @@ class _MesaiPageState extends State<MesaiPage> {
                 'mesai_turu': e.mesaiTuru,
                 'onay_durumu': e.onayDurumu,
                 'saat': e.saat,
+                'mesai_ucret': e.mesaiUcret ?? 0.0,
                 'yemek_ucreti': e.yemekUcreti ?? 0.0,
                 'carpan': e.carpan ?? 1.0,
               })
@@ -91,68 +98,229 @@ class _MesaiPageState extends State<MesaiPage> {
     });
   }
 
+  String _donemKoduOlustur(DateTime tarih) {
+    return '${tarih.year}-${tarih.month.toString().padLeft(2, '0')}';
+  }
+
+  double _mesaiSaatiHesapla(TimeOfDay baslangic, TimeOfDay bitis) {
+    final start = baslangic.hour * 60 + baslangic.minute;
+    var end = bitis.hour * 60 + bitis.minute;
+    if (end <= start) {
+      end += const Duration(days: 1).inMinutes;
+    }
+    return double.parse(((end - start) / 60).toStringAsFixed(2));
+  }
+
+  double _numaraCevir(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  }
+
+  Future<double?> _personelNetMaasGetir(String? personelId) async {
+    if (personelId == null || personelId.isEmpty) return null;
+    final personel = await PersonelService().getPersonelById(personelId);
+    final netMaas = _numaraCevir(personel?.netMaas);
+    return netMaas > 0 ? netMaas : null;
+  }
+
+  Widget _buildKpiCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 86),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.24)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 21),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKpiPanel() {
+    final toplamSaat = mesaiList.fold<double>(
+        0, (sum, item) => sum + _numaraCevir(item['saat']));
+    final onayliSaat = mesaiList
+        .where((item) => item['onay_durumu'] == 'onaylandi')
+        .fold<double>(0, (sum, item) => sum + _numaraCevir(item['saat']));
+    final bekleyenSaat = mesaiList
+        .where((item) => item['onay_durumu'] == 'beklemede')
+        .fold<double>(0, (sum, item) => sum + _numaraCevir(item['saat']));
+    final toplamAlacak = mesaiList.fold<double>(
+        0, (sum, item) => sum + _numaraCevir(item['mesai_ucret']));
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final darAlan = constraints.maxWidth < 720;
+          final firstRow = Row(
+            children: [
+              _buildKpiCard(
+                icon: Icons.schedule,
+                title: 'Toplam Mesai',
+                value: '${toplamSaat.toStringAsFixed(2)} saat',
+                color: Colors.blue,
+              ),
+              const SizedBox(width: 10),
+              _buildKpiCard(
+                icon: Icons.verified,
+                title: 'Onaylı Mesai',
+                value: '${onayliSaat.toStringAsFixed(2)} saat',
+                color: Colors.green,
+              ),
+            ],
+          );
+          final secondRow = Row(
+            children: [
+              _buildKpiCard(
+                icon: Icons.pending_actions,
+                title: 'Bekleyen Mesai',
+                value: '${bekleyenSaat.toStringAsFixed(2)} saat',
+                color: Colors.orange,
+              ),
+              const SizedBox(width: 10),
+              _buildKpiCard(
+                icon: Icons.payments,
+                title: 'Toplam Alacak',
+                value: '${toplamAlacak.toStringAsFixed(2)} TL',
+                color: Colors.purple,
+              ),
+            ],
+          );
+
+          if (darAlan) {
+            return Column(
+              children: [
+                firstRow,
+                const SizedBox(height: 10),
+                secondRow,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: firstRow),
+              const SizedBox(width: 10),
+              Expanded(child: secondRow),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final body = yukleniyor
+    final rawBody = yukleniyor
         ? const LoadingWidget()
-        : SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 96),
-            child: Column(
-              children: [
-                // Dönem seçici
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    border:
-                        Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_today, color: Colors.blue),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Dönem Seçin:',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: DonemSecici(
-                          seciliDonem: seciliDonem,
-                          onDonemChanged: (donem) {
-                            setState(() {
-                              seciliDonem = donem;
-                            });
-                            _getMesailer(); // Yeni döneme göre mesaileri getir
-                            _getToplamMesai(); // Özet bilgileri güncelle
-                          },
-                          showAll: true,
-                        ),
-                      ),
-                    ],
-                  ),
+        : Column(
+            children: [
+              // Dönem seçici
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Text(
-                          'Aylık Toplam Mesai: ${aylikFazlaMesai.toStringAsFixed(2)} saat',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(
-                          'Yıllık Toplam: ${yillikFazlaMesai.toStringAsFixed(2)} saat',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ],
-                  ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Colors.blue),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Dönem Seçin:',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DonemSecici(
+                        seciliDonem: seciliDonem,
+                        onDonemChanged: (donem) {
+                          setState(() {
+                            seciliDonem = donem;
+                          });
+                          _getMesailer(); // Yeni döneme göre mesaileri getir
+                          _getToplamMesai(); // Özet bilgileri güncelle
+                        },
+                        showAll: true,
+                      ),
+                    ),
+                  ],
                 ),
-                mesaiList.isEmpty
+              ),
+              _buildKpiPanel(),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Text(
+                        'Aylık Toplam Mesai: ${aylikFazlaMesai.toStringAsFixed(2)} saat',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                        'Yıllık Toplam: ${yillikFazlaMesai.toStringAsFixed(2)} saat',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: mesaiList.isEmpty
                     ? const Center(child: Text('Mesai kaydı yok.'))
                     : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 96),
                         itemCount: mesaiList.length,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
                         itemBuilder: (context, i) {
                           final m = mesaiList[i];
                           return Card(
@@ -171,6 +339,8 @@ class _MesaiPageState extends State<MesaiPage> {
                                   Text('Tür: ${m['mesai_turu'] ?? '-'}'),
                                   Text(
                                       'Çalışılan Saat: ${m['saat'] != null ? m['saat'].toString() : '-'}'),
+                                  Text(
+                                      'Mesai Ücreti: ${_numaraCevir(m['mesai_ucret']).toStringAsFixed(2)} TL'),
                                   if ((m['yemek_ucreti'] as num?)?.toDouble() !=
                                           null &&
                                       (m['yemek_ucreti'] as num?)!.toDouble() >
@@ -313,10 +483,11 @@ class _MesaiPageState extends State<MesaiPage> {
                                                           lastDate:
                                                               DateTime(2100),
                                                         );
-                                                        if (picked != null)
+                                                        if (picked != null) {
                                                           setDialogState(() =>
                                                               seciliTarih =
                                                                   picked);
+                                                        }
                                                       },
                                                     ),
                                                     ListTile(
@@ -343,10 +514,11 @@ class _MesaiPageState extends State<MesaiPage> {
                                                                   TimeOfDay
                                                                       .now(),
                                                         );
-                                                        if (picked != null)
+                                                        if (picked != null) {
                                                           setDialogState(() =>
                                                               baslangicTime =
                                                                   picked);
+                                                        }
                                                       },
                                                     ),
                                                     ListTile(
@@ -372,10 +544,11 @@ class _MesaiPageState extends State<MesaiPage> {
                                                                   TimeOfDay
                                                                       .now(),
                                                         );
-                                                        if (picked != null)
+                                                        if (picked != null) {
                                                           setDialogState(() =>
                                                               bitisTime =
                                                                   picked);
+                                                        }
                                                       },
                                                     ),
                                                     DropdownButtonFormField<
@@ -531,51 +704,44 @@ class _MesaiPageState extends State<MesaiPage> {
                                                   onPressed: () async {
                                                     if (seciliTarih == null ||
                                                         baslangicTime == null ||
-                                                        bitisTime == null)
+                                                        bitisTime == null) {
                                                       return;
+                                                    }
                                                     final baslangicStr =
                                                         '${baslangicTime?.hour.toString().padLeft(2, '0')}:${baslangicTime?.minute.toString().padLeft(2, '0')}';
                                                     final bitisStr =
                                                         '${bitisTime?.hour.toString().padLeft(2, '0')}:${bitisTime?.minute.toString().padLeft(2, '0')}';
 
-                                                    // Mesai saatini hesapla
-                                                    final baslangic = DateTime(
-                                                      seciliTarih!.year,
-                                                      seciliTarih!.month,
-                                                      seciliTarih!.day,
-                                                      baslangicTime?.hour ?? 0,
-                                                      baslangicTime?.minute ??
-                                                          0,
+                                                    final mesaiSaati =
+                                                        _mesaiSaatiHesapla(
+                                                      baslangicTime!,
+                                                      bitisTime!,
                                                     );
-                                                    final bitis = DateTime(
-                                                      seciliTarih!.year,
-                                                      seciliTarih!.month,
-                                                      seciliTarih!.day,
-                                                      bitisTime?.hour ?? 0,
-                                                      bitisTime?.minute ?? 0,
-                                                    );
-                                                    final mesaiSaati = bitis
-                                                            .difference(
-                                                                baslangic)
-                                                            .inMinutes /
-                                                        60.0;
+                                                    final netMaas =
+                                                        await _personelNetMaasGetir(
+                                                            widget.personelId);
+                                                    if (netMaas == null) {
+                                                      if (!context.mounted) {
+                                                        return;
+                                                      }
+                                                      context.showSnackBar(
+                                                          'Personelin net maaş bilgisi bulunamadı!');
+                                                      return;
+                                                    }
 
                                                     // Mesai ücretini hesapla
-                                                    // Personel bilgisini çekmek için varsayılan değerler
-                                                    const double netMaas =
-                                                        50000; // Bu değer gerçek personel verisiyle değiştirilmeli
                                                     double mesaiUcret = 0;
 
                                                     if (mesaiTuru == 'Pazar') {
                                                       // Pazar mesaisi: Günlük net maaş x 2 (saat bazında değil)
-                                                      const gunlukNetMaas =
+                                                      final gunlukNetMaas =
                                                           netMaas / 30;
                                                       mesaiUcret =
                                                           gunlukNetMaas * 2.0;
                                                     } else if (mesaiTuru ==
                                                         'Bayram') {
                                                       // Bayram mesaisi: Saatlik ücret x çarpan x saat
-                                                      const saatlikUcret = netMaas /
+                                                      final saatlikUcret = netMaas /
                                                           30 /
                                                           8; // 8 saatlik iş günü varsayımı
                                                       mesaiUcret =
@@ -585,7 +751,7 @@ class _MesaiPageState extends State<MesaiPage> {
                                                     } else if (mesaiTuru ==
                                                         'Saatlik') {
                                                       // Saatlik mesai: Saatlik ücret x 1.5 x saat
-                                                      const saatlikUcret = netMaas /
+                                                      final saatlikUcret = netMaas /
                                                           30 /
                                                           8; // 8 saatlik iş günü varsayımı
                                                       mesaiUcret =
@@ -633,8 +799,9 @@ class _MesaiPageState extends State<MesaiPage> {
                                                     );
                                                     await _getMesailer();
                                                     _getToplamMesai();
-                                                    if (!context.mounted)
+                                                    if (!context.mounted) {
                                                       return;
+                                                    }
                                                     Navigator.pop(context);
                                                   },
                                                   style:
@@ -714,10 +881,16 @@ class _MesaiPageState extends State<MesaiPage> {
                           );
                         },
                       ),
-                const SizedBox(height: 24),
-              ],
-            ),
+              ),
+            ],
           );
+    final body = widget.embedded
+        ? SizedBox(
+            height:
+                (MediaQuery.sizeOf(context).height * 0.68).clamp(420.0, 720.0),
+            child: rawBody,
+          )
+        : rawBody;
     final fab = FloatingActionButton(
       onPressed: () async {
         DateTime? seciliTarih;
@@ -745,6 +918,7 @@ class _MesaiPageState extends State<MesaiPage> {
             debugPrint('Personel listesi yükleme hatası: $e');
           }
         }
+        if (!context.mounted) return;
         await showDialog(
           context: context,
           builder: (context) => StatefulBuilder(
@@ -809,7 +983,7 @@ class _MesaiPageState extends State<MesaiPage> {
                             // Personel seçimi
                             isAdmin && personelList.isNotEmpty
                                 ? DropdownButtonFormField<String>(
-                                    value: seciliPersonelId,
+                                    initialValue: seciliPersonelId,
                                     items: personelList
                                         .map((p) => DropdownMenuItem(
                                               value: p['id'],
@@ -881,8 +1055,9 @@ class _MesaiPageState extends State<MesaiPage> {
                                   firstDate: DateTime(2020),
                                   lastDate: DateTime(2100),
                                 );
-                                if (picked != null)
+                                if (picked != null) {
                                   setState(() => seciliTarih = picked);
+                                }
                               },
                               child: Container(
                                 padding: const EdgeInsets.all(12),
@@ -923,8 +1098,9 @@ class _MesaiPageState extends State<MesaiPage> {
                                         context: context,
                                         initialTime: TimeOfDay.now(),
                                       );
-                                      if (picked != null)
+                                      if (picked != null) {
                                         setState(() => baslangicSaati = picked);
+                                      }
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.all(12),
@@ -965,8 +1141,9 @@ class _MesaiPageState extends State<MesaiPage> {
                                         context: context,
                                         initialTime: TimeOfDay.now(),
                                       );
-                                      if (picked != null)
+                                      if (picked != null) {
                                         setState(() => bitisSaati = picked);
+                                      }
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.all(12),
@@ -1194,20 +1371,6 @@ class _MesaiPageState extends State<MesaiPage> {
                                     'Personel bilgisi bulunamadı!');
                                 return;
                               }
-                              final baslangic = DateTime(
-                                seciliTarih!.year,
-                                seciliTarih!.month,
-                                seciliTarih!.day,
-                                baslangicSaati?.hour ?? 0,
-                                baslangicSaati?.minute ?? 0,
-                              );
-                              final bitis = DateTime(
-                                seciliTarih!.year,
-                                seciliTarih!.month,
-                                seciliTarih!.day,
-                                bitisSaati?.hour ?? 0,
-                                bitisSaati?.minute ?? 0,
-                              );
                               // Çakışan mesai kontrolü
                               final cakisma =
                                   await MesaiService().mesaiCakisiyorMu(
@@ -1222,24 +1385,32 @@ class _MesaiPageState extends State<MesaiPage> {
                                     'Bu saat aralığında başka bir mesai kaydı var!');
                                 return;
                               }
-                              final mesaiSaati =
-                                  bitis.difference(baslangic).inMinutes / 60.0;
+                              final mesaiSaati = _mesaiSaatiHesapla(
+                                baslangicSaati!,
+                                bitisSaati!,
+                              );
+                              final netMaas =
+                                  await _personelNetMaasGetir(seciliPersonelId);
+                              if (netMaas == null) {
+                                if (!context.mounted) return;
+                                context.showSnackBar(
+                                    'Personelin net maaş bilgisi bulunamadı!');
+                                return;
+                              }
 
                               // Mesai ücret hesaplama - türe göre farklı hesaplama yöntemleri
-                              const double netMaas =
-                                  50000; // Bu değer gerçek personel verisiyle değiştirilmeli
                               double mesaiUcret = 0;
                               double carpan = 1.0;
 
                               if (mesaiTuru == 'Pazar') {
                                 // Pazar mesaisi: Günlük net maaş x 2 (saat bazında değil)
-                                const gunlukNetMaas = netMaas / 30;
+                                final gunlukNetMaas = netMaas / 30;
                                 mesaiUcret = gunlukNetMaas * 2.0;
                                 carpan = 2.0;
                                 // Yemek ücreti kullanıcı tarafından belirlendi
                               } else if (mesaiTuru == 'Bayram') {
                                 // Bayram mesaisi: Saatlik ücret x çarpan x saat
-                                const saatlikUcret = netMaas /
+                                final saatlikUcret = netMaas /
                                     30 /
                                     8; // 8 saatlik iş günü varsayımı
                                 mesaiUcret =
@@ -1248,7 +1419,7 @@ class _MesaiPageState extends State<MesaiPage> {
                                 // Yemek ücreti kullanıcı tarafından belirlendi
                               } else if (mesaiTuru == 'Saatlik') {
                                 // Saatlik mesai: Saatlik ücret x 1.5 x saat
-                                const saatlikUcret = netMaas /
+                                final saatlikUcret = netMaas /
                                     30 /
                                     8; // 8 saatlik iş günü varsayımı
                                 mesaiUcret = saatlikUcret * 1.5 * mesaiSaati;
@@ -1286,8 +1457,17 @@ class _MesaiPageState extends State<MesaiPage> {
                                 debugPrint('Mesai başarıyla eklendi');
                                 if (!context.mounted) return;
                                 Navigator.pop(context);
-                                _getMesailer();
-                                _getToplamMesai();
+                                if (seciliTarih != null &&
+                                    seciliDonem != null) {
+                                  final kayitDonemi =
+                                      _donemKoduOlustur(seciliTarih!);
+                                  if (seciliDonem != kayitDonemi) {
+                                    this.setState(
+                                        () => seciliDonem = kayitDonemi);
+                                  }
+                                }
+                                await _getMesailer();
+                                await _getToplamMesai();
                                 if (!mounted) return;
                                 ScaffoldMessenger.of(this.context).showSnackBar(
                                   const SnackBar(

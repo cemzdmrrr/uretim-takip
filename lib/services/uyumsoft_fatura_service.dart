@@ -588,7 +588,7 @@ class UyumsoftFaturaService {
       'fatura_no': faturaNo,
       'fatura_tarihi': faturaTarihi.toIso8601String(),
       'senaryo': _text(xml, 'ProfileID') ?? _text(xml, 'InvoiceTypeCode'),
-      'cari_unvan': _text(supplier, 'Name') ?? 'Bilinmeyen Tedarikçi',
+      'cari_unvan': _partyUnvani(supplier) ?? 'Bilinmeyen Tedarikçi',
       'vergi_no': _text(supplier, 'CompanyID'),
       'vergi_dairesi': _text(_section(supplier, 'TaxScheme'), 'Name'),
       'fatura_adres': _adresOlustur(supplier),
@@ -607,6 +607,27 @@ class UyumsoftFaturaService {
     };
 
     return _ParsedUbl(ustVeri: ustVeri, kalemler: kalemler);
+  }
+
+  static String? _partyUnvani(String partyWrapper) {
+    final party = _section(partyWrapper, 'Party');
+    final source = party.isEmpty ? partyWrapper : party;
+    return _ilkDolu([
+      _text(_section(source, 'PartyLegalEntity'), 'RegistrationName'),
+      _text(_section(source, 'PartyName'), 'Name'),
+      _text(source, 'RegistrationName'),
+      _text(source, 'Name'),
+      _text(partyWrapper, 'RegistrationName'),
+      _text(partyWrapper, 'Name'),
+    ]);
+  }
+
+  static String? _ilkDolu(List<String?> values) {
+    for (final value in values) {
+      final trimmed = value?.trim();
+      if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
   }
 
   static String _kategoriTahminEt(String text) {

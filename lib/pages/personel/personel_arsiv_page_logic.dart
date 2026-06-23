@@ -15,6 +15,7 @@ extension _LogicExt on _PersonelArsivPageState {
     normalCalismaGunu = 0;
     izinGunu = 0;
     raporGunu = 0;
+    devamsizlikGunu = 0;
     toplamCalismaGunu = 0;
     performansPuani = 0;
     performansDurumu = 'Orta';
@@ -243,6 +244,8 @@ extension _LogicExt on _PersonelArsivPageState {
         }
       }
 
+      await _calismaOzetiniHesapla();
+
       // Final hesaplamalar
       // Eğer net maaş hesaplanmamışsa, brüt maaş - kesintiler şeklinde hesapla
       if (toplamNet == 0 && toplamMaas > 0) {
@@ -264,6 +267,104 @@ extension _LogicExt on _PersonelArsivPageState {
     setState(() => yukleniyor = false);
   }
 
+  Future<void> _calismaOzetiniHesapla() async {
+    if (seciliDonem == null) return;
+    final parts = seciliDonem!.split('-');
+    if (parts.length != 2) return;
+    final yil = int.tryParse(parts[0]);
+    final ay = int.tryParse(parts[1]);
+    if (yil == null || ay == null) return;
+
+    final donemBaslangic = DateTime(yil, ay, 1);
+    final sonrakiDonem = DateTime(yil, ay + 1, 1);
+    final personel = await _getPersonel();
+    final haftalikCalismaGunu =
+        _pozitifInt(personel?.haftalikCalismaGunu ?? '', 6).clamp(1, 7).toInt();
+
+    normalCalismaGunu = _calisilabilirGunSayisi(
+      donemBaslangic,
+      sonrakiDonem,
+      haftalikCalismaGunu,
+    );
+
+    izinGunu = 0;
+    raporGunu = 0;
+    devamsizlikGunu = 0;
+
+    final izinler =
+        await IzinService().getIzinlerForPersonel(widget.personelId);
+    for (final izin in izinler) {
+      final kesisenGun = _izinKesisimCalismaGunu(
+        izin,
+        donemBaslangic,
+        sonrakiDonem,
+        haftalikCalismaGunu,
+      );
+      if (kesisenGun <= 0 || izin.onayDurumu != 'onaylandi') continue;
+      if (izin.izinTuru == 'Yıllık İzin' || izin.izinTuru == 'Mazeret İzni') {
+        izinGunu += kesisenGun;
+      } else if (izin.izinTuru == 'Raporlu') {
+        raporGunu += kesisenGun;
+      } else if (izin.izinTuru == 'Ücretsiz İzin' ||
+          izin.izinTuru == 'Devamsızlık') {
+        devamsizlikGunu += kesisenGun;
+      }
+    }
+
+    toplamCalismaGunu =
+        (normalCalismaGunu - izinGunu - raporGunu - devamsizlikGunu)
+            .clamp(0, normalCalismaGunu)
+            .toInt();
+
+    final mesailer = await MesaiService()
+        .getMesailerForPersonel(widget.personelId, donem: seciliDonem);
+    toplamMesaiSaati = mesailer
+        .where((mesai) =>
+            mesai.onayDurumu == 'onaylandi' &&
+            mesai.tarih.year == yil &&
+            mesai.tarih.month == ay)
+        .fold<double>(0, (sum, mesai) => sum + (mesai.saat ?? 0));
+  }
+
+  int _pozitifInt(String value, int fallback) {
+    final parsed = int.tryParse(value);
+    return parsed != null && parsed > 0 ? parsed : fallback;
+  }
+
+  int _calisilabilirGunSayisi(
+    DateTime start,
+    DateTime endExclusive,
+    int haftalikCalismaGunu,
+  ) {
+    var count = 0;
+    for (var day = DateTime(start.year, start.month, start.day);
+        day.isBefore(endExclusive);
+        day = day.add(const Duration(days: 1))) {
+      if (day.weekday <= haftalikCalismaGunu) count++;
+    }
+    return count;
+  }
+
+  int _izinKesisimCalismaGunu(
+    IzinModel izin,
+    DateTime donemBaslangic,
+    DateTime sonrakiDonem,
+    int haftalikCalismaGunu,
+  ) {
+    final izinBaslangic =
+        DateTime(izin.baslangic.year, izin.baslangic.month, izin.baslangic.day);
+    final izinBitisDahil =
+        DateTime(izin.bitis.year, izin.bitis.month, izin.bitis.day);
+    final izinBitisExclusive = izinBitisDahil.add(const Duration(days: 1));
+    final start =
+        izinBaslangic.isAfter(donemBaslangic) ? izinBaslangic : donemBaslangic;
+    final end = izinBitisExclusive.isBefore(sonrakiDonem)
+        ? izinBitisExclusive
+        : sonrakiDonem;
+    if (!start.isBefore(end)) return 0;
+    return _calisilabilirGunSayisi(start, end, haftalikCalismaGunu);
+  }
+
   String _getNextMonthDate() {
     if (seciliDonem == null) return '';
     final parts = seciliDonem!.split('-');
@@ -280,14 +381,16 @@ extension _LogicExt on _PersonelArsivPageState {
   }
 
   void _hesaplaPerformans() {
-    double puan = 70; // Başlangıç puanı
+    double puan = 70;
+    final devamOrani =
+        normalCalismaGunu > 0 ? toplamCalismaGunu / normalCalismaGunu : 0.0;
 
     // Çalışma günü performansı
-    if (normalCalismaGunu >= 22) {
+    if (devamOrani >= 0.95) {
       puan += 10;
-    } else if (normalCalismaGunu >= 20) {
+    } else if (devamOrani >= 0.85) {
       puan += 5;
-    } else if (normalCalismaGunu < 15) {
+    } else if (devamOrani < 0.60) {
       puan -= 15;
     } else {
       puan -= 10;
@@ -316,9 +419,17 @@ extension _LogicExt on _PersonelArsivPageState {
       puan -= 10;
     }
 
-    // Toplam çalışma günü bazında da değerlendirme
-    final totalWorkDays = toplamCalismaGunu + izinGunu + raporGunu;
-    if (totalWorkDays >= 22) puan += 5;
+    if (devamsizlikGunu > 3) {
+      puan -= 20;
+    } else if (devamsizlikGunu > 0) {
+      puan -= 8;
+    }
+
+    final takipEdilenGun =
+        toplamCalismaGunu + izinGunu + raporGunu + devamsizlikGunu;
+    if (normalCalismaGunu > 0 && takipEdilenGun >= normalCalismaGunu) {
+      puan += 5;
+    }
 
     performansPuani = puan.clamp(0, 100);
 

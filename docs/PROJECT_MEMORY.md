@@ -239,6 +239,7 @@ Notlar:
 - Bordro sayfasi kapanis kontrolu, arama, filtre, onayli/onaysiz/bordrosuz durumlari, PDF ve yazdirma aksiyonlarini desteklemelidir.
 - Donem bazli filtreleme `donemler` ve secili yil/ay mantigiyla uyumlu olmalidir.
 - Personel olusturma/yonetme Edge Function'lari `user_roles` kaydini firma kapsamli tutar: `user_id + firma_id + role='personel'`. `user_roles` icin tek basina `onConflict: 'user_id'` kullanilmaz; kayit once sorgulanir, varsa `aktif=true` yapilir, yoksa `firma_id` ile insert edilir.
+- Personel detayindaki Avans/Odeme ve Puantaj sekmeleri secili donemle tutarli calisir. Avans/odeme finans ozeti, mesai/yemek/kesinti ve liste ayni donem kapsaminda hesaplanir. Puantaj sekmesi bu asamada `puantaj` tablosuna otomatik kayit yazmaz; izin, mesai ve personel ayarlarindan anlik hesaplanir. Calisilabilir gun hesabi `haftalik_calisma_gunu` ve `gunluk_calisma_saati` kullanir; bos degerlerde 6 gun / 8 saat varsayilir.
 
 ## Bildirim Sistemi Hafizasi
 

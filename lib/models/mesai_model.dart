@@ -38,12 +38,18 @@ class MesaiModel {
       MesaiModel.fromMap(json);
 
   factory MesaiModel.fromMap(Map<String, dynamic> map) {
-    // Veritabanında sadece user_id var
-    final effectiveUserId = map['user_id']?.toString() ?? '';
+    // Yeni kayıtlarda user_id, eski kayıtlarda personel_id bulunabilir.
+    final effectiveUserId =
+        map['user_id']?.toString() ?? map['personel_id']?.toString() ?? '';
+    final rawTarih = map['tarih']?.toString();
+    final tarih = DateTime.tryParse(rawTarih ?? '');
+    if (tarih == null) {
+      throw FormatException('Geçersiz mesai tarihi', rawTarih);
+    }
     return MesaiModel(
       id: map['id']?.toString(),
-      personelId: effectiveUserId, // Geriye dönük uyumluluk için
-      tarih: DateTime.parse(map['tarih']),
+      personelId: effectiveUserId,
+      tarih: tarih,
       baslangicSaati: map['baslangic_saati'] ?? '',
       bitisSaati: map['bitis_saati'] ?? '',
       mesaiTuru: map['mesai_turu'] ?? '',

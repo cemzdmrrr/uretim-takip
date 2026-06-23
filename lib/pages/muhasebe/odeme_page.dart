@@ -8,6 +8,7 @@ import 'package:uretim_takip/services/mesai_service.dart';
 import 'package:uretim_takip/services/notification_service.dart';
 import 'package:uretim_takip/services/odeme_service.dart';
 import 'package:uretim_takip/services/personel_service.dart';
+import 'package:uretim_takip/utils/decimal_parser.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/widgets/donem_secici.dart';
 
@@ -121,8 +122,16 @@ class _OdemePageState extends State<OdemePage> {
       return;
     }
     final izinServis = IzinService();
-    ucretsizIzinGun =
-        await izinServis.getKullanilanUcretsizIzinGun(personel!.userId);
+    final izinler = await izinServis.getIzinlerForPersonel(
+      personel!.userId,
+      donem: seciliDonem,
+    );
+    ucretsizIzinGun = izinler
+        .where((izin) =>
+            izin.onayDurumu == 'onaylandi' &&
+            (izin.izinTuru == 'Ücretsiz İzin' ||
+                izin.izinTuru == 'Devamsızlık'))
+        .fold<int>(0, (sum, izin) => sum + izin.gunSayisi);
     if (!mounted) {
       return;
     }
@@ -162,6 +171,7 @@ class _OdemePageState extends State<OdemePage> {
     });
     _getOdemeler();
     _getOzetBakiyeler();
+    _getEkBilgiler();
   }
 
   @override
@@ -178,9 +188,9 @@ class _OdemePageState extends State<OdemePage> {
                   final width = constraints.maxWidth;
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
-                      width >= 900 ? 24 : 16,
-                      16,
-                      width >= 900 ? 24 : 16,
+                      width >= 900 ? 24 : 12,
+                      width >= 900 ? 16 : 12,
+                      width >= 900 ? 24 : 12,
                       112,
                     ),
                     child: Center(
@@ -191,8 +201,6 @@ class _OdemePageState extends State<OdemePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildOdemeHeroSection(context, width),
-                            const SizedBox(height: 20),
                             FutureBuilder<List<double>>(
                               future: Future.wait([
                                 _getAylikToplamMesaiUcreti(),

@@ -16,7 +16,6 @@ class OdemeService {
       debugPrint('personelId: "$personelId"');
       debugPrint('donem: "$donem"');
 
-      // Veritabanında sadece user_id var
       var query = _client
           .from(DbTables.odemeKayitlari)
           .select()
@@ -32,11 +31,12 @@ class OdemeService {
           final ay = int.tryParse(parts[1]);
           if (yil != null && ay != null) {
             final baslangicTarihi = DateTime(yil, ay, 1);
-            final bitisTarihi = DateTime(yil, ay + 1, 0, 23, 59, 59);
-            debugPrint('Dönem filtresi: $baslangicTarihi - $bitisTarihi');
+            final sonrakiDonemBaslangici = DateTime(yil, ay + 1, 1);
+            debugPrint(
+                'Dönem filtresi: $baslangicTarihi - $sonrakiDonemBaslangici');
             query = query
                 .gte('odeme_tarihi', baslangicTarihi.toIso8601String())
-                .lte('odeme_tarihi', bitisTarihi.toIso8601String());
+                .lt('odeme_tarihi', sonrakiDonemBaslangici.toIso8601String());
           }
         }
       }
@@ -46,11 +46,23 @@ class OdemeService {
       if (response.isNotEmpty) {
         debugPrint('İlk kayıt: ${response.first}');
       }
-      return response.map((e) => OdemeModel.fromMap(e)).toList();
+      return _odemeListesiOlustur(response);
     } catch (e) {
       debugPrint('OdemeService.getOdemelerForPersonel HATA: $e');
       return [];
     }
+  }
+
+  List<OdemeModel> _odemeListesiOlustur(List<dynamic> response) {
+    final odemeler = <OdemeModel>[];
+    for (final row in response) {
+      try {
+        odemeler.add(OdemeModel.fromMap(Map<String, dynamic>.from(row as Map)));
+      } catch (e) {
+        debugPrint('OdemeService satır parse edilemedi: $e, row=$row');
+      }
+    }
+    return odemeler;
   }
 
   Future<void> addOdeme(OdemeModel odeme) async {
@@ -87,19 +99,26 @@ class OdemeService {
 
   Future<void> updateOdemeDurum(int id, String yeniDurum,
       {String? onaylayanId}) async {
-    await _client.from(DbTables.odemeKayitlari).update({
-      'durum': yeniDurum,
-      if (onaylayanId != null) 'onaylayan_user_id': onaylayanId,
-      'onay_tarihi': DateTime.now().toIso8601String(),
-    }).eq('id', id);
+    await _client
+        .from(DbTables.odemeKayitlari)
+        .update({
+          'durum': yeniDurum,
+          if (onaylayanId != null) 'onaylayan_user_id': onaylayanId,
+          'onay_tarihi': DateTime.now().toIso8601String(),
+        })
+        .eq('id', id)
+        .eq('firma_id', _firmaId);
   }
 
   Future<void> deleteOdeme(int id) async {
-    await _client.from(DbTables.odemeKayitlari).delete().eq('id', id);
+    await _client
+        .from(DbTables.odemeKayitlari)
+        .delete()
+        .eq('id', id)
+        .eq('firma_id', _firmaId);
   }
 
   Future<double> getOnayliAvansBakiyesi(String personelId) async {
-    // Veritabanında sadece user_id var
     final response = await _client
         .from(DbTables.odemeKayitlari)
         .select('tutar')
@@ -115,7 +134,6 @@ class OdemeService {
 
   Future<Map<String, double>> getOnayliBakiyeOzet(String personelId,
       {String? donem}) async {
-    // Veritabanında sadece user_id var
     var query = _client
         .from(DbTables.odemeKayitlari)
         .select('odeme_turu, tur, tutar, odeme_tarihi')
@@ -131,10 +149,10 @@ class OdemeService {
         final ay = int.tryParse(parts[1]);
         if (yil != null && ay != null) {
           final baslangicTarihi = DateTime(yil, ay, 1);
-          final bitisTarihi = DateTime(yil, ay + 1, 0, 23, 59, 59);
+          final sonrakiDonemBaslangici = DateTime(yil, ay + 1, 1);
           query = query
               .gte('odeme_tarihi', baslangicTarihi.toIso8601String())
-              .lte('odeme_tarihi', bitisTarihi.toIso8601String());
+              .lt('odeme_tarihi', sonrakiDonemBaslangici.toIso8601String());
         }
       }
     }
@@ -167,6 +185,10 @@ class OdemeService {
   }
 
   Future<void> updateOdeme(int id, Map<String, dynamic> data) async {
-    await _client.from(DbTables.odemeKayitlari).update(data).eq('id', id);
+    await _client
+        .from(DbTables.odemeKayitlari)
+        .update(data)
+        .eq('id', id)
+        .eq('firma_id', _firmaId);
   }
 }
