@@ -7,10 +7,16 @@ extension _LogicExt on _PersonelArsivPageState {
     toplamMaas = 0;
     toplamAvans = 0;
     toplamPrim = 0;
+    toplamTazminat = 0;
     toplamYol = 0;
     toplamYemek = 0;
     toplamNet = 0;
     toplamKesinti = 0;
+    toplamBankaOdeme = 0;
+    tahminiKesintiTutari = 0;
+    bordrosuzTabanNet = 0;
+    bordroVar = false;
+    kesintiAciklama = '';
     toplamMesaiSaati = 0;
     normalCalismaGunu = 0;
     izinGunu = 0;
@@ -51,12 +57,14 @@ extension _LogicExt on _PersonelArsivPageState {
 
       if (bordroResponse.isNotEmpty) {
         final bordro = bordroResponse.first;
+        bordroVar = true;
         debugPrint('Bordro verisi: $bordro');
         toplamMaas = (bordro['brut_maas'] as num? ?? 0).toDouble();
         toplamNet = (bordro['net_maas'] as num? ?? 0).toDouble();
         toplamKesinti = (bordro['sgk_iscilik'] as num? ?? 0).toDouble() +
             (bordro['gelir_vergisi'] as num? ?? 0).toDouble() +
             (bordro['damga_vergisi'] as num? ?? 0).toDouble();
+        kesintiAciklama = 'Bordro SGK + gelir vergisi + damga vergisi';
         toplamPrim = (bordro['ek_odenek'] as num? ?? 0).toDouble();
         normalCalismaGunu = bordro['normal_gun'] as int? ?? 22;
 
@@ -86,6 +94,7 @@ extension _LogicExt on _PersonelArsivPageState {
           if (toplamMaas == 0 && toplamNet > 0) {
             toplamMaas = toplamNet * 1.35; // Tahmini brüt (net'in ~1.35 katı)
           }
+          bordrosuzTabanNet = toplamNet > 0 ? toplamNet : toplamMaas;
 
           debugPrint('toplamMaas: $toplamMaas, toplamNet: $toplamNet');
 
@@ -101,9 +110,11 @@ extension _LogicExt on _PersonelArsivPageState {
           toplamYol = gunlukYol * normalCalismaGunu;
           toplamYemek = gunlukYemek * normalCalismaGunu;
 
-          // Bordro yoksa kesinti hesapla (yaklaşık)
-          toplamKesinti =
-              toplamMaas > 0 ? toplamMaas * 0.20 : 0; // %20 kesinti tahmini
+          // Bordro yoksa yaklaşık kesinti yönetici inisiyatifine bırakılır.
+          tahminiKesintiTutari = toplamMaas > 0 ? toplamMaas * 0.20 : 0;
+          toplamKesinti = tahminiKesintiUygula ? tahminiKesintiTutari : 0;
+          kesintiAciklama =
+              'Bordro yok: brüt maaş üzerinden yaklaşık %20 (${tahminiKesintiTutari.toStringAsFixed(2)} TL) yönetici inisiyatifindedir';
         }
       }
 
@@ -141,6 +152,12 @@ extension _LogicExt on _PersonelArsivPageState {
             case 'bonus':
               odemePrimi += tutar;
               break;
+            case 'banka_odeme':
+              toplamBankaOdeme += tutar;
+              break;
+            case 'tazminat':
+              toplamTazminat += tutar;
+              break;
             case 'mesai_ucreti':
               odemePrimi += tutar; // Mesai ödemesi prim olarak sayılabilir
               break;
@@ -177,7 +194,7 @@ extension _LogicExt on _PersonelArsivPageState {
           'Mesai sorgusu: user_id=${widget.personelId}, tarih>=${seciliDonem!}-01, tarih<${_getNextMonthDate()}');
       final mesaiResponse = await client
           .from(DbTables.mesai)
-          .select('saat, onay_durumu, mesai_ucret, yemek_ucreti')
+          .select('saat, onay_durumu, mesai_turu, yemek_ucreti')
           .eq('user_id', widget.personelId)
           .gte('tarih', '${seciliDonem!}-01')
           .lt('tarih', _getNextMonthDate());
@@ -189,6 +206,13 @@ extension _LogicExt on _PersonelArsivPageState {
 
       toplamMesaiSaati = 0;
       double mesaiUcreti = 0;
+      final mesaiNetMaas = toplamNet > 0 ? toplamNet : bordrosuzTabanNet;
+      final mesaiPersonel = await _getPersonel();
+      final gunlukSaat =
+          double.tryParse(mesaiPersonel?.gunlukCalismaSaati ?? '8') ?? 8;
+      final saatlikUcret = mesaiNetMaas > 0 && gunlukSaat > 0
+          ? mesaiNetMaas / 30 / gunlukSaat
+          : 0;
       for (var mesai in mesaiResponse) {
         debugPrint('Mesai kaydı: $mesai');
         final onayDurumu = mesai['onay_durumu']?.toString() ?? '';
@@ -201,7 +225,13 @@ extension _LogicExt on _PersonelArsivPageState {
 
           // Mesai ücretini de prim olarak ekle (sadece onaylananlar)
           if (onayDurumu == 'onaylandi' || onayDurumu == 'approved') {
-            final mesaiUcret = (mesai['mesai_ucret'] as num? ?? 0).toDouble();
+            final mesaiTuru = mesai['mesai_turu']?.toString() ?? '';
+            double mesaiUcret = 0;
+            if (mesaiTuru == 'Pazar' || mesaiTuru == 'Bayram') {
+              mesaiUcret = mesaiNetMaas > 0 ? (mesaiNetMaas / 30) * 2.0 : 0;
+            } else if (mesaiTuru == 'Saatlik') {
+              mesaiUcret = saatlikUcret * 1.5 * saatSayisi;
+            }
             final yemekUcret = (mesai['yemek_ucreti'] as num? ?? 0).toDouble();
             mesaiUcreti += mesaiUcret + yemekUcret;
           }
@@ -246,15 +276,37 @@ extension _LogicExt on _PersonelArsivPageState {
 
       await _calismaOzetiniHesapla();
 
+      if (!bordroVar) {
+        final arsivPersonel = await _getPersonel();
+        if (arsivPersonel != null) {
+          final gunSayisi = normalCalismaGunu > 0 ? normalCalismaGunu : 22;
+          final gunlukYol = double.tryParse(arsivPersonel.yolUcreti) ?? 0;
+          final gunlukYemek = double.tryParse(arsivPersonel.yemekUcreti) ?? 0;
+          toplamYol = gunlukYol * gunSayisi;
+          toplamYemek = gunlukYemek * gunSayisi;
+        }
+      }
+
       // Final hesaplamalar
-      // Eğer net maaş hesaplanmamışsa, brüt maaş - kesintiler şeklinde hesapla
-      if (toplamNet == 0 && toplamMaas > 0) {
-        toplamNet = toplamMaas -
-            toplamKesinti +
+      // Bordro yoksa yönetici kesinti tercihi dönem toplamına yansıtılır.
+      if (!bordroVar && bordrosuzTabanNet > 0) {
+        toplamNet = bordrosuzTabanNet +
             toplamPrim +
+            toplamTazminat +
             toplamYol +
             toplamYemek -
-            toplamAvans;
+            toplamAvans -
+            toplamBankaOdeme -
+            toplamKesinti;
+      } else if (toplamNet == 0 && toplamMaas > 0) {
+        toplamNet = toplamMaas +
+            toplamPrim +
+            toplamTazminat +
+            toplamYol +
+            toplamYemek -
+            toplamAvans -
+            toplamBankaOdeme -
+            toplamKesinti;
       }
 
       // Performans hesaplama
@@ -265,6 +317,25 @@ extension _LogicExt on _PersonelArsivPageState {
     }
 
     setState(() => yukleniyor = false);
+  }
+
+  void _tahminiKesintiTercihiniDegistir(bool uygula) {
+    if (bordroVar || tahminiKesintiTutari <= 0) return;
+
+    setState(() {
+      tahminiKesintiUygula = uygula;
+      toplamKesinti = uygula ? tahminiKesintiTutari : 0;
+      if (bordrosuzTabanNet > 0) {
+        toplamNet = bordrosuzTabanNet +
+            toplamPrim +
+            toplamTazminat +
+            toplamYol +
+            toplamYemek -
+            toplamAvans -
+            toplamBankaOdeme -
+            toplamKesinti;
+      }
+    });
   }
 
   Future<void> _calismaOzetiniHesapla() async {
@@ -526,9 +597,9 @@ extension _LogicExt on _PersonelArsivPageState {
             final gunlukNetMaas = netMaas / 30;
             hesaplananUcret = gunlukNetMaas * 2.0;
           } else if (m.mesaiTuru == 'Bayram') {
-            // Bayram mesaisi: Saatlik ücret x database'den gelen çarpan x saat
-            final carpan = m.carpan ?? 1.5;
-            hesaplananUcret = saatlikUcret * carpan * m.saat!;
+            // Bayram mesaisi: Pazar gibi günlük net maaş x 2
+            final gunlukNetMaas = netMaas / 30;
+            hesaplananUcret = gunlukNetMaas * 2.0;
           } else if (m.mesaiTuru == 'Saatlik') {
             // Saatlik mesai: Saatlik ücret x 1.5 x saat
             hesaplananUcret = saatlikUcret * 1.5 * m.saat!;
@@ -619,6 +690,7 @@ extension _LogicExt on _PersonelArsivPageState {
 
   Future<double> _getAylikYolUcreti() async {
     debugPrint('=== _getAylikYolUcreti ===');
+    if (toplamYol > 0) return toplamYol;
     final personel = await _getPersonel();
     if (personel == null) {
       debugPrint('Personel null, 0 döndürüyor');
@@ -627,8 +699,26 @@ extension _LogicExt on _PersonelArsivPageState {
     // Personel tablosundaki yol ücreti aylık tutar olarak döndürülüyor
     // Eğer günlük ise çalışma günü ile çarpılmalı
     final yolUcreti = double.tryParse(personel.yolUcreti) ?? 0;
-    debugPrint('yolUcreti: $yolUcreti');
-    return yolUcreti;
+    final gunSayisi = normalCalismaGunu > 0 ? normalCalismaGunu : 22;
+    final aylikYol = yolUcreti * gunSayisi;
+    debugPrint('gunluk yolUcreti: $yolUcreti, aylikYol: $aylikYol');
+    return aylikYol;
+  }
+
+  Future<double> _getAylikYemekUcreti() async {
+    debugPrint('=== _getAylikYemekUcreti ===');
+    if (toplamYemek > 0) return toplamYemek;
+    final personel = await _getPersonel();
+    if (personel == null) {
+      debugPrint('Personel null, 0 donduruyor');
+      return 0;
+    }
+
+    final yemekUcreti = double.tryParse(personel.yemekUcreti) ?? 0;
+    final gunSayisi = normalCalismaGunu > 0 ? normalCalismaGunu : 22;
+    final aylikYemek = yemekUcreti * gunSayisi;
+    debugPrint('gunluk yemekUcreti: $yemekUcreti, aylikYemek: $aylikYemek');
+    return aylikYemek;
   }
 
   Future<Map<String, double>> _getOzetBakiyeler() async {

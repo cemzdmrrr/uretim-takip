@@ -192,6 +192,16 @@ extension _AksiyonExt on _OdemePageState {
                                                   child: Text('Kesinti',
                                                       style: TextStyle(
                                                           color: Colors.blue))),
+                                              DropdownMenuItem(
+                                                  value: 'banka_odeme',
+                                                  child: Text('Banka Ödemesi',
+                                                      style: TextStyle(
+                                                          color: Colors.blue))),
+                                              DropdownMenuItem(
+                                                  value: 'tazminat',
+                                                  child: Text('Tazminat',
+                                                      style: TextStyle(
+                                                          color: Colors.blue))),
                                             ],
                                       onChanged: sadeceAvans
                                           ? null
@@ -444,6 +454,8 @@ extension _AksiyonExt on _OdemePageState {
     final prim = (ozetBakiyeler['prim'] ?? 0).toDouble();
     final avans = (ozetBakiyeler['avans'] ?? 0).toDouble();
     final ikramiye = (ozetBakiyeler['ikramiye'] ?? 0).toDouble();
+    final bankaOdeme = (ozetBakiyeler['banka_odeme'] ?? 0).toDouble();
+    final tazminat = (ozetBakiyeler['tazminat'] ?? 0).toDouble();
     final toplamYemekUcreti = yemek + mesaiYemekUcreti;
     final ucretsizIzin = (ucretsizIzinGun ?? 0).toDouble();
     final ucretsizIzinTutari =
@@ -452,17 +464,17 @@ extension _AksiyonExt on _OdemePageState {
     final bekleyenTalep =
         odemeler.where((odeme) => odeme.durum == 'beklemede').length;
     final ekKazanc =
-        mesaiTutar + prim + ikramiye + yolUcreti + toplamYemekUcreti;
+        mesaiTutar + prim + ikramiye + tazminat + yolUcreti + toplamYemekUcreti;
     final toplamKazanc = maas +
         mesaiTutar +
         prim +
         ikramiye +
+        tazminat +
         yolUcreti +
         toplamYemekUcreti -
         toplamKesinti -
         avans;
-    final kalanUcret =
-        bankadanMaas > 0 ? toplamKazanc - bankadanMaas : toplamKazanc;
+    final kalanUcret = toplamKazanc - bankaOdeme;
 
     final cards = [
       _buildSummaryCard(
@@ -492,7 +504,7 @@ extension _AksiyonExt on _OdemePageState {
       _buildSummaryCard(
         title: 'Ek Kazanç',
         value: _formatTutar(ekKazanc),
-        subtitle: 'Mesai, prim, ikramiye, yol ve yemek',
+        subtitle: 'Mesai, prim, ikramiye, tazminat, yol ve yemek',
         icon: Icons.trending_up,
         color: const Color(0xFF7C3AED),
       ),
@@ -509,6 +521,7 @@ extension _AksiyonExt on _OdemePageState {
       ('Net maaş', maas),
       ('Toplam mesai', mesaiTutar),
       ('Prim', prim),
+      ('Tazminat', tazminat),
       ('İkramiye', ikramiye),
       ('Yol', yolUcreti),
       ('Yemek', toplamYemekUcreti),
@@ -517,7 +530,8 @@ extension _AksiyonExt on _OdemePageState {
       ('Avans', avans),
       ('Kesinti kayıtları', kesintiTutar),
       ('Ücretsiz izin', ucretsizIzinTutari),
-      ('Banka ödemesi', bankadanMaas),
+      ('Tanımlı banka maaşı', bankadanMaas),
+      ('Yapılan banka ödemesi', bankaOdeme),
     ];
 
     return Column(
@@ -713,6 +727,10 @@ extension _AksiyonExt on _OdemePageState {
                             value: 'ikramiye', child: Text('İkramiye')),
                         DropdownMenuItem<String?>(
                             value: 'kesinti', child: Text('Kesinti')),
+                        DropdownMenuItem<String?>(
+                            value: 'banka_odeme', child: Text('Banka Ödemesi')),
+                        DropdownMenuItem<String?>(
+                            value: 'tazminat', child: Text('Tazminat')),
                       ],
                       onChanged: (value) => setState(() => filtreTur = value),
                       decoration: _filterDecoration(),
@@ -779,6 +797,10 @@ extension _AksiyonExt on _OdemePageState {
                           value: 'ikramiye', child: Text('İkramiye')),
                       DropdownMenuItem<String?>(
                           value: 'kesinti', child: Text('Kesinti')),
+                      DropdownMenuItem<String?>(
+                          value: 'banka_odeme', child: Text('Banka Ödemesi')),
+                      DropdownMenuItem<String?>(
+                          value: 'tazminat', child: Text('Tazminat')),
                     ],
                     onChanged: (value) => setState(() => filtreTur = value),
                     decoration: _filterDecoration(),
@@ -1706,6 +1728,10 @@ extension _AksiyonExt on _OdemePageState {
         return 'İkramiye';
       case 'kesinti':
         return 'Kesinti';
+      case 'banka_odeme':
+        return 'Banka Ödemesi';
+      case 'tazminat':
+        return 'Tazminat';
       default:
         return tur;
     }
@@ -1747,6 +1773,10 @@ extension _AksiyonExt on _OdemePageState {
         return Icons.card_giftcard;
       case 'kesinti':
         return Icons.remove_circle;
+      case 'banka_odeme':
+        return Icons.account_balance;
+      case 'tazminat':
+        return Icons.request_quote;
       default:
         return Icons.attach_money;
     }
@@ -1764,6 +1794,10 @@ extension _AksiyonExt on _OdemePageState {
         return Colors.purple;
       case 'kesinti':
         return Colors.red;
+      case 'banka_odeme':
+        return Colors.indigo;
+      case 'tazminat':
+        return Colors.teal;
       default:
         return Colors.grey;
     }
@@ -1795,9 +1829,9 @@ extension _AksiyonExt on _OdemePageState {
             final gunlukNetMaas = netMaas / 30;
             hesaplananUcret = gunlukNetMaas * 2.0;
           } else if (m.mesaiTuru == 'Bayram') {
-            // Bayram mesaisi: Saatlik ücret x database'den gelen çarpan x saat
-            final carpan = m.carpan ?? 1.5;
-            hesaplananUcret = saatlikUcret * carpan * m.saat!;
+            // Bayram mesaisi: Pazar gibi günlük net maaş x 2
+            final gunlukNetMaas = netMaas / 30;
+            hesaplananUcret = gunlukNetMaas * 2.0;
           } else if (m.mesaiTuru == 'Saatlik') {
             // Saatlik mesai: Saatlik ücret x 1.5 x saat
             hesaplananUcret = saatlikUcret * 1.5 * m.saat!;

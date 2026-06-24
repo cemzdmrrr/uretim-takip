@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uretim_takip/models/izin_model.dart';
 import 'package:uretim_takip/services/izin_service.dart';
 import 'package:uretim_takip/services/mesai_service.dart';
+import 'package:uretim_takip/services/odeme_service.dart';
 import 'package:uretim_takip/services/personel_service.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/widgets/donem_secici.dart';
@@ -82,6 +83,9 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
     final haftalikCalismaGunu =
         _pozitifInt(personel.haftalikCalismaGunu, 6).clamp(1, 7).toInt();
     final netMaas = _pozitifDouble(personel.netMaas, 0);
+    final yolUcreti = _pozitifDouble(personel.yolUcreti, 0);
+    final yemekUcreti = _pozitifDouble(personel.yemekUcreti, 0);
+    final bankaMaas = _pozitifDouble(personel.bankaMaas, 0);
     final raporTarihi = _raporTarihi();
     final ay = raporTarihi.month;
     final yil = raporTarihi.year;
@@ -149,7 +153,7 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
       if (mesai.mesaiTuru == 'Pazar') {
         hesaplananUcret = (netMaas / 30) * 2.0;
       } else if (mesai.mesaiTuru == 'Bayram') {
-        hesaplananUcret = saatlikUcret * (mesai.carpan ?? 1.5) * mesai.saat!;
+        hesaplananUcret = (netMaas / 30) * 2.0;
       } else if (mesai.mesaiTuru == 'Saatlik') {
         hesaplananUcret = saatlikUcret * 1.5 * mesai.saat!;
       }
@@ -172,8 +176,21 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
     final mesaiUcreti = double.parse(toplamMesaiUcret.toStringAsFixed(2));
     final mesaiYemekUcreti =
         double.parse(toplamMesaiYemekUcreti.toStringAsFixed(2));
+    final ozetBakiyeler = await OdemeService()
+        .getOnayliBakiyeOzet(personelId, donem: seciliDonem);
+    final prim = ozetBakiyeler['prim'] ?? 0;
+    final ikramiye = ozetBakiyeler['ikramiye'] ?? 0;
+    final avans = ozetBakiyeler['avans'] ?? 0;
+    final kesintiKayitlari = ozetBakiyeler['kesinti'] ?? 0;
+    final bankaOdeme = ozetBakiyeler['banka_odeme'] ?? 0;
+    final tazminat = ozetBakiyeler['tazminat'] ?? 0;
     final toplamMesaiEtki = mesaiUcreti + mesaiYemekUcreti;
-    final netEtki = toplamMesaiEtki - toplamUcretsizIzinKesinti;
+    final toplamEkKazanc =
+        toplamMesaiEtki + prim + ikramiye + tazminat + yolUcreti + yemekUcreti;
+    final toplamKesinti = toplamUcretsizIzinKesinti + kesintiKayitlari + avans;
+    final genelToplam = netMaas + toplamEkKazanc - toplamKesinti;
+    final eldenKalan = genelToplam - bankaOdeme;
+    final netEtki = toplamEkKazanc - toplamKesinti - bankaOdeme;
 
     if (!mounted) return;
     setState(() {
@@ -188,6 +205,19 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
           'mesaiUcreti': mesaiUcreti,
           'mesaiYemekUcreti': mesaiYemekUcreti,
           'toplamMesaiEtki': toplamMesaiEtki,
+          'prim': prim,
+          'ikramiye': ikramiye,
+          'tazminat': tazminat,
+          'avans': avans,
+          'yolUcreti': yolUcreti,
+          'yemekUcreti': yemekUcreti,
+          'kesintiKayitlari': kesintiKayitlari,
+          'bankaMaas': bankaMaas,
+          'bankaOdeme': bankaOdeme,
+          'toplamEkKazanc': toplamEkKazanc,
+          'toplamKesinti': toplamKesinti,
+          'genelToplam': genelToplam,
+          'eldenKalan': eldenKalan,
           'izinliGun': izinliGun,
           'raporluGun': raporluGun,
           'devamsizlikGun': devamsizlikGun,
@@ -596,13 +626,61 @@ class _PuantajTabloPageState extends State<PuantajTabloPage> {
                 "${(data['netMaas'] as num).toStringAsFixed(2)} TL",
               ),
               _buildDetailRow(
+                'Prim',
+                "${(data['prim'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
+                'İkramiye',
+                "${(data['ikramiye'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
+                'Tazminat',
+                "${(data['tazminat'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
+                'Yol',
+                "${(data['yolUcreti'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
+                'Yemek',
+                "${(data['yemekUcreti'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
                 'Ücretsiz izin kesintisi',
                 "${(data['ucretsizIzinKesinti'] as num).toStringAsFixed(2)} TL",
                 isNegative: (data['ucretsizIzinKesinti'] as num) > 0,
               ),
               _buildDetailRow(
+                'Kesinti kayıtları',
+                "${(data['kesintiKayitlari'] as num).toStringAsFixed(2)} TL",
+                isNegative: (data['kesintiKayitlari'] as num) > 0,
+              ),
+              _buildDetailRow(
+                'Avans',
+                "${(data['avans'] as num).toStringAsFixed(2)} TL",
+                isNegative: (data['avans'] as num) > 0,
+              ),
+              _buildDetailRow(
+                'Banka ödemesi',
+                "${(data['bankaOdeme'] as num).toStringAsFixed(2)} TL",
+                isNegative: (data['bankaOdeme'] as num) > 0,
+              ),
+              _buildDetailRow(
+                'Tanımlı banka maaşı',
+                "${(data['bankaMaas'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
                 'Mesai toplam etkisi',
                 "${(data['toplamMesaiEtki'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
+                'Genel toplam',
+                "${(data['genelToplam'] as num).toStringAsFixed(2)} TL",
+              ),
+              _buildDetailRow(
+                'Elden kalan',
+                "${(data['eldenKalan'] as num).toStringAsFixed(2)} TL",
+                isNegative: (data['eldenKalan'] as num) < 0,
               ),
               _buildDetailRow(
                 'Net etki',

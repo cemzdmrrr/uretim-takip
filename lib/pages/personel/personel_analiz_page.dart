@@ -54,6 +54,19 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage>
   // Mesai Analizi
   double toplamMesaiSaati = 0;
   double ortalamaMesaiSaati = 0;
+  int toplamMesaiGunu = 0;
+  double toplamAvansUcret = 0;
+  double toplamMesaiUcret = 0;
+  double toplamBayramMesaiUcret = 0;
+  double toplamKesintiUcret = 0;
+  double toplamYolUcret = 0;
+  double toplamYemekUcret = 0;
+  double toplamPrimUcret = 0;
+  double toplamIkramiyeUcret = 0;
+  double toplamBankaOdeme = 0;
+  double toplamTazminatUcret = 0;
+  double toplamEldenAlacak = 0;
+  double genelToplamOdenecek = 0;
   final List<Map<String, dynamic>> enCokMesaiYapanlar = [];
 
   // Performans Analizi
@@ -212,6 +225,7 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage>
 
       // 3. MESAİ VERİLERİ
       await _loadMesaiVerileri(client, personelRes);
+      await _loadFinansOzetleri(client, personelRes);
 
       // 4. PERFORMANS VERİLERİ
       await _loadPerformansVerileri(client, personelRes);
@@ -385,6 +399,153 @@ class _PersonelAnalizPageState extends State<PersonelAnalizPage>
     } catch (e) {
       debugPrint('Mesai verileri yüklenemedi: $e');
     }
+  }
+
+  ({DateTime baslangic, DateTime bitis}) _raporTarihAraligi() {
+    final now = DateTime.now();
+    if (raporTipi == 'custom' &&
+        baslangicTarihFiltresi != null &&
+        bitisTarihFiltresi != null) {
+      return (baslangic: baslangicTarihFiltresi!, bitis: bitisTarihFiltresi!);
+    }
+    if (raporTipi == 'monthly') {
+      return (
+        baslangic: DateTime(seciliYil, seciliAy, 1),
+        bitis: DateTime(seciliYil, seciliAy + 1, 0),
+      );
+    }
+    if (raporTipi == 'yearly') {
+      return (
+        baslangic: DateTime(seciliYil, 1, 1),
+        bitis: DateTime(seciliYil, 12, 31),
+      );
+    }
+    return (
+      baslangic: DateTime(now.year - 1, now.month, 1),
+      bitis: now,
+    );
+  }
+
+  Future<void> _loadFinansOzetleri(
+      SupabaseClient client, List<dynamic> personelRes) async {
+    toplamAvansUcret = 0;
+    toplamMesaiUcret = 0;
+    toplamBayramMesaiUcret = 0;
+    toplamKesintiUcret = 0;
+    toplamYolUcret = 0;
+    toplamYemekUcret = 0;
+    toplamPrimUcret = 0;
+    toplamIkramiyeUcret = 0;
+    toplamBankaOdeme = 0;
+    toplamTazminatUcret = 0;
+    toplamEldenAlacak = 0;
+    genelToplamOdenecek = 0;
+    toplamMesaiGunu = 0;
+
+    final personelMaas = <String, double>{};
+    final personelSaat = <String, double>{};
+    double toplamNetMaas = 0;
+
+    for (final personel in personelRes) {
+      final userId = personel['user_id']?.toString() ?? '';
+      if (userId.isEmpty) continue;
+      final netMaas =
+          double.tryParse(personel['net_maas']?.toString() ?? '0') ?? 0;
+      final gunlukSaat = double.tryParse(
+              personel['gunluk_calisma_saati']?.toString() ?? '8') ??
+          8;
+      personelMaas[userId] = netMaas;
+      personelSaat[userId] = gunlukSaat > 0 ? gunlukSaat : 8;
+      toplamNetMaas += netMaas;
+      toplamYolUcret +=
+          double.tryParse(personel['yol_ucreti']?.toString() ?? '0') ?? 0;
+      toplamYemekUcret +=
+          double.tryParse(personel['yemek_ucreti']?.toString() ?? '0') ?? 0;
+      toplamPrimUcret +=
+          double.tryParse(personel['ekstra_prim']?.toString() ?? '0') ?? 0;
+    }
+
+    final aralik = _raporTarihAraligi();
+    final baslangic = aralik.baslangic.toIso8601String().split('T').first;
+    final bitis = aralik.bitis.toIso8601String().split('T').first;
+
+    final mesailer = await client
+        .from(DbTables.mesai)
+        .select('user_id, tarih, saat, mesai_turu, yemek_ucreti')
+        .eq('firma_id', TenantManager.instance.requireFirmaId)
+        .eq('onay_durumu', 'onaylandi')
+        .gte('tarih', baslangic)
+        .lte('tarih', bitis);
+
+    final mesaiGunleri = <String>{};
+    for (final mesai in mesailer) {
+      final userId = mesai['user_id']?.toString() ?? '';
+      final tarih = mesai['tarih']?.toString() ?? '';
+      final tur = mesai['mesai_turu']?.toString() ?? '';
+      final saat = (mesai['saat'] as num? ?? 0).toDouble();
+      final netMaas = personelMaas[userId] ?? 0;
+      final gunlukSaat = personelSaat[userId] ?? 8;
+      final gunlukUcret = netMaas / 30;
+      final saatlikUcret = gunlukSaat > 0 ? gunlukUcret / gunlukSaat : 0;
+      double ucret = 0;
+      if (tur == 'Pazar' || tur == 'Bayram') {
+        ucret = gunlukUcret * 2.0;
+      } else if (tur == 'Saatlik') {
+        ucret = saatlikUcret * 1.5 * saat;
+      }
+      toplamMesaiUcret += ucret;
+      if (tur == 'Bayram') toplamBayramMesaiUcret += ucret;
+      toplamYemekUcret += (mesai['yemek_ucreti'] as num? ?? 0).toDouble();
+      if (userId.isNotEmpty && tarih.isNotEmpty) {
+        mesaiGunleri.add('$userId:$tarih');
+      }
+    }
+    toplamMesaiGunu = mesaiGunleri.length;
+
+    final odemeler = await client
+        .from(DbTables.odemeKayitlari)
+        .select('odeme_turu, tutar')
+        .eq('firma_id', TenantManager.instance.requireFirmaId)
+        .eq('durum', 'onaylandi')
+        .gte('odeme_tarihi', aralik.baslangic.toIso8601String())
+        .lt('odeme_tarihi',
+            aralik.bitis.add(const Duration(days: 1)).toIso8601String());
+
+    for (final odeme in odemeler) {
+      final tur = odeme['odeme_turu']?.toString() ?? '';
+      final tutar = (odeme['tutar'] as num? ?? 0).toDouble();
+      switch (tur) {
+        case 'avans':
+          toplamAvansUcret += tutar;
+          break;
+        case 'prim':
+          toplamPrimUcret += tutar;
+          break;
+        case 'ikramiye':
+          toplamIkramiyeUcret += tutar;
+          break;
+        case 'kesinti':
+          toplamKesintiUcret += tutar;
+          break;
+        case 'banka_odeme':
+          toplamBankaOdeme += tutar;
+          break;
+        case 'tazminat':
+          toplamTazminatUcret += tutar;
+          break;
+      }
+    }
+
+    genelToplamOdenecek = toplamNetMaas +
+        toplamMesaiUcret +
+        toplamYolUcret +
+        toplamYemekUcret +
+        toplamPrimUcret +
+        toplamIkramiyeUcret +
+        toplamTazminatUcret -
+        toplamAvansUcret -
+        toplamKesintiUcret;
+    toplamEldenAlacak = genelToplamOdenecek - toplamBankaOdeme;
   }
 
   Future<void> _loadPerformansVerileri(

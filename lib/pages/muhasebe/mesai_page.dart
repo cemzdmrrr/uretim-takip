@@ -78,6 +78,7 @@ class _MesaiPageState extends State<MesaiPage> {
     }
     final response = await MesaiService()
         .getMesailerForPersonel(widget.personelId!, donem: seciliDonem);
+    final netMaas = await _personelNetMaasGetir(widget.personelId);
     if (!mounted) return;
     setState(() {
       mesaiList = response
@@ -91,9 +92,18 @@ class _MesaiPageState extends State<MesaiPage> {
                 'saat': e.saat,
                 'mesai_ucret': e.mesaiUcret ?? 0.0,
                 'yemek_ucreti': e.yemekUcreti ?? 0.0,
-                'carpan': e.carpan ?? 1.0,
+                'carpan': e.carpan ?? (e.mesaiTuru == 'Bayram' ? 2.0 : 1.0),
               })
           .toList();
+      if (netMaas != null) {
+        for (final item in mesaiList) {
+          final tur = item['mesai_turu']?.toString();
+          if (tur == 'Pazar' || tur == 'Bayram') {
+            final yemekUcreti = _numaraCevir(item['yemek_ucreti']);
+            item['mesai_ucret'] = (netMaas / 30 * 2.0) + yemekUcreti;
+          }
+        }
+      }
       yukleniyor = false;
     });
   }
@@ -118,9 +128,26 @@ class _MesaiPageState extends State<MesaiPage> {
 
   Future<double?> _personelNetMaasGetir(String? personelId) async {
     if (personelId == null || personelId.isEmpty) return null;
-    final personel = await PersonelService().getPersonelById(personelId);
-    final netMaas = _numaraCevir(personel?.netMaas);
-    return netMaas > 0 ? netMaas : null;
+    final service = PersonelService();
+    var personel = await service.getPersonelById(personelId);
+    if (personel == null) {
+      final personeller = await service.getPersoneller(sadeceAktif: false);
+      for (final kayit in personeller) {
+        if (kayit.userId == personelId) {
+          personel = kayit;
+          break;
+        }
+      }
+    }
+    if (personel == null) return null;
+    final netMaas = _numaraCevir(personel.netMaas);
+    final bankaMaas = _numaraCevir(personel.bankaMaas);
+    final eldenMaas = _numaraCevir(personel.eldenMaas);
+    final brutMaas = _numaraCevir(personel.brutMaas);
+    final toplamNetMaas = bankaMaas + eldenMaas;
+    if (netMaas > 0) return netMaas;
+    if (toplamNetMaas > 0) return toplamNetMaas;
+    return brutMaas > 0 ? brutMaas : null;
   }
 
   Widget _buildKpiCard({
@@ -405,10 +432,10 @@ class _MesaiPageState extends State<MesaiPage> {
                                         String onayDurumu =
                                             mItem['onay_durumu']?.toString() ??
                                                 'beklemede';
-                                        double carpan =
-                                            (mItem['carpan'] as num?)
-                                                    ?.toDouble() ??
-                                                1.0;
+                                        double carpan = (mItem['carpan']
+                                                    as num?)
+                                                ?.toDouble() ??
+                                            (mesaiTuru == 'Bayram' ? 2.0 : 1.0);
                                         double yemekUcreti =
                                             (mItem['yemek_ucreti'] as num?)
                                                     ?.toDouble() ??
@@ -565,7 +592,7 @@ class _MesaiPageState extends State<MesaiPage> {
                                                         DropdownMenuItem(
                                                             value: 'Bayram',
                                                             child: Text(
-                                                                'Bayram Mesaisi (Özel Çarpan)')),
+                                                                'Bayram Mesaisi (Günlük Ücret x2)')),
                                                         DropdownMenuItem(
                                                             value: 'Saatlik',
                                                             child: Text(
@@ -595,6 +622,7 @@ class _MesaiPageState extends State<MesaiPage> {
                                                               await SistemAyarlariService
                                                                   .getBayramYemekUcreti();
                                                           setDialogState(() {
+                                                            carpan = 2.0;
                                                             yemekUcreti =
                                                                 bayramUcret;
                                                             yemekUcretiController
@@ -740,14 +768,11 @@ class _MesaiPageState extends State<MesaiPage> {
                                                           gunlukNetMaas * 2.0;
                                                     } else if (mesaiTuru ==
                                                         'Bayram') {
-                                                      // Bayram mesaisi: Saatlik ücret x çarpan x saat
-                                                      final saatlikUcret = netMaas /
-                                                          30 /
-                                                          8; // 8 saatlik iş günü varsayımı
+                                                      // Bayram mesaisi: Pazar gibi günlük net maaş x 2
+                                                      final gunlukNetMaas =
+                                                          netMaas / 30;
                                                       mesaiUcret =
-                                                          saatlikUcret *
-                                                              carpan *
-                                                              mesaiSaati;
+                                                          gunlukNetMaas * 2.0;
                                                     } else if (mesaiTuru ==
                                                         'Saatlik') {
                                                       // Saatlik mesai: Saatlik ücret x 1.5 x saat
@@ -897,7 +922,6 @@ class _MesaiPageState extends State<MesaiPage> {
         TimeOfDay? baslangicSaati;
         TimeOfDay? bitisSaati;
         String mesaiTuru = '';
-        double bayramCarpani = 1.0;
         double yemekUcreti = 0;
         final yemekUcretiController = TextEditingController();
         final formKey = GlobalKey<FormState>();
@@ -1190,7 +1214,8 @@ class _MesaiPageState extends State<MesaiPage> {
                                             TextStyle(color: Colors.orange))),
                                 DropdownMenuItem(
                                     value: 'Bayram',
-                                    child: Text('Bayram Mesaisi (Özel Çarpan)',
+                                    child: Text(
+                                        'Bayram Mesaisi (Günlük Ücret x2)',
                                         style:
                                             TextStyle(color: Colors.orange))),
                                 DropdownMenuItem(
@@ -1250,37 +1275,6 @@ class _MesaiPageState extends State<MesaiPage> {
                               validator: (v) =>
                                   v == null || v.isEmpty ? 'Zorunlu' : null,
                             ),
-                            if (mesaiTuru == 'Bayram') ...[
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: 'Çarpan (Örn: 1.5, 2.0)',
-                                  labelStyle:
-                                      const TextStyle(color: Colors.orange),
-                                  prefixIcon: const Icon(Icons.calculate,
-                                      color: Colors.orange),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                        color: Colors.orange.shade300),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                        color: Colors.orange.shade300),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                        color: Colors.orange, width: 2),
-                                  ),
-                                ),
-                                style: const TextStyle(color: Colors.orange),
-                                onChanged: (v) =>
-                                    bayramCarpani = double.tryParse(v) ?? 1.0,
-                              ),
-                            ],
                             if (mesaiTuru == 'Pazar' ||
                                 mesaiTuru == 'Bayram') ...[
                               const SizedBox(height: 16),
@@ -1409,13 +1403,10 @@ class _MesaiPageState extends State<MesaiPage> {
                                 carpan = 2.0;
                                 // Yemek ücreti kullanıcı tarafından belirlendi
                               } else if (mesaiTuru == 'Bayram') {
-                                // Bayram mesaisi: Saatlik ücret x çarpan x saat
-                                final saatlikUcret = netMaas /
-                                    30 /
-                                    8; // 8 saatlik iş günü varsayımı
-                                mesaiUcret =
-                                    saatlikUcret * bayramCarpani * mesaiSaati;
-                                carpan = bayramCarpani;
+                                // Bayram mesaisi: Pazar gibi günlük net maaş x 2
+                                final gunlukNetMaas = netMaas / 30;
+                                mesaiUcret = gunlukNetMaas * 2.0;
+                                carpan = 2.0;
                                 // Yemek ücreti kullanıcı tarafından belirlendi
                               } else if (mesaiTuru == 'Saatlik') {
                                 // Saatlik mesai: Saatlik ücret x 1.5 x saat

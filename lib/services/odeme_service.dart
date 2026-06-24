@@ -164,6 +164,8 @@ class OdemeService {
       DbTables.mesai: 0,
       'ikramiye': 0,
       'kesinti': 0,
+      'banka_odeme': 0,
+      'tazminat': 0,
     };
     for (final e in response) {
       final odemeTuru = e['odeme_turu']?.toString() ?? '';
@@ -175,6 +177,10 @@ class OdemeService {
         toplamlar['avans'] = toplamlar['avans']! + tutar;
       } else if (odemeTuru == 'prim') {
         toplamlar['prim'] = toplamlar['prim']! + tutar;
+      } else if (odemeTuru == 'banka_odeme') {
+        toplamlar['banka_odeme'] = toplamlar['banka_odeme']! + tutar;
+      } else if (odemeTuru == 'tazminat') {
+        toplamlar['tazminat'] = toplamlar['tazminat']! + tutar;
       }
       // Diğer türler için tur kolonu kullan (avans ve prim hariç)
       else if (toplamlar.containsKey(tur) && tur != 'avans' && tur != 'prim') {

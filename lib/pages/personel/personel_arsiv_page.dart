@@ -37,10 +37,17 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
   double toplamMaas = 0;
   double toplamAvans = 0;
   double toplamPrim = 0;
+  double toplamTazminat = 0;
   double toplamYol = 0;
   double toplamYemek = 0;
   double toplamNet = 0;
   double toplamKesinti = 0;
+  double toplamBankaOdeme = 0;
+  double tahminiKesintiTutari = 0;
+  double bordrosuzTabanNet = 0;
+  bool bordroVar = false;
+  bool tahminiKesintiUygula = false;
+  String kesintiAciklama = '';
 
   double toplamMesaiSaati = 0;
   int normalCalismaGunu = 0;
@@ -489,6 +496,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
           _getAylikToplamMesaiUcreti(),
           _getAylikMesaiYemekUcreti(),
           _getAylikYolUcreti(),
+          _getAylikYemekUcreti(),
           _getKesintiTutari(),
           _getOzetBakiyeler(),
         ]),
@@ -513,28 +521,31 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
           final mesaiYemekUcreti =
               results.length > 2 ? results[2] as double : 0.0;
           final yolUcreti = results.length > 3 ? results[3] as double : 0.0;
-          final kesintiTutari = results.length > 4 ? results[4] as double : 0.0;
+          final yemekUcreti = results.length > 4 ? results[4] as double : 0.0;
+          final kesintiTutari = results.length > 5 ? results[5] as double : 0.0;
           final ozetBakiyeler =
-              results.length > 5 ? results[5] as Map<String, double> : {};
+              results.length > 6 ? results[6] as Map<String, double> : {};
 
           final netMaas =
               personel != null ? double.tryParse(personel.netMaas) ?? 0.0 : 0.0;
-          final yemekUcreti = personel != null
-              ? double.tryParse(personel.yemekUcreti) ?? 0.0
-              : 0.0;
           final toplamYemekUcreti = yemekUcreti + mesaiYemekUcreti;
           final prim = (ozetBakiyeler['prim'] ?? 0).toDouble();
           final ikramiye = (ozetBakiyeler['ikramiye'] ?? 0).toDouble();
           final avans = (ozetBakiyeler['avans'] ?? 0).toDouble();
+          final bankaOdeme = (ozetBakiyeler['banka_odeme'] ?? 0).toDouble();
+          final tazminat = (ozetBakiyeler['tazminat'] ?? 0).toDouble();
 
           final toplamKazanc = netMaas +
               mesaiUcreti +
               toplamYemekUcreti +
               yolUcreti +
               ikramiye +
-              prim -
+              prim +
+              tazminat -
               kesintiTutari -
-              avans;
+              avans -
+              bankaOdeme;
+          final donemSonucu = toplamNet != 0 ? toplamNet : toplamKazanc;
 
           final isWide = width >= 1080;
 
@@ -545,12 +556,12 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: toplamKazanc >= 0
+                  color: donemSonucu >= 0
                       ? const Color(0xFFF0FDF4)
                       : const Color(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: toplamKazanc >= 0
+                    color: donemSonucu >= 0
                         ? const Color(0xFFBBF7D0)
                         : const Color(0xFFFECACA),
                   ),
@@ -558,10 +569,10 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                 child: Row(
                   children: [
                     Icon(
-                      toplamKazanc >= 0
+                      donemSonucu >= 0
                           ? Icons.account_balance_wallet
                           : Icons.warning_amber_rounded,
-                      color: toplamKazanc >= 0
+                      color: donemSonucu >= 0
                           ? const Color(0xFF166534)
                           : const Color(0xFF991B1B),
                     ),
@@ -578,7 +589,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                             ),
                           ),
                           Text(
-                            _formatMoney(toplamKazanc),
+                            _formatMoney(donemSonucu),
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w700,
@@ -607,6 +618,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                           ('Yol Ucreti', yolUcreti, false),
                           ('Ikramiye', ikramiye, false),
                           ('Prim', prim, false),
+                          ('Tazminat', tazminat, false),
                         ],
                       ),
                     ),
@@ -618,6 +630,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                         items: [
                           ('Avans', avans, true),
                           ('Ucretsiz Izin', kesintiTutari, true),
+                          ('Banka Odeme', bankaOdeme, true),
                         ],
                       ),
                     ),
@@ -634,6 +647,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                     ('Yol Ucreti', yolUcreti, false),
                     ('Ikramiye', ikramiye, false),
                     ('Prim', prim, false),
+                    ('Tazminat', tazminat, false),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -643,6 +657,7 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
                   items: [
                     ('Avans', avans, true),
                     ('Ucretsiz Izin', kesintiTutari, true),
+                    ('Banka Odeme', bankaOdeme, true),
                   ],
                 ),
               ],
@@ -748,6 +763,53 @@ class _PersonelArsivPageState extends State<PersonelArsivPage> {
             _formatMoney(toplamKesinti),
             valueColor: const Color(0xFFDC2626),
           ),
+          if (kesintiAciklama.isNotEmpty)
+            _buildMetricRow(
+              'Kesinti Hesabı',
+              kesintiAciklama,
+              valueColor: const Color(0xFF64748B),
+            ),
+          _buildMetricRow(
+            'Banka Ödemesi',
+            _formatMoney(toplamBankaOdeme),
+            valueColor: const Color(0xFF4F46E5),
+          ),
+          _buildMetricRow(
+            'Tazminat',
+            _formatMoney(toplamTazminat),
+            valueColor: const Color(0xFF0F766E),
+          ),
+          if (!bordroVar && tahminiKesintiTutari > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: SwitchListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                title: const Text(
+                  'Yaklasik %20 kesintiyi uygula',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF92400E),
+                  ),
+                ),
+                subtitle: Text(
+                  '${_formatMoney(tahminiKesintiTutari)} kesinti toplamdan dusulur',
+                  style: const TextStyle(color: Color(0xFF92400E)),
+                ),
+                value: tahminiKesintiUygula,
+                activeThumbColor: const Color(0xFFF59E0B),
+                onChanged: _tahminiKesintiTercihiniDegistir,
+              ),
+            ),
+          ],
         ],
       ),
     );

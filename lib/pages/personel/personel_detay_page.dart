@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
+import 'package:uretim_takip/models/odeme_model.dart';
 import 'package:uretim_takip/models/personel_model.dart';
 import 'package:uretim_takip/pages/muhasebe/izin_page.dart';
 import 'package:uretim_takip/pages/muhasebe/mesai_page.dart';
@@ -8,6 +9,7 @@ import 'package:uretim_takip/pages/muhasebe/odeme_page.dart';
 import 'package:uretim_takip/pages/muhasebe/puantaj_tablo_page.dart';
 import 'package:uretim_takip/pages/personel/personel_arsiv_page.dart';
 import 'package:uretim_takip/pages/personel/personel_ekle_page.dart';
+import 'package:uretim_takip/services/odeme_service.dart';
 import 'package:uretim_takip/services/personel_service.dart';
 import 'package:uretim_takip/services/user_helper.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
@@ -28,6 +30,8 @@ class PersonelDetayPage extends StatefulWidget {
 }
 
 class _PersonelDetayPageState extends State<PersonelDetayPage> {
+  static const double _kidemTazminatiTavan2026IlkYari = 64948.77;
+
   final PersonelService _service = PersonelService();
 
   PersonelModel? personel;
@@ -114,53 +118,206 @@ class _PersonelDetayPageState extends State<PersonelDetayPage> {
     }
   }
 
+  Future<void> _yillikIzinHakkiDuzenle(PersonelModel kayit) async {
+    if (!_yonetebilir || islemYapiliyor) return;
+    final controller = TextEditingController(text: kayit.yillikIzinHakki);
+    final yeniHak = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yıllık izin hakkı'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Gün',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              if (value == null || value < 0) return;
+              Navigator.pop(context, value);
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (yeniHak == null) return;
+
+    setState(() => islemYapiliyor = true);
+    try {
+      await Supabase.instance.client
+          .from(DbTables.personel)
+          .update({'yillik_izin_hakki': yeniHak})
+          .eq('user_id', kayit.userId)
+          .eq('tckn', kayit.tckn);
+      await _getPersonel();
+      if (!mounted) return;
+      context.showSuccessSnackBar('Yıllık izin hakkı güncellendi.');
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Yıllık izin hakkı güncellenemedi: $e');
+    } finally {
+      if (mounted) setState(() => islemYapiliyor = false);
+    }
+  }
+
   Future<void> _istenCikarDialog(PersonelModel kayit) async {
     final nedenController = TextEditingController();
+    final kidemController = TextEditingController();
+    final ihbarController = TextEditingController();
     DateTime seciliTarih = DateTime.now();
+    bool kidemUygula = true;
+    bool ihbarUygula = true;
+    double hesaplananKidem = 0;
+    double hesaplananIhbar = 0;
+    int calismaGunu = 0;
+
+    void tazminatOnerisiniYenile({bool alanlariGuncelle = true}) {
+      final hesap = _tazminatOnerisiniHesapla(kayit, seciliTarih);
+      hesaplananKidem = hesap['kidem'] ?? 0;
+      hesaplananIhbar = hesap['ihbar'] ?? 0;
+      calismaGunu = (hesap['calisma_gunu'] ?? 0).round();
+      if (alanlariGuncelle) {
+        kidemController.text = hesaplananKidem.toStringAsFixed(2);
+        ihbarController.text = hesaplananIhbar.toStringAsFixed(2);
+      }
+    }
+
+    tazminatOnerisiniYenile();
 
     final onay = await showDialog<bool>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setLocalState) {
+            final kidemTutari =
+                kidemUygula ? (_parseMoney(kidemController.text) ?? 0.0) : 0.0;
+            final ihbarTutari =
+                ihbarUygula ? (_parseMoney(ihbarController.text) ?? 0.0) : 0.0;
+            final toplamTazminat = kidemTutari + ihbarTutari;
+
             return AlertDialog(
               title: const Text('Personeli \u0130\u015Ften \u00C7\u0131kar'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    kayit.tamAd,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final tarih = await showDatePicker(
-                        context: context,
-                        initialDate: seciliTarih,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (tarih != null) {
-                        setLocalState(() => seciliTarih = tarih);
-                      }
-                    },
-                    icon: const Icon(Icons.event),
-                    label: Text(_formatDate(seciliTarih.toIso8601String())),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: nedenController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: '\u00C7\u0131k\u0131\u015F nedeni',
-                      hintText:
-                          '\u00D6rn. s\u00F6zle\u015Fme biti\u015Fi, performans, devams\u0131zl\u0131k',
-                      border: OutlineInputBorder(),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      kayit.tamAd,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final tarih = await showDatePicker(
+                          context: context,
+                          initialDate: seciliTarih,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (tarih != null) {
+                          setLocalState(() {
+                            seciliTarih = tarih;
+                            tazminatOnerisiniYenile();
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.event),
+                      label: Text(_formatDate(seciliTarih.toIso8601String())),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nedenController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: '\u00C7\u0131k\u0131\u015F nedeni',
+                        hintText:
+                            '\u00D6rn. s\u00F6zle\u015Fme biti\u015Fi, performans, devams\u0131zl\u0131k',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tazminat Hesabi',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Calisma suresi: $calismaGunu gun',
+                      style: const TextStyle(color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Onerilen kidem: ${_formatMoney(hesaplananKidem.toStringAsFixed(2))}',
+                    ),
+                    Text(
+                      'Onerilen ihbar: ${_formatMoney(hesaplananIhbar.toStringAsFixed(2))}',
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Kidem tazminati uygula'),
+                      value: kidemUygula,
+                      onChanged: (value) =>
+                          setLocalState(() => kidemUygula = value),
+                    ),
+                    TextField(
+                      controller: kidemController,
+                      enabled: kidemUygula,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setLocalState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Kidem tutari',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SwitchListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Ihbar tazminati uygula'),
+                      value: ihbarUygula,
+                      onChanged: (value) =>
+                          setLocalState(() => ihbarUygula = value),
+                    ),
+                    TextField(
+                      controller: ihbarController,
+                      enabled: ihbarUygula,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setLocalState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Ihbar tutari',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Toplam tazminat: ${_formatMoney(toplamTazminat.toStringAsFixed(2))}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF166534),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -194,15 +351,44 @@ class _PersonelDetayPageState extends State<PersonelDetayPage> {
         neden: nedenController.text.trim(),
         cikisTarihi: seciliTarih.toIso8601String().split('T').first,
       );
+      final kidemTutari =
+          kidemUygula ? (_parseMoney(kidemController.text) ?? 0.0) : 0.0;
+      final ihbarTutari =
+          ihbarUygula ? (_parseMoney(ihbarController.text) ?? 0.0) : 0.0;
+      final toplamTazminat = kidemTutari + ihbarTutari;
+      if (toplamTazminat > 0) {
+        await OdemeService().addOdeme(
+          OdemeModel(
+            personelId: kayit.userId,
+            userId: kayit.userId,
+            tur: 'tazminat',
+            tutar: toplamTazminat,
+            aciklama: _tazminatAciklamasi(
+              kidemTutari: kidemTutari,
+              ihbarTutari: ihbarTutari,
+              hesaplananKidem: hesaplananKidem,
+              hesaplananIhbar: hesaplananIhbar,
+              calismaGunu: calismaGunu,
+            ),
+            tarih: seciliTarih,
+            durum: 'beklemede',
+          ),
+        );
+      }
       if (!mounted) return;
       context.showSuccessSnackBar(
-          'Personel i\u015Ften \u00E7\u0131kar\u0131ld\u0131.');
+        toplamTazminat > 0
+            ? 'Personel i\u015Ften \u00E7\u0131kar\u0131ld\u0131, tazminat kayd\u0131 beklemeye al\u0131nd\u0131.'
+            : 'Personel i\u015Ften \u00E7\u0131kar\u0131ld\u0131.',
+      );
       await _getPersonel();
     } catch (e) {
       if (!mounted) return;
       context.showErrorSnackBar('\u0130\u015Flem ba\u015Far\u0131s\u0131z: $e');
     } finally {
       nedenController.dispose();
+      kidemController.dispose();
+      ihbarController.dispose();
       if (mounted) setState(() => islemYapiliyor = false);
     }
   }
@@ -711,8 +897,18 @@ class _PersonelDetayPageState extends State<PersonelDetayPage> {
             width: isMobile ? double.infinity : 460,
             children: [
               _infoRow(Icons.info, 'SGK Sicil No', kayit.sgkSicilNo),
-              _infoRow(Icons.beach_access, 'Y\u0131ll\u0131k \u0130zin',
-                  '${kayit.yillikIzinHakki} g\u00FCn'),
+              _infoRow(
+                Icons.beach_access,
+                'Y\u0131ll\u0131k \u0130zin',
+                '${kayit.yillikIzinHakki} g\u00FCn',
+                trailing: _yonetebilir
+                    ? IconButton(
+                        tooltip: 'Yıllık izin hakkını düzenle',
+                        icon: const Icon(Icons.edit, size: 18),
+                        onPressed: () => _yillikIzinHakkiDuzenle(kayit),
+                      )
+                    : null,
+              ),
               _infoRow(Icons.list, 'Durum', _durumText(kayit)),
               if (kayit.istenCikarildiMi)
                 _infoRow(Icons.event_busy, '\u00C7\u0131k\u0131\u015F Tarihi',
@@ -811,7 +1007,8 @@ class _PersonelDetayPageState extends State<PersonelDetayPage> {
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String value) {
+  Widget _infoRow(IconData icon, String label, String value,
+      {Widget? trailing}) {
     final display = value.trim().isEmpty ? '-' : value;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
@@ -843,6 +1040,10 @@ class _PersonelDetayPageState extends State<PersonelDetayPage> {
               ],
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing,
+          ],
         ],
       ),
     );
@@ -928,6 +1129,72 @@ class _PersonelDetayPageState extends State<PersonelDetayPage> {
     final ad = kayit.ad.trim();
     final soyad = kayit.soyad.trim();
     return '${ad.isNotEmpty ? ad[0] : ''}${soyad.isNotEmpty ? soyad[0] : ''}';
+  }
+
+  Map<String, double> _tazminatOnerisiniHesapla(
+    PersonelModel kayit,
+    DateTime cikisTarihi,
+  ) {
+    final iseBaslangic = DateTime.tryParse(kayit.iseBaslangic);
+    if (iseBaslangic == null || cikisTarihi.isBefore(iseBaslangic)) {
+      return {'kidem': 0, 'ihbar': 0, 'calisma_gunu': 0};
+    }
+
+    final calismaGunu = cikisTarihi.difference(iseBaslangic).inDays + 1;
+    final brutMaas = _parseMoney(kayit.brutMaas) ?? 0;
+    final yol = _parseMoney(kayit.yolUcreti) ?? 0;
+    final yemek = _parseMoney(kayit.yemekUcreti) ?? 0;
+    final giydirilmisBrut = brutMaas + yol + yemek;
+    if (giydirilmisBrut <= 0) {
+      return {'kidem': 0, 'ihbar': 0, 'calisma_gunu': calismaGunu.toDouble()};
+    }
+
+    final kidemMatrah = giydirilmisBrut > _kidemTazminatiTavan2026IlkYari
+        ? _kidemTazminatiTavan2026IlkYari
+        : giydirilmisBrut;
+    final kidem = calismaGunu >= 365 ? kidemMatrah * calismaGunu / 365 : 0.0;
+    final ihbarGunu = _ihbarSuresiGunu(calismaGunu);
+    final ihbar = giydirilmisBrut / 30 * ihbarGunu;
+
+    return {
+      'kidem': kidem,
+      'ihbar': ihbar,
+      'calisma_gunu': calismaGunu.toDouble(),
+    };
+  }
+
+  int _ihbarSuresiGunu(int calismaGunu) {
+    if (calismaGunu < 180) return 14;
+    if (calismaGunu < 540) return 28;
+    if (calismaGunu < 1080) return 42;
+    return 56;
+  }
+
+  double? _parseMoney(String value) {
+    final trimmed = value.trim();
+    final normalized = trimmed.contains(',')
+        ? trimmed.replaceAll('.', '').replaceAll(',', '.')
+        : (RegExp(r'^\d{1,3}(\.\d{3})+$').hasMatch(trimmed)
+            ? trimmed.replaceAll('.', '')
+            : trimmed);
+    if (normalized.isEmpty) return null;
+    return double.tryParse(normalized);
+  }
+
+  String _tazminatAciklamasi({
+    required double kidemTutari,
+    required double ihbarTutari,
+    required double hesaplananKidem,
+    required double hesaplananIhbar,
+    required int calismaGunu,
+  }) {
+    final manuelKidem =
+        (kidemTutari - hesaplananKidem).abs() > 0.01 ? 'manuel' : 'onerilen';
+    final manuelIhbar =
+        (ihbarTutari - hesaplananIhbar).abs() > 0.01 ? 'manuel' : 'onerilen';
+    return 'Isten cikis tazminati. Kidem: ${kidemTutari.toStringAsFixed(2)} TL ($manuelKidem), '
+        'ihbar: ${ihbarTutari.toStringAsFixed(2)} TL ($manuelIhbar), '
+        'calisma suresi: $calismaGunu gun.';
   }
 
   String _formatMoney(String value) {

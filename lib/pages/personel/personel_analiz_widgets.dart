@@ -220,6 +220,32 @@ extension _WidgetsExt on _PersonelAnalizPageState {
     final kartlar = [
       _KpiData('Toplam Personel', toplamPersonel.toString(), 'Kadro',
           Icons.people_alt_outlined, const Color(0xFF2563EB)),
+      _KpiData('Toplam Avans', '₺${_formatNumber(toplamAvansUcret)}',
+          'Onaylı avans', Icons.payments_outlined, const Color(0xFFF97316)),
+      _KpiData('Mesai Günleri', toplamMesaiGunu.toString(), 'Onaylı gün',
+          Icons.event_available_outlined, const Color(0xFF0F766E)),
+      _KpiData('Toplam Mesai', '₺${_formatNumber(toplamMesaiUcret)}',
+          'Onaylı mesai', Icons.access_time_outlined, const Color(0xFF2563EB)),
+      _KpiData('Bayram Mesaisi', '₺${_formatNumber(toplamBayramMesaiUcret)}',
+          'Günlük x2', Icons.celebration_outlined, const Color(0xFFBE185D)),
+      _KpiData('Toplam Kesinti', '₺${_formatNumber(toplamKesintiUcret)}',
+          'Kesinti kayıtları', Icons.trending_down, const Color(0xFFDC2626)),
+      _KpiData('Yol', '₺${_formatNumber(toplamYolUcret)}', 'Tanımlı toplam',
+          Icons.directions_bus, const Color(0xFF0891B2)),
+      _KpiData('Yemek', '₺${_formatNumber(toplamYemekUcret)}',
+          'Tanımlı + mesai', Icons.restaurant, const Color(0xFF16A34A)),
+      _KpiData('Prim', '₺${_formatNumber(toplamPrimUcret)}', 'Tanımlı + ödeme',
+          Icons.star_outline, const Color(0xFF7C3AED)),
+      _KpiData('İkramiye', '₺${_formatNumber(toplamIkramiyeUcret)}',
+          'Onaylı ödeme', Icons.card_giftcard, const Color(0xFF9333EA)),
+      _KpiData('Toplam Tazminat', '₺${_formatNumber(toplamTazminatUcret)}',
+          'Onayli cikis', Icons.request_quote, const Color(0xFF0F766E)),
+      _KpiData('Banka Ödemesi', '₺${_formatNumber(toplamBankaOdeme)}',
+          'Yapılan ödeme', Icons.account_balance, const Color(0xFF4F46E5)),
+      _KpiData('Elden Alacak', '₺${_formatNumber(toplamEldenAlacak)}',
+          'Banka sonrası', Icons.wallet_outlined, const Color(0xFFB45309)),
+      _KpiData('Genel Toplam', '₺${_formatNumber(genelToplamOdenecek)}',
+          'Ödenecek tutar', Icons.summarize_outlined, const Color(0xFF0F172A)),
       _KpiData(
           'Aktif Personel',
           aktifPersonel.toString(),
@@ -1265,6 +1291,27 @@ extension _WidgetsExt on _PersonelAnalizPageState {
     final buffer = StringBuffer();
     buffer.writeln('Kategori,Değer');
     buffer.writeln('Toplam Personel,$toplamPersonel');
+    buffer.writeln('Toplam Avans,${toplamAvansUcret.toStringAsFixed(0)} TL');
+    buffer.writeln('Toplam Mesai Günleri,$toplamMesaiGunu');
+    buffer.writeln(
+        'Toplam Mesai Ücreti,${toplamMesaiUcret.toStringAsFixed(0)} TL');
+    buffer.writeln(
+        'Toplam Bayram Mesaisi,${toplamBayramMesaiUcret.toStringAsFixed(0)} TL');
+    buffer
+        .writeln('Toplam Kesinti,${toplamKesintiUcret.toStringAsFixed(0)} TL');
+    buffer.writeln('Toplam Yol,${toplamYolUcret.toStringAsFixed(0)} TL');
+    buffer.writeln('Toplam Yemek,${toplamYemekUcret.toStringAsFixed(0)} TL');
+    buffer.writeln('Toplam Prim,${toplamPrimUcret.toStringAsFixed(0)} TL');
+    buffer.writeln(
+        'Toplam İkramiye,${toplamIkramiyeUcret.toStringAsFixed(0)} TL');
+    buffer.writeln(
+        'Toplam Tazminat,${toplamTazminatUcret.toStringAsFixed(0)} TL');
+    buffer.writeln(
+        'Toplam Banka Ödemesi,${toplamBankaOdeme.toStringAsFixed(0)} TL');
+    buffer.writeln(
+        'Toplam Elden Alacak,${toplamEldenAlacak.toStringAsFixed(0)} TL');
+    buffer.writeln(
+        'Genel Toplam Ödenecek,${genelToplamOdenecek.toStringAsFixed(0)} TL');
     buffer.writeln('Aktif Personel,$aktifPersonel');
     buffer.writeln('Pasif Personel,$pasifPersonel');
     buffer.writeln('Departman Sayısı,${departmanIstatistikleri.length}');
