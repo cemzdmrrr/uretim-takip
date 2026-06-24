@@ -1,2 +1,14 @@
 .vercel
 .env*.local
+
+# Flutter/Dart generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# Local environment files
+.env
+.env.*
+!.env.example
