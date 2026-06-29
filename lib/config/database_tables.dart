@@ -35,6 +35,7 @@ class DbTables {
   static const iplikStoklari = 'iplik_stoklari';
   static const iplikHareketleri = 'iplik_hareketleri';
   static const iplikSiparisleri = 'iplik_siparisleri';
+  static const iplikSiparisTeslimatlar = 'iplik_siparis_teslimatlar';
   static const iplikStokHareketleri = 'iplik_stok_hareketleri';
   static const stokHareketleri = 'stok_hareketleri';
 

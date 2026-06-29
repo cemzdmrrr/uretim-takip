@@ -745,6 +745,170 @@ extension _IplikCrudExt on _IplikStoklariPageState {
     }
   }
 
+  Future<void> _stokBirlestirmeDialogGoster() async {
+    final gruplar = _birlestirilebilirStokGruplari();
+    if (gruplar.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'BirleÅŸtirilecek aynÄ± iplik, renk, lot ve tedarikÃ§i grubu yok',
+            ),
+            backgroundColor: Colors.blueGrey,
+          ),
+        );
+      }
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ä°plik StoklarÄ±nÄ± BirleÅŸtir'),
+        content: SizedBox(
+          width: 620,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: gruplar.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final grup = gruplar[index];
+              final ilk = grup.first;
+              final toplam = grup.fold<double>(
+                0,
+                (sum, stok) =>
+                    sum + ((stok['miktar'] as num?)?.toDouble() ?? 0),
+              );
+              return ListTile(
+                leading: const Icon(Icons.merge_type),
+                title: Text(
+                  '${ilk['ad'] ?? '-'} / ${ilk['renk'] ?? '-'} / Lot: ${ilk['lot_no'] ?? '-'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${grup.length} satÄ±r, toplam ${toplam.toStringAsFixed(2)} ${ilk['birim'] ?? 'kg'} - ${_tedarikciAdi(ilk)}',
+                ),
+                trailing: ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _stokGrubunuBirlestir(grup);
+                  },
+                  child: const Text('BirleÅŸtir'),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<List<Map<String, dynamic>>> _birlestirilebilirStokGruplari() {
+    final gruplar = <String, List<Map<String, dynamic>>>{};
+    for (final stok in iplikStoklari) {
+      final key = _stokBirlestirmeAnahtari(stok);
+      gruplar.putIfAbsent(key, () => []).add(stok);
+    }
+    return gruplar.values.where((grup) => grup.length > 1).map((grup) {
+      final sirali = List<Map<String, dynamic>>.from(grup);
+      sirali.sort((a, b) => (a['created_at'] ?? '').toString().compareTo(
+            (b['created_at'] ?? '').toString(),
+          ));
+      return sirali;
+    }).toList();
+  }
+
+  String _stokBirlestirmeAnahtari(Map<String, dynamic> stok) {
+    String norm(dynamic value) =>
+        (value ?? '').toString().trim().toLowerCase().replaceAll('Ä°', 'i');
+    return [
+      norm(stok['ad']),
+      norm(stok['renk']),
+      norm(stok['lot_no']),
+      norm(stok['tedarikci_id']),
+    ].join('|');
+  }
+
+  Future<void> _stokGrubunuBirlestir(List<Map<String, dynamic>> grup) async {
+    if (grup.length < 2) return;
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('BirleÅŸtirme OnayÄ±'),
+        content: Text(
+          '${grup.length} stok satÄ±rÄ± tek satÄ±rda birleÅŸtirilecek. Hareketler ana stok kaydÄ±na taÅŸÄ±nacak.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ä°ptal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('BirleÅŸtir'),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return;
+
+    try {
+      final firmaId = TenantManager.instance.requireFirmaId;
+      final anaStok = grup.first;
+      final digerStoklar = grup.skip(1).toList();
+      final toplamMiktar = grup.fold<double>(
+        0,
+        (sum, stok) => sum + ((stok['miktar'] as num?)?.toDouble() ?? 0),
+      );
+      final fiyatliSatirlar =
+          grup.where((stok) => stok['birim_fiyat'] != null).toList();
+      final fiyatSatiri =
+          fiyatliSatirlar.isNotEmpty ? fiyatliSatirlar.last : anaStok;
+      final birimFiyat = (fiyatSatiri['birim_fiyat'] as num?)?.toDouble();
+
+      await supabase
+          .from(DbTables.iplikStoklari)
+          .update({
+            'miktar': toplamMiktar,
+            'birim': anaStok['birim'] ?? 'kg',
+            'birim_fiyat': birimFiyat,
+            'para_birimi': fiyatSatiri['para_birimi'] ?? anaStok['para_birimi'],
+            'toplam_deger':
+                birimFiyat != null ? toplamMiktar * birimFiyat : null,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', anaStok['id'])
+          .eq('firma_id', firmaId);
+
+      for (final stok in digerStoklar) {
+        await supabase
+            .from(DbTables.iplikHareketleri)
+            .update({'iplik_id': anaStok['id']})
+            .eq('iplik_id', stok['id'])
+            .eq('firma_id', firmaId);
+        await supabase
+            .from(DbTables.iplikStoklari)
+            .delete()
+            .eq('id', stok['id'])
+            .eq('firma_id', firmaId);
+      }
+
+      await _verileriYukle();
+      if (mounted) {
+        context.showSuccessSnackBar('Stok satÄ±rlarÄ± birleÅŸtirildi');
+      }
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('BirleÅŸtirme hatasÄ±: $e');
+    }
+  }
+
   Future<void> exportToExcel(List<Map<String, dynamic>> data,
       {required String fileName}) async {
     try {

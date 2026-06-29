@@ -792,6 +792,231 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
   }
 
   Future<void> _yeniSiparisOlustur() async {
+    final siparisNoController = TextEditingController(
+      text:
+          'SIP${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+    );
+    final tedarikciController = TextEditingController();
+    final dokumaController = TextEditingController();
+    final markaController = TextEditingController();
+    final iplikAdiController = TextEditingController();
+    final renkController = TextEditingController();
+    final renkKoduController = TextEditingController();
+    final miktarController = TextEditingController();
+    final birimFiyatController = TextEditingController();
+    final aciklamaController = TextEditingController();
+    String paraBirimi = 'TL';
+    DateTime siparisTarihi = DateTime.now();
+    DateTime? terminTarihi;
+
+    try {
+      if (!mounted) return;
+      final kaydet = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Yeni İplik Siparişi'),
+            content: SizedBox(
+              width: 620,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: siparisNoController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Sipariş No',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: tedarikciController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tedarikçi adı *',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.business),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: dokumaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Dokuma firması *',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.factory),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: markaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Marka *',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: iplikAdiController,
+                      decoration: const InputDecoration(
+                        labelText: 'İplik adı/türü *',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: renkController,
+                            decoration: const InputDecoration(
+                              labelText: 'Renk',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: renkKoduController,
+                            decoration: const InputDecoration(
+                              labelText: 'Renk kodu',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: miktarController,
+                            decoration: const InputDecoration(
+                              labelText: 'Miktar (kg) *',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: birimFiyatController,
+                            decoration: const InputDecoration(
+                              labelText: 'Birim fiyat',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 110,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: paraBirimi,
+                            decoration: const InputDecoration(
+                              labelText: 'Para',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 'TL', child: Text('TL')),
+                              DropdownMenuItem(
+                                  value: 'USD', child: Text('USD')),
+                              DropdownMenuItem(
+                                  value: 'EUR', child: Text('EUR')),
+                            ],
+                            onChanged: (value) => setDialogState(
+                              () => paraBirimi = value ?? 'TL',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _siparisTarihAlani(
+                            label: 'Sipariş tarihi',
+                            value: siparisTarihi,
+                            onChanged: (value) =>
+                                setDialogState(() => siparisTarihi = value),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _siparisTarihAlani(
+                            label: 'Termin',
+                            value: terminTarihi,
+                            onChanged: (value) =>
+                                setDialogState(() => terminTarihi = value),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: aciklamaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Açıklama / Notlar',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context, true),
+                icon: const Icon(Icons.save),
+                label: const Text('Kaydet'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (kaydet != true) return;
+      await _manuelSiparisKaydet(
+        siparisNo: siparisNoController.text,
+        tedarikciAdi: tedarikciController.text,
+        dokumaFirmasiAdi: dokumaController.text,
+        marka: markaController.text,
+        iplikAdi: iplikAdiController.text,
+        renk: renkController.text,
+        renkKodu: renkKoduController.text,
+        miktar: miktarController.text,
+        birimFiyat: birimFiyatController.text,
+        paraBirimi: paraBirimi,
+        terminTarihi: terminTarihi,
+        siparisTarihi: siparisTarihi,
+        aciklama: aciklamaController.text,
+      );
+    } finally {
+      siparisNoController.dispose();
+      tedarikciController.dispose();
+      dokumaController.dispose();
+      markaController.dispose();
+      iplikAdiController.dispose();
+      renkController.dispose();
+      renkKoduController.dispose();
+      miktarController.dispose();
+      birimFiyatController.dispose();
+      aciklamaController.dispose();
+    }
+  }
+
+  // ignore: unused_element
+  Future<void> _yeniSiparisOlusturLegacy() async {
     final siparisNoController = TextEditingController();
     final iplikAdiController = TextEditingController();
     final renkController = TextEditingController();
@@ -1370,6 +1595,133 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     final birimFiyat = double.tryParse(birimFiyatStr) ?? 0;
     final toplam = miktar * birimFiyat;
     return toplam.toStringAsFixed(2);
+  }
+
+  Widget _siparisTarihAlani({
+    required String label,
+    required DateTime? value,
+    required ValueChanged<DateTime> onChanged,
+  }) {
+    return InkWell(
+      onTap: () async {
+        final tarih = await showDatePicker(
+          context: context,
+          initialDate: value ?? DateTime.now(),
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (tarih != null) onChanged(tarih);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        child: Text(value == null
+            ? 'Tarih seçin'
+            : DateFormat('dd.MM.yyyy').format(value)),
+      ),
+    );
+  }
+
+  Future<void> _manuelSiparisKaydet({
+    required String siparisNo,
+    required String tedarikciAdi,
+    required String dokumaFirmasiAdi,
+    required String marka,
+    required String iplikAdi,
+    required String renk,
+    required String renkKodu,
+    required String miktar,
+    required String birimFiyat,
+    required String paraBirimi,
+    required DateTime? terminTarihi,
+    required DateTime siparisTarihi,
+    required String aciklama,
+  }) async {
+    try {
+      if (tedarikciAdi.trim().isEmpty ||
+          dokumaFirmasiAdi.trim().isEmpty ||
+          marka.trim().isEmpty ||
+          iplikAdi.trim().isEmpty ||
+          miktar.trim().isEmpty) {
+        throw 'Tedarikçi, dokuma firması, marka, iplik adı ve miktar zorunludur';
+      }
+
+      final miktarSayi = _parseDecimal(miktar);
+      if (miktarSayi == null || miktarSayi <= 0) {
+        throw 'Geçerli bir miktar girin';
+      }
+
+      final birimFiyatSayi =
+          birimFiyat.trim().isNotEmpty ? _parseDecimal(birimFiyat) : null;
+      String? renkBilgisi;
+      if (renk.trim().isNotEmpty || renkKodu.trim().isNotEmpty) {
+        renkBilgisi = [
+          if (renk.trim().isNotEmpty) renk.trim(),
+          if (renkKodu.trim().isNotEmpty) renkKodu.trim(),
+        ].join(' / ');
+      }
+
+      final tedarikci = _tedarikciAdiIleEsles(tedarikciAdi);
+      final dokumaFirmasi = _tedarikciAdiIleEsles(dokumaFirmasiAdi);
+      final temizAciklama = aciklama.trim();
+      final manuelAciklama = [
+        'Manuel tedarikçi: ${tedarikciAdi.trim()}',
+        'Manuel dokuma firması: ${dokumaFirmasiAdi.trim()}',
+        if (temizAciklama.isNotEmpty) temizAciklama,
+      ].join('\n');
+
+      final siparisData = {
+        'siparis_no': siparisNo.trim(),
+        'tedarikci_id': tedarikci?['id'],
+        'orgu_firmasi_id': dokumaFirmasi?['id'],
+        'marka': marka.trim(),
+        'iplik_adi': iplikAdi.trim(),
+        'renk': renkBilgisi,
+        'miktar': miktarSayi,
+        'birim': 'kg',
+        'birim_fiyat': birimFiyatSayi,
+        'para_birimi': paraBirimi,
+        'termin_tarihi': terminTarihi?.toIso8601String(),
+        'durum': 'beklemede',
+        'aciklama': manuelAciklama,
+        'siparis_tarihi': siparisTarihi.toIso8601String(),
+        'firma_id': TenantManager.instance.requireFirmaId,
+      };
+
+      if (birimFiyatSayi != null) {
+        siparisData['toplam_tutar'] = miktarSayi * birimFiyatSayi;
+      }
+
+      await supabase.from(DbTables.iplikSiparisleri).insert(siparisData);
+      if (!mounted) return;
+      await _verileriYukle();
+      if (!mounted) return;
+      context.showSuccessSnackBar('Sipariş $siparisNo başarıyla oluşturuldu');
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('Hata: $e');
+    }
+  }
+
+  Map<String, dynamic>? _tedarikciAdiIleEsles(String value) {
+    final hedef = _firmaAdiAnahtari(value);
+    if (hedef.isEmpty) return null;
+    for (final tedarikci in tedarikciler) {
+      final sirket = _firmaAdiAnahtari(tedarikci['sirket']);
+      final ad = _firmaAdiAnahtari(tedarikci['ad']);
+      if (sirket == hedef || ad == hedef) return tedarikci;
+    }
+    return null;
+  }
+
+  String _firmaAdiAnahtari(dynamic value) {
+    return (value ?? '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll('İ', 'i')
+        .replaceAll('ı', 'i');
   }
 
   Future<void> _siparisiKaydet({

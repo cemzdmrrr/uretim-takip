@@ -1,0 +1,1 @@
+ C:\\uretim_takip\\lib\\l10n\\app_localizations_en.dart C:\\uretim_takip\\lib\\l10n\\app_localizations_tr.dart C:\\uretim_takip\\lib\\l10n\\app_localizations.dart:  C:\\uretim_takip\\l10n.yaml C:\\uretim_takip\\lib\\l10n\\app_en.arb C:\\uretim_takip\\lib\\l10n\\app_tr.arb

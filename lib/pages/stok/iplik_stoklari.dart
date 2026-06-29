@@ -39,9 +39,13 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
 
   // Arama/filtreleme kontrolleri
   final stokAramaController = TextEditingController();
+  final hareketAramaController = TextEditingController();
   String stokDurumFiltresi = 'tum';
   String stokSiralama = 'ad';
   String? seciliTedarikciFiltresi;
+  String hareketTipiFiltresi = 'tum';
+  String hareketTarihFiltresi = 'tum';
+  String hareketSiralama = 'son_kayit';
 
   int seciliMenu =
       0; // 0: İplik Stokları, 1: İplik Hareketleri, 2: İplik Siparişi
@@ -68,6 +72,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   @override
   void dispose() {
     stokAramaController.dispose();
+    hareketAramaController.dispose();
     super.dispose();
   }
 
@@ -268,6 +273,64 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
     });
 
     setState(() => filtreliStoklar = sonuc);
+  }
+
+  List<Map<String, dynamic>> get _filtreliHareketler {
+    final arama = hareketAramaController.text.trim().toLowerCase();
+    final simdi = DateTime.now();
+    final bugun = DateTime(simdi.year, simdi.month, simdi.day);
+    final haftaBaslangic = bugun.subtract(Duration(days: bugun.weekday - 1));
+    final ayBaslangic = DateTime(simdi.year, simdi.month);
+
+    final sonuc = iplikHareketleri.where((kayit) {
+      final stok = _hareketIplikBilgisi(kayit);
+      final metin =
+          '${stok['ad']} ${stok['renk']} ${stok['lot_no']} ${kayit['hareket_tipi']} ${kayit['aciklama']}'
+              .toLowerCase();
+      final aramaUygun = arama.isEmpty || metin.contains(arama);
+      final tipUygun = hareketTipiFiltresi == 'tum' ||
+          kayit['hareket_tipi']?.toString() == hareketTipiFiltresi;
+      final tarih = DateTime.tryParse(kayit['created_at']?.toString() ?? '');
+      final tarihUygun = switch (hareketTarihFiltresi) {
+        'bugun' => tarih != null &&
+            DateTime(tarih.year, tarih.month, tarih.day) == bugun,
+        'hafta' => tarih != null && !tarih.isBefore(haftaBaslangic),
+        'ay' => tarih != null && !tarih.isBefore(ayBaslangic),
+        _ => true,
+      };
+      return aramaUygun && tipUygun && tarihUygun;
+    }).toList();
+
+    sonuc.sort((a, b) {
+      final aTarih = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bTarih = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final aMiktar = (a['miktar'] as num?)?.toDouble() ?? 0;
+      final bMiktar = (b['miktar'] as num?)?.toDouble() ?? 0;
+      switch (hareketSiralama) {
+        case 'eski_kayit':
+          return aTarih.compareTo(bTarih);
+        case 'miktar_cok':
+          return bMiktar.compareTo(aMiktar);
+        case 'miktar_az':
+          return aMiktar.compareTo(bMiktar);
+        case 'son_kayit':
+        default:
+          return bTarih.compareTo(aTarih);
+      }
+    });
+
+    return sonuc;
+  }
+
+  Map<String, dynamic> _hareketIplikBilgisi(Map<String, dynamic> kayit) {
+    final iplik = kayit['iplik'];
+    if (iplik is Map) return Map<String, dynamic>.from(iplik);
+    for (final stok in iplikStoklari) {
+      if (stok['id'] == kayit['iplik_id']) return stok;
+    }
+    return const {};
   }
 
   double? _parseDecimal(String value) {
@@ -737,6 +800,12 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               icon: const Icon(Icons.file_download_outlined),
               label: const Text('Excel'),
             ),
+            if (_adminMi)
+              OutlinedButton.icon(
+                onPressed: _stokBirlestirmeDialogGoster,
+                icon: const Icon(Icons.merge_type),
+                label: const Text('BirleÅŸtir'),
+              ),
           ];
 
           return Wrap(
@@ -903,6 +972,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   }
 
   Widget _buildHareketlerSayfasi() {
+    final filtreliHareketler = _filtreliHareketler;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -931,7 +1001,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
-                  onPressed: () => exportToExcel(iplikHareketleri,
+                  onPressed: () => exportToExcel(filtreliHareketler,
                       fileName: 'Iplik_Hareketleri'),
                   icon: const Icon(Icons.file_download_outlined),
                   label: const Text('Excel'),
@@ -940,20 +1010,125 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
             ),
           ),
           const SizedBox(height: 12),
+          _buildHareketFiltreleri(),
+          const SizedBox(height: 12),
           Expanded(
             child: _yukleniyor
                 ? const LoadingWidget()
-                : iplikHareketleri.isEmpty
+                : filtreliHareketler.isEmpty
                     ? _buildBosDurum('Hareket kaydı bulunamadı',
                         'Giriş, çıkış veya sayım hareketleri burada görünür.')
                     : ListView.separated(
-                        itemCount: iplikHareketleri.length,
+                        itemCount: filtreliHareketler.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) =>
-                            _buildHareketSatiri(iplikHareketleri[index]),
+                            _buildHareketSatiri(filtreliHareketler[index]),
                       ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHareketFiltreleri() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dar = constraints.maxWidth < 820;
+          final alan = dar ? constraints.maxWidth : 190.0;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: dar ? constraints.maxWidth : 320,
+                child: TextField(
+                  controller: hareketAramaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ä°plik, renk, lot veya aÃ§Ä±klama ara',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              SizedBox(
+                width: alan,
+                child: DropdownButtonFormField<String>(
+                  initialValue: hareketTipiFiltresi,
+                  decoration: const InputDecoration(
+                    labelText: 'Hareket tipi',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'tum', child: Text('TÃ¼mÃ¼')),
+                    DropdownMenuItem(value: 'giris', child: Text('GiriÅŸ')),
+                    DropdownMenuItem(value: 'cikis', child: Text('Ã‡Ä±kÄ±ÅŸ')),
+                    DropdownMenuItem(
+                        value: 'transfer', child: Text('Transfer')),
+                    DropdownMenuItem(value: 'sayim', child: Text('SayÄ±m')),
+                  ],
+                  onChanged: (value) => setState(
+                    () => hareketTipiFiltresi = value ?? 'tum',
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: alan,
+                child: DropdownButtonFormField<String>(
+                  initialValue: hareketTarihFiltresi,
+                  decoration: const InputDecoration(
+                    labelText: 'Tarih',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'tum', child: Text('TÃ¼mÃ¼')),
+                    DropdownMenuItem(value: 'bugun', child: Text('BugÃ¼n')),
+                    DropdownMenuItem(value: 'hafta', child: Text('Bu hafta')),
+                    DropdownMenuItem(value: 'ay', child: Text('Bu ay')),
+                  ],
+                  onChanged: (value) => setState(
+                    () => hareketTarihFiltresi = value ?? 'tum',
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: alan,
+                child: DropdownButtonFormField<String>(
+                  initialValue: hareketSiralama,
+                  decoration: const InputDecoration(
+                    labelText: 'SÄ±ralama',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'son_kayit', child: Text('Son kayÄ±t')),
+                    DropdownMenuItem(
+                        value: 'eski_kayit', child: Text('Eski kayÄ±t')),
+                    DropdownMenuItem(
+                        value: 'miktar_cok', child: Text('Miktar azalan')),
+                    DropdownMenuItem(
+                        value: 'miktar_az', child: Text('Miktar artan')),
+                  ],
+                  onChanged: (value) => setState(
+                    () => hareketSiralama = value ?? 'son_kayit',
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
