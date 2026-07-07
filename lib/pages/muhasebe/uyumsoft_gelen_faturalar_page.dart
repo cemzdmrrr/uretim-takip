@@ -25,7 +25,7 @@ class _UyumsoftGelenFaturalarPageState
   bool _yukleniyor = false;
   bool _islemde = false;
   String _durumFiltresi = 'beklemede';
-  String _apiTarihTipi = 'fatura';
+  String _apiTarihTipi = 'tum';
   late DateTime _apiBaslangicTarihi;
   late DateTime _apiBitisTarihi;
 
@@ -482,7 +482,7 @@ class _UyumsoftGelenFaturalarPageState
               ),
             ),
             SizedBox(
-              width: 150,
+              width: 180,
               child: DropdownButtonFormField<String>(
                 initialValue: _apiTarihTipi,
                 decoration: const InputDecoration(
@@ -491,6 +491,7 @@ class _UyumsoftGelenFaturalarPageState
                   border: OutlineInputBorder(),
                 ),
                 items: const [
+                  DropdownMenuItem(value: 'tum', child: Text('Tümü')),
                   DropdownMenuItem(value: 'fatura', child: Text('Fatura')),
                   DropdownMenuItem(
                     value: 'olusturma',

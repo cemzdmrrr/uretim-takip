@@ -474,15 +474,24 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final full = constraints.maxWidth < 850;
-          final width = full ? constraints.maxWidth : 210.0;
+          final full = constraints.maxWidth < 720;
+          final width = full
+              ? constraints.maxWidth
+              : constraints.maxWidth < 1200
+                  ? 180.0
+                  : 210.0;
+          final searchWidth = full
+              ? constraints.maxWidth
+              : constraints.maxWidth < 1200
+                  ? 300.0
+                  : 330.0;
           return Wrap(
             spacing: 10,
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SizedBox(
-                width: full ? constraints.maxWidth : 330,
+                width: searchWidth,
                 child: TextField(
                   controller: aramaController,
                   decoration: const InputDecoration(
@@ -514,6 +523,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                 width: width,
                 child: DropdownButtonFormField<String?>(
                   initialValue: tedarikciFiltresi,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Tedarikçi',
                     border: OutlineInputBorder(),
@@ -612,14 +622,19 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   }) {
     return DropdownButtonFormField<String>(
       initialValue: value,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
         isDense: true,
       ),
       items: items.entries
-          .map((entry) =>
-              DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+          .map(
+            (entry) => DropdownMenuItem(
+              value: entry.key,
+              child: Text(entry.value, overflow: TextOverflow.ellipsis),
+            ),
+          )
           .toList(),
       onChanged: (value) => onChanged(value ?? items.keys.first),
     );
@@ -804,55 +819,95 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     final tamamlandi = siparis['takip_durumu'] == 'tamamlandi';
     final kalan = _num(siparis['kalan_miktar']);
     final duzenlenebilir = _siparisDuzenlenebilir(siparis);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          onPressed: () => _siparisDetayGoster(siparis),
-          icon: const Icon(Icons.visibility_outlined),
-          color: _primaryColor,
-          tooltip: 'Detay',
-          visualDensity:
-              compact ? VisualDensity.compact : VisualDensity.standard,
-        ),
-        IconButton(
-          onPressed: duzenlenebilir ? () => _siparisDuzenle(siparis) : null,
-          icon: const Icon(Icons.edit_outlined),
-          color: _primaryColor,
-          tooltip: duzenlenebilir
-              ? 'DÃ¼zenle'
-              : 'Teslimat baÅŸlayan sipariÅŸ dÃ¼zenlenemez',
-          visualDensity:
-              compact ? VisualDensity.compact : VisualDensity.standard,
-        ),
-        IconButton(
-          onPressed: duzenlenebilir ? () => _siparisSil(siparis) : null,
-          icon: const Icon(Icons.delete_outline),
-          color: _dangerColor,
-          tooltip:
-              duzenlenebilir ? 'Sil' : 'Teslimat baÅŸlayan sipariÅŸ silinemez',
-          visualDensity:
-              compact ? VisualDensity.compact : VisualDensity.standard,
-        ),
-        if (!tamamlandi && kalan > 0)
-          IconButton(
-            onPressed: () => _teslimatEkle(siparis),
-            icon: const Icon(Icons.add_box_outlined),
-            color: _successColor,
-            tooltip: 'Teslimat gir',
-            visualDensity:
-                compact ? VisualDensity.compact : VisualDensity.standard,
+    final teslimatEklenebilir = !tamamlandi && kalan > 0;
+    final tamamlanabilir = !tamamlandi;
+
+    return SizedBox(
+      width: compact ? 34 : 40,
+      height: compact ? 34 : 40,
+      child: PopupMenuButton<String>(
+        tooltip: 'İşlemler',
+        icon: const Icon(Icons.more_vert),
+        iconColor: const Color(0xFF475569),
+        padding: EdgeInsets.zero,
+        splashRadius: compact ? 18 : 20,
+        onSelected: (value) {
+          switch (value) {
+            case 'detay':
+              _siparisDetayGoster(siparis);
+              break;
+            case 'duzenle':
+              _siparisDuzenle(siparis);
+              break;
+            case 'sil':
+              _siparisSil(siparis);
+              break;
+            case 'teslimat':
+              _teslimatEkle(siparis);
+              break;
+            case 'tamamla':
+              _siparisiBitir(siparis);
+              break;
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'detay',
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.visibility_outlined),
+              title: Text('Detay'),
+              contentPadding: EdgeInsets.zero,
+              minLeadingWidth: 28,
+            ),
           ),
-        if (!tamamlandi)
-          IconButton(
-            onPressed: () => _siparisiBitir(siparis),
-            icon: const Icon(Icons.task_alt),
-            color: _warningColor,
-            tooltip: 'Tamamlandı işaretle',
-            visualDensity:
-                compact ? VisualDensity.compact : VisualDensity.standard,
+          PopupMenuItem(
+            value: 'duzenle',
+            enabled: duzenlenebilir,
+            child: const ListTile(
+              dense: true,
+              leading: Icon(Icons.edit_outlined),
+              title: Text('Düzenle'),
+              contentPadding: EdgeInsets.zero,
+              minLeadingWidth: 28,
+            ),
           ),
-      ],
+          PopupMenuItem(
+            value: 'sil',
+            enabled: duzenlenebilir,
+            child: const ListTile(
+              dense: true,
+              leading: Icon(Icons.delete_outline, color: _dangerColor),
+              title: Text('Sil'),
+              contentPadding: EdgeInsets.zero,
+              minLeadingWidth: 28,
+            ),
+          ),
+          const PopupMenuDivider(height: 4),
+          PopupMenuItem(
+            value: 'teslimat',
+            enabled: teslimatEklenebilir,
+            child: const ListTile(
+              dense: true,
+              leading: Icon(Icons.add_box_outlined, color: _successColor),
+              title: Text('Teslimat gir'),
+              contentPadding: EdgeInsets.zero,
+              minLeadingWidth: 28,
+            ),
+          ),
+          PopupMenuItem(
+            value: 'tamamla',
+            enabled: tamamlanabilir,
+            child: const ListTile(
+              dense: true,
+              leading: Icon(Icons.task_alt, color: _warningColor),
+              title: Text('Tamamlandı işaretle'),
+              contentPadding: EdgeInsets.zero,
+              minLeadingWidth: 28,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -871,7 +926,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     if (!await _siparisTeslimatsizMi(siparis)) {
       if (mounted) {
         context.showErrorSnackBar(
-          'Teslimat baÅŸlamÄ±ÅŸ sipariÅŸ dÃ¼zenlenemez',
+          'Teslimat başlamış sipariş düzenlenemez',
         );
       }
       return;
@@ -904,7 +959,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: Text('SipariÅŸ DÃ¼zenle - ${siparis['siparis_no'] ?? '-'}'),
+            title: Text('Sipariş Düzenle - ${siparis['siparis_no'] ?? '-'}'),
             content: SizedBox(
               width: 520,
               child: SingleChildScrollView(
@@ -922,7 +977,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                     TextField(
                       controller: iplikAdiController,
                       decoration: const InputDecoration(
-                        labelText: 'Ä°plik adÄ± *',
+                        labelText: 'İplik adı *',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -983,7 +1038,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                       children: [
                         Expanded(
                           child: _datePickerField(
-                            label: 'SipariÅŸ tarihi',
+                            label: 'Sipariş tarihi',
                             value: siparisTarihi,
                             onChanged: (value) =>
                                 setDialogState(() => siparisTarihi = value),
@@ -1009,7 +1064,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                             value: durum,
                             items: const {
                               'beklemede': 'Bekleyen',
-                              'iptal': 'Ä°ptal',
+                              'iptal': 'İptal',
                             },
                             onChanged: (value) =>
                                 setDialogState(() => durum = value),
@@ -1021,9 +1076,9 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                             label: 'Kalite',
                             value: kaliteDurumu,
                             items: const {
-                              'onaylandi': 'OnaylandÄ±',
+                              'onaylandi': 'Onaylandı',
                               'beklemede': 'Kontrol bekliyor',
-                              'sartli_kabul': 'ÅartlÄ± kabul',
+                              'sartli_kabul': 'Şartlı kabul',
                               'reddedildi': 'Reddedildi',
                             },
                             onChanged: (value) =>
@@ -1036,7 +1091,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                     TextField(
                       controller: aciklamaController,
                       decoration: const InputDecoration(
-                        labelText: 'AÃ§Ä±klama',
+                        labelText: 'Açıklama',
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 3,
@@ -1048,7 +1103,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Ä°ptal'),
+                child: const Text('İptal'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
@@ -1065,7 +1120,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           iplikAdiController.text.trim().isEmpty ||
           miktar == null ||
           miktar <= 0) {
-        throw 'Marka, iplik adÄ± ve geÃ§erli miktar zorunludur';
+        throw 'Marka, iplik adı ve geçerli miktar zorunludur';
       }
       final birimFiyat = birimFiyatController.text.trim().isNotEmpty
           ? _parseDecimal(birimFiyatController.text)
@@ -1096,7 +1151,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           .eq('firma_id', TenantManager.instance.requireFirmaId);
 
       await _verileriYukle();
-      if (mounted) context.showSuccessSnackBar('SipariÅŸ gÃ¼ncellendi');
+      if (mounted) context.showSuccessSnackBar('Sipariş güncellendi');
     } catch (e) {
       if (mounted) context.showErrorSnackBar('Hata: $e');
     } finally {
@@ -1112,7 +1167,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   Future<void> _siparisSil(Map<String, dynamic> siparis) async {
     if (!await _siparisTeslimatsizMi(siparis)) {
       if (mounted) {
-        context.showErrorSnackBar('Teslimat baÅŸlamÄ±ÅŸ sipariÅŸ silinemez');
+        context.showErrorSnackBar('Teslimat başlamış sipariş silinemez');
       }
       return;
     }
@@ -1121,14 +1176,14 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('SipariÅŸ Sil'),
+        title: const Text('Sipariş Sil'),
         content: Text(
-          '${siparis['siparis_no'] ?? '-'} numaralÄ± sipariÅŸ silinecek. Bu iÅŸlem geri alÄ±namaz.',
+          '${siparis['siparis_no'] ?? '-'} numaralı sipariş silinecek. Bu işlem geri alınamaz.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Ä°ptal'),
+            child: const Text('İptal'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -1147,9 +1202,9 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           .eq('id', siparis['id'])
           .eq('firma_id', TenantManager.instance.requireFirmaId);
       await _verileriYukle();
-      if (mounted) context.showSuccessSnackBar('SipariÅŸ silindi');
+      if (mounted) context.showSuccessSnackBar('Sipariş silindi');
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Silme hatasÄ±: $e');
+      if (mounted) context.showErrorSnackBar('Silme hatası: $e');
     }
   }
 

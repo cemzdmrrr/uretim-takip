@@ -177,6 +177,37 @@ class _FaturaDetayPageState extends State<FaturaDetayPage> {
     }
   }
 
+  Future<void> _faturaKalemleriKategoriTopluGuncelle() async {
+    if (_fatura.faturaId == null || _faturaKalemleri.isEmpty) return;
+
+    final kategori = await showDialog<String>(
+      context: context,
+      builder: (context) => const _TopluKategoriSecDialog(),
+    );
+    if (kategori == null) return;
+
+    try {
+      setState(() => _yukleniyor = true);
+      final guncellenen = await FaturaService.faturaKalemleriKategoriGuncelle(
+        _fatura.faturaId!,
+        kategori,
+      );
+      await _faturayiYenidenYukle();
+      _degisiklikVar = true;
+      if (mounted) {
+        context.showSuccessSnackBar(
+          '$guncellenen fatura kaleminin kategorisi ${FaturaKategori.etiket(kategori)} yapıldı',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Toplu kategori güncellenirken hata: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _yukleniyor = false);
+    }
+  }
+
   Future<void> _faturaduzenle() async {
     final result = await Navigator.push(
       context,

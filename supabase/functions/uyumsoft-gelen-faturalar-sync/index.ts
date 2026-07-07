@@ -43,19 +43,17 @@ Deno.serve(async (req: Request) => {
       startDate.setDate(startDate.getDate() - Number(body.gun ?? 30));
     }
     const endDate = parseDate(body.bitis_tarihi) ?? now;
-    const tarihTipi = body.tarih_tipi === "olusturma" ? "olusturma" : "fatura";
+    const tarihTipi = normalizeTarihTipi(body.tarih_tipi);
     const limit = normalizeLimit(body.limit);
 
-    const listXml = await soapCall(
-      "GetInboxInvoiceList",
-      buildGetInboxInvoiceListBody(startDate, endDate, tarihTipi, limit),
+    const invoiceIds = await getInboxInvoiceIds(
+      startDate,
+      endDate,
+      tarihTipi,
+      limit,
       username,
       password,
     );
-    assertSuccess(listXml, "GetInboxInvoiceList");
-
-    const invoiceIds = extractInvoiceIds(listXml)
-      .slice(0, limit);
 
     let aktarilan = 0;
     const hatalar: string[] = [];
@@ -386,8 +384,9 @@ async function soapCall(
 function buildGetInboxInvoiceListBody(
   startDate: Date,
   endDate: Date,
-  tarihTipi: "fatura" | "olusturma",
-  limit: number,
+  tarihTipi: TarihTipi,
+  pageIndex: number,
+  pageSize: number,
 ) {
   const executionStart =
     tarihTipi === "fatura" ? startDate.toISOString() : nilTag("ExecutionStartDate");
@@ -398,7 +397,7 @@ function buildGetInboxInvoiceListBody(
   const createEnd =
     tarihTipi === "olusturma" ? endDate.toISOString() : nilTag("CreateEndDate");
 
-  return `<tem:query PageIndex="0" PageSize="${limit}" OnlyNewestInvoices="true">
+  return `<tem:query PageIndex="${pageIndex}" PageSize="${pageSize}" OnlyNewestInvoices="true">
     ${dateTag("ExecutionStartDate", executionStart)}
     ${dateTag("ExecutionEndDate", executionEnd)}
     ${dateTag("CreateStartDate", createStart)}
@@ -406,7 +405,7 @@ function buildGetInboxInvoiceListBody(
     <tem:Status i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
     <tem:SortColumn i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
     <tem:SortMode i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
-    <tem:IsArchived>false</tem:IsArchived>
+    <tem:IsArchived i:nil="true" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"/>
   </tem:query>`;
 }
 
@@ -430,6 +429,68 @@ function normalizeLimit(value: unknown) {
   const parsed = Number(value ?? 50);
   if (!Number.isFinite(parsed)) return 50;
   return Math.min(Math.max(Math.trunc(parsed), 1), 500);
+}
+
+type TarihTipi = "fatura" | "olusturma";
+type TarihTipiSecimi = TarihTipi | "tum";
+
+function normalizeTarihTipi(value: unknown): TarihTipiSecimi {
+  if (value === "fatura" || value === "olusturma" || value === "tum") {
+    return value;
+  }
+  return "tum";
+}
+
+async function getInboxInvoiceIds(
+  startDate: Date,
+  endDate: Date,
+  tarihTipi: TarihTipiSecimi,
+  limit: number,
+  username: string,
+  password: string,
+) {
+  const tipler: TarihTipi[] =
+    tarihTipi === "tum" ? ["fatura", "olusturma"] : [tarihTipi];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+
+  for (const tip of tipler) {
+    let pageIndex = 0;
+    let collectedForTip = 0;
+    const pageSize = Math.min(limit, 100);
+    while (collectedForTip < limit) {
+      const countBeforePage = ids.length;
+      const listXml = await soapCall(
+        "GetInboxInvoiceList",
+        buildGetInboxInvoiceListBody(
+          startDate,
+          endDate,
+          tip,
+          pageIndex,
+          pageSize,
+        ),
+        username,
+        password,
+      );
+      assertSuccess(listXml, "GetInboxInvoiceList");
+
+      const pageIds = extractInvoiceIds(listXml);
+      for (const id of pageIds) {
+        const normalized = id.trim();
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        ids.push(normalized);
+        collectedForTip++;
+        if (collectedForTip >= limit) break;
+      }
+
+      if (ids.length === countBeforePage) break;
+      if (pageIds.length < pageSize) break;
+      pageIndex++;
+    }
+  }
+
+  return ids;
 }
 
 function assertSuccess(xml: string, operation: string) {

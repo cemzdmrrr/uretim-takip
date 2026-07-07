@@ -804,7 +804,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               OutlinedButton.icon(
                 onPressed: _stokBirlestirmeDialogGoster,
                 icon: const Icon(Icons.merge_type),
-                label: const Text('BirleÅŸtir'),
+                label: const Text('Birleştir'),
               ),
           ];
 
@@ -1052,7 +1052,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                 child: TextField(
                   controller: hareketAramaController,
                   decoration: const InputDecoration(
-                    labelText: 'Ä°plik, renk, lot veya aÃ§Ä±klama ara',
+                    labelText: 'İplik, renk, lot veya açıklama ara',
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(),
                     isDense: true,
@@ -1064,18 +1064,19 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                 width: alan,
                 child: DropdownButtonFormField<String>(
                   initialValue: hareketTipiFiltresi,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Hareket tipi',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'tum', child: Text('TÃ¼mÃ¼')),
-                    DropdownMenuItem(value: 'giris', child: Text('GiriÅŸ')),
-                    DropdownMenuItem(value: 'cikis', child: Text('Ã‡Ä±kÄ±ÅŸ')),
+                    DropdownMenuItem(value: 'tum', child: Text('Tümü')),
+                    DropdownMenuItem(value: 'giris', child: Text('Giriş')),
+                    DropdownMenuItem(value: 'cikis', child: Text('Çıkış')),
                     DropdownMenuItem(
                         value: 'transfer', child: Text('Transfer')),
-                    DropdownMenuItem(value: 'sayim', child: Text('SayÄ±m')),
+                    DropdownMenuItem(value: 'sayim', child: Text('Sayım')),
                   ],
                   onChanged: (value) => setState(
                     () => hareketTipiFiltresi = value ?? 'tum',
@@ -1086,14 +1087,15 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                 width: alan,
                 child: DropdownButtonFormField<String>(
                   initialValue: hareketTarihFiltresi,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Tarih',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'tum', child: Text('TÃ¼mÃ¼')),
-                    DropdownMenuItem(value: 'bugun', child: Text('BugÃ¼n')),
+                    DropdownMenuItem(value: 'tum', child: Text('Tümü')),
+                    DropdownMenuItem(value: 'bugun', child: Text('Bugün')),
                     DropdownMenuItem(value: 'hafta', child: Text('Bu hafta')),
                     DropdownMenuItem(value: 'ay', child: Text('Bu ay')),
                   ],
@@ -1106,16 +1108,17 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                 width: alan,
                 child: DropdownButtonFormField<String>(
                   initialValue: hareketSiralama,
+                  isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'SÄ±ralama',
+                    labelText: 'Sıralama',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   items: const [
                     DropdownMenuItem(
-                        value: 'son_kayit', child: Text('Son kayÄ±t')),
+                        value: 'son_kayit', child: Text('Son kayıt')),
                     DropdownMenuItem(
-                        value: 'eski_kayit', child: Text('Eski kayÄ±t')),
+                        value: 'eski_kayit', child: Text('Eski kayıt')),
                     DropdownMenuItem(
                         value: 'miktar_cok', child: Text('Miktar azalan')),
                     DropdownMenuItem(

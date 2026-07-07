@@ -752,7 +752,7 @@ extension _IplikCrudExt on _IplikStoklariPageState {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'BirleÅŸtirilecek aynÄ± iplik, renk, lot ve tedarikÃ§i grubu yok',
+              'Birleştirilecek aynı iplik, renk, lot ve tedarikçi grubu yok',
             ),
             backgroundColor: Colors.blueGrey,
           ),
@@ -764,7 +764,7 @@ extension _IplikCrudExt on _IplikStoklariPageState {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Ä°plik StoklarÄ±nÄ± BirleÅŸtir'),
+        title: const Text('İplik Stoklarını Birleştir'),
         content: SizedBox(
           width: 620,
           child: ListView.separated(
@@ -787,14 +787,14 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                   overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
-                  '${grup.length} satÄ±r, toplam ${toplam.toStringAsFixed(2)} ${ilk['birim'] ?? 'kg'} - ${_tedarikciAdi(ilk)}',
+                  '${grup.length} satır, toplam ${toplam.toStringAsFixed(2)} ${ilk['birim'] ?? 'kg'} - ${_tedarikciAdi(ilk)}',
                 ),
                 trailing: ElevatedButton(
                   onPressed: () async {
                     Navigator.pop(context);
                     await _stokGrubunuBirlestir(grup);
                   },
-                  child: const Text('BirleÅŸtir'),
+                  child: const Text('Birleştir'),
                 ),
               );
             },
@@ -827,7 +827,7 @@ extension _IplikCrudExt on _IplikStoklariPageState {
 
   String _stokBirlestirmeAnahtari(Map<String, dynamic> stok) {
     String norm(dynamic value) =>
-        (value ?? '').toString().trim().toLowerCase().replaceAll('Ä°', 'i');
+        (value ?? '').toString().trim().toLowerCase().replaceAll('İ', 'i');
     return [
       norm(stok['ad']),
       norm(stok['renk']),
@@ -841,18 +841,18 @@ extension _IplikCrudExt on _IplikStoklariPageState {
     final onay = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('BirleÅŸtirme OnayÄ±'),
+        title: const Text('Birleştirme Onayı'),
         content: Text(
-          '${grup.length} stok satÄ±rÄ± tek satÄ±rda birleÅŸtirilecek. Hareketler ana stok kaydÄ±na taÅŸÄ±nacak.',
+          '${grup.length} stok satırı tek satırda birleştirilecek. Hareketler ana stok kaydına taşınacak.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Ä°ptal'),
+            child: const Text('İptal'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('BirleÅŸtir'),
+            child: const Text('Birleştir'),
           ),
         ],
       ),
@@ -902,10 +902,10 @@ extension _IplikCrudExt on _IplikStoklariPageState {
 
       await _verileriYukle();
       if (mounted) {
-        context.showSuccessSnackBar('Stok satÄ±rlarÄ± birleÅŸtirildi');
+        context.showSuccessSnackBar('Stok satırları birleştirildi');
       }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('BirleÅŸtirme hatasÄ±: $e');
+      if (mounted) context.showErrorSnackBar('Birleştirme hatası: $e');
     }
   }
 

@@ -147,9 +147,25 @@ extension _WidgetExt on _FaturaDetayPageState {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Fatura Kalemleri',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Text(
+                  'Fatura Kalemleri',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                if (_faturaKalemleri.isNotEmpty)
+                  OutlinedButton.icon(
+                    onPressed: _yukleniyor
+                        ? null
+                        : _faturaKalemleriKategoriTopluGuncelle,
+                    icon: const Icon(Icons.category_outlined),
+                    label: const Text('Toplu Kategori'),
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
             if (_yukleniyor)
@@ -858,6 +874,59 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
       default:
         return paraBirimi;
     }
+  }
+}
+
+class _TopluKategoriSecDialog extends StatefulWidget {
+  const _TopluKategoriSecDialog();
+
+  @override
+  State<_TopluKategoriSecDialog> createState() =>
+      _TopluKategoriSecDialogState();
+}
+
+class _TopluKategoriSecDialogState extends State<_TopluKategoriSecDialog> {
+  String _secilenKategori = FaturaKategori.diger;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Toplu Kategori Seç'),
+      content: SizedBox(
+        width: 420,
+        child: DropdownButtonFormField<String>(
+          initialValue: _secilenKategori,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Yeni kategori',
+            border: OutlineInputBorder(),
+          ),
+          items: FaturaKategori.tumu
+              .map(
+                (kategori) => DropdownMenuItem(
+                  value: kategori,
+                  child: Text(FaturaKategori.etiket(kategori)),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() => _secilenKategori = value);
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () => Navigator.pop(context, _secilenKategori),
+          icon: const Icon(Icons.done),
+          label: const Text('Tüm Kalemlere Uygula'),
+        ),
+      ],
+    );
   }
 }
 

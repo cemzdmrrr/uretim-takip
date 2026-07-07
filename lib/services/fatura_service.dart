@@ -468,6 +468,25 @@ class FaturaService {
     }
   }
 
+  static Future<int> faturaKalemleriKategoriGuncelle(
+    int faturaId,
+    String kategori,
+  ) async {
+    try {
+      final normalizedKategori = FaturaKategori.normalize(kategori);
+      final response = await _supabase
+          .from(DbTables.faturaKalemleri)
+          .update({'kategori': normalizedKategori})
+          .eq('firma_id', _firmaId)
+          .eq('fatura_id', faturaId)
+          .select('id');
+      return (response as List).length;
+    } catch (e) {
+      throw Exception(
+          'Fatura kalemleri kategorisi güncellenirken hata oluştu: $e');
+    }
+  }
+
   // Fatura kalemi ekle
   static Future<FaturaKalemiModel> faturaKalemiEkle(
       Map<String, dynamic> kalemVerileri) async {
