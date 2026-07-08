@@ -890,7 +890,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
       String title, String value, IconData icon, Color color) {
     final intValue = int.tryParse(value) ?? 0;
     return Container(
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -900,16 +900,16 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: color.withValues(alpha: 0.14)),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: color, size: 18),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -922,18 +922,20 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                   builder: (context, val, _) => Text(
                     '$val',
                     style: const TextStyle(
-                      fontSize: 28,
+                      fontSize: 22,
                       fontWeight: FontWeight.w900,
                       color: Color(0xFF0F172A),
                       height: 1,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: Color(0xFF64748B),
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -945,7 +947,7 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
             ),
           ),
           Icon(Icons.chevron_right,
-              color: color.withValues(alpha: 0.75), size: 20),
+              color: color.withValues(alpha: 0.75), size: 18),
         ],
       ),
     );
@@ -1252,10 +1254,6 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                           _buildStatsRow(),
                           const SizedBox(height: 14),
                         ],
-                        if (_modulAktif('uretim')) ...[
-                          _buildFocusPanel(),
-                          const SizedBox(height: 14),
-                        ],
                         _buildQuickActionsRow(),
                         if (_hasQuickActions()) const SizedBox(height: 14),
                         if (kategoriler.isEmpty)
@@ -1473,14 +1471,14 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
             const Color(0xFF1565C0),
             trailing: 'Canlı veri',
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
-              final cols = constraints.maxWidth >= 1180
+              final cols = constraints.maxWidth >= 1040
                   ? 4
-                  : constraints.maxWidth >= 760
+                  : constraints.maxWidth >= 700
                       ? 3
-                      : constraints.maxWidth >= 520
+                      : constraints.maxWidth >= 480
                           ? 2
                           : 1;
               final stats = [
@@ -1520,135 +1518,13 @@ class _AnaSayfaState extends State<AnaSayfa> with TickerProviderStateMixin {
                   crossAxisCount: cols,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
-                  mainAxisExtent: 92,
+                  mainAxisExtent: 70,
                 ),
                 itemBuilder: (context, index) => stats[index],
               );
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFocusPanel() {
-    final toplam = _dashboardStats['toplam_model'] ?? 0;
-    final tamamlanan = _dashboardStats['tamamlanan'] ?? 0;
-    final devamEden = _dashboardStats['devam_eden'] ?? 0;
-    final geciken = _dashboardStats['geciken'] ?? 0;
-    final oran = toplam == 0 ? 0 : ((tamamlanan / toplam) * 100).round();
-
-    return _buildPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildPanelHeader(
-            'Operasyon Kontrol Listesi',
-            Icons.assignment,
-            const Color(0xFF0F766E),
-            trailing: 'Bugün',
-          ),
-          const SizedBox(height: 14),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: [
-                _buildFocusItem(
-                  Icons.priority_high,
-                  'Termin riski',
-                  geciken == 0 ? 'Yok' : '$geciken model',
-                  geciken == 0
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFFD32F2F),
-                  note: 'Geciken model kontrolü',
-                ),
-                _buildFocusItem(
-                  Icons.sync,
-                  'Sahadaki İş',
-                  '$devamEden model',
-                  const Color(0xFFF57C00),
-                  note: 'Üretimi başlamış açık model',
-                ),
-                _buildFocusItem(
-                  Icons.pie_chart,
-                  'Tamamlanma oranı',
-                  '%$oran',
-                  const Color(0xFF1565C0),
-                  note: '$tamamlanan / $toplam model tamamlandı',
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFocusItem(
-    IconData icon,
-    String label,
-    String value,
-    Color color, {
-    String? note,
-  }) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Color(0xFF475569),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  if (note != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      note,
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Color(0xFF0F172A),
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

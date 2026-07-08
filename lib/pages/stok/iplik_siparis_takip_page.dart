@@ -932,6 +932,8 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       return;
     }
 
+    final siparisNoController =
+        TextEditingController(text: siparis['siparis_no']?.toString() ?? '');
     final markaController =
         TextEditingController(text: siparis['marka']?.toString() ?? '');
     final iplikAdiController =
@@ -959,13 +961,21 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: Text('Sipariş Düzenle - ${siparis['siparis_no'] ?? '-'}'),
+            title: const Text('Sipariş Düzenle'),
             content: SizedBox(
               width: 520,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    TextField(
+                      controller: siparisNoController,
+                      decoration: const InputDecoration(
+                        labelText: 'Sipariş No *',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     TextField(
                       controller: markaController,
                       decoration: const InputDecoration(
@@ -1115,20 +1125,37 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       );
 
       if (kaydedildi != true) return;
+      final siparisNo = siparisNoController.text.trim();
       final miktar = _parseDecimal(miktarController.text);
-      if (markaController.text.trim().isEmpty ||
+      if (siparisNo.isEmpty ||
+          markaController.text.trim().isEmpty ||
           iplikAdiController.text.trim().isEmpty ||
           miktar == null ||
           miktar <= 0) {
-        throw 'Marka, iplik adı ve geçerli miktar zorunludur';
+        throw 'Sipariş no, marka, iplik adı ve geçerli miktar zorunludur';
       }
       final birimFiyat = birimFiyatController.text.trim().isNotEmpty
           ? _parseDecimal(birimFiyatController.text)
           : null;
+      final firmaId = TenantManager.instance.requireFirmaId;
+      final mevcutSiparisNo = siparis['siparis_no']?.toString().trim() ?? '';
+      if (siparisNo != mevcutSiparisNo) {
+        final cakisanSiparis = await supabase
+            .from(DbTables.iplikSiparisleri)
+            .select('id')
+            .eq('firma_id', firmaId)
+            .eq('siparis_no', siparisNo)
+            .neq('id', siparis['id'])
+            .maybeSingle();
+        if (cakisanSiparis != null) {
+          throw 'Bu sipariş no aynı firmada başka bir siparişte kullanılıyor';
+        }
+      }
 
       await supabase
           .from(DbTables.iplikSiparisleri)
           .update({
+            'siparis_no': siparisNo,
             'marka': markaController.text.trim(),
             'iplik_adi': iplikAdiController.text.trim(),
             'renk': renkController.text.trim().isNotEmpty
@@ -1148,13 +1175,14 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', siparis['id'])
-          .eq('firma_id', TenantManager.instance.requireFirmaId);
+          .eq('firma_id', firmaId);
 
       await _verileriYukle();
       if (mounted) context.showSuccessSnackBar('Sipariş güncellendi');
     } catch (e) {
       if (mounted) context.showErrorSnackBar('Hata: $e');
     } finally {
+      siparisNoController.dispose();
       markaController.dispose();
       iplikAdiController.dispose();
       renkController.dispose();

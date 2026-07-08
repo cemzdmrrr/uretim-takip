@@ -61,6 +61,21 @@ class FaturaService {
         .toList();
   }
 
+  static Future<List<int>> _kategoriFaturaIds(String kategori) async {
+    final kalemler = await _supabase
+        .from(DbTables.faturaKalemleri)
+        .select('fatura_id')
+        .eq('firma_id', _firmaId)
+        .eq('kategori', FaturaKategori.normalize(kategori));
+
+    return (kalemler as List)
+        .map((item) => item['fatura_id'])
+        .whereType<num>()
+        .map((id) => id.toInt())
+        .toSet()
+        .toList();
+  }
+
   static double _doubleDeger(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? 0.0;
@@ -241,17 +256,7 @@ class FaturaService {
       }
 
       if (kategori != null && kategori.isNotEmpty) {
-        final kalemler = await _supabase
-            .from(DbTables.faturaKalemleri)
-            .select('fatura_id')
-            .eq('firma_id', _firmaId)
-            .eq('kategori', FaturaKategori.normalize(kategori));
-        final faturaIds = (kalemler as List)
-            .map((item) => item['fatura_id'])
-            .whereType<num>()
-            .map((id) => id.toInt())
-            .toSet()
-            .toList();
+        final faturaIds = await _kategoriFaturaIds(kategori);
         if (faturaIds.isEmpty) return [];
         query = query.inFilter('fatura_id', faturaIds);
       }
@@ -311,17 +316,7 @@ class FaturaService {
         query = query.lte('fatura_tarihi', bitisTarihi.toIso8601String());
       }
       if (kategori != null && kategori.isNotEmpty) {
-        final kalemler = await _supabase
-            .from(DbTables.faturaKalemleri)
-            .select('fatura_id')
-            .eq('firma_id', _firmaId)
-            .eq('kategori', FaturaKategori.normalize(kategori));
-        final faturaIds = (kalemler as List)
-            .map((item) => item['fatura_id'])
-            .whereType<num>()
-            .map((id) => id.toInt())
-            .toSet()
-            .toList();
+        final faturaIds = await _kategoriFaturaIds(kategori);
         if (faturaIds.isEmpty) return 0;
         query = query.inFilter('fatura_id', faturaIds);
       }
@@ -330,6 +325,103 @@ class FaturaService {
       return (response as List).length;
     } catch (e) {
       return 0;
+    }
+  }
+
+  static Future<Map<String, dynamic>> faturaFinansOzetGetir({
+    String? aramaKelimesi,
+    String? faturaTuru,
+    String? durum,
+    String? odemeDurumu,
+    DateTime? baslangicTarihi,
+    DateTime? bitisTarihi,
+    String? kategori,
+  }) async {
+    try {
+      final kategoriFaturaIds = kategori != null && kategori.isNotEmpty
+          ? await _kategoriFaturaIds(kategori)
+          : null;
+      if (kategoriFaturaIds != null && kategoriFaturaIds.isEmpty) {
+        return {
+          'satis_adet': 0,
+          'satis_tutar': 0.0,
+          'alis_adet': 0,
+          'alis_tutar': 0.0,
+        };
+      }
+
+      final arama = _aramaDegeriniHazirla(aramaKelimesi);
+      final kalemAramaFaturaIds =
+          arama != null ? await _kalemAramaFaturaIds(arama) : const <int>[];
+
+      var offset = 0;
+      const batchSize = 1000;
+      var satisAdet = 0;
+      var alisAdet = 0;
+      var satisTutar = 0.0;
+      var alisTutar = 0.0;
+
+      while (true) {
+        var query = _supabase
+            .from(DbTables.faturalar)
+            .select('fatura_turu,durum,toplam_tutar')
+            .eq('firma_id', _firmaId);
+
+        if (arama != null) {
+          query = query.or(
+            _aramaFiltresiOlustur(
+              arama,
+              kalemFaturaIds: kalemAramaFaturaIds,
+            ),
+          );
+        }
+        if (faturaTuru != null && faturaTuru.isNotEmpty) {
+          query = query.eq('fatura_turu', faturaTuru);
+        }
+        if (durum != null && durum.isNotEmpty) {
+          query = query.eq('durum', durum);
+        }
+        if (odemeDurumu != null && odemeDurumu.isNotEmpty) {
+          query = query.eq('odeme_durumu', odemeDurumu);
+        }
+        if (baslangicTarihi != null) {
+          query = query.gte('fatura_tarihi', baslangicTarihi.toIso8601String());
+        }
+        if (bitisTarihi != null) {
+          query = query.lte('fatura_tarihi', bitisTarihi.toIso8601String());
+        }
+        if (kategoriFaturaIds != null) {
+          query = query.inFilter('fatura_id', kategoriFaturaIds);
+        }
+
+        final response = await query.range(offset, offset + batchSize - 1);
+        final items = response as List;
+        for (final item in items.whereType<Map<String, dynamic>>()) {
+          if (item['durum'] == 'iptal') continue;
+          final tutar = _doubleDeger(item['toplam_tutar']);
+          switch (item['fatura_turu']) {
+            case 'satis':
+              satisAdet++;
+              satisTutar += tutar;
+              break;
+            case 'alis':
+              alisAdet++;
+              alisTutar += tutar;
+              break;
+          }
+        }
+        if (items.length < batchSize) break;
+        offset += batchSize;
+      }
+
+      return {
+        'satis_adet': satisAdet,
+        'satis_tutar': satisTutar,
+        'alis_adet': alisAdet,
+        'alis_tutar': alisTutar,
+      };
+    } catch (e) {
+      throw Exception('Fatura finans özeti getirilirken hata oluştu: $e');
     }
   }
 

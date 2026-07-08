@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:uretim_takip/models/fatura_model.dart';
@@ -25,6 +25,10 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
 
   List<FaturaModel> _faturalar = [];
   Map<int, List<String>> _faturaKategoriOzetleri = {};
+  int _satisFaturaAdedi = 0;
+  int _alisFaturaAdedi = 0;
+  double _satisFaturaTutari = 0;
+  double _alisFaturaTutari = 0;
   bool _yukleniyor = false;
   String _secilenFaturaTuru = '';
   String _secilenDurum = '';
@@ -32,25 +36,6 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
   String _secilenKategori = '';
   DateTime? _baslangicTarihi;
   DateTime? _bitisTarihi;
-
-  Iterable<FaturaModel> get _aktifFaturalar =>
-      _faturalar.where((fatura) => fatura.durum != 'iptal');
-
-  Iterable<FaturaModel> get _satisFaturalari =>
-      _aktifFaturalar.where((fatura) => fatura.faturaTuru == 'satis');
-
-  Iterable<FaturaModel> get _alisFaturalari =>
-      _aktifFaturalar.where((fatura) => fatura.faturaTuru == 'alis');
-
-  double get _toplamSatisTutari => _satisFaturalari.fold<double>(
-        0,
-        (sum, fatura) => sum + fatura.toplamTutar,
-      );
-
-  double get _toplamAlisTutari => _alisFaturalari.fold<double>(
-        0,
-        (sum, fatura) => sum + fatura.toplamTutar,
-      );
 
   @override
   void initState() {
@@ -83,6 +68,16 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
         bitisTarihi: _bitisTarihi,
         limit: 100,
       );
+      final finansOzet = await FaturaService.faturaFinansOzetGetir(
+        aramaKelimesi:
+            _aramaController.text.isEmpty ? null : _aramaController.text,
+        faturaTuru: _secilenFaturaTuru.isEmpty ? null : _secilenFaturaTuru,
+        durum: _secilenDurum.isEmpty ? null : _secilenDurum,
+        odemeDurumu: _secilenOdemeDurumu.isEmpty ? null : _secilenOdemeDurumu,
+        kategori: _secilenKategori.isEmpty ? null : _secilenKategori,
+        baslangicTarihi: _baslangicTarihi,
+        bitisTarihi: _bitisTarihi,
+      );
       final kategoriOzetleri = await FaturaService.faturaKategoriOzetleriGetir(
         faturalar.map((fatura) => fatura.faturaId).whereType<int>().toList(),
       );
@@ -90,6 +85,11 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
       setState(() {
         _faturalar = faturalar;
         _faturaKategoriOzetleri = kategoriOzetleri;
+        _satisFaturaAdedi = finansOzet['satis_adet'] as int? ?? 0;
+        _satisFaturaTutari =
+            (finansOzet['satis_tutar'] as num?)?.toDouble() ?? 0;
+        _alisFaturaAdedi = finansOzet['alis_adet'] as int? ?? 0;
+        _alisFaturaTutari = (finansOzet['alis_tutar'] as num?)?.toDouble() ?? 0;
       });
     } catch (e) {
       debugPrint('Fatura yükleme hatası: $e'); // Debug için
@@ -815,25 +815,25 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                   final kartlar = [
                     _buildKpiCard(
                       title: 'Satış Faturası',
-                      value: '${_satisFaturalari.length}',
+                      value: '$_satisFaturaAdedi',
                       icon: Icons.trending_up,
                       color: Colors.green.shade700,
                     ),
                     _buildKpiCard(
                       title: 'Satış Tutarı',
-                      value: _currencyFormat.format(_toplamSatisTutari),
+                      value: _currencyFormat.format(_satisFaturaTutari),
                       icon: Icons.payments,
                       color: Colors.teal.shade700,
                     ),
                     _buildKpiCard(
                       title: 'Alış Faturası',
-                      value: '${_alisFaturalari.length}',
+                      value: '$_alisFaturaAdedi',
                       icon: Icons.trending_down,
                       color: Colors.orange.shade800,
                     ),
                     _buildKpiCard(
                       title: 'Alış Tutarı',
-                      value: _currencyFormat.format(_toplamAlisTutari),
+                      value: _currencyFormat.format(_alisFaturaTutari),
                       icon: Icons.description,
                       color: Colors.red.shade700,
                     ),
