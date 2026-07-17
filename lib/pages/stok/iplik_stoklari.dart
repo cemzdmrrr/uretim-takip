@@ -368,12 +368,21 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _surfaceColor,
-      body: Column(
-        children: [
-          _buildDepoUstBar(),
-          Expanded(child: _buildSeciliIcerik()),
-        ],
-      ),
+      body: seciliMenu == 0
+          ? SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildDepoUstBar(),
+                  _buildStokDepoSayfasi(),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                _buildDepoUstBar(),
+                Expanded(child: _buildSeciliIcerik()),
+              ],
+            ),
       floatingActionButton: seciliMenu == 0
           ? FloatingActionButton(
               backgroundColor: _primaryColor,
@@ -511,13 +520,10 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       (sum, stok) => sum + ((stok['toplam_deger'] as num?)?.toDouble() ?? 0),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final kisaEkran = constraints.maxHeight < 540;
-        final listeYuksekligi =
-            constraints.maxHeight < 420 ? 260.0 : constraints.maxHeight * 0.55;
-
-        final icerikUstu = [
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
           _buildStokOzetAlani(
             toplamKg: toplamKg,
             kritikSayisi: kritikSayisi,
@@ -527,33 +533,10 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
           const SizedBox(height: 14),
           _buildStokFiltreleri(),
           const SizedBox(height: 12),
-        ];
-
-        if (kisaEkran) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                ...icerikUstu,
-                SizedBox(
-                  height: listeYuksekligi,
-                  child: _buildStokListeAlani(),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              ...icerikUstu,
-              Expanded(child: _buildStokListeAlani()),
-            ],
-          ),
-        );
-      },
+          _buildStokListeAlani(),
+          const SizedBox(height: 84),
+        ],
+      ),
     );
   }
 
@@ -632,7 +615,8 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       builder: (context, constraints) {
         if (constraints.maxWidth < 820) {
           return ListView.separated(
-            padding: const EdgeInsets.only(bottom: 84),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: filtreliStoklar.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) =>
@@ -726,6 +710,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               width: narrow ? constraints.maxWidth : 190,
               child: DropdownButtonFormField<String>(
                 initialValue: stokDurumFiltresi,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Stok durumu',
                   border: OutlineInputBorder(),
@@ -747,6 +732,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               width: narrow ? constraints.maxWidth : 220,
               child: DropdownButtonFormField<String?>(
                 initialValue: seciliTedarikciFiltresi,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Tedarikçi',
                   border: OutlineInputBorder(),
@@ -773,6 +759,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               width: narrow ? constraints.maxWidth : 180,
               child: DropdownButtonFormField<String>(
                 initialValue: stokSiralama,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Sıralama',
                   border: OutlineInputBorder(),
@@ -831,42 +818,42 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         thumbVisibility: true,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: SingleChildScrollView(
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-              columnSpacing: 22,
-              horizontalMargin: 16,
-              columns: const [
-                DataColumn(label: Text('İplik')),
-                DataColumn(label: Text('Renk')),
-                DataColumn(label: Text('Lot')),
-                DataColumn(label: Text('Miktar')),
-                DataColumn(label: Text('Durum')),
-                DataColumn(label: Text('Tedarikçi')),
-                DataColumn(label: Text('Birim Fiyat')),
-                DataColumn(label: Text('İşlem')),
-              ],
-              rows: filtreliStoklar.map((stok) {
-                final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
-                final durum = _stokDurumBilgisi(miktar);
-                return DataRow(
-                  cells: [
-                    DataCell(_tableText(stok['ad']?.toString() ?? '-',
-                        width: 190, bold: true)),
-                    DataCell(_tableText(stok['renk']?.toString() ?? '-',
-                        width: 110)),
-                    DataCell(_tableText(stok['lot_no']?.toString() ?? '-',
-                        width: 105)),
-                    DataCell(Text(
-                        '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}')),
-                    DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
-                    DataCell(_tableText(_tedarikciAdi(stok), width: 170)),
-                    DataCell(Text(_formatFiyat(stok))),
-                    DataCell(_buildStokAksiyonlari(stok, compact: true)),
-                  ],
-                );
-              }).toList(),
-            ),
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+            dataRowMinHeight: 58,
+            dataRowMaxHeight: 104,
+            columnSpacing: 22,
+            horizontalMargin: 16,
+            columns: const [
+              DataColumn(label: Text('İplik')),
+              DataColumn(label: Text('Renk')),
+              DataColumn(label: Text('Lot')),
+              DataColumn(label: Text('Miktar')),
+              DataColumn(label: Text('Durum')),
+              DataColumn(label: Text('Tedarikçi')),
+              DataColumn(label: Text('Birim Fiyat')),
+              DataColumn(label: Text('İşlem')),
+            ],
+            rows: filtreliStoklar.map((stok) {
+              final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
+              final durum = _stokDurumBilgisi(miktar);
+              return DataRow(
+                cells: [
+                  DataCell(_tableText(stok['ad']?.toString() ?? '-',
+                      width: 240, bold: true, maxLines: 3)),
+                  DataCell(_tableText(stok['renk']?.toString() ?? '-',
+                      width: 240, maxLines: 3)),
+                  DataCell(_tableText(stok['lot_no']?.toString() ?? '-',
+                      width: 140, maxLines: 2)),
+                  DataCell(Text(
+                      '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}')),
+                  DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
+                  DataCell(_tableText(_tedarikciAdi(stok), width: 170)),
+                  DataCell(Text(_formatFiyat(stok))),
+                  DataCell(_buildStokAksiyonlari(stok, compact: true)),
+                ],
+              );
+            }).toList(),
           ),
         ),
       ),
@@ -891,7 +878,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               Expanded(
                 child: Text(
                   stok['ad']?.toString() ?? '-',
-                  maxLines: 1,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       fontWeight: FontWeight.w800, fontSize: 15),
@@ -905,7 +892,12 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
             spacing: 14,
             runSpacing: 6,
             children: [
-              _miniBilgi('Renk', stok['renk']?.toString() ?? '-'),
+              _miniBilgi(
+                'Renk',
+                stok['renk']?.toString() ?? '-',
+                width: 220,
+                maxLines: 3,
+              ),
               _miniBilgi('Lot', stok['lot_no']?.toString() ?? '-'),
               _miniBilgi('Miktar',
                   '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}'),
@@ -1226,31 +1218,50 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
     );
   }
 
-  Widget _tableText(String value, {double width = 140, bool bold = false}) {
-    return SizedBox(
-      width: width,
-      child: Text(
-        value,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w500),
+  Widget _tableText(
+    String value, {
+    double width = 140,
+    bool bold = false,
+    int maxLines = 1,
+  }) {
+    return Tooltip(
+      message: value,
+      child: SizedBox(
+        width: width,
+        child: Text(
+          value,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+          softWrap: true,
+          style:
+              TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w500),
+        ),
       ),
     );
   }
 
-  Widget _miniBilgi(String baslik, String deger) {
+  Widget _miniBilgi(
+    String baslik,
+    String deger, {
+    double width = 140,
+    int maxLines = 1,
+  }) {
     return SizedBox(
-      width: 140,
+      width: width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(baslik,
               style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-          Text(
-            deger,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+          Tooltip(
+            message: deger,
+            child: Text(
+              deger,
+              maxLines: maxLines,
+              overflow: TextOverflow.ellipsis,
+              softWrap: true,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),

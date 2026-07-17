@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
               vergi_no: parsed.vergiNo,
               vergi_dairesi: parsed.vergiDairesi,
               fatura_adres: parsed.faturaAdres,
-              para_birimi: parsed.paraBirimi || "TRY",
+              para_birimi: normalizeCurrencyCode(parsed.paraBirimi),
               ara_toplam_tutar: parsed.araToplamTutar,
               kdv_tutari: parsed.kdvTutari,
               toplam_tutar: parsed.toplamTutar,
@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
             vergi_no: parsed.vergiNo,
             vergi_dairesi: parsed.vergiDairesi,
             fatura_adres: parsed.faturaAdres,
-            para_birimi: parsed.paraBirimi || "TRY",
+            para_birimi: normalizeCurrencyCode(parsed.paraBirimi),
             ara_toplam_tutar: parsed.araToplamTutar,
             kdv_tutari: parsed.kdvTutari,
             toplam_tutar: parsed.toplamTutar,
@@ -628,9 +628,10 @@ function parseUblInvoice(xml: string) {
     vergiNo: text(supplier, "CompanyID"),
     vergiDairesi: text(section(supplier, "TaxScheme"), "Name"),
     faturaAdres: buildAddress(supplier),
-    paraBirimi: attr(firstTagBlock(monetaryTotal, "PayableAmount") ?? "", "currencyID") ??
-      text(xml, "DocumentCurrencyCode") ??
-      "TRY",
+    paraBirimi: normalizeCurrencyCode(
+      attr(firstTagBlock(monetaryTotal, "PayableAmount") ?? "", "currencyID") ??
+        text(xml, "DocumentCurrencyCode"),
+    ),
     araToplamTutar: araToplam,
     kdvTutari: kdv,
     toplamTutar: toplam,
@@ -656,6 +657,11 @@ function firstNonEmpty(values: Array<string | undefined>) {
     if (trimmed) return trimmed;
   }
   return undefined;
+}
+
+function normalizeCurrencyCode(value?: string) {
+  const code = value?.trim().toUpperCase() || "TRY";
+  return ["TL", "TRL", "YTL"].includes(code) ? "TRY" : code;
 }
 
 function invoiceLines(xml: string) {

@@ -710,80 +710,70 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
   }
 
   Widget _buildUtuPaketPanel() {
-    // Alt tab: Bekleyen, Onaylanan, İşlemde, Tamamlanan
-    final int durumTab = utuDurumTab; // eski değişkeni kullanıyoruz
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  color: const Color(0xFFF8FAFC),
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1550),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFDDE5EE)),
-                        ),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _buildDurumTab(
-                                  'Bekleyen',
-                                  utuBekleyenler.length,
-                                  0,
-                                  durumTab,
-                                  (i) => setState(() => utuDurumTab = i),
-                                  Icons.hourglass_empty,
-                                  Colors.orange),
-                              _buildDurumTab(
-                                  'Onaylanan',
-                                  utuOnaylananlar.length,
-                                  1,
-                                  durumTab,
-                                  (i) => setState(() => utuDurumTab = i),
-                                  Icons.check_circle,
-                                  Colors.green),
-                              _buildDurumTab(
-                                  'İşlemde',
-                                  utuUretimde.length,
-                                  2,
-                                  durumTab,
-                                  (i) => setState(() => utuDurumTab = i),
-                                  Icons.play_circle,
-                                  Colors.blue),
-                              _buildDurumTab(
-                                  'Tamamlanan',
-                                  utuTamamlananlar.length,
-                                  3,
-                                  durumTab,
-                                  (i) => setState(() => utuDurumTab = i),
-                                  Icons.done_all,
-                                  Colors.grey),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+    final int durumTab = utuDurumTab;
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          color: const Color(0xFFF8FAFC),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1550),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFDDE5EE)),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildDurumTab(
+                          'Bekleyen',
+                          utuBekleyenler.length,
+                          0,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.hourglass_empty,
+                          Colors.orange),
+                      _buildDurumTab(
+                          'Onaylanan',
+                          utuOnaylananlar.length,
+                          1,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.check_circle,
+                          Colors.green),
+                      _buildDurumTab(
+                          'İşlemde',
+                          utuUretimde.length,
+                          2,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.play_circle,
+                          Colors.blue),
+                      _buildDurumTab(
+                          'Tamamlanan',
+                          utuTamamlananlar.length,
+                          3,
+                          durumTab,
+                          (i) => setState(() => utuDurumTab = i),
+                          Icons.done_all,
+                          Colors.grey),
+                    ],
                   ),
                 ),
-                SizedBox(
-                  height: constraints.maxHeight,
-                  child: _buildUtuPaketTabContent(durumTab),
-                ),
-              ],
+              ),
             ),
           ),
-        );
-      },
+        ),
+        Expanded(
+          child: _buildUtuPaketTabContent(durumTab),
+        ),
+      ],
     );
   }
 

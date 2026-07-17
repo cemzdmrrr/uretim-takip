@@ -9,6 +9,7 @@ import 'package:uretim_takip/pages/muhasebe/fatura_detay_page.dart';
 import 'package:uretim_takip/pages/muhasebe/uyumsoft_gelen_faturalar_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:uretim_takip/utils/currency_utils.dart';
 
 class FaturaListesiPage extends StatefulWidget {
   const FaturaListesiPage({super.key});
@@ -20,15 +21,13 @@ class FaturaListesiPage extends StatefulWidget {
 class _FaturaListesiPageState extends State<FaturaListesiPage> {
   final TextEditingController _aramaController = TextEditingController();
   final DateFormat _dateFormat = DateFormat('dd.MM.yyyy');
-  final NumberFormat _currencyFormat =
-      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
 
   List<FaturaModel> _faturalar = [];
   Map<int, List<String>> _faturaKategoriOzetleri = {};
   int _satisFaturaAdedi = 0;
   int _alisFaturaAdedi = 0;
-  double _satisFaturaTutari = 0;
-  double _alisFaturaTutari = 0;
+  Map<String, double> _satisFaturaTutarlari = {};
+  Map<String, double> _alisFaturaTutarlari = {};
   bool _yukleniyor = false;
   String _secilenFaturaTuru = '';
   String _secilenDurum = '';
@@ -49,6 +48,22 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
   void dispose() {
     _aramaController.dispose();
     super.dispose();
+  }
+
+  Map<String, double> _toplamMapiniOku(dynamic value) {
+    if (value is! Map) return {};
+    return {
+      for (final entry in value.entries)
+        normalizeCurrencyCode(entry.key.toString()):
+            (entry.value as num?)?.toDouble() ?? 0,
+    };
+  }
+
+  List<String> _toplamSatirlari(Map<String, double> totals) {
+    if (totals.isEmpty) return [formatCurrencyAmount(0, 'TRY')];
+    return sortedCurrencyTotals(totals)
+        .map((entry) => formatCurrencyAmount(entry.value, entry.key))
+        .toList();
   }
 
   Future<void> _faturalariYukle() async {
@@ -86,10 +101,9 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
         _faturalar = faturalar;
         _faturaKategoriOzetleri = kategoriOzetleri;
         _satisFaturaAdedi = finansOzet['satis_adet'] as int? ?? 0;
-        _satisFaturaTutari =
-            (finansOzet['satis_tutar'] as num?)?.toDouble() ?? 0;
+        _satisFaturaTutarlari = _toplamMapiniOku(finansOzet['satis_tutarlar']);
         _alisFaturaAdedi = finansOzet['alis_adet'] as int? ?? 0;
-        _alisFaturaTutari = (finansOzet['alis_tutar'] as num?)?.toDouble() ?? 0;
+        _alisFaturaTutarlari = _toplamMapiniOku(finansOzet['alis_tutarlar']);
       });
     } catch (e) {
       debugPrint('Fatura yükleme hatası: $e'); // Debug için
@@ -440,7 +454,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
 
   Widget _buildKpiCard({
     required String title,
-    required String value,
+    required List<String> values,
     required IconData icon,
     required Color color,
   }) {
@@ -477,14 +491,17 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: color,
+                          ...values.map(
+                            (value) => Text(
+                              value,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: values.length > 1 ? 13 : 16,
+                                height: 1.15,
+                                fontWeight: FontWeight.bold,
+                                color: color,
+                              ),
                             ),
                           ),
                           Text(
@@ -643,7 +660,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  _currencyFormat.format(fatura.toplamTutar),
+                  formatCurrencyAmount(fatura.toplamTutar, fatura.kur),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -812,36 +829,52 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final ikiSutun = constraints.maxWidth < 760;
+                  final satisTutarSatirlari =
+                      _toplamSatirlari(_satisFaturaTutarlari);
+                  final alisTutarSatirlari =
+                      _toplamSatirlari(_alisFaturaTutarlari);
+                  final sutunSayisi = ikiSutun ? 2 : 4;
+                  final enFazlaTutarSatiri =
+                      satisTutarSatirlari.length > alisTutarSatirlari.length
+                          ? satisTutarSatirlari.length
+                          : alisTutarSatirlari.length;
+                  final kartGenisligi =
+                      (constraints.maxWidth - (sutunSayisi - 1) * 8) /
+                          sutunSayisi;
+                  final kartYuksekligi = 72.0 +
+                      (enFazlaTutarSatiri > 1
+                          ? (enFazlaTutarSatiri - 1) * 16
+                          : 0);
                   final kartlar = [
                     _buildKpiCard(
                       title: 'Satış Faturası',
-                      value: '$_satisFaturaAdedi',
+                      values: ['$_satisFaturaAdedi'],
                       icon: Icons.trending_up,
                       color: Colors.green.shade700,
                     ),
                     _buildKpiCard(
                       title: 'Satış Tutarı',
-                      value: _currencyFormat.format(_satisFaturaTutari),
+                      values: satisTutarSatirlari,
                       icon: Icons.payments,
                       color: Colors.teal.shade700,
                     ),
                     _buildKpiCard(
                       title: 'Alış Faturası',
-                      value: '$_alisFaturaAdedi',
+                      values: ['$_alisFaturaAdedi'],
                       icon: Icons.trending_down,
                       color: Colors.orange.shade800,
                     ),
                     _buildKpiCard(
                       title: 'Alış Tutarı',
-                      value: _currencyFormat.format(_alisFaturaTutari),
+                      values: alisTutarSatirlari,
                       icon: Icons.description,
                       color: Colors.red.shade700,
                     ),
                   ];
 
                   return GridView.count(
-                    crossAxisCount: ikiSutun ? 2 : 4,
-                    childAspectRatio: ikiSutun ? 3.2 : 3.8,
+                    crossAxisCount: sutunSayisi,
+                    childAspectRatio: kartGenisligi / kartYuksekligi,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
                     shrinkWrap: true,

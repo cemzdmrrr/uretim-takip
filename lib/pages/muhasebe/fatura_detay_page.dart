@@ -10,6 +10,7 @@ import 'package:uretim_takip/pages/muhasebe/fatura_ekle_page.dart';
 import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:uretim_takip/utils/decimal_parser.dart';
+import 'package:uretim_takip/utils/currency_utils.dart';
 
 part 'fatura_detay_page_widgets.dart';
 
@@ -25,9 +26,6 @@ class FaturaDetayPage extends StatefulWidget {
 class _FaturaDetayPageState extends State<FaturaDetayPage> {
   final DateFormat _dateFormat = DateFormat('dd.MM.yyyy');
   final DateFormat _dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
-  final NumberFormat _currencyFormat =
-      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
-
   late FaturaModel _fatura;
   List<FaturaKalemiModel> _faturaKalemleri = [];
   bool _yukleniyor = false;

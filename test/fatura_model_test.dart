@@ -97,17 +97,31 @@ void main() {
     test('durumText returns localized status', () {
       expect(
         FaturaModel(
-          faturaNo: 'F1', faturaTuru: 'satis', faturaTarihi: now,
-          faturaAdres: '', araToplamTutar: 0, kdvTutari: 0, toplamTutar: 0,
-          durum: 'taslak', olusturmaTarihi: now, olusturanKullanici: '',
+          faturaNo: 'F1',
+          faturaTuru: 'satis',
+          faturaTarihi: now,
+          faturaAdres: '',
+          araToplamTutar: 0,
+          kdvTutari: 0,
+          toplamTutar: 0,
+          durum: 'taslak',
+          olusturmaTarihi: now,
+          olusturanKullanici: '',
         ).durumText,
         'Taslak',
       );
       expect(
         FaturaModel(
-          faturaNo: 'F1', faturaTuru: 'satis', faturaTarihi: now,
-          faturaAdres: '', araToplamTutar: 0, kdvTutari: 0, toplamTutar: 0,
-          durum: 'onaylandi', olusturmaTarihi: now, olusturanKullanici: '',
+          faturaNo: 'F1',
+          faturaTuru: 'satis',
+          faturaTarihi: now,
+          faturaAdres: '',
+          araToplamTutar: 0,
+          kdvTutari: 0,
+          toplamTutar: 0,
+          durum: 'onaylandi',
+          olusturmaTarihi: now,
+          olusturanKullanici: '',
         ).durumText,
         'Onaylandı',
       );
@@ -116,9 +130,16 @@ void main() {
     test('odemeDurumuText returns localized payment status', () {
       expect(
         FaturaModel(
-          faturaNo: 'F1', faturaTuru: 'satis', faturaTarihi: now,
-          faturaAdres: '', araToplamTutar: 0, kdvTutari: 0, toplamTutar: 0,
-          odemeDurumu: 'odendi', olusturmaTarihi: now, olusturanKullanici: '',
+          faturaNo: 'F1',
+          faturaTuru: 'satis',
+          faturaTarihi: now,
+          faturaAdres: '',
+          araToplamTutar: 0,
+          kdvTutari: 0,
+          toplamTutar: 0,
+          odemeDurumu: 'odendi',
+          olusturmaTarihi: now,
+          olusturanKullanici: '',
         ).odemeDurumuText,
         'Ödendi',
       );
@@ -126,7 +147,7 @@ void main() {
 
     test('formattedTutar includes currency symbol', () {
       final model = FaturaModel.fromJson(sampleJson);
-      expect(model.formattedTutar, '1200.00 TRY');
+      expect(model.formattedTutar, '1.200,00 TRY');
     });
 
     test('formattedTarih uses dd.MM.yyyy format', () {

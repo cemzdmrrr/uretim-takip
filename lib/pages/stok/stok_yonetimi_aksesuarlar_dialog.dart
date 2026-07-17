@@ -1,6 +1,51 @@
 // ignore_for_file: invalid_use_of_protected_member
 part of 'stok_yonetimi_aksesuarlar_coklu_beden.dart';
 
+class _TopluSarfSatiri {
+  _TopluSarfSatiri(this.aksesuar) {
+    bedenSatirlari.add(_TopluSarfBedenSatiri());
+  }
+
+  final Map<String, dynamic> aksesuar;
+  final List<_TopluSarfBedenSatiri> bedenSatirlari = [];
+  bool secili = false;
+
+  List<Map<String, dynamic>> get bedenler => List<Map<String, dynamic>>.from(
+        (aksesuar['aksesuar_bedenler'] as List? ?? const [])
+            .where((beden) => beden['durum'] == 'aktif'),
+      );
+
+  void bedenSatiriEkle() => bedenSatirlari.add(_TopluSarfBedenSatiri());
+
+  void bedenSatiriSil(_TopluSarfBedenSatiri satir) {
+    if (bedenSatirlari.length <= 1) return;
+    bedenSatirlari.remove(satir);
+    satir.dispose();
+  }
+
+  void temizle() {
+    for (final satir in bedenSatirlari) {
+      satir.dispose();
+    }
+    bedenSatirlari
+      ..clear()
+      ..add(_TopluSarfBedenSatiri());
+  }
+
+  void dispose() {
+    for (final satir in bedenSatirlari) {
+      satir.dispose();
+    }
+  }
+}
+
+class _TopluSarfBedenSatiri {
+  final TextEditingController adetController = TextEditingController();
+  Map<String, dynamic>? seciliBeden;
+
+  void dispose() => adetController.dispose();
+}
+
 /// Stok yonetimi aksesuarlar - dialog metotlari
 extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
   void _showAddEditDialog({Map<String, dynamic>? aksesuar}) {
@@ -649,6 +694,651 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
   }
 
   // ==================== SARF DİALOG ====================
+  Future<void> _showTopluSarfDialog() async {
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final modelIds = _modelKullanimlari.values
+        .expand((kullanimlar) => kullanimlar)
+        .map((kullanim) => kullanim['model_id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (modelIds.isEmpty) {
+      context.showErrorSnackBar(
+        'Modele tanımlanmış aktif aksesuar bulunmuyor',
+      );
+      return;
+    }
+
+    try {
+      final sonuclar = await Future.wait([
+        supabase
+            .from(DbTables.trikoTakip)
+            .select('id, item_no, marka, model_adi')
+            .eq('firma_id', firmaId)
+            .inFilter('id', modelIds)
+            .order('item_no'),
+        supabase
+            .from(DbTables.tedarikciler)
+            .select('id, ad, sirket')
+            .eq('firma_id', firmaId)
+            .order('sirket'),
+      ]);
+      if (!mounted) return;
+
+      final modeller = List<Map<String, dynamic>>.from(sonuclar[0]);
+      final tedarikciler = List<Map<String, dynamic>>.from(sonuclar[1]);
+      final aciklamaController = TextEditingController();
+      Map<String, dynamic>? seciliModel;
+      Map<String, dynamic>? seciliTedarikci;
+      List<_TopluSarfSatiri> satirlar = [];
+      var kaydediliyor = false;
+
+      void satirlariTemizle() {
+        for (final satir in satirlar) {
+          satir.dispose();
+        }
+        satirlar = [];
+      }
+
+      String modelEtiketi(Map<String, dynamic> model) => [
+            model['marka']?.toString() ?? '',
+            model['item_no']?.toString() ?? '',
+            model['model_adi']?.toString() ?? '',
+          ].where((deger) => deger.trim().isNotEmpty).join(' - ');
+
+      String tedarikciEtiketi(Map<String, dynamic> tedarikci) {
+        final sirket = tedarikci['sirket']?.toString().trim() ?? '';
+        return sirket.isNotEmpty
+            ? sirket
+            : tedarikci['ad']?.toString().trim() ?? '';
+      }
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            Future<void> kaydet() async {
+              if (seciliModel == null) {
+                ctx.showErrorSnackBar('Model seçiniz');
+                return;
+              }
+              if (seciliTedarikci == null) {
+                ctx.showErrorSnackBar('Tedarikçi seçiniz');
+                return;
+              }
+
+              final seciliSatirlar =
+                  satirlar.where((satir) => satir.secili).toList();
+              if (seciliSatirlar.isEmpty) {
+                ctx.showErrorSnackBar('En az bir aksesuar seçiniz');
+                return;
+              }
+
+              final bedenIdleri = <String>{};
+              final rpcSatirlari = <Map<String, dynamic>>[];
+              for (final satir in seciliSatirlar) {
+                for (final bedenSatiri in satir.bedenSatirlari) {
+                  final beden = bedenSatiri.seciliBeden;
+                  if (beden == null) {
+                    ctx.showErrorSnackBar(
+                      '${satir.aksesuar['ad']} için beden seçiniz',
+                    );
+                    return;
+                  }
+                  final bedenId = beden['id']?.toString() ?? '';
+                  if (bedenId.isEmpty || !bedenIdleri.add(bedenId)) {
+                    ctx.showErrorSnackBar(
+                      'Aynı aksesuar bedeni birden fazla seçilemez',
+                    );
+                    return;
+                  }
+                  final miktar = int.tryParse(
+                    bedenSatiri.adetController.text.trim(),
+                  );
+                  final stok = (beden['stok_miktari'] as num?)?.toInt() ?? 0;
+                  if (miktar == null || miktar <= 0) {
+                    ctx.showErrorSnackBar(
+                      '${satir.aksesuar['ad']} için geçerli adet giriniz',
+                    );
+                    return;
+                  }
+                  if (miktar > stok) {
+                    ctx.showErrorSnackBar(
+                      '${satir.aksesuar['ad']} - ${beden['beden']} için stok '
+                      'yetersiz (Mevcut: $stok)',
+                    );
+                    return;
+                  }
+                  rpcSatirlari.add({
+                    'aksesuar_id': satir.aksesuar['id'].toString(),
+                    'aksesuar_beden_id': bedenId,
+                    'miktar': miktar,
+                  });
+                }
+              }
+
+              setStateDialog(() => kaydediliyor = true);
+              try {
+                await supabase.rpc(
+                  'aksesuar_toplu_sarf_kaydet',
+                  params: {
+                    'p_firma_id': firmaId,
+                    'p_model_id': seciliModel!['id'].toString(),
+                    'p_tedarikci_adi': tedarikciEtiketi(seciliTedarikci!),
+                    'p_aciklama': aciklamaController.text.trim(),
+                    'p_satirlar': rpcSatirlari,
+                  },
+                );
+
+                for (final satir in seciliSatirlar) {
+                  for (final bedenSatiri in satir.bedenSatirlari) {
+                    final beden = bedenSatiri.seciliBeden!;
+                    final miktar =
+                        int.parse(bedenSatiri.adetController.text.trim());
+                    final kalan =
+                        ((beden['stok_miktari'] as num?)?.toInt() ?? 0) -
+                            miktar;
+                    final minimumStok =
+                        (satir.aksesuar['minimum_stok'] as num?)?.toDouble() ??
+                            10;
+                    if (kalan <= minimumStok) {
+                      try {
+                        await BildirimService().stokKritikUyarisi(
+                          stokAdi:
+                              '${satir.aksesuar['ad']} - ${beden['beden']}',
+                          mevcutMiktar: kalan.toDouble(),
+                          kritikSeviye: minimumStok,
+                          birim: 'adet',
+                        );
+                      } catch (e) {
+                        debugPrint('Kritik stok bildirimi oluşturulamadı: $e');
+                      }
+                    }
+                  }
+                }
+
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                context.showSuccessSnackBar(
+                  '${rpcSatirlari.length} beden satırı için toplu sarf yapıldı',
+                );
+                await _loadAksesuarlar();
+                await _loadSarfKayitlari();
+              } catch (e) {
+                if (!ctx.mounted) return;
+                setStateDialog(() => kaydediliyor = false);
+                ctx.showErrorSnackBar('Toplu sarf hatası: $e');
+              }
+            }
+
+            Widget sarfSatiri(_TopluSarfSatiri satir) {
+              final stokVar = satir.bedenler.any(
+                (beden) => ((beden['stok_miktari'] as num?)?.toInt() ?? 0) > 0,
+              );
+              final kullanilabilirBedenSayisi = satir.bedenler
+                  .where(
+                    (beden) =>
+                        ((beden['stok_miktari'] as num?)?.toInt() ?? 0) > 0,
+                  )
+                  .length;
+              final stokYetersiz = satir.secili &&
+                  satir.bedenSatirlari.any((bedenSatiri) {
+                    final mevcutStok =
+                        (bedenSatiri.seciliBeden?['stok_miktari'] as num?)
+                                ?.toInt() ??
+                            0;
+                    final girilen = int.tryParse(
+                          bedenSatiri.adetController.text.trim(),
+                        ) ??
+                        0;
+                    return bedenSatiri.seciliBeden != null &&
+                        girilen > mevcutStok;
+                  });
+
+              final aksesuarBilgisi = Row(
+                children: [
+                  Checkbox(
+                    value: satir.secili,
+                    onChanged: stokVar && !kaydediliyor
+                        ? (deger) => setStateDialog(() {
+                              satir.secili = deger ?? false;
+                              if (!satir.secili) {
+                                satir.temizle();
+                              }
+                            })
+                        : null,
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          satir.aksesuar['ad']?.toString() ??
+                              'İsimsiz aksesuar',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          'SKU: ${satir.aksesuar['sku'] ?? '-'} | Renk: ${satir.aksesuar['renk'] ?? '-'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              Widget bedenGirisSatiri(
+                _TopluSarfBedenSatiri bedenSatiri,
+                int index,
+              ) {
+                final seciliBedenIdleri = satir.bedenSatirlari
+                    .where((diger) => !identical(diger, bedenSatiri))
+                    .map((diger) => diger.seciliBeden?['id']?.toString())
+                    .whereType<String>()
+                    .toSet();
+                final mevcutStok =
+                    (bedenSatiri.seciliBeden?['stok_miktari'] as num?)
+                            ?.toInt() ??
+                        0;
+                final girilen = int.tryParse(
+                      bedenSatiri.adetController.text.trim(),
+                    ) ??
+                    0;
+                final buSatirdaStokYetersiz =
+                    bedenSatiri.seciliBeden != null && girilen > mevcutStok;
+
+                final bedenAlani =
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                  key: ValueKey(
+                    'toplu-sarf-${satir.aksesuar['id']}-$index-${bedenSatiri.seciliBeden?['id']}',
+                  ),
+                  // ignore: deprecated_member_use
+                  value: bedenSatiri.seciliBeden,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Beden / Ölçü ${index + 1}',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: satir.bedenler.map((beden) {
+                    final bedenId = beden['id']?.toString();
+                    final stok = (beden['stok_miktari'] as num?)?.toInt() ?? 0;
+                    return DropdownMenuItem<Map<String, dynamic>>(
+                      value: beden,
+                      enabled: stok > 0 && !seciliBedenIdleri.contains(bedenId),
+                      child: Text(
+                        '${beden['beden']} (Stok: $stok)',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: satir.secili && !kaydediliyor
+                      ? (beden) => setStateDialog(() {
+                            bedenSatiri.seciliBeden = beden;
+                          })
+                      : null,
+                );
+                final adetAlani = TextField(
+                  controller: bedenSatiri.adetController,
+                  enabled: satir.secili && !kaydediliyor,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setStateDialog(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Sarf Adedi',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    helperText: bedenSatiri.seciliBeden == null
+                        ? null
+                        : 'Mevcut: $mevcutStok',
+                    errorText: buSatirdaStokYetersiz ? 'Stok yetersiz' : null,
+                  ),
+                );
+                final silButonu = IconButton(
+                  onPressed: !kaydediliyor && satir.bedenSatirlari.length > 1
+                      ? () => setStateDialog(
+                            () => satir.bedenSatiriSil(bedenSatiri),
+                          )
+                      : null,
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Beden satırını kaldır',
+                  color: _StokYonetimiAksesuarlarCokluBedenState._dangerColor,
+                );
+
+                return Padding(
+                  padding: EdgeInsets.only(top: index == 0 ? 0 : 10),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 540) {
+                        return Column(
+                          children: [
+                            bedenAlani,
+                            const SizedBox(height: 10),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: adetAlani),
+                                const SizedBox(width: 4),
+                                silButonu,
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 3, child: bedenAlani),
+                          const SizedBox(width: 10),
+                          Expanded(flex: 2, child: adetAlani),
+                          const SizedBox(width: 4),
+                          silButonu,
+                        ],
+                      );
+                    },
+                  ),
+                );
+              }
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: satir.secili
+                      ? const Color(0xFFFFF7ED)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: stokYetersiz
+                        ? _StokYonetimiAksesuarlarCokluBedenState._dangerColor
+                        : satir.secili
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    aksesuarBilgisi,
+                    if (!stokVar)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 48, top: 4),
+                        child: Text(
+                          'Kullanılabilir stok bulunmuyor',
+                          style: TextStyle(
+                            color: _StokYonetimiAksesuarlarCokluBedenState
+                                ._dangerColor,
+                          ),
+                        ),
+                      ),
+                    if (satir.secili) ...[
+                      const Divider(height: 22),
+                      ...satir.bedenSatirlari.indexed.map(
+                        (entry) => bedenGirisSatiri(entry.$2, entry.$1),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: !kaydediliyor &&
+                                  satir.bedenSatirlari.length <
+                                      kullanilabilirBedenSayisi
+                              ? () => setStateDialog(satir.bedenSatiriEkle)
+                              : null,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Beden Ekle'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }
+
+            return Dialog(
+              insetPadding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: SizedBox(
+                  height: MediaQuery.of(ctx).size.height * 0.86,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 12, 8, 10),
+                        child: Row(
+                          children: [
+                            Icon(Icons.output_rounded,
+                                color: Colors.orange.shade700),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'Toplu Aksesuar Sarfı',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: kaydediliyor
+                                  ? null
+                                  : () => Navigator.pop(dialogContext),
+                              icon: const Icon(Icons.close),
+                              tooltip: 'Kapat',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final modelAlani = DropdownButtonFormField<
+                                      Map<String, dynamic>>(
+                                    // ignore: deprecated_member_use
+                                    value: seciliModel,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Model *',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    items: modeller
+                                        .map(
+                                          (model) => DropdownMenuItem<
+                                              Map<String, dynamic>>(
+                                            value: model,
+                                            child: Text(
+                                              modelEtiketi(model),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: kaydediliyor
+                                        ? null
+                                        : (model) => setStateDialog(() {
+                                              satirlariTemizle();
+                                              seciliModel = model;
+                                              if (model == null) return;
+                                              final modelId =
+                                                  model['id'].toString();
+                                              satirlar = aksesuarlar
+                                                  .where((aksesuar) {
+                                                    final aksesuarId =
+                                                        aksesuar['id']
+                                                            ?.toString();
+                                                    return aksesuarId != null &&
+                                                        (_modelKullanimlari[
+                                                                    aksesuarId] ??
+                                                                [])
+                                                            .any((kullanim) =>
+                                                                kullanim[
+                                                                        'model_id']
+                                                                    ?.toString() ==
+                                                                modelId);
+                                                  })
+                                                  .map(_TopluSarfSatiri.new)
+                                                  .toList();
+                                            }),
+                                  );
+                                  final tedarikciAlani =
+                                      DropdownButtonFormField<
+                                          Map<String, dynamic>>(
+                                    // ignore: deprecated_member_use
+                                    value: seciliTedarikci,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Tedarikçi *',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    items: tedarikciler
+                                        .map(
+                                          (tedarikci) => DropdownMenuItem<
+                                              Map<String, dynamic>>(
+                                            value: tedarikci,
+                                            child: Text(
+                                              tedarikciEtiketi(tedarikci),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: kaydediliyor
+                                        ? null
+                                        : (tedarikci) => setStateDialog(
+                                              () => seciliTedarikci = tedarikci,
+                                            ),
+                                  );
+                                  if (constraints.maxWidth < 620) {
+                                    return Column(
+                                      children: [
+                                        modelAlani,
+                                        const SizedBox(height: 12),
+                                        tedarikciAlani,
+                                      ],
+                                    );
+                                  }
+                                  return Row(
+                                    children: [
+                                      Expanded(child: modelAlani),
+                                      const SizedBox(width: 12),
+                                      Expanded(child: tedarikciAlani),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: aciklamaController,
+                                enabled: !kaydediliyor,
+                                decoration: const InputDecoration(
+                                  labelText: 'Açıklama (Opsiyonel)',
+                                  border: OutlineInputBorder(),
+                                ),
+                                maxLines: 2,
+                              ),
+                              const SizedBox(height: 16),
+                              if (seciliModel == null)
+                                const Padding(
+                                  padding: EdgeInsets.all(28),
+                                  child: Text(
+                                    'Aksesuarları listelemek için model seçiniz',
+                                  ),
+                                )
+                              else if (satirlar.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.all(28),
+                                  child: Text(
+                                    'Bu modele tanımlanmış aktif aksesuar bulunmuyor',
+                                  ),
+                                )
+                              else ...[
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Aksesuarlar (${satirlar.where((s) => s.secili).length}/${satirlar.length})',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ...satirlar.map(sarfSatiri),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: kaydediliyor
+                                  ? null
+                                  : () => Navigator.pop(dialogContext),
+                              child: const Text('İptal'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: kaydediliyor ? null : kaydet,
+                              icon: kaydediliyor
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check),
+                              label: Text(
+                                kaydediliyor ? 'Kaydediliyor' : 'Toplu Sarf Et',
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      satirlariTemizle();
+      aciklamaController.dispose();
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Toplu sarf ekranı açılamadı: $e');
+    }
+  }
+
   void _showSarfDialog(Map<String, dynamic> aksesuar) {
     final bedenler = (aksesuar['aksesuar_bedenler'] as List?)
             ?.where((b) =>
@@ -677,7 +1367,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
             ? (_modelKullanimlari[aksesuarId] ?? [])
                 .map((k) => k['model_id']?.toString())
             : const Iterable<String?>.empty())
-        .where((id) => id != null && id!.isNotEmpty)
+        .where((id) => id?.isNotEmpty ?? false)
         .cast<String>()
         .toSet()
         .toList();

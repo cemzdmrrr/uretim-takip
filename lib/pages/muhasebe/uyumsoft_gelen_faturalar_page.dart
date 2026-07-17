@@ -5,6 +5,7 @@ import 'package:uretim_takip/pages/muhasebe/fatura_detay_page.dart';
 import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/services/uyumsoft_fatura_service.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
+import 'package:uretim_takip/utils/currency_utils.dart';
 
 class UyumsoftGelenFaturalarPage extends StatefulWidget {
   const UyumsoftGelenFaturalarPage({super.key});
@@ -16,7 +17,6 @@ class UyumsoftGelenFaturalarPage extends StatefulWidget {
 
 class _UyumsoftGelenFaturalarPageState
     extends State<UyumsoftGelenFaturalarPage> {
-  final _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
   final _dateFormat = DateFormat('dd.MM.yyyy');
   final _redSebebiController = TextEditingController();
   final _limitController = TextEditingController(text: '50');
@@ -339,10 +339,20 @@ class _UyumsoftGelenFaturalarPageState
               _detaySatiri('Adres', fatura.faturaAdres ?? '-'),
               _detaySatiri('Tarih', _dateFormat.format(fatura.faturaTarihi)),
               _detaySatiri(
-                  'Ara Toplam', _currencyFormat.format(fatura.araToplamTutar)),
-              _detaySatiri('KDV', _currencyFormat.format(fatura.kdvTutari)),
+                'Ara Toplam',
+                formatCurrencyAmount(
+                  fatura.araToplamTutar,
+                  fatura.paraBirimi,
+                ),
+              ),
               _detaySatiri(
-                  'Toplam', _currencyFormat.format(fatura.toplamTutar)),
+                'KDV',
+                formatCurrencyAmount(fatura.kdvTutari, fatura.paraBirimi),
+              ),
+              _detaySatiri(
+                'Toplam',
+                formatCurrencyAmount(fatura.toplamTutar, fatura.paraBirimi),
+              ),
               if (fatura.durum == 'hata' &&
                   (fatura.redSebebi?.trim().isNotEmpty ?? false))
                 _detaySatiri('Hata', fatura.redSebebi!),
@@ -361,9 +371,14 @@ class _UyumsoftGelenFaturalarPageState
                       title: Text(kalem.urunAdi),
                       subtitle: Text(
                         '${kalem.miktar} ${kalem.birim} x '
-                        '${_currencyFormat.format(kalem.birimFiyat)}',
+                        '${formatCurrencyAmount(kalem.birimFiyat, fatura.paraBirimi)}',
                       ),
-                      trailing: Text(_currencyFormat.format(kalem.toplamTutar)),
+                      trailing: Text(
+                        formatCurrencyAmount(
+                          kalem.toplamTutar,
+                          fatura.paraBirimi,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -594,7 +609,10 @@ class _UyumsoftGelenFaturalarPageState
                     ),
                   ),
                   Text(
-                    _currencyFormat.format(fatura.toplamTutar),
+                    formatCurrencyAmount(
+                      fatura.toplamTutar,
+                      fatura.paraBirimi,
+                    ),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

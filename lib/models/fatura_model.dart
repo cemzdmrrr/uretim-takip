@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uretim_takip/utils/currency_utils.dart';
 
 /// Türk Ticaret Kanunu ve Vergi Usul Kanunu'na uygun fatura modeli
 /// E-fatura entegrasyonu için hazır
@@ -86,7 +87,7 @@ class FaturaModel {
           : null,
       odemeDurumu: json['odeme_durumu'] ?? 'odenmedi',
       odenenTutar: (json['odenen_tutar'] ?? 0.0).toDouble(),
-      kur: json['kur'] ?? 'TRY',
+      kur: normalizeCurrencyCode(json['kur']?.toString()),
       kurOrani: (json['kur_orani'] ?? 1.0).toDouble(),
       efatturaUuid: json['efatura_uuid'],
       efaturaTarihi: json['efatura_tarihi'] != null
@@ -125,7 +126,7 @@ class FaturaModel {
       if (vadeTarihi != null) 'vade_tarihi': vadeTarihi!.toIso8601String(),
       'odeme_durumu': odemeDurumu,
       'odenen_tutar': odenenTutar,
-      'kur': kur,
+      'kur': normalizeCurrencyCode(kur),
       'kur_orani': kurOrani,
       if (efatturaUuid != null) 'efatura_uuid': efatturaUuid,
       if (efaturaTarihi != null)
@@ -146,7 +147,7 @@ class FaturaModel {
   String get formattedFaturaNo => faturaNo;
   String get formattedTarih =>
       "${faturaTarihi.day.toString().padLeft(2, '0')}.${faturaTarihi.month.toString().padLeft(2, '0')}.${faturaTarihi.year}";
-  String get formattedTutar => '${toplamTutar.toStringAsFixed(2)} $kur';
+  String get formattedTutar => formatCurrencyAmount(toplamTutar, kur);
   String get durumText {
     switch (durum) {
       case 'taslak':

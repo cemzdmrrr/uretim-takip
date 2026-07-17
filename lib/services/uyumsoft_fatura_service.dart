@@ -8,6 +8,7 @@ import 'package:uretim_takip/models/fatura_model.dart';
 import 'package:uretim_takip/models/uyumsoft_gelen_fatura_model.dart';
 import 'package:uretim_takip/services/fatura_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/utils/currency_utils.dart';
 import 'package:uretim_takip/services/user_role_service.dart';
 
 class UyumsoftTopluYuklemeSonucu {
@@ -592,9 +593,10 @@ class UyumsoftFaturaService {
       'vergi_no': _text(supplier, 'CompanyID'),
       'vergi_dairesi': _text(_section(supplier, 'TaxScheme'), 'Name'),
       'fatura_adres': _adresOlustur(supplier),
-      'para_birimi': _attribute(monetaryTotal, 'PayableAmount', 'currencyID') ??
-          _attribute(xml, 'DocumentCurrencyCode', 'currencyID') ??
-          'TRY',
+      'para_birimi': normalizeCurrencyCode(
+        _attribute(monetaryTotal, 'PayableAmount', 'currencyID') ??
+            _text(xml, 'DocumentCurrencyCode'),
+      ),
       'ara_toplam_tutar': araToplam,
       'kdv_tutari': kdvTutari,
       'toplam_tutar': toplamTutar,

@@ -25,6 +25,31 @@ class BildirimService {
   final _supabase = Supabase.instance.client;
   String get _firmaId => TenantManager.instance.requireFirmaId;
 
+  String? _eksikOpsiyonelKolon(Object error) {
+    if (error is! PostgrestException || error.code != '42703') return null;
+    for (final kolon in const ['event_key', 'ek_bilgi']) {
+      if (error.message.contains('bildirimler.$kolon')) return kolon;
+    }
+    return null;
+  }
+
+  Future<void> _bildirimKaydet(Map<String, dynamic> bildirim) async {
+    while (true) {
+      try {
+        await _supabase.from(DbTables.bildirimler).insert(bildirim);
+        return;
+      } catch (error) {
+        final eksikKolon = _eksikOpsiyonelKolon(error);
+        if (eksikKolon == null || !bildirim.containsKey(eksikKolon)) rethrow;
+        bildirim.remove(eksikKolon);
+        debugPrint(
+          'Bildirim $eksikKolon kolonu eksik; migration uygulanana kadar '
+          'bu alan olmadan kaydediliyor.',
+        );
+      }
+    }
+  }
+
   /// Bildirim gönder
   Future<void> bildirimGonder({
     required String userId,
@@ -38,21 +63,33 @@ class BildirimService {
     String? eventKey,
   }) async {
     try {
+      var eventKeyDestekleniyor = true;
       if (eventKey != null && eventKey.trim().isNotEmpty) {
-        final mevcut = await _supabase
-            .from(DbTables.bildirimler)
-            .select('id')
-            .eq('firma_id', _firmaId)
-            .eq('user_id', userId)
-            .eq('event_key', eventKey)
-            .maybeSingle();
-        if (mevcut != null) {
-          debugPrint('ℹ️ Bildirim tekrar gönderilmedi: $eventKey -> $userId');
-          return;
+        try {
+          final mevcut = await _supabase
+              .from(DbTables.bildirimler)
+              .select('id')
+              .eq('firma_id', _firmaId)
+              .eq('user_id', userId)
+              .eq('event_key', eventKey)
+              .maybeSingle();
+          if (mevcut != null) {
+            debugPrint(
+              'ℹ️ Bildirim tekrar gönderilmedi: $eventKey -> $userId',
+            );
+            return;
+          }
+        } catch (error) {
+          if (_eksikOpsiyonelKolon(error) != 'event_key') rethrow;
+          eventKeyDestekleniyor = false;
+          debugPrint(
+            'Bildirim event_key kolonu eksik; migration uygulanana kadar '
+            'tekrar kontrolü atlandı.',
+          );
         }
       }
 
-      await _supabase.from(DbTables.bildirimler).insert({
+      final bildirim = <String, dynamic>{
         'firma_id': _firmaId,
         'user_id': userId,
         'baslik': baslik,
@@ -62,10 +99,12 @@ class BildirimService {
         'atama_id': atamaId,
         'asama': asama,
         'ek_bilgi': ekBilgi,
-        'event_key': eventKey,
         'okundu': false,
         'created_at': DateTime.now().toIso8601String(),
-      });
+      };
+      if (eventKeyDestekleniyor) bildirim['event_key'] = eventKey;
+
+      await _bildirimKaydet(bildirim);
       debugPrint('✅ Bildirim gönderildi: $baslik -> $userId');
     } catch (e) {
       debugPrint('❌ Bildirim gönderme hatası: $e');

@@ -422,10 +422,21 @@ extension _CekiListesiExt on _UtuPaketDashboardState {
             ),
             child: Icon(Icons.view_module, color: Colors.amber[700]),
           ),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_sweep, color: Colors.red),
-            tooltip: 'Tüm çekileri sil',
-            onPressed: () => _modelCekileriniTopluSil(koliler),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (bekleyenKoli > 0)
+                IconButton(
+                  icon: const Icon(Icons.local_shipping, color: Colors.green),
+                  tooltip: 'Model cekilerini toplu gonder',
+                  onPressed: () => _modelCekileriniTopluGonder(koliler),
+                ),
+              IconButton(
+                icon: const Icon(Icons.delete_sweep, color: Colors.red),
+                tooltip: 'Tum cekileri sil',
+                onPressed: () => _modelCekileriniTopluSil(koliler),
+              ),
+            ],
           ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

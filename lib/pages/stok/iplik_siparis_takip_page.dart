@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 
 class IplikSiparisTakipPage extends StatefulWidget {
@@ -128,7 +129,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
 
     siparis['miktar'] = miktar;
     siparis['teslim_miktari'] = teslimMiktari;
-    siparis['teslim_yuzdesi'] = teslimYuzdesi.clamp(0, 100).toDouble();
+    siparis['teslim_yuzdesi'] = math.max(0, teslimYuzdesi);
     siparis['takip_durumu'] = takipDurumu;
     siparis['kalan_miktar'] = math.max(0, miktar - teslimMiktari);
     siparis['tedarikci_adi'] = _firstText([
@@ -236,6 +237,85 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       }
     });
     return result;
+  }
+
+  Future<void> _siparisTakipExcelIndir() async {
+    final filtreliSiparisler = _filtreliSiparisler;
+    if (filtreliSiparisler.isEmpty) {
+      context.showErrorSnackBar('Excel için sipariş kaydı bulunamadı');
+      return;
+    }
+
+    try {
+      final rapor = filtreliSiparisler.map((siparis) {
+        final siparisMiktari = _num(siparis['miktar']);
+        final teslimMiktari = _num(siparis['teslim_miktari']);
+        final birimFiyat = _num(siparis['birim_fiyat']);
+        return <String, dynamic>{
+          'siparis_no': siparis['siparis_no'],
+          'marka': siparis['marka'],
+          'iplik_adi': siparis['iplik_adi'],
+          'renk': _siparisRengi(siparis),
+          'tedarikci': siparis['tedarikci_adi'],
+          'siparis_miktari': siparisMiktari,
+          'birim': siparis['birim'] ?? 'kg',
+          'teslim_miktari': teslimMiktari,
+          'kalan_miktar': _num(siparis['kalan_miktar']),
+          'fazla_teslim': math.max(0, teslimMiktari - siparisMiktari),
+          'teslim_yuzdesi': _num(siparis['teslim_yuzdesi']),
+          'durum': _getDurumBilgi(siparis['takip_durumu']).metin,
+          'kalite': _kaliteMetni(siparis['kalite_durumu']),
+          'siparis_tarihi': siparis['siparis_tarihi'],
+          'termin_tarihi': siparis['termin_tarihi'],
+          'teslim_tarihi': siparis['teslim_tarihi'],
+          'lot_no': siparis['lot_no'],
+          'birim_fiyat': birimFiyat,
+          'para_birimi': siparis['para_birimi'] ?? 'TL',
+          'toplam_tutar':
+              siparis['toplam_tutar'] ?? (siparisMiktari * birimFiyat),
+          'aciklama': siparis['aciklama'],
+        };
+      }).toList();
+
+      final zaman = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+      await ExcelHelper.exportToExcel(
+        data: rapor,
+        fileName: 'Iplik_Siparis_Takip_$zaman',
+        columns: const {
+          'siparis_no': 'Sipariş No',
+          'marka': 'Marka',
+          'iplik_adi': 'İplik Adı',
+          'renk': 'Renk',
+          'tedarikci': 'Tedarikçi',
+          'siparis_miktari': 'Sipariş Miktarı',
+          'birim': 'Birim',
+          'teslim_miktari': 'Teslim Miktarı',
+          'kalan_miktar': 'Kalan Miktar',
+          'fazla_teslim': 'Fazla Teslim',
+          'teslim_yuzdesi': 'Teslim Yüzdesi',
+          'durum': 'Durum',
+          'kalite': 'Kalite',
+          'siparis_tarihi': 'Sipariş Tarihi',
+          'termin_tarihi': 'Termin Tarihi',
+          'teslim_tarihi': 'Teslim Tarihi',
+          'lot_no': 'Lot / Parti No',
+          'birim_fiyat': 'Birim Fiyat',
+          'para_birimi': 'Para Birimi',
+          'toplam_tutar': 'Toplam Tutar',
+          'aciklama': 'Açıklama',
+        },
+      );
+
+      if (mounted) {
+        context.showSuccessSnackBar(
+          '${rapor.length} sipariş Excel dosyasına aktarıldı',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Excel oluşturma hatası: $e');
+      }
+    }
   }
 
   @override
@@ -607,6 +687,16 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                   onChanged: (v) => setState(() => siralama = v),
                 ),
               ),
+              SizedBox(
+                width: full ? constraints.maxWidth : null,
+                child: OutlinedButton.icon(
+                  onPressed: _filtreliSiparisler.isEmpty
+                      ? null
+                      : _siparisTakipExcelIndir,
+                  icon: const Icon(Icons.file_download_outlined),
+                  label: const Text('Excel'),
+                ),
+              ),
             ],
           );
         },
@@ -654,6 +744,8 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           scrollDirection: Axis.horizontal,
           child: DataTable(
             headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+            dataRowMinHeight: 58,
+            dataRowMaxHeight: 92,
             columnSpacing: 20,
             horizontalMargin: 16,
             columns: const [
@@ -673,11 +765,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                 cells: [
                   DataCell(_tableText(
                       siparis['siparis_no']?.toString() ?? '-', 120, true)),
-                  DataCell(_tableText(
-                    '${siparis['iplik_adi'] ?? '-'} / ${_siparisRengi(siparis).isNotEmpty ? _siparisRengi(siparis) : '-'}',
-                    210,
-                    true,
-                  )),
+                  DataCell(_buildIplikRenkHucre(siparis)),
                   DataCell(_tableText(
                       siparis['tedarikci_adi']?.toString() ?? '-', 170, false)),
                   DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
@@ -747,7 +835,9 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                   'Renk',
                   _siparisRengi(siparis).isNotEmpty
                       ? _siparisRengi(siparis)
-                      : '-'),
+                      : '-',
+                  width: 220,
+                  maxLines: 3),
               _miniBilgi(
                   'Tedarikçi', siparis['tedarikci_adi']?.toString() ?? '-'),
               _miniBilgi('Termin', _formatTarih(siparis['termin_tarihi'])),
@@ -769,7 +859,8 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   }
 
   Widget _buildTeslimHucre(Map<String, dynamic> siparis, {double? width}) {
-    final yuzde = _num(siparis['teslim_yuzdesi']).clamp(0, 100).toDouble();
+    final yuzde = math.max(0, _num(siparis['teslim_yuzdesi']));
+    final progressYuzde = yuzde.clamp(0, 100).toDouble();
     final color = yuzde >= 100
         ? _successColor
         : yuzde > 0
@@ -788,7 +879,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                   borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
                     minHeight: 7,
-                    value: yuzde / 100,
+                    value: progressYuzde / 100,
                     backgroundColor: const Color(0xFFE2E8F0),
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
@@ -817,9 +908,8 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   Widget _buildAksiyonlar(Map<String, dynamic> siparis,
       {bool compact = false}) {
     final tamamlandi = siparis['takip_durumu'] == 'tamamlandi';
-    final kalan = _num(siparis['kalan_miktar']);
     final duzenlenebilir = _siparisDuzenlenebilir(siparis);
-    final teslimatEklenebilir = !tamamlandi && kalan > 0;
+    final teslimatEklenebilir = siparis['takip_durumu'] != 'iptal';
     final tamamlanabilir = !tamamlandi;
 
     return SizedBox(
@@ -1263,8 +1353,9 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   }
 
   Future<void> _teslimatEkle(Map<String, dynamic> siparis) async {
+    final mevcutKalan = _num(siparis['kalan_miktar']);
     final miktarController = TextEditingController(
-      text: _num(siparis['kalan_miktar']).toStringAsFixed(1),
+      text: mevcutKalan > 0 ? mevcutKalan.toStringAsFixed(1) : '',
     );
     final lotNoController = TextEditingController();
     final aciklamaController = TextEditingController();
@@ -1277,10 +1368,21 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) {
             final kalanMiktar = _num(siparis['kalan_miktar']);
+            final girilenMiktar =
+                _parseDecimal(miktarController.text.trim()) ?? 0;
+            final fazlaTeslim = math.max(
+              0,
+              _num(siparis['teslim_miktari']) +
+                  girilenMiktar -
+                  _num(siparis['miktar']),
+            );
             return AlertDialog(
               title: Text('Teslimat Gir - ${siparis['siparis_no'] ?? '-'}'),
               content: SizedBox(
-                width: 460,
+                width: math.min(
+                  500,
+                  math.max(200, MediaQuery.sizeOf(context).width - 64),
+                ),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1292,11 +1394,31 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                         decoration: InputDecoration(
                           labelText: 'Teslim edilen miktar *',
                           helperText:
-                              'Maksimum: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}',
+                              'Kalan: ${kalanMiktar.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}. Sipariş üzeri teslimat kabul edilir.',
                           border: const OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
+                        onChanged: (_) => setDialogState(() {}),
                       ),
+                      if (fazlaTeslim > 0) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7ED),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFF59E0B)),
+                          ),
+                          child: Text(
+                            'Sipariş miktarından ${fazlaTeslim.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'} fazla teslimat giriliyor.',
+                            style: const TextStyle(
+                              color: Color(0xFF9A3412),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       TextField(
                         controller: lotNoController,
@@ -1375,10 +1497,6 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                       if (miktar == null || miktar <= 0) {
                         throw 'Geçerli bir miktar girin';
                       }
-                      if (miktar > kalanMiktar) {
-                        throw 'Teslim miktarı kalan miktardan fazla olamaz';
-                      }
-
                       final lotNo = lotNoController.text.trim().isNotEmpty
                           ? lotNoController.text.trim()
                           : null;
@@ -1419,6 +1537,9 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   }
 
   Widget _buildTeslimatOzetKutusu(Map<String, dynamic> siparis) {
+    final siparisMiktari = _num(siparis['miktar']);
+    final teslimMiktari = _num(siparis['teslim_miktari']);
+    final fazlaTeslim = math.max(0, teslimMiktari - siparisMiktari);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1442,6 +1563,14 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             style: const TextStyle(
                 fontWeight: FontWeight.w800, color: _warningColor),
           ),
+          if (fazlaTeslim > 0)
+            Text(
+              'Fazla teslim: ${fazlaTeslim.toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF9A3412),
+              ),
+            ),
         ],
       ),
     );
@@ -2002,9 +2131,49 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     );
   }
 
-  Widget _miniBilgi(String baslik, String deger) {
+  Widget _buildIplikRenkHucre(Map<String, dynamic> siparis) {
+    final iplikAdi = siparis['iplik_adi']?.toString().trim() ?? '';
+    final renk = _siparisRengi(siparis).trim();
+    final tamMetin = '${iplikAdi.isEmpty ? '-' : iplikAdi}\n'
+        'Renk: ${renk.isEmpty ? '-' : renk}';
+
+    return Tooltip(
+      message: tamMetin,
+      child: SizedBox(
+        width: 300,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              iplikAdi.isEmpty ? '-' : iplikAdi,
+              softWrap: true,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Renk: ${renk.isEmpty ? '-' : renk}',
+              softWrap: true,
+              style: const TextStyle(
+                color: Color(0xFF475569),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniBilgi(
+    String baslik,
+    String deger, {
+    double width = 145,
+    int maxLines = 1,
+  }) {
     return SizedBox(
-      width: 145,
+      width: width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2012,7 +2181,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
               style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           Text(
             deger,
-            maxLines: 1,
+            maxLines: maxLines,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),

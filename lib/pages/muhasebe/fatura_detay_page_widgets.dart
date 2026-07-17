@@ -97,7 +97,12 @@ extension _WidgetExt on _FaturaDetayPageState {
             if (_fatura.vadeTarihi != null)
               _buildBilgiSatiri(
                   'Vade Tarihi', _dateFormat.format(_fatura.vadeTarihi!)),
-            _buildBilgiSatiri('Kur', '${_fatura.kur} (${_fatura.kurOrani})'),
+            _buildBilgiSatiri(
+              'Para Birimi',
+              normalizeCurrencyCode(_fatura.kur),
+            ),
+            if (_fatura.kurOrani != 1)
+              _buildBilgiSatiri('Kur Oranı', _fatura.kurOrani.toString()),
             if (_fatura.aciklama != null && _fatura.aciklama!.isNotEmpty)
               _buildBilgiSatiri('Açıklama', _fatura.aciklama!),
             _buildBilgiSatiri('Oluşturma Tarihi',
@@ -263,15 +268,21 @@ extension _WidgetExt on _FaturaDetayPageState {
                         ),
                         DataCell(Text(kalem.miktar.toString())),
                         DataCell(Text(kalem.birim)),
-                        DataCell(
-                            Text(_currencyFormat.format(kalem.birimFiyat))),
+                        DataCell(Text(formatCurrencyAmount(
+                          kalem.birimFiyat,
+                          _fatura.kur,
+                        ))),
                         DataCell(Text('${kalem.kdvOrani}%')),
-                        DataCell(Text(_currencyFormat
-                            .format(kalem.gosterilecekKdvTutar))),
+                        DataCell(Text(formatCurrencyAmount(
+                          kalem.gosterilecekKdvTutar,
+                          _fatura.kur,
+                        ))),
                         DataCell(
                           Text(
-                            _currencyFormat
-                                .format(kalem.gosterilecekSatirTutar),
+                            formatCurrencyAmount(
+                              kalem.gosterilecekSatirTutar,
+                              _fatura.kur,
+                            ),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -321,7 +332,7 @@ extension _WidgetExt on _FaturaDetayPageState {
               children: [
                 const Text('Ara Toplam:', style: TextStyle(fontSize: 16)),
                 Text(
-                  _currencyFormat.format(_gosterilecekAraToplam),
+                  formatCurrencyAmount(_gosterilecekAraToplam, _fatura.kur),
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
@@ -333,7 +344,7 @@ extension _WidgetExt on _FaturaDetayPageState {
               children: [
                 const Text('KDV Tutarı:', style: TextStyle(fontSize: 16)),
                 Text(
-                  _currencyFormat.format(_gosterilecekKdvTutari),
+                  formatCurrencyAmount(_gosterilecekKdvTutari, _fatura.kur),
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
@@ -348,7 +359,7 @@ extension _WidgetExt on _FaturaDetayPageState {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  _currencyFormat.format(_gosterilecekToplamTutar),
+                  formatCurrencyAmount(_gosterilecekToplamTutar, _fatura.kur),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -422,7 +433,7 @@ extension _WidgetExt on _FaturaDetayPageState {
               children: [
                 const Text('Ödenen Tutar:', style: TextStyle(fontSize: 16)),
                 Text(
-                  _currencyFormat.format(_fatura.odenenTutar),
+                  formatCurrencyAmount(_fatura.odenenTutar, _fatura.kur),
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
@@ -434,7 +445,7 @@ extension _WidgetExt on _FaturaDetayPageState {
               children: [
                 const Text('Kalan Borç:', style: TextStyle(fontSize: 16)),
                 Text(
-                  _currencyFormat.format(kalanBorc),
+                  formatCurrencyAmount(kalanBorc, _fatura.kur),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -568,9 +579,6 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
   final _aciklamaController = TextEditingController();
   final _referansController = TextEditingController();
 
-  final NumberFormat _currencyFormat =
-      NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
-
   bool _yukleniyor = false;
   double get _kalanBorc =>
       widget.fatura.toplamTutar - widget.fatura.odenenTutar;
@@ -698,7 +706,7 @@ class _OdemeEkleDialogState extends State<_OdemeEkleDialog> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _currencyFormat.format(_kalanBorc),
+                      formatCurrencyAmount(_kalanBorc, widget.fatura.kur),
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,

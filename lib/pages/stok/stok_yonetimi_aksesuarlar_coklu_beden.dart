@@ -1126,6 +1126,15 @@ class _StokYonetimiAksesuarlarCokluBedenState
 
           final aksiyonlar = [
             ElevatedButton.icon(
+              onPressed: isLoading ? null : _showTopluSarfDialog,
+              icon: const Icon(Icons.output_rounded, size: 18),
+              label: const Text('Toplu Sarf'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _warningColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            ElevatedButton.icon(
               onPressed: () => _showAddEditDialog(),
               icon: const Icon(Icons.add),
               label: const Text('Yeni Aksesuar'),

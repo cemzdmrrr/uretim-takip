@@ -503,6 +503,181 @@ extension _CekiIslemleriExt on _UtuPaketDashboardState {
     }
   }
 
+  Future<void> _cekiGonderimKaydet(
+    Map<String, dynamic> kayit, {
+    String? kargoFirmasi,
+    String? takipNo,
+    String? aliciBilgisi,
+  }) async {
+    final modelId = kayit['model_id'];
+    if (modelId == null) {
+      throw Exception('Model ID bulunamadi. Ceki ID: ${kayit['id']}');
+    }
+
+    final firmaId = TenantManager.instance.requireFirmaId;
+    final gonderilecekAdet =
+        _cekiInt(kayit['adet'] ?? kayit['tamamlanan_adet']);
+    final gonderimTarihi = DateTime.now().toIso8601String();
+
+    await supabase
+        .from(DbTables.cekiListesi)
+        .update({
+          'gonderim_durumu': 'gonderildi',
+          'gonderim_tarihi': gonderimTarihi,
+          'kargo_firmasi':
+              kargoFirmasi != null && kargoFirmasi.trim().isNotEmpty
+                  ? kargoFirmasi.trim()
+                  : null,
+          'takip_no': takipNo != null && takipNo.trim().isNotEmpty
+              ? takipNo.trim()
+              : null,
+          'alici_bilgisi':
+              aliciBilgisi != null && aliciBilgisi.trim().isNotEmpty
+                  ? aliciBilgisi.trim()
+                  : null,
+        })
+        .eq('id', kayit['id'])
+        .eq('firma_id', firmaId);
+
+    await supabase.from(DbTables.yuklemeKayitlari).insert({
+      'model_id': modelId,
+      'adet': gonderilecekAdet,
+      'tarih': gonderimTarihi,
+      'kaynak': DbTables.cekiListesi,
+      'ceki_id': kayit['id'],
+      'firma_id': firmaId,
+    });
+
+    await _guncelleGelismisRaporlar(modelId.toString());
+  }
+
+  Future<void> _modelCekileriniTopluGonder(
+      List<Map<String, dynamic>> koliler) async {
+    final bekleyenler =
+        koliler.where((k) => k['gonderim_durumu'] != 'gonderildi').toList();
+
+    if (bekleyenler.isEmpty) {
+      if (mounted) {
+        context.showSnackBar('Gonderilecek bekleyen ceki yok');
+      }
+      return;
+    }
+
+    final ilkKayit = bekleyenler.first;
+    final model = ilkKayit[DbTables.trikoTakip] as Map<String, dynamic>?;
+    final toplamAdet = bekleyenler.fold<int>(
+      0,
+      (sum, item) => sum + _cekiInt(item['adet'] ?? item['tamamlanan_adet']),
+    );
+    final kargoController = TextEditingController();
+    final takipNoController = TextEditingController();
+    final aliciController = TextEditingController();
+
+    try {
+      final sonuc = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.local_shipping, color: Colors.green[700]),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Model Cekilerini Toplu Gonder')),
+            ],
+          ),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${model?['marka'] ?? '-'} - ${model?['item_no'] ?? '-'}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${bekleyenler.length} ceki, $toplamAdet adet gonderildi olarak isaretlenecek.',
+                    style: TextStyle(color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: kargoController,
+                    decoration: const InputDecoration(
+                      labelText: 'Kargo Firmasi',
+                      hintText: 'Orn: Yurtici Kargo, Aras Kargo',
+                      prefixIcon: Icon(Icons.business),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: takipNoController,
+                    decoration: const InputDecoration(
+                      labelText: 'Takip Numarasi',
+                      hintText: 'Kargo takip numarasi',
+                      prefixIcon: Icon(Icons.confirmation_number),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: aliciController,
+                    decoration: const InputDecoration(
+                      labelText: 'Alici Bilgisi',
+                      hintText: 'Isim veya firma adi',
+                      prefixIcon: Icon(Icons.person),
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Iptal'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.check),
+              label: const Text('Toplu Gonder'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            ),
+          ],
+        ),
+      );
+
+      if (sonuc != true) return;
+
+      for (final kayit in bekleyenler) {
+        await _cekiGonderimKaydet(
+          kayit,
+          kargoFirmasi: kargoController.text,
+          takipNo: takipNoController.text,
+          aliciBilgisi: aliciController.text,
+        );
+      }
+
+      if (mounted) {
+        context.showSuccessSnackBar(
+            '${bekleyenler.length} ceki gonderildi, yukleme kayitlari olusturuldu');
+        await _verileriYukle();
+      }
+    } catch (e) {
+      _hataGoster('Toplu gonderim hatasi: $e');
+    } finally {
+      kargoController.dispose();
+      takipNoController.dispose();
+      aliciController.dispose();
+    }
+  }
+
   Future<void> _gonderimDurumuGuncelle(Map<String, dynamic> kayit) async {
     final kargoController =
         TextEditingController(text: kayit['kargo_firmasi'] ?? '');

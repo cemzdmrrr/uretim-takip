@@ -195,6 +195,7 @@ Notlar:
 - Uyumsoft gelen faturalar ekraninda sadece `beklemede`, `reddedildi` ve `hata` durumundaki onay kuyrugu kayitlari silinebilir. Silme once `uyumsoft_gelen_fatura_kalemleri`, sonra `uyumsoft_gelen_faturalar` uzerinden `firma_id` ve durum filtresiyle yapilir; `aktarildi` kayitlari ve mevcut `faturalar` sistemi bu islemden etkilenmez. Toplu silme yalnizca aktif filtrede listelenen silinebilir kayitlari kapsar.
 - Uyumsoft veya XML/UBL kaynakli gelen faturalarda ayni firma icinde ayni `fatura_no` ya da `efatura_uuid` zaten mevcutsa yeni fatura numarasi uretmek icin suffix eklenmez. Kayit `aktarildi` olarak mevcut faturaya baglanir veya onay aninda islem durdurulur; ayni fatura numarasiyla ikinci fatura olusturulmaz.
 - Uyumsoft aktariminda duplicate kontrolu `(firma_id, kaynak, ettn)` ve mevcut fatura tarafinda `efatura_uuid` ile yapilir. Tedarikci `vergi_no` ile eslesirse `tedarikci_id` doldurulur, eslesmezse `cari_unvan` ile taslak fatura olusturulur.
+- Uyumsoft API/XML faturalarinda `DocumentCurrencyCode` veya tutar `currencyID` degeri normalize edilerek kuyrukta `para_birimi`, normal faturada `kur` alaninda korunur. Fatura liste/detay tutarlari kendi para birimi koduyla gosterilir; finans KPI tutarlari farkli para birimlerini toplamaz, para birimi bazinda ayri satirlar halinde hesaplanir.
 - Finans operasyon panelleri ERP ekranlari gibi kompakt ve tek satir KPI kullanacak sekilde tasarlanmalidir.
 - Gelismis raporlar sayfasi yukleme finans raporu olarak tek amacli calisir. Ana veri `yukleme_kayitlari`dir; tarih filtresi yukleme tarihine uygulanir. Gerceklesen maliyet yoksa model fiyatlandirma/aktif plan maliyetiyle proforma analiz yapilir; gerceklesen maliyet varsa yalnizca ilgili maliyet kaleminin birim degeri degisir.
 - Gelismis raporlar model bazli finans detayinda model satiri acilarak maliyet kirilimi gosterilir. Kirma verisi once aktif `model_maliyet_planlari` + `model_maliyet_kalemleri`, yoksa model detay fiyatlandirma alanlarindan (`iplik_maliyeti`, `orgu_fiyat`, `dikim_fiyat`, vb.) alinir.
@@ -260,6 +261,7 @@ Notlar:
 - Bildirimler firma kapsaminda calisir; alici/rol sorgularinda `firma_id` ve `aktif=true` filtresi kullanilmalidir.
 - Bildirim hedef navigasyonu `ek_bilgi.target` icinde tutulur. Ornek hedefler: `izin`, `mesai`, `avans`, `stok`, `model`.
 - Duplicate sistem uyarilari icin `bildirimler.event_key` kullanilir. Stok ve termin uyarilari gunluk tekil uretilmelidir.
+- `event_key` ve `ek_bilgi` kolonlari eksik eski ortamlarda `BildirimService` bildirimi bu opsiyonel alanlar olmadan kaydederek akisi surdurur; kalici cozum `20260718000100_repair_bildirimler_event_key.sql` migration'ini uygulamaktir.
 - Admin kullanici bildirimler sayfasindan ayni firmadaki tek veya birden fazla aktif kullaniciya `genel` bildirim gonderebilir.
 - Personel tarafindan girilen izin, mesai ve avans kayitlari servis katmaninda adminlere bildirim uretir; sayfa icinde kopya bildirim dongusu yazilmamalidir.
 - Bildirime tiklandiginda once okundu isaretlenir, sonra `BildirimNavigationService` ile ilgili ekrana gidilir. Hedef yoksa detay modalinda kalinir.
@@ -297,8 +299,12 @@ Ilgili tablolar:
 Notlar:
 
 - Iplik depoda ayni renk kodu ve lot numarasina sahip girisler stok deposunda birlestirilmelidir.
+- Iplik siparis teslimatinda girilen miktar siparis miktarini veya kalan miktari asabilir. Fazla teslimatin tamami stoga ve teslimat gecmisine islenir; teslim yuzdesi 100 uzerinde korunur, kalan miktar sifirin altina dusmez.
+- Iplik Stok Deposu sekmesinde baslik, KPI, filtreler ve stok kayitlari tek dikey scroll yuzeyinde birlikte kayar. Masaustu stok tablosu yalnizca yatay kaydirma kullanir; kayit listesi icin ayri dikey scroll olusturulmaz.
+- Iplik Siparis Takip Excel aktarimi ekrandaki aktif arama, filtre ve siralama sonucunu kullanir; siparis, teslim, kalan/fazla teslim, durum, kalite, tarih, lot ve fiyat alanlarini raporlar.
 - Model aksesuar kullaniminda model basina adet 0.025 gibi ondalikli degerleri desteklemelidir.
 - Model detay aksesuar sekmesinde aksesuar birim maliyeti `model basina kullanilacak adet * aksesuar birim fiyat` olarak hesaplanir; siparis maliyeti bu birim maliyetin siparis adediyle carpimidir.
+- Aksesuar depo toplu sarf islemi tek model ve ortak tedarikciyle, modele tanimli birden fazla aksesuar icin beden/adet bazinda calisir. Ayni aksesuar icin `Beden Ekle` ile birden fazla farkli beden tek islemde sarf edilebilir. Stok dusumu, hareket kayitlari ve ana aksesuar toplamlarinin guncellenmesi `aksesuar_toplu_sarf_kaydet` RPC'siyle tek transaction icinde yapilir.
 
 ## UI / Responsive Hafiza
 

@@ -3,6 +3,7 @@ import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/models/fatura_model.dart';
 import 'package:uretim_takip/models/fatura_kalemi_model.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/utils/currency_utils.dart';
 
 class FaturaService {
   static final _supabase = Supabase.instance.client;
@@ -344,9 +345,9 @@ class FaturaService {
       if (kategoriFaturaIds != null && kategoriFaturaIds.isEmpty) {
         return {
           'satis_adet': 0,
-          'satis_tutar': 0.0,
+          'satis_tutarlar': <String, double>{},
           'alis_adet': 0,
-          'alis_tutar': 0.0,
+          'alis_tutarlar': <String, double>{},
         };
       }
 
@@ -358,13 +359,13 @@ class FaturaService {
       const batchSize = 1000;
       var satisAdet = 0;
       var alisAdet = 0;
-      var satisTutar = 0.0;
-      var alisTutar = 0.0;
+      final satisTutarlar = <String, double>{};
+      final alisTutarlar = <String, double>{};
 
       while (true) {
         var query = _supabase
             .from(DbTables.faturalar)
-            .select('fatura_turu,durum,toplam_tutar')
+            .select('fatura_turu,durum,toplam_tutar,kur')
             .eq('firma_id', _firmaId);
 
         if (arama != null) {
@@ -399,14 +400,15 @@ class FaturaService {
         for (final item in items.whereType<Map<String, dynamic>>()) {
           if (item['durum'] == 'iptal') continue;
           final tutar = _doubleDeger(item['toplam_tutar']);
+          final kur = normalizeCurrencyCode(item['kur']?.toString());
           switch (item['fatura_turu']) {
             case 'satis':
               satisAdet++;
-              satisTutar += tutar;
+              satisTutarlar[kur] = (satisTutarlar[kur] ?? 0) + tutar;
               break;
             case 'alis':
               alisAdet++;
-              alisTutar += tutar;
+              alisTutarlar[kur] = (alisTutarlar[kur] ?? 0) + tutar;
               break;
           }
         }
@@ -416,9 +418,9 @@ class FaturaService {
 
       return {
         'satis_adet': satisAdet,
-        'satis_tutar': satisTutar,
+        'satis_tutarlar': satisTutarlar,
         'alis_adet': alisAdet,
-        'alis_tutar': alisTutar,
+        'alis_tutarlar': alisTutarlar,
       };
     } catch (e) {
       throw Exception('Fatura finans özeti getirilirken hata oluştu: $e');

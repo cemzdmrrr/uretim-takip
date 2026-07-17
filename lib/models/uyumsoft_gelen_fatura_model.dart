@@ -1,4 +1,5 @@
 import 'package:uretim_takip/models/fatura_kalemi_model.dart';
+import 'package:uretim_takip/utils/currency_utils.dart';
 
 class UyumsoftGelenFaturaKalemi {
   final String? id;
@@ -138,7 +139,7 @@ class UyumsoftGelenFatura {
       vergiNo: json['vergi_no']?.toString(),
       vergiDairesi: json['vergi_dairesi']?.toString(),
       faturaAdres: json['fatura_adres']?.toString(),
-      paraBirimi: json['para_birimi']?.toString() ?? 'TRY',
+      paraBirimi: normalizeCurrencyCode(json['para_birimi']?.toString()),
       araToplamTutar: (json['ara_toplam_tutar'] as num?)?.toDouble() ?? 0,
       kdvTutari: (json['kdv_tutari'] as num?)?.toDouble() ?? 0,
       toplamTutar: (json['toplam_tutar'] as num?)?.toDouble() ?? 0,
