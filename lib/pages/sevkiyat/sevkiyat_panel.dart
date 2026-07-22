@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
+import 'package:uretim_takip/config/asama_registry.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,6 +12,7 @@ import 'package:uretim_takip/services/sevk_irsaliye_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/workflow_state_machine.dart';
 import 'package:uretim_takip/services/workflow_transition_service.dart';
+import 'package:uretim_takip/providers/tenant_provider.dart';
 import 'dart:convert';
 
 part 'sevkiyat_panel_widgets.dart';
@@ -193,6 +196,7 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
       final kaliteResponse = await supabase
           .from(DbTables.kaliteKontrolAtamalari)
           .select('id, model_id, kontrol_edilecek_adet')
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .inFilter('id', kaliteIdByKey.values.toList());
 
       for (final kalite in List<Map<String, dynamic>>.from(kaliteResponse)) {
@@ -217,6 +221,7 @@ class _SevkiyatPanelState extends State<SevkiyatPanel>
       final modelResponse = await supabase
           .from(DbTables.trikoTakip)
           .select('id, marka, item_no, renk, adet, termin_tarihi')
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .inFilter('id', modelIdByKey.values.toList());
 
       for (final model in List<Map<String, dynamic>>.from(modelResponse)) {
@@ -512,64 +517,28 @@ class _UretimAsamalariWidgetState extends State<_UretimAsamalariWidget> {
 
   Future<void> _asamalariYukle() async {
     try {
-      final asamalar = [
-        {
-          'ad': 'Dokuma',
-          'kod': 'dokuma',
-          'tablo': DbTables.dokumaAtamalari,
-          'icon': Icons.grain,
-          'renk': Colors.brown
-        },
-        {
-          'ad': 'Nakış',
-          'kod': 'nakis',
-          'tablo': DbTables.nakisAtamalari,
-          'icon': Icons.brush,
-          'renk': Colors.pink
-        },
-        {
-          'ad': 'Konfeksiyon',
-          'kod': 'konfeksiyon',
-          'tablo': DbTables.konfeksiyonAtamalari,
-          'icon': Icons.content_cut,
-          'renk': Colors.purple
-        },
-        {
-          'ad': 'Yıkama',
-          'kod': 'yikama',
-          'tablo': DbTables.yikamaAtamalari,
-          'icon': Icons.local_laundry_service,
-          'renk': Colors.cyan
-        },
-        {
-          'ad': 'İlik/Düğme',
-          'kod': 'ilik_dugme',
-          'tablo': DbTables.ilikDugmeAtamalari,
-          'icon': Icons.radio_button_unchecked,
-          'renk': Colors.indigo
-        },
-        {
-          'ad': 'Ütü',
-          'kod': 'utu',
-          'tablo': DbTables.utuAtamalari,
-          'icon': Icons.iron,
-          'renk': Colors.green
-        },
-        {
-          'ad': 'Kalite Kontrol',
-          'kod': 'kalite_kontrol',
-          'tablo': DbTables.kaliteKontrolAtamalari,
-          'icon': Icons.verified,
-          'renk': Colors.teal
-        },
-        {
-          'ad': 'Paketleme',
-          'kod': 'paketleme',
-          'tablo': DbTables.paketlemeAtamalari,
-          'icon': Icons.inventory_2,
-          'renk': Colors.deepOrange
-        },
-      ];
+      await AsamaRegistry.yukle();
+      if (!mounted) return;
+
+      final aktifDallar = context.read<TenantProvider>().aktifUretimDallari;
+      final benzersizAsamalar = <String, AsamaTanim>{};
+      for (final dal in aktifDallar) {
+        for (final asama in AsamaRegistry.asamalariGetir(dal)) {
+          benzersizAsamalar.putIfAbsent(asama.asamaKodu, () => asama);
+        }
+      }
+
+      final asamalar = benzersizAsamalar.values
+          .map(
+            (asama) => <String, dynamic>{
+              'ad': asama.asamaAdi,
+              'kod': asama.asamaKodu,
+              'tablo': asama.atamaTablosu,
+              'icon': asama.ikon,
+              'renk': asama.renk,
+            },
+          )
+          .toList();
 
       final List<Map<String, dynamic>> sonuclar = [];
 
@@ -579,6 +548,7 @@ class _UretimAsamalariWidgetState extends State<_UretimAsamalariWidget> {
               .from(asama['tablo'] as String)
               .select('*')
               .eq('model_id', widget.modelId)
+              .eq('firma_id', TenantManager.instance.requireFirmaId)
               .order('created_at', ascending: false);
 
           String durum = 'bekliyor';

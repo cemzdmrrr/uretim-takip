@@ -79,26 +79,13 @@ class _BildirimPopupState extends State<BildirimPopup>
     }
   }
 
-  void _processRealtimeData(List<Map<String, dynamic>> data) async {
+  void _processRealtimeData(List<Map<String, dynamic>> data) {
     try {
-      final currentUser = _supabase.auth.currentUser;
-      if (currentUser == null) return;
-
-      final userRole = await _supabase
-          .from(DbTables.userRoles)
-          .select('role')
-          .eq('user_id', currentUser.id)
-          .eq('firma_id', TenantManager.instance.requireFirmaId)
-          .maybeSingle();
-
-      List<Map<String, dynamic>> bildirimler;
-      if (userRole != null && userRole['role'] == 'admin') {
-        bildirimler = data;
-      } else {
-        bildirimler =
-            data.where((b) => b['user_id'] == currentUser.id).toList();
-      }
-
+      final currentUserId = _supabase.auth.currentUser?.id;
+      if (currentUserId == null) return;
+      final bildirimler = data
+          .where((bildirim) => bildirim['user_id']?.toString() == currentUserId)
+          .toList();
       final okunmamis = bildirimler.where((b) => b['okundu'] == false).length;
       final previousOkunmamis = _okunmamisSayisi;
 
@@ -135,39 +122,8 @@ class _BildirimPopupState extends State<BildirimPopup>
 
       if (mounted) setState(() => _isLoading = true);
 
-      String? firmaId;
-      try {
-        firmaId = TenantManager.instance.requireFirmaId;
-      } catch (_) {
-        firmaId = null;
-      }
-
-      // Admin ise tüm bildirimleri getir, değilse sadece kendi bildirimlerini
-      final userRole = firmaId == null
-          ? null
-          : await _supabase
-              .from(DbTables.userRoles)
-              .select('role')
-              .eq('user_id', currentUser.id)
-              .eq('firma_id', firmaId)
-              .maybeSingle();
-
-      List<Map<String, dynamic>> bildirimler;
-
-      if (userRole != null && userRole['role'] == 'admin' && firmaId != null) {
-        // Admin firma bazında tüm bildirimleri görebilir
-        final response = await _supabase
-            .from(DbTables.bildirimler)
-            .select('*')
-            .eq('firma_id', firmaId)
-            .order('created_at', ascending: false)
-            .limit(50);
-        bildirimler = List<Map<String, dynamic>>.from(response);
-      } else {
-        // Normal kullanıcı sadece kendi bildirimlerini görür
-        bildirimler =
-            await _bildirimService.tumBildirimleriGetir(currentUser.id);
-      }
+      final bildirimler =
+          await _bildirimService.tumBildirimleriGetir(currentUser.id);
 
       final okunmamis = bildirimler.where((b) => b['okundu'] == false).length;
       final previousOkunmamis = _okunmamisSayisi;
@@ -195,8 +151,16 @@ class _BildirimPopupState extends State<BildirimPopup>
   }
 
   Future<void> _markAsRead(String bildirimId) async {
-    await _bildirimService.bildirimOkundu(bildirimId);
-    await _loadBildirimler();
+    final basarili = await _bildirimService.bildirimOkundu(bildirimId);
+    if (!basarili || !mounted) return;
+    setState(() {
+      final index = _bildirimler.indexWhere(
+        (bildirim) => bildirim['id']?.toString() == bildirimId,
+      );
+      if (index != -1) _bildirimler[index]['okundu'] = true;
+      _okunmamisSayisi =
+          _bildirimler.where((bildirim) => bildirim['okundu'] == false).length;
+    });
   }
 
   Future<void> _handleBildirimSelected(String bildirimId) async {
@@ -214,8 +178,15 @@ class _BildirimPopupState extends State<BildirimPopup>
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return;
 
-    await _bildirimService.tumBildirimlerOkundu(currentUser.id);
-    await _loadBildirimler();
+    final basarili =
+        await _bildirimService.tumBildirimlerOkundu(currentUser.id);
+    if (!basarili || !mounted) return;
+    setState(() {
+      for (final bildirim in _bildirimler) {
+        bildirim['okundu'] = true;
+      }
+      _okunmamisSayisi = 0;
+    });
   }
 
   IconData _getBildirimIcon(String? tip) {

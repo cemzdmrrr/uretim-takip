@@ -82,6 +82,7 @@ Notlar:
   - Hedef adet ilgili beden icin `hedef - girilen` olarak azalir.
   - Tamamlanan/kismi adet sonraki asamaya beden bazli aktarilir.
   - Bir beden tamamen uretildiyse sonraki modalda hedefi 0 gorunmelidir.
+- Beden takip modellerinde fazla uretim kalan adedi negatife dusurmez; `kalanAdet` en az 0 olur. Fazla uretim bilgisi uretilen adet uzerinden korunur.
 
 ## Uretim Atama Tablolari
 
@@ -265,6 +266,8 @@ Notlar:
 - Admin kullanici bildirimler sayfasindan ayni firmadaki tek veya birden fazla aktif kullaniciya `genel` bildirim gonderebilir.
 - Personel tarafindan girilen izin, mesai ve avans kayitlari servis katmaninda adminlere bildirim uretir; sayfa icinde kopya bildirim dongusu yazilmamalidir.
 - Bildirime tiklandiginda once okundu isaretlenir, sonra `BildirimNavigationService` ile ilgili ekrana gidilir. Hedef yoksa detay modalinda kalinir.
+- Bildirim gelen kutusu admin dahil yalnizca aktif kullanicinin `user_id + firma_id` kapsamindaki kayitlarini gosterir. Adminin firma kullanicilarina bildirim gonderme yetkisi ayridir; diger kullanicilarin gelen kutusu ve okunmamis sayaci admin gelen kutusuna karistirilmaz.
+- Tekil ve toplu okundu islemleri `firma_id + user_id` filtresiyle yapilir ve servis sonucu dogrulanmadan arayuzde okundu durumu/sayaci degistirilmez.
 - Yapilacak hatirlaticilari `tip='yapilacak_hatirlatici'` ve `ek_bilgi.target.page='yapilacak_popup'` ile tutulur; tiklaninca ana sayfadaki popup acilir.
 
 ## Yapilacaklar / Rutin Gorev Hafizasi
@@ -315,6 +318,10 @@ Notlar:
 - Mobilde sabit `Column + Expanded` yapilari ust filtre/tab alanlarini kilitleyebilir; gerekirse `SingleChildScrollView`, `CustomScrollView` veya `NestedScrollView` kullan.
 - Buton ikonlari icin mevcut Material Icons veya yerel ikon setleri kullanilmali; gorunmeyen ikonlar kontrol edilmelidir.
 - ERP ekranlari genelde kompakt KPI satirlari, filtre paneli, tablo/kart listesi ve aksiyon butonlariyla tasarlanir.
+- Genel Uretim sayfasi model bazli operasyon tablosudur. Her kayitta toplam adet, mevcut asama, asamadaki adet, mevcut asamanin tedarikcisi, durum ve termin birlikte gosterilir; mobilde ayni veri kart gorunumune donusur.
+- Uretim asama ve kalite kontrol panellerinde KPI/filtre basligi ile sekme listeleri `NestedScrollView` uzerinden tek dikey kaydirma yuzeyi kullanir; durum sekmesi kaydirma sirasinda sabit kalir.
+- Legacy sema uyumlulugu gerekcesiyle `firma_id` filtresi kaldirilarak sorgu tekrar calistirilmaz. Firma kolonu eksikse migration/sema hatasi acikca raporlanir.
+- Mobil AppBar'da ikincil islemler (rapor, cikis vb.) tasma yaratmayacak sekilde acilir menuye alinabilir; ana arama, filtre ve yenileme aksiyonlari gorunur tutulur.
 
 ## Degisiklik Sonrasi Zorunlu Kontrol
 

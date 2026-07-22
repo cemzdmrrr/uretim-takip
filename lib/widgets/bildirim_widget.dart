@@ -1,4 +1,4 @@
-﻿// İstenen iş akışı için bildirim widget'ı
+// İstenen iş akışı için bildirim widget'ı
 // Bu widget, tüm sistem bildirimlerini gösterir
 
 import 'dart:async';
@@ -7,12 +7,13 @@ import 'package:uretim_takip/config/database_tables.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:uretim_takip/services/tenant_manager.dart';
 
 class BildirimWidget extends StatefulWidget {
   final String? kullaniciRolu;
 
   const BildirimWidget({
-    Key? key, 
+    Key? key,
     this.kullaniciRolu,
   }) : super(key: key);
 
@@ -42,6 +43,7 @@ class _BildirimWidgetState extends State<BildirimWidget> {
             *,
             model:triko_takip(id, marka, item_no)
           ''')
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .eq('user_id', user.id)
           .order('created_at', ascending: false)
           .limit(50);
@@ -63,11 +65,14 @@ class _BildirimWidgetState extends State<BildirimWidget> {
       await supabase
           .from(DbTables.bildirimler)
           .update({'okundu': true})
-          .eq('id', bildirimId);
-      
+          .eq('id', bildirimId)
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
+          .eq('user_id', supabase.auth.currentUser!.id);
+
       if (!mounted) return;
       setState(() {
-        final index = bildirimler.indexWhere((b) => b['id'] == bildirimId);
+        final index =
+            bildirimler.indexWhere((b) => b['id']?.toString() == bildirimId);
         if (index != -1) {
           bildirimler[index]['okundu'] = true;
         }
@@ -85,9 +90,10 @@ class _BildirimWidgetState extends State<BildirimWidget> {
       await supabase
           .from(DbTables.bildirimler)
           .update({'okundu': true})
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .eq('user_id', user.id)
           .eq('okundu', false);
-      
+
       if (!mounted) return;
       setState(() {
         for (var bildirim in bildirimler) {
@@ -96,7 +102,8 @@ class _BildirimWidgetState extends State<BildirimWidget> {
       });
 
       if (mounted) {
-        context.showSuccessSnackBar('Tüm bildirimler okundu olarak işaretlendi');
+        context
+            .showSuccessSnackBar('Tüm bildirimler okundu olarak işaretlendi');
       }
     } catch (e) {
       debugPrint('Toplu bildirim okundu hatası: $e');
@@ -106,13 +113,14 @@ class _BildirimWidgetState extends State<BildirimWidget> {
   Widget _buildBildirimItem(Map<String, dynamic> bildirim) {
     final tip = bildirim['tip'] ?? '';
     final okundu = bildirim['okundu'] ?? false;
-    final tarih = bildirim['created_at'] != null 
-        ? DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(bildirim['created_at']))
+    final tarih = bildirim['created_at'] != null
+        ? DateFormat('dd.MM.yyyy HH:mm')
+            .format(DateTime.parse(bildirim['created_at']))
         : '';
 
     Color tipRengi = Colors.blue;
     IconData tipIcon = Icons.info;
-    
+
     switch (tip) {
       case 'atama_bekliyor':
         tipRengi = Colors.orange;
@@ -186,7 +194,8 @@ class _BildirimWidgetState extends State<BildirimWidget> {
                           child: Text(
                             bildirim['baslik'] ?? 'Bildirim',
                             style: TextStyle(
-                              fontWeight: okundu ? FontWeight.normal : FontWeight.bold,
+                              fontWeight:
+                                  okundu ? FontWeight.normal : FontWeight.bold,
                               fontSize: 16,
                             ),
                           ),
@@ -248,11 +257,13 @@ class _BildirimWidgetState extends State<BildirimWidget> {
       );
     }
 
-    final okunmamisSayi = bildirimler.where((b) => !(b['okundu'] ?? false)).length;
+    final okunmamisSayi =
+        bildirimler.where((b) => !(b['okundu'] ?? false)).length;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Bildirimler ${okunmamisSayi > 0 ? '($okunmamisSayi)' : ''}'),
+        title:
+            Text('Bildirimler ${okunmamisSayi > 0 ? '($okunmamisSayi)' : ''}'),
         actions: [
           if (okunmamisSayi > 0)
             TextButton(
@@ -325,7 +336,7 @@ class _BildirimBadgeState extends State<BildirimBadge> {
   void initState() {
     super.initState();
     _okunmamisSayisiniGetir();
-    
+
     // Her 30 saniyede bir kontrol et
     Timer.periodic(const Duration(seconds: 30), (timer) {
       _okunmamisSayisiniGetir();

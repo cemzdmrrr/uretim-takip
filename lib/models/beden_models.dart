@@ -137,7 +137,11 @@ class BedenUretimTakip {
     };
   }
 
-  int get kalanAdet => hedefAdet - uretilenAdet;
+  int get kalanAdet {
+    final kalan = hedefAdet - uretilenAdet;
+    return kalan > 0 ? kalan : 0;
+  }
+
   double get tamamlanmaOrani =>
       hedefAdet > 0 ? (uretilenAdet / hedefAdet) * 100 : 0;
 }

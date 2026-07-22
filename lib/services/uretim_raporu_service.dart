@@ -302,7 +302,8 @@ class UretimRaporuService {
       final yuklemeler = await _supabase
           .from(DbTables.yuklemeKayitlari)
           .select('model_id, adet')
-          .inFilter('model_id', modelIds);
+          .inFilter('model_id', modelIds)
+          .eq('firma_id', _firmaId);
 
       final sonuc = <String, int>{};
       for (final kayit in List<Map<String, dynamic>>.from(yuklemeler)) {
@@ -335,6 +336,7 @@ class UretimRaporuService {
             .from(DbTables.fireKayitlari)
             .select('model_id, asama, adet, kayit_asamasi')
             .inFilter('model_id', modelIds)
+            .eq('firma_id', _firmaId)
             .eq('kayit_asamasi', 'utu');
         kayitlar = List<Map<String, dynamic>>.from(data);
       } catch (e) {
@@ -343,7 +345,8 @@ class UretimRaporuService {
         final data = await _supabase
             .from(DbTables.fireKayitlari)
             .select('model_id, asama, adet')
-            .inFilter('model_id', modelIds);
+            .inFilter('model_id', modelIds)
+            .eq('firma_id', _firmaId);
         kayitlar = List<Map<String, dynamic>>.from(data);
       }
 

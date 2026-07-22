@@ -139,7 +139,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
     required List<String> kolonlar,
   }) async {
     final dislananKolonlar = <String>{};
-    var useFirmaFilter = true;
+    const useFirmaFilter = true;
     Object? sonHata;
 
     for (var attempt = 0; attempt < 10; attempt++) {
@@ -160,8 +160,10 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
         final missingColumn = _missingColumnName(e);
 
         if (missingColumn == 'firma_id' && useFirmaFilter) {
-          useFirmaFilter = false;
-          continue;
+          throw StateError(
+            '$tablo tablosunda firma_id kolonu bulunamadı. '
+            'Firma kapsamı kaldırılarak sorgu çalıştırılamaz.',
+          );
         }
 
         if (missingColumn != null &&
@@ -532,7 +534,7 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
       ];
 
       final dislananAlanlar = <String>{};
-      var useFirmaFilter = true;
+      const useFirmaFilter = true;
       Object? sonHata;
 
       for (var attempt = 0; attempt < 10; attempt++) {
@@ -562,8 +564,10 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
           sonHata = e;
           final missingColumn = _missingColumnName(e);
           if (missingColumn == 'firma_id' && useFirmaFilter) {
-            useFirmaFilter = false;
-            continue;
+            throw StateError(
+              '${DbTables.cekiListesi} tablosunda firma_id kolonu bulunamadı. '
+              'Firma kapsamı kaldırılarak sorgu çalıştırılamaz.',
+            );
           }
 
           if (missingColumn != null &&
@@ -667,24 +671,43 @@ class _UtuPaketDashboardState extends State<UtuPaketDashboard>
             onPressed: _filtreDialoguGoster,
           ),
           IconButton(
-            icon: const Icon(Icons.analytics),
-            tooltip: 'Rapor',
-            onPressed: _raporDialoguGoster,
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Yenile',
             onPressed: _verileriYukle,
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Çıkış',
-            onPressed: () async {
-              await supabase.auth.signOut();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
+          PopupMenuButton<String>(
+            tooltip: 'Diğer işlemler',
+            onSelected: (value) async {
+              if (value == 'rapor') {
+                _raporDialoguGoster();
+                return;
+              }
+              if (value == 'cikis') {
+                await supabase.auth.signOut();
+                if (context.mounted) {
+                  Navigator.pushReplacementNamed(context, AppRoutes.login);
+                }
               }
             },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'rapor',
+                child: ListTile(
+                  leading: Icon(Icons.analytics_outlined),
+                  title: Text('Rapor'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'cikis',
+                child: ListTile(
+                  leading: Icon(Icons.logout),
+                  title: Text('Çıkış'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),

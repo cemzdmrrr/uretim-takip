@@ -104,6 +104,18 @@ void main() {
       expect(takip.kalanAdet, 250);
     });
 
+    test('kalanAdet fazla üretimde negatif olmaz', () {
+      final takip = BedenUretimTakip(
+        atamaId: 1,
+        modelId: 'm1',
+        bedenKodu: 'M',
+        hedefAdet: 100,
+        uretilenAdet: 125,
+      );
+
+      expect(takip.kalanAdet, 0);
+    });
+
     test('tamamlanmaOrani is calculated correctly', () {
       final takip = BedenUretimTakip(
         atamaId: 1,

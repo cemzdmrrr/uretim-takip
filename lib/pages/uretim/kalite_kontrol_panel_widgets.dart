@@ -1112,16 +1112,6 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
-  String _toplamAdetMetni(
-    Map<String, dynamic> model,
-    Map<String, dynamic> kontrol,
-  ) {
-    final modelAdet = _toInt(model['adet']);
-    final kontrolAdet = _toInt(kontrol['kontrol_edilecek_adet']);
-    final toplam = modelAdet > 0 ? modelAdet : kontrolAdet;
-    return toplam > 0 ? '$toplam' : '-';
-  }
-
   Map<String, int> _parseBedenDetayi(dynamic raw) {
     dynamic value = raw;
     if (value == null) return const <String, int>{};
@@ -1235,7 +1225,7 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       });
     }
 
-    var dagitilacak = hedefToplam - _toplamBedenAdedi(tabanDegerler);
+    final dagitilacak = hedefToplam - _toplamBedenAdedi(tabanDegerler);
     kalanlar
         .sort((a, b) => (b['kalan'] as double).compareTo(a['kalan'] as double));
 
@@ -1532,75 +1522,6 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     return plain?.group(1);
   }
 
-  Future<List<Map<String, dynamic>>> _adayAtamaKayitlariGetir({
-    required String hedefTablo,
-    required String firmaId,
-    required dynamic modelId,
-  }) async {
-    var includeNotlar = true;
-    var useFirmaFilter = true;
-    var useModelFilter = true;
-
-    for (var attempt = 0; attempt < 6; attempt++) {
-      try {
-        final secim = includeNotlar ? 'id, notlar' : 'id';
-
-        final response = useFirmaFilter && useModelFilter
-            ? await supabase
-                .from(hedefTablo)
-                .select(secim)
-                .eq('firma_id', firmaId)
-                .eq('model_id', modelId)
-                .order('created_at', ascending: false)
-                .limit(10)
-            : useFirmaFilter
-                ? await supabase
-                    .from(hedefTablo)
-                    .select(secim)
-                    .eq('firma_id', firmaId)
-                    .order('created_at', ascending: false)
-                    .limit(10)
-                : useModelFilter
-                    ? await supabase
-                        .from(hedefTablo)
-                        .select(secim)
-                        .eq('model_id', modelId)
-                        .order('created_at', ascending: false)
-                        .limit(10)
-                    : await supabase
-                        .from(hedefTablo)
-                        .select(secim)
-                        .order('created_at', ascending: false)
-                        .limit(10);
-
-        return List<Map<String, dynamic>>.from(response);
-      } catch (e) {
-        final missingColumn = _missingColumnName(e);
-        if (missingColumn == 'firma_id' && useFirmaFilter) {
-          useFirmaFilter = false;
-          continue;
-        }
-        if (missingColumn == 'model_id' && useModelFilter) {
-          useModelFilter = false;
-          continue;
-        }
-        if (missingColumn == 'notlar' && includeNotlar) {
-          includeNotlar = false;
-          continue;
-        }
-
-        if (includeNotlar) {
-          includeNotlar = false;
-          continue;
-        }
-
-        rethrow;
-      }
-    }
-
-    return const <Map<String, dynamic>>[];
-  }
-
   Future<void> _esnekAtamaGuncelle({
     required String hedefTablo,
     required dynamic kayitId,
@@ -1642,51 +1563,6 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
     throw Exception('$hedefTablo güncellemesi başarısız oldu.');
   }
 
-  Future<void> _esnekAtamaInsert({
-    required String hedefTablo,
-    required Map<String, dynamic> values,
-  }) async {
-    final data = Map<String, dynamic>.from(values);
-    Object? sonHata;
-    const siraliOpsiyonelAlanlar = [
-      'model_id',
-      'idempotency_key',
-      'kaynak_kalite_kontrol_id',
-      'kabul_edilen_adet',
-      'beden_detaylari',
-      'onceki_asama',
-      'hedef_asama',
-      'kalite_kontrol_id',
-      'alis_tarihi',
-      'notlar',
-    ];
-
-    for (var attempt = 0; attempt < 8; attempt++) {
-      try {
-        await supabase.from(hedefTablo).insert(data);
-        return;
-      } catch (e) {
-        sonHata = e;
-        final missingColumn = _missingColumnName(e);
-        if (missingColumn != null && data.containsKey(missingColumn)) {
-          data.remove(missingColumn);
-          continue;
-        }
-
-        final kaldirilacak = siraliOpsiyonelAlanlar
-            .firstWhere((alan) => data.containsKey(alan), orElse: () => '');
-        if (kaldirilacak.isNotEmpty) {
-          data.remove(kaldirilacak);
-          continue;
-        }
-
-        break;
-      }
-    }
-
-    throw Exception('$hedefTablo insert başarısız oldu. Son hata: $sonHata');
-  }
-
   Future<void> _upsertSevkiyatKaydiFromKalite({
     required Map<String, dynamic> kontrol,
     required Map<String, dynamic> model,
@@ -1726,53 +1602,6 @@ extension _WidgetDialogExt on _KaliteKontrolPanelState {
       values: insertData,
       idempotencyKey: idempotencyKey,
       quantityFields: const ['alinan_adet', 'kalan_adet'],
-    );
-  }
-
-  Future<void> _upsertAsamaAtamasiFromKalite({
-    required String hedefAsama,
-    required String hedefTablo,
-    required Map<String, dynamic> kontrol,
-    required Map<String, dynamic> model,
-    required int kontrolAdet,
-    required String idempotencyKey,
-  }) async {
-    final firmaId = TenantManager.instance.requireFirmaId;
-    final idTag = '[IDEMP:$idempotencyKey]';
-
-    final notMetni =
-        'Kalite kontrolden geçti - ${model['marka']} ${model['item_no']} - $kontrolAdet adet $idTag';
-
-    final insertData = {
-      'model_id': kontrol['model_id'],
-      'durum': 'bekleyen',
-      'adet': kontrolAdet,
-      'talep_edilen_adet': kontrolAdet,
-      'kabul_edilen_adet': kontrolAdet,
-      'tamamlanan_adet': 0,
-      'atama_tarihi': DateTime.now().toIso8601String(),
-      'notlar': notMetni,
-      'firma_id': firmaId,
-      'kaynak_kalite_kontrol_id': kontrol['id'],
-      'idempotency_key': idempotencyKey,
-    };
-
-    await AtamaBirlestirmeService(client: supabase).insertOrMerge(
-      tableName: hedefTablo,
-      firmaId: firmaId,
-      modelId: kontrol['model_id'],
-      values: insertData,
-      idempotencyKey: idempotencyKey,
-    );
-
-    await BildirimService().roleGoreBildirimGonder(
-      rol: hedefAsama,
-      baslik: '✅ Kalite Onayı Tamamlandı',
-      mesaj:
-          '${model['marka']} ${model['item_no']} - $kontrolAdet adet $hedefAsama aşamasına yönlendirildi.',
-      tip: 'kalite_onay_hedef_atama',
-      modelId: kontrol['model_id']?.toString(),
-      asama: 'Kalite Kontrol',
     );
   }
 

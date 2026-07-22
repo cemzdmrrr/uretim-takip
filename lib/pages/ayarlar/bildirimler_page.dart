@@ -88,24 +88,10 @@ class _BildirimlerPageState extends State<BildirimlerPage>
 
       _userRole = userRole?['role'];
 
-      List<Map<String, dynamic>> bildirimler;
-
-      if (_userRole == 'admin') {
-        // Admin tüm bildirimleri görür
-        final response = await _supabase
-            .from(DbTables.bildirimler)
-            .select('*')
-            .eq('firma_id', TenantManager.instance.requireFirmaId)
-            .order('created_at', ascending: false)
-            .limit(200);
-        bildirimler = List<Map<String, dynamic>>.from(response);
-      } else {
-        // Normal kullanıcı kendi bildirimlerini görür
-        bildirimler = await _bildirimService.tumBildirimleriGetir(
-          currentUser.id,
-          limit: 200,
-        );
-      }
+      final bildirimler = await _bildirimService.tumBildirimleriGetir(
+        currentUser.id,
+        limit: 200,
+      );
 
       setState(() {
         _tumBildirimler = bildirimler;
@@ -127,8 +113,20 @@ class _BildirimlerPageState extends State<BildirimlerPage>
   }
 
   Future<void> _markAsRead(String bildirimId) async {
-    await _bildirimService.bildirimOkundu(bildirimId);
-    await _loadBildirimler();
+    final basarili = await _bildirimService.bildirimOkundu(bildirimId);
+    if (!basarili || !mounted) {
+      if (mounted) context.showErrorSnackBar('Bildirim güncellenemedi');
+      return;
+    }
+    setState(() {
+      final index = _tumBildirimler.indexWhere(
+        (bildirim) => bildirim['id']?.toString() == bildirimId,
+      );
+      if (index != -1) _tumBildirimler[index]['okundu'] = true;
+      _okunmamisBildirimler = _tumBildirimler
+          .where((bildirim) => bildirim['okundu'] == false)
+          .toList();
+    });
   }
 
   Future<void> _handleBildirimTap(Map<String, dynamic> bildirim) async {
@@ -148,8 +146,18 @@ class _BildirimlerPageState extends State<BildirimlerPage>
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return;
 
-    await _bildirimService.tumBildirimlerOkundu(currentUser.id);
-    await _loadBildirimler();
+    final basarili =
+        await _bildirimService.tumBildirimlerOkundu(currentUser.id);
+    if (!basarili || !mounted) {
+      if (mounted) context.showErrorSnackBar('Bildirimler güncellenemedi');
+      return;
+    }
+    setState(() {
+      for (final bildirim in _tumBildirimler) {
+        bildirim['okundu'] = true;
+      }
+      _okunmamisBildirimler = [];
+    });
 
     if (mounted) {
       context.showSuccessSnackBar('Tüm bildirimler okundu olarak işaretlendi');
@@ -158,7 +166,14 @@ class _BildirimlerPageState extends State<BildirimlerPage>
 
   Future<void> _deleteBildirim(String bildirimId) async {
     try {
-      await _supabase.from(DbTables.bildirimler).delete().eq('id', bildirimId);
+      final currentUser = _supabase.auth.currentUser;
+      if (currentUser == null) return;
+      await _supabase
+          .from(DbTables.bildirimler)
+          .delete()
+          .eq('id', bildirimId)
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
+          .eq('user_id', currentUser.id);
       await _loadBildirimler();
 
       if (mounted) {
@@ -216,6 +231,7 @@ class _BildirimlerPageState extends State<BildirimlerPage>
         await _supabase
             .from(DbTables.bildirimler)
             .delete()
+            .eq('firma_id', TenantManager.instance.requireFirmaId)
             .eq('user_id', currentUser.id)
             .eq('okundu', true);
 

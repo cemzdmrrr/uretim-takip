@@ -608,58 +608,83 @@ class _UretimAsamaDashboardState extends State<UretimAsamaDashboard>
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Column(
-                children: [
-                  _buildErpHeader(
-                    bekleyen: filtreliBekleyenler.length,
-                    onaylanan: filtreliOnaylananlar.length,
-                    islemde: filtreliUretimdekiler.length,
-                    tamamlanan: filtreliTamamlananlar.length,
-                    toplam: tumFiltrelenmisler.length,
-                    aktifFiltreVar: aktifFiltreVar,
-                  ),
-                  if (aktifFiltreVar) _buildAktifFiltreSeridi(),
-                  _buildErpTabSeridi(
-                    bekleyen: filtreliBekleyenler.length,
-                    onaylanan: filtreliOnaylananlar.length,
-                    islemde: filtreliUretimdekiler.length,
-                    toplam: tumFiltrelenmisler.length,
-                  ),
-                  SizedBox(
-                    height: constraints.maxHeight,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildModelListesi(
-                          filtreliBekleyenler,
-                          'Onayınızı bekleyen ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                        ),
-                        _buildModelListesi(
-                          filtreliOnaylananlar,
-                          'Onaylanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                        ),
-                        _buildModelListesi(
-                          filtreliUretimdekiler,
-                          'İşlemde olan ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                        ),
-                        _buildModelListesi(
-                          tumFiltrelenmisler,
-                          'Size atanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverToBoxAdapter(
+            child: _buildErpHeader(
+              bekleyen: filtreliBekleyenler.length,
+              onaylanan: filtreliOnaylananlar.length,
+              islemde: filtreliUretimdekiler.length,
+              tamamlanan: filtreliTamamlananlar.length,
+              toplam: tumFiltrelenmisler.length,
+              aktifFiltreVar: aktifFiltreVar,
+            ),
+          ),
+          if (aktifFiltreVar)
+            SliverToBoxAdapter(child: _buildAktifFiltreSeridi()),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _UretimTabHeaderDelegate(
+              child: _buildErpTabSeridi(
+                bekleyen: filtreliBekleyenler.length,
+                onaylanan: filtreliOnaylananlar.length,
+                islemde: filtreliUretimdekiler.length,
+                toplam: tumFiltrelenmisler.length,
               ),
             ),
-          );
-        },
+          ),
+        ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildModelListesi(
+              filtreliBekleyenler,
+              'Onayınızı bekleyen ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+            ),
+            _buildModelListesi(
+              filtreliOnaylananlar,
+              'Onaylanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+            ),
+            _buildModelListesi(
+              filtreliUretimdekiler,
+              'İşlemde olan ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+            ),
+            _buildModelListesi(
+              tumFiltrelenmisler,
+              'Size atanmış ${widget.asamaDisplayName.toLowerCase()} işi bulunmuyor.',
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _UretimTabHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  const _UretimTabHeaderDelegate({required this.child});
+
+  @override
+  double get minExtent => 74;
+
+  @override
+  double get maxExtent => 74;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(
+      color: const Color(0xFFF5F7FA),
+      elevation: overlapsContent ? 2 : 0,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _UretimTabHeaderDelegate oldDelegate) =>
+      oldDelegate.child != child;
 }

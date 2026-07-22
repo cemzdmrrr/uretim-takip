@@ -73,6 +73,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
             .from(DbTables.firmaKullanicilari)
             .select('rol')
             .eq('user_id', user.id)
+            .eq('firma_id', TenantManager.instance.requireFirmaId)
             .maybeSingle();
 
         if (response1 != null) {
@@ -202,7 +203,8 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
       final response = await supabase
           .from(DbTables.modelBedenDagilimi)
           .select('siparis_adedi')
-          .eq('model_id', modelId);
+          .eq('model_id', modelId)
+          .eq('firma_id', TenantManager.instance.requireFirmaId);
 
       if (response.isNotEmpty) {
         int toplam = 0;
@@ -217,6 +219,7 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
           .from(DbTables.trikoTakip)
           .select('adet')
           .eq('id', modelId)
+          .eq('firma_id', TenantManager.instance.requireFirmaId)
           .maybeSingle();
 
       return (modelResponse?['adet'] as int?) ?? 0;
@@ -286,47 +289,68 @@ class _KaliteKontrolPanelState extends State<KaliteKontrolPanel>
       ),
       body: yukleniyor
           ? const LoadingWidget()
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(minHeight: constraints.maxHeight),
-                    child: Column(
-                      children: [
-                        _buildErpHeader(
-                          bekleyen: filtreliBekleyenler.length,
-                          kontrolde: filtreliKontrolEdiliyor.length,
-                          tamamlanan: filtreliTamamlananlar.length,
-                          toplam: toplam,
-                          aktifFiltreVar: aktifFiltreVar,
-                        ),
-                        if (aktifFiltreVar) _buildAktifFiltreSeridi(),
-                        _buildKaliteTabSeridi(
-                          bekleyen: filtreliBekleyenler.length,
-                          kontrolde: filtreliKontrolEdiliyor.length,
-                          tamamlanan: filtreliTamamlananlar.length,
-                        ),
-                        SizedBox(
-                          height: constraints.maxHeight,
-                          child: TabBarView(
-                            controller: _tabController,
-                            children: [
-                              _buildKontrolListesi(
-                                  filtreliBekleyenler, 'bekleyen'),
-                              _buildKontrolListesi(
-                                  filtreliKontrolEdiliyor, 'kontrolde'),
-                              _buildKontrolListesi(
-                                  filtreliTamamlananlar, 'tamamlanan'),
-                            ],
-                          ),
-                        ),
-                      ],
+          : NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverToBoxAdapter(
+                  child: _buildErpHeader(
+                    bekleyen: filtreliBekleyenler.length,
+                    kontrolde: filtreliKontrolEdiliyor.length,
+                    tamamlanan: filtreliTamamlananlar.length,
+                    toplam: toplam,
+                    aktifFiltreVar: aktifFiltreVar,
+                  ),
+                ),
+                if (aktifFiltreVar)
+                  SliverToBoxAdapter(child: _buildAktifFiltreSeridi()),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _KaliteTabHeaderDelegate(
+                    child: _buildKaliteTabSeridi(
+                      bekleyen: filtreliBekleyenler.length,
+                      kontrolde: filtreliKontrolEdiliyor.length,
+                      tamamlanan: filtreliTamamlananlar.length,
                     ),
                   ),
-                );
-              },
+                ),
+              ],
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildKontrolListesi(filtreliBekleyenler, 'bekleyen'),
+                  _buildKontrolListesi(filtreliKontrolEdiliyor, 'kontrolde'),
+                  _buildKontrolListesi(filtreliTamamlananlar, 'tamamlanan'),
+                ],
+              ),
             ),
     );
   }
+}
+
+class _KaliteTabHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  const _KaliteTabHeaderDelegate({required this.child});
+
+  @override
+  double get minExtent => 74;
+
+  @override
+  double get maxExtent => 74;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(
+      color: const Color(0xFFF5F7FA),
+      elevation: overlapsContent ? 2 : 0,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _KaliteTabHeaderDelegate oldDelegate) =>
+      oldDelegate.child != child;
 }

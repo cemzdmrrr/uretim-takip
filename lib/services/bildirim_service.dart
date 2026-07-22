@@ -436,26 +436,39 @@ class BildirimService {
   }
 
   /// Bildirimi okundu olarak işaretle
-  Future<void> bildirimOkundu(String bildirimId) async {
+  Future<bool> bildirimOkundu(String bildirimId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return false;
     try {
-      await _supabase
+      final response = await _supabase
           .from(DbTables.bildirimler)
-          .update({'okundu': true}).eq('id', bildirimId);
+          .update({'okundu': true})
+          .eq('id', bildirimId)
+          .eq('firma_id', _firmaId)
+          .eq('user_id', userId)
+          .select('id, okundu')
+          .maybeSingle();
+      return response != null && response['okundu'] == true;
     } catch (e) {
       debugPrint('❌ Bildirim okundu hatası: $e');
+      return false;
     }
   }
 
   /// Kullanıcının tüm bildirimlerini okundu olarak işaretle
-  Future<void> tumBildirimlerOkundu(String userId) async {
+  Future<bool> tumBildirimlerOkundu(String userId) async {
+    if (_supabase.auth.currentUser?.id != userId) return false;
     try {
       await _supabase
           .from(DbTables.bildirimler)
           .update({'okundu': true})
+          .eq('firma_id', _firmaId)
           .eq('user_id', userId)
           .eq('okundu', false);
+      return true;
     } catch (e) {
       debugPrint('❌ Tüm bildirimler okundu hatası: $e');
+      return false;
     }
   }
 

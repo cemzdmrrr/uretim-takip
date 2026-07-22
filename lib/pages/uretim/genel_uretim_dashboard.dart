@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:uretim_takip/config/asama_registry.dart';
-import 'package:uretim_takip/config/database_tables.dart';
-import 'package:uretim_takip/pages/uretim/utu_paket_dashboard.dart';
-import 'package:uretim_takip/pages/uretim/uretim_asama_dashboard.dart';
-import 'package:uretim_takip/providers/tenant_provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:uretim_takip/services/uretim_raporu_service.dart';
 
 class GenelUretimDashboard extends StatefulWidget {
   const GenelUretimDashboard({super.key});
@@ -15,20 +10,30 @@ class GenelUretimDashboard extends StatefulWidget {
 }
 
 class _GenelUretimDashboardState extends State<GenelUretimDashboard> {
+  final UretimRaporuService _service = UretimRaporuService();
+  final TextEditingController _aramaController = TextEditingController();
+
+  List<Map<String, dynamic>> _modeller = const [];
   bool _yukleniyor = true;
   String? _hata;
+  String _arama = '';
+  String _asama = 'Tümü';
+  String _tedarikci = 'Tümü';
+  String _durum = 'Aktif';
 
   @override
   void initState() {
     super.initState();
-    _asamalariYukle();
+    _verileriYukle();
   }
 
-  Future<void> _asamalariYukle({bool force = false}) async {
-    if (force) {
-      AsamaRegistry.cacheTemizle();
-    }
+  @override
+  void dispose() {
+    _aramaController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _verileriYukle() async {
     if (mounted) {
       setState(() {
         _yukleniyor = true;
@@ -37,723 +42,542 @@ class _GenelUretimDashboardState extends State<GenelUretimDashboard> {
     }
 
     try {
-      await AsamaRegistry.yukle();
-      if (mounted) {
-        setState(() => _yukleniyor = false);
-      }
+      final sonuc = await _service.verileriYukle();
+      if (!mounted) return;
+      setState(() {
+        _modeller = sonuc.modeller;
+        _yukleniyor = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _yukleniyor = false;
-          _hata = 'Aşamalar yüklenemedi: $e';
-        });
+      if (!mounted) return;
+      setState(() {
+        _hata = 'Üretim verileri yüklenemedi: $e';
+        _yukleniyor = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get _filtrelenmisModeller {
+    final arama = _arama.trim().toLowerCase();
+    final sonuc = _modeller.where((model) {
+      final mevcutAsama = _metin(model['mevcut_asama'], 'beklemede');
+      final tedarikci = _metin(model['tedarikci_adi']);
+      final tamamlandi = mevcutAsama == 'tamamlandi' ||
+          model['tamamlandi'] == true ||
+          _durumAnahtari(_mevcutAsamaVerisi(model)['durum']) == 'tamamlandi';
+
+      if (_asama != 'Tümü' && mevcutAsama != _asama) return false;
+      if (_tedarikci != 'Tümü') {
+        if (_tedarikci == 'Atanmamış') {
+          if (tedarikci.isNotEmpty) return false;
+        } else if (tedarikci != _tedarikci) {
+          return false;
+        }
       }
-    }
+      if (_durum == 'Aktif' && tamamlandi) return false;
+      if (_durum == 'Tamamlanan' && !tamamlandi) return false;
+
+      if (arama.isNotEmpty) {
+        final aranabilir = [
+          model['marka'],
+          model['item_no'],
+          model['model_adi'],
+          model['renk'],
+          tedarikci,
+          _asamaEtiketi(mevcutAsama),
+        ].map((deger) => _metin(deger).toLowerCase()).join(' ');
+        if (!aranabilir.contains(arama)) return false;
+      }
+      return true;
+    }).toList();
+
+    sonuc.sort((a, b) {
+      final aTermin = DateTime.tryParse(_metin(a['termin_tarihi']));
+      final bTermin = DateTime.tryParse(_metin(b['termin_tarihi']));
+      if (aTermin == null && bTermin == null) {
+        return _modelEtiketi(a).compareTo(_modelEtiketi(b));
+      }
+      if (aTermin == null) return 1;
+      if (bTermin == null) return -1;
+      return aTermin.compareTo(bTermin);
+    });
+    return sonuc;
   }
 
-  Future<void> _sayfayiYenile() async {
-    final tenant = context.read<TenantProvider>();
-    final firmaId = tenant.firmaId;
-    if (firmaId != null) {
-      await tenant.firmaSecimi(firmaId);
-    }
-    await _asamalariYukle(force: true);
+  List<String> get _asamaSecenekleri {
+    final degerler = _modeller
+        .map((model) => _metin(model['mevcut_asama'], 'beklemede'))
+        .where((deger) => deger.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => _asamaEtiketi(a).compareTo(_asamaEtiketi(b)));
+    return ['Tümü', ...degerler];
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final tenant = context.watch<TenantProvider>();
-    final aktifDallar = tenant.aktifUretimDallari;
-
-    if (_yukleniyor) {
-      return _PageScaffold(
-        onRefresh: () => _sayfayiYenile(),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_hata != null) {
-      return _PageScaffold(
-        onRefresh: () => _sayfayiYenile(),
-        body: _StateView(
-          icon: Icons.error_outline,
-          title: 'Aşamalar yüklenemedi',
-          message: _hata!,
-          actionLabel: 'Yenile',
-          onAction: () => _sayfayiYenile(),
-        ),
-      );
-    }
-
-    if (aktifDallar.isEmpty) {
-      return _PageScaffold(
-        onRefresh: () => _sayfayiYenile(),
-        body: _StateView(
-          icon: tenant.firmaSecildi
-              ? Icons.factory_outlined
-              : Icons.business_outlined,
-          title:
-              tenant.firmaSecildi ? 'Aktif üretim dalı yok' : 'Firma seçilmedi',
-          message: tenant.firmaSecildi
-              ? '${tenant.firmaAdi.isEmpty ? 'Bu firma' : tenant.firmaAdi} için aktif üretim dalı bulunamadı. Firma ayarlarından en az bir üretim dalı seçilmelidir.'
-              : 'Genel üretim ekranı için önce aktif firma bağlamı yüklenmelidir.',
-        ),
-      );
-    }
-
-    if (aktifDallar.length == 1) {
-      return _PageScaffold(
-        onRefresh: () => _sayfayiYenile(),
-        body: _UretimDaliDashboard(
-          tekstilDali: aktifDallar.first,
-          onRefresh: () => _sayfayiYenile(),
-        ),
-      );
-    }
-
-    return DefaultTabController(
-      length: aktifDallar.length,
-      child: _PageScaffold(
-        onRefresh: () => _sayfayiYenile(),
-        bottom: TabBar(
-          isScrollable: aktifDallar.length > 3,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: [
-            for (final dal in aktifDallar)
-              Tab(
-                child: _DalSekmeBasligi(dalKodu: dal),
-              ),
-          ],
-        ),
-        body: TabBarView(
-          children: [
-            for (final dal in aktifDallar)
-              _UretimDaliDashboard(
-                tekstilDali: dal,
-                onRefresh: () => _sayfayiYenile(),
-              ),
-          ],
-        ),
-      ),
-    );
+  List<String> get _tedarikciSecenekleri {
+    final degerler = _modeller
+        .map((model) => _metin(model['tedarikci_adi']))
+        .where((deger) => deger.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['Tümü', 'Atanmamış', ...degerler];
   }
-}
-
-class _PageScaffold extends StatelessWidget {
-  final Widget body;
-  final PreferredSizeWidget? bottom;
-  final VoidCallback onRefresh;
-
-  const _PageScaffold({
-    required this.body,
-    required this.onRefresh,
-    this.bottom,
-  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
-        title: const Text('Genel Üretim'),
-        bottom: bottom,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Genel Üretim',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            Text(
+              'Model, aşama ve tedarikçi takibi',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF0F3D56),
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          Tooltip(
-            message: 'Model ara',
-            child: IconButton(
-              onPressed: () => showSearch<_UretimAramaSonucu?>(
-                context: context,
-                delegate: _GenelUretimAramaDelegate(),
-              ),
-              icon: const Icon(Icons.search),
-            ),
-          ),
-          Tooltip(
-            message: 'Yenile',
-            child: IconButton(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh),
-            ),
+          IconButton(
+            onPressed: _verileriYukle,
+            tooltip: 'Yenile',
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
-      body: body,
-    );
-  }
-}
-
-class _DalSekmeBasligi extends StatelessWidget {
-  final String dalKodu;
-
-  const _DalSekmeBasligi({required this.dalKodu});
-
-  @override
-  Widget build(BuildContext context) {
-    final firmaId = context.read<TenantProvider>().firmaId;
-
-    return FutureBuilder<_AsamaIstatistik>(
-      future: _dalIstatistigiGetir(dalKodu, firmaId),
-      builder: (context, snapshot) {
-        final toplam = snapshot.data?.toplamIs ?? 0;
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(_dalIkonu(dalKodu), size: 18),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                _dalEtiketi(dalKodu),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (snapshot.connectionState != ConnectionState.done) ...[
-              const SizedBox(width: 6),
-              const SizedBox(
-                width: 10,
-                height: 10,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: Colors.white,
-                ),
-              ),
-            ] else if (toplam > 0) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '$toplam',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        );
-      },
+      body: _icerik(),
     );
   }
 
-  Future<_AsamaIstatistik> _dalIstatistigiGetir(
-    String dalKodu,
-    String? firmaId,
-  ) async {
-    final asamalar = AsamaRegistry.dashboardAsamalari(dalKodu);
-    final sonuclar = await Future.wait(
-      asamalar.map(
-        (asama) => _AsamaIstatistikServisi.asamaIstatistigiGetir(
-          asama,
-          firmaId,
-        ),
-      ),
-    );
-
-    if (sonuclar.any((istatistik) => istatistik.hataVar)) {
-      return const _AsamaIstatistik(hataVar: true);
+  Widget _icerik() {
+    if (_yukleniyor) {
+      return const Center(child: CircularProgressIndicator());
     }
-
-    return _AsamaIstatistik.toplam(sonuclar);
-  }
-}
-
-class _UretimDaliDashboard extends StatelessWidget {
-  final String tekstilDali;
-  final Future<void> Function()? onRefresh;
-
-  const _UretimDaliDashboard({
-    required this.tekstilDali,
-    this.onRefresh,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final asamalar = AsamaRegistry.dashboardAsamalari(tekstilDali);
-
-    if (asamalar.isEmpty) {
-      return const _StateView(
-        icon: Icons.view_module_outlined,
-        title: 'Aşama tanımı yok',
-        message: 'Bu üretim dalı için gösterilecek aşama bulunamadı.',
+    if (_hata != null) {
+      return _DurumGorunumu(
+        icon: Icons.cloud_off_outlined,
+        baslik: 'Veriler alınamadı',
+        aciklama: _hata!,
+        butonMetni: 'Yeniden Dene',
+        onPressed: _verileriYukle,
       );
     }
 
-    final content = LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final crossAxisCount = _gridKolonSayisi(width);
-        final horizontalPadding = width < 640 ? 12.0 : 20.0;
-
-        return CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                  horizontalPadding, 16, horizontalPadding, 8),
-              sliver: SliverToBoxAdapter(
-                child: _DalOzeti(
-                  dalKodu: tekstilDali,
-                  asamalar: asamalar,
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                  horizontalPadding, 8, horizontalPadding, 20),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisExtent: width < 560 ? 246 : 256,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _AsamaKarti(
-                    asama: asamalar[index],
-                    index: index,
-                    toplam: asamalar.length,
-                  ),
-                  childCount: asamalar.length,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (onRefresh == null) return content;
-
+    final modeller = _filtrelenmisModeller;
     return RefreshIndicator(
-      onRefresh: onRefresh!,
-      child: content,
-    );
-  }
-
-  int _gridKolonSayisi(double width) {
-    if (width < 560) return 1;
-    if (width < 900) return 2;
-    if (width < 1220) return 3;
-    return 4;
-  }
-}
-
-class _DalOzeti extends StatelessWidget {
-  final String dalKodu;
-  final List<AsamaTanim> asamalar;
-
-  const _DalOzeti({
-    required this.dalKodu,
-    required this.asamalar,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final anaRenk = asamalar.first.renk;
-    final zorunluSayisi = asamalar.where((asama) => asama.zorunlu).length;
-    final genelAkisSayisi =
-        asamalar.where((asama) => asama.eskiTabloAdi == null).length;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: anaRenk.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(_dalIkonu(dalKodu), color: anaRenk, size: 26),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _dalEtiketi(dalKodu),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _BilgiEtiketi(
-                            icon: Icons.account_tree_outlined,
-                            label: '${asamalar.length} aşama'),
-                        _BilgiEtiketi(
-                            icon: Icons.verified_outlined,
-                            label: '$zorunluSayisi zorunlu'),
-                        _BilgiEtiketi(
-                          icon: genelAkisSayisi == 0
-                              ? Icons.history
-                              : Icons.schema_outlined,
-                          label: genelAkisSayisi == 0
-                              ? 'Mevcut akış'
-                              : '$genelAkisSayisi genel akış',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      onRefresh: _verileriYukle,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+            sliver: SliverToBoxAdapter(child: _ozetAlani(modeller)),
           ),
-          const SizedBox(height: 14),
-          _DalKpiOzeti(asamalar: asamalar),
-          const SizedBox(height: 14),
-          _AsamaSeridi(asamalar: asamalar),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            sliver: SliverToBoxAdapter(child: _filtreAlani()),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            sliver: _listeSliver(modeller),
+          ),
         ],
       ),
     );
   }
-}
 
-class _DalKpiOzeti extends StatelessWidget {
-  final List<AsamaTanim> asamalar;
+  Widget _ozetAlani(List<Map<String, dynamic>> modeller) {
+    final toplamAdet = modeller.fold<int>(
+      0,
+      (toplam, model) => toplam + _sayi(model['adet'] ?? model['toplam_adet']),
+    );
+    final geciken = modeller.where(_gecikmisMi).length;
+    final tedarikciSayisi = modeller
+        .map((model) => _metin(model['tedarikci_adi']))
+        .where((ad) => ad.isNotEmpty)
+        .toSet()
+        .length;
+    final atanmamis = modeller
+        .where((model) => _metin(model['tedarikci_adi']).isEmpty)
+        .length;
 
-  const _DalKpiOzeti({required this.asamalar});
-
-  @override
-  Widget build(BuildContext context) {
-    final firmaId = context.read<TenantProvider>().firmaId;
-
-    return FutureBuilder<_AsamaIstatistik>(
-      future: _dalIstatistigiGetir(asamalar, firmaId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const SizedBox(
-            height: 58,
-            child: Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        }
-
-        final istatistik = snapshot.data;
-        if (snapshot.hasError || istatistik == null || istatistik.hataVar) {
-          return const _KartUyari(label: 'Genel özet yüklenemedi');
-        }
-
-        return LayoutBuilder(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Üretim görünümü',
+          style: TextStyle(
+            color: Color(0xFF102A43),
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Aktif üretim kayıtlarını model, aşama ve tedarikçi bazında izleyin.',
+          style: TextStyle(color: Colors.blueGrey.shade600, fontSize: 13),
+        ),
+        const SizedBox(height: 14),
+        LayoutBuilder(
           builder: (context, constraints) {
-            final dar = constraints.maxWidth < 620;
-            final kutular = [
-              _KpiKutusu(
-                icon: Icons.pending_actions,
-                label: 'Bekleyen',
-                value: istatistik.bekleyen,
-                color: const Color(0xFF64748B),
-              ),
-              _KpiKutusu(
-                icon: Icons.verified_outlined,
-                label: 'Onaylanan',
-                value: istatistik.onaylanan,
-                color: const Color(0xFF7C3AED),
-              ),
-              _KpiKutusu(
-                icon: Icons.play_circle_outline,
-                label: 'İşlemde',
-                value: istatistik.islemde,
-                color: const Color(0xFF2563EB),
-              ),
-              _KpiKutusu(
-                icon: Icons.check_circle_outline,
-                label: 'Tamamlanan',
-                value: istatistik.tamamlanan,
-                color: const Color(0xFF16A34A),
-              ),
-              _KpiKutusu(
-                icon: Icons.warning_amber_rounded,
-                label: 'Geciken',
-                value: istatistik.geciken,
-                color: const Color(0xFFDC2626),
-              ),
-            ];
-
-            if (dar) {
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final kutu in kutular)
-                    SizedBox(
-                      width: (constraints.maxWidth - 8) / 2,
-                      child: kutu,
-                    ),
-                ],
-              );
-            }
-
-            return Row(
+            final genislik = constraints.maxWidth;
+            final kolon = genislik >= 1050
+                ? 4
+                : genislik >= 620
+                    ? 2
+                    : 1;
+            final kartGenisligi = (genislik - ((kolon - 1) * 10)) / kolon;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
-                for (var i = 0; i < kutular.length; i++) ...[
-                  Expanded(child: kutular[i]),
-                  if (i != kutular.length - 1) const SizedBox(width: 8),
-                ],
+                _OzetKarti(
+                  width: kartGenisligi,
+                  icon: Icons.inventory_2_outlined,
+                  baslik: 'Model',
+                  deger: '${modeller.length}',
+                  altMetin: 'Filtrelenen kayıt',
+                  renk: const Color(0xFF2563EB),
+                ),
+                _OzetKarti(
+                  width: kartGenisligi,
+                  icon: Icons.layers_outlined,
+                  baslik: 'Üretim Adedi',
+                  deger: _adetFormatla(toplamAdet),
+                  altMetin: 'Toplam sipariş adedi',
+                  renk: const Color(0xFF059669),
+                ),
+                _OzetKarti(
+                  width: kartGenisligi,
+                  icon: Icons.factory_outlined,
+                  baslik: 'Tedarikçi',
+                  deger: '$tedarikciSayisi',
+                  altMetin: atanmamis > 0
+                      ? '$atanmamis atanmamış model'
+                      : 'Tümü atandı',
+                  renk: const Color(0xFF7C3AED),
+                ),
+                _OzetKarti(
+                  width: kartGenisligi,
+                  icon: Icons.schedule_outlined,
+                  baslik: 'Geciken',
+                  deger: '$geciken',
+                  altMetin: 'Termin tarihi geçen',
+                  renk: const Color(0xFFDC2626),
+                ),
               ],
             );
           },
-        );
-      },
-    );
-  }
-
-  Future<_AsamaIstatistik> _dalIstatistigiGetir(
-    List<AsamaTanim> asamalar,
-    String? firmaId,
-  ) async {
-    final sonuclar = await Future.wait(
-      asamalar.map(
-        (asama) => _AsamaIstatistikServisi.asamaIstatistigiGetir(
-          asama,
-          firmaId,
         ),
-      ),
+      ],
     );
-
-    if (sonuclar.any((istatistik) => istatistik.hataVar)) {
-      return const _AsamaIstatistik(hataVar: true);
-    }
-
-    return _AsamaIstatistik.toplam(sonuclar);
   }
-}
 
-class _KpiKutusu extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int value;
-  final Color color;
-
-  const _KpiKutusu({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _filtreAlani() {
     return Container(
-      height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDDE6EF)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A102A43),
+            blurRadius: 14,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AsamaSeridi extends StatelessWidget {
-  final List<AsamaTanim> asamalar;
-
-  const _AsamaSeridi({required this.asamalar});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: asamalar.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final asama = asamalar[index];
-          return Container(
-            constraints: const BoxConstraints(minWidth: 96, maxWidth: 164),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: asama.renk.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: asama.renk.withValues(alpha: 0.18)),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dar = constraints.maxWidth < 760;
+          final arama = TextField(
+            controller: _aramaController,
+            onChanged: (value) => setState(() => _arama = value),
+            decoration: InputDecoration(
+              labelText: 'Model, marka, renk veya tedarikçi ara',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _arama.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Aramayı temizle',
+                      onPressed: () {
+                        _aramaController.clear();
+                        setState(() => _arama = '');
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+              border: const OutlineInputBorder(),
+              isDense: true,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          );
+          final filtreler = [
+            _secimAlani(
+              etiket: 'Aşama',
+              deger: _asama,
+              secenekler: _asamaSecenekleri,
+              etiketleyici: _asamaEtiketi,
+              onChanged: (value) => setState(() => _asama = value),
+            ),
+            _secimAlani(
+              etiket: 'Tedarikçi',
+              deger: _tedarikci,
+              secenekler: _tedarikciSecenekleri,
+              onChanged: (value) => setState(() => _tedarikci = value),
+            ),
+            _secimAlani(
+              etiket: 'Durum',
+              deger: _durum,
+              secenekler: const ['Aktif', 'Tümü', 'Tamamlanan'],
+              onChanged: (value) => setState(() => _durum = value),
+            ),
+          ];
+
+          if (dar) {
+            return Column(
               children: [
-                Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    color: asama.renk,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Flexible(
-                  child: Text(
-                    asama.asamaAdi,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ),
+                arama,
+                const SizedBox(height: 10),
+                for (var i = 0; i < filtreler.length; i++) ...[
+                  filtreler[i],
+                  if (i != filtreler.length - 1) const SizedBox(height: 10),
+                ],
               ],
-            ),
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(flex: 3, child: arama),
+              const SizedBox(width: 10),
+              for (final filtre in filtreler) ...[
+                Expanded(child: filtre),
+                if (filtre != filtreler.last) const SizedBox(width: 10),
+              ],
+            ],
           );
         },
       ),
     );
   }
-}
 
-class _AsamaKarti extends StatelessWidget {
-  final AsamaTanim asama;
-  final int index;
-  final int toplam;
+  Widget _secimAlani({
+    required String etiket,
+    required String deger,
+    required List<String> secenekler,
+    required ValueChanged<String> onChanged,
+    String Function(String value)? etiketleyici,
+  }) {
+    return DropdownButtonFormField<String>(
+      initialValue: secenekler.contains(deger) ? deger : secenekler.first,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: etiket,
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: secenekler
+          .map(
+            (secenek) => DropdownMenuItem(
+              value: secenek,
+              child: Text(
+                etiketleyici?.call(secenek) ?? secenek,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+    );
+  }
 
-  const _AsamaKarti({
-    required this.asama,
-    required this.index,
-    required this.toplam,
-  });
+  Widget _listeSliver(List<Map<String, dynamic>> modeller) {
+    if (modeller.isEmpty) {
+      return SliverToBoxAdapter(
+        child: _DurumGorunumu(
+          icon: Icons.filter_alt_off_outlined,
+          baslik: 'Kayıt bulunamadı',
+          aciklama: 'Seçili filtrelerle eşleşen üretim kaydı yok.',
+          butonMetni: 'Filtreleri Temizle',
+          onPressed: _filtreleriTemizle,
+          compact: true,
+        ),
+      );
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final akisEtiketi =
-        asama.eskiTabloAdi == null ? 'Genel akış' : 'Mevcut akış';
+    return SliverLayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.crossAxisExtent < 820) {
+          return SliverList.separated(
+            itemCount: modeller.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) => _mobilKart(modeller[index]),
+          );
+        }
+        return SliverToBoxAdapter(child: _masaustuTablo(modeller));
+      },
+    );
+  }
+
+  Widget _masaustuTablo(List<Map<String, dynamic>> modeller) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDDE6EF)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A102A43),
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 1120),
+          child: DataTable(
+            headingRowHeight: 50,
+            dataRowMinHeight: 62,
+            dataRowMaxHeight: 70,
+            headingRowColor: const WidgetStatePropertyAll(Color(0xFFF1F5F9)),
+            dividerThickness: 0.6,
+            columnSpacing: 24,
+            columns: const [
+              DataColumn(label: _TabloBasligi('MODEL')),
+              DataColumn(label: _TabloBasligi('RENK')),
+              DataColumn(numeric: true, label: _TabloBasligi('ADET')),
+              DataColumn(label: _TabloBasligi('MEVCUT AŞAMA')),
+              DataColumn(numeric: true, label: _TabloBasligi('AŞAMA ADEDİ')),
+              DataColumn(label: _TabloBasligi('TEDARİKÇİ')),
+              DataColumn(label: _TabloBasligi('DURUM')),
+              DataColumn(label: _TabloBasligi('TERMİN')),
+            ],
+            rows: modeller.map(_tabloSatiri).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  DataRow _tabloSatiri(Map<String, dynamic> model) {
+    final asamaKodu = _metin(model['mevcut_asama'], 'beklemede');
+    final asama = _mevcutAsamaVerisi(model);
+    final durum = _metin(
+        asama['durum'], asamaKodu == 'tamamlandi' ? 'tamamlandi' : 'bekleyen');
+    final tedarikci = _metin(model['tedarikci_adi'], 'Atanmamış');
+
+    return DataRow(
+      onSelectChanged: (_) => _detayGoster(model),
+      cells: [
+        DataCell(_modelHucre(model)),
+        DataCell(Text(_metin(model['renk'], '-'))),
+        DataCell(_adetMetni(_sayi(model['adet'] ?? model['toplam_adet']))),
+        DataCell(
+            _AsamaRozeti(kod: asamaKodu, etiket: _asamaEtiketi(asamaKodu))),
+        DataCell(_adetMetni(_asamaAdedi(model))),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                tedarikci == 'Atanmamış'
+                    ? Icons.person_off_outlined
+                    : Icons.factory_outlined,
+                size: 17,
+                color: tedarikci == 'Atanmamış'
+                    ? Colors.orange.shade700
+                    : const Color(0xFF475569),
+              ),
+              const SizedBox(width: 7),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(tedarikci, overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        ),
+        DataCell(_DurumRozeti(durum: durum)),
+        DataCell(_terminHucre(model)),
+      ],
+    );
+  }
+
+  Widget _mobilKart(Map<String, dynamic> model) {
+    final asamaKodu = _metin(model['mevcut_asama'], 'beklemede');
+    final asama = _mevcutAsamaVerisi(model);
+    final durum = _metin(
+        asama['durum'], asamaKodu == 'tamamlandi' ? 'tamamlandi' : 'bekleyen');
+    final tedarikci = _metin(model['tedarikci_adi'], 'Atanmamış');
 
     return Material(
       color: Colors.white,
-      elevation: 1,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: Color(0xFFE5E7EB)),
-      ),
+      borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _asamaDashboardAc(context),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
+        onTap: () => _detayGoster(model),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFDDE6EF)),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: asama.renk.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(asama.ikon, size: 22, color: asama.renk),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          asama.asamaAdi,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${index + 1}/$toplam',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Aç',
-                    child: Icon(Icons.chevron_right, color: asama.renk),
-                  ),
+                  Expanded(child: _modelHucre(model)),
+                  const SizedBox(width: 8),
+                  _DurumRozeti(durum: durum),
                 ],
               ),
               const SizedBox(height: 12),
-              _AsamaSayaclari(
-                asama: asama,
-                onTabAc: (tabIndex) =>
-                    _asamaDashboardAc(context, initialTabIndex: tabIndex),
-              ),
-              const Spacer(),
               Row(
                 children: [
-                  _DurumRozeti(
-                    label: asama.zorunlu ? 'Zorunlu' : 'Opsiyonel',
-                    color: asama.zorunlu
-                        ? const Color(0xFF2E7D32)
-                        : const Color(0xFF64748B),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: _DurumRozeti(
-                      label: akisEtiketi,
-                      color: asama.renk,
-                      compact: true,
+                    child: _mobilBilgi(
+                      'Toplam Adet',
+                      _adetFormatla(
+                          _sayi(model['adet'] ?? model['toplam_adet'])),
+                      Icons.layers_outlined,
                     ),
+                  ),
+                  Expanded(
+                    child: _mobilBilgi(
+                      'Aşama Adedi',
+                      _adetFormatla(_asamaAdedi(model)),
+                      Icons.precision_manufacturing_outlined,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 22),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _AsamaRozeti(
+                      kod: asamaKodu, etiket: _asamaEtiketi(asamaKodu)),
+                  _bilgiPili(Icons.factory_outlined, tedarikci),
+                  _bilgiPili(
+                    Icons.calendar_today_outlined,
+                    _tarihMetni(model['termin_tarihi']),
+                    uyari: _gecikmisMi(model),
                   ),
                 ],
               ),
@@ -764,739 +588,384 @@ class _AsamaKarti extends StatelessWidget {
     );
   }
 
-  void _asamaDashboardAc(BuildContext context, {int initialTabIndex = 0}) {
-    if (asama.asamaKodu == 'utu' || asama.asamaKodu == 'paketleme') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const UtuPaketDashboard()),
-      );
-      return;
-    }
-
-    if (asama.eskiTabloAdi != null && asama.eskiDurumKolonu != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => UretimAsamaDashboard(
-            asamaAdi: asama.asamaKodu,
-            asamaDisplayName: asama.asamaAdi,
-            atamaTablosu: asama.eskiTabloAdi!,
-            modelDurumKolonu: asama.eskiDurumKolonu!,
-            asamaRengi: asama.renk,
-            asamaIconu: asama.ikon,
-            initialTabIndex: initialTabIndex,
+  Widget _modelHucre(Map<String, dynamic> model) {
+    final marka = _metin(model['marka'], 'Markasız');
+    final itemNo = _metin(model['item_no'] ?? model['model_adi'], '-');
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 170, maxWidth: 230),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            itemNo,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF102A43),
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-      );
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => UretimAsamaDashboard(
-          asamaAdi: asama.asamaKodu,
-          asamaDisplayName: asama.asamaAdi,
-          atamaTablosu: 'uretim_atamalari',
-          modelDurumKolonu: '${asama.asamaKodu}_durumu',
-          asamaRengi: asama.renk,
-          asamaIconu: asama.ikon,
-          initialTabIndex: initialTabIndex,
-        ),
+          const SizedBox(height: 3),
+          Text(
+            marka,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+          ),
+        ],
       ),
     );
   }
-}
 
-class _AsamaSayaclari extends StatelessWidget {
-  final AsamaTanim asama;
-  final ValueChanged<int> onTabAc;
-
-  const _AsamaSayaclari({
-    required this.asama,
-    required this.onTabAc,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final firmaId = context.read<TenantProvider>().firmaId;
-
-    return FutureBuilder<_AsamaIstatistik>(
-      future: _AsamaIstatistikServisi.asamaIstatistigiGetir(asama, firmaId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const SizedBox(
-            height: 76,
-            child: Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        }
-
-        final istatistik = snapshot.data;
-        if (snapshot.hasError || istatistik == null || istatistik.hataVar) {
-          return const _KartUyari(label: 'Sayaç yüklenemedi');
-        }
-
-        return Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _SayacKutusu(
-                    label: 'Bekleyen',
-                    value: istatistik.bekleyen,
-                    color: const Color(0xFF64748B),
-                    onTap: () => onTabAc(0),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _SayacKutusu(
-                    label: 'İşlemde',
-                    value: istatistik.islemde,
-                    color: const Color(0xFF2563EB),
-                    onTap: () => onTabAc(2),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _SayacKutusu(
-                    label: 'Onay',
-                    value: istatistik.onaylanan,
-                    color: const Color(0xFF7C3AED),
-                    onTap: () => onTabAc(1),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Spacer(),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _SayacKutusu(
-                    label: 'Tamam',
-                    value: istatistik.tamamlanan,
-                    color: const Color(0xFF16A34A),
-                    onTap: () => onTabAc(3),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _SayacKutusu(
-                    label: 'Geciken',
-                    value: istatistik.geciken,
-                    color: const Color(0xFFDC2626),
-                    onTap: () => onTabAc(3),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
+  Widget _terminHucre(Map<String, dynamic> model) {
+    final gecikmis = _gecikmisMi(model);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          gecikmis
+              ? Icons.warning_amber_rounded
+              : Icons.calendar_today_outlined,
+          size: 16,
+          color: gecikmis ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          _tarihMetni(model['termin_tarihi']),
+          style: TextStyle(
+            color: gecikmis ? const Color(0xFFB91C1C) : const Color(0xFF334155),
+            fontWeight: gecikmis ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
-}
 
-class _SayacKutusu extends StatelessWidget {
-  final String label;
-  final int value;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _SayacKutusu({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
+  Widget _mobilBilgi(String baslik, String deger, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
           height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: const Color(0xFF2563EB)),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(baslik,
+                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+            Text(deger,
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _bilgiPili(IconData icon, String metin, {bool uyari = false}) {
+    final renk = uyari ? const Color(0xFFB91C1C) : const Color(0xFF475569);
+    final zemin = uyari ? const Color(0xFFFEF2F2) : const Color(0xFFF1F5F9);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration:
+          BoxDecoration(color: zemin, borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: renk),
+          const SizedBox(width: 5),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 190),
+            child: Text(
+              metin,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: renk, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _detayGoster(Map<String, dynamic> model) {
+    final asamaKodu = _metin(model['mevcut_asama'], 'beklemede');
+    final asama = _mevcutAsamaVerisi(model);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$value',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
+                _modelEtiketi(model),
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              const SizedBox(height: 4),
+              Text(
+                _metin(model['renk'], 'Renk belirtilmemiş'),
+                style: const TextStyle(color: Color(0xFF64748B)),
               ),
-              Icon(Icons.chevron_right, size: 14, color: color),
+              const SizedBox(height: 18),
+              _detaySatiri('Toplam adet',
+                  _adetFormatla(_sayi(model['adet'] ?? model['toplam_adet']))),
+              _detaySatiri('Mevcut aşama', _asamaEtiketi(asamaKodu)),
+              _detaySatiri('Aşamadaki adet', _adetFormatla(_asamaAdedi(model))),
+              _detaySatiri(
+                  'Tedarikçi', _metin(model['tedarikci_adi'], 'Atanmamış')),
+              _detaySatiri('Durum', _durumEtiketi(asama['durum'])),
+              _detaySatiri(
+                  'Termin tarihi', _tarihMetni(model['termin_tarihi'])),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-class _AsamaIstatistikServisi {
-  const _AsamaIstatistikServisi._();
-
-  static Future<_AsamaIstatistik> asamaIstatistigiGetir(
-    AsamaTanim asama,
-    String? firmaId,
-  ) async {
-    try {
-      final rows = await _asamaSatirlariniGetir(asama, firmaId);
-      return _AsamaIstatistik.fromRows(rows);
-    } catch (e) {
-      debugPrint('${asama.asamaAdi} istatistikleri yuklenemedi: $e');
-      return const _AsamaIstatistik(hataVar: true);
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> _asamaSatirlariniGetir(
-    AsamaTanim asama,
-    String? firmaId,
-  ) async {
-    final supabase = Supabase.instance.client;
-    final tablo = asama.atamaTablosu;
-
-    if (tablo == DbTables.uretimAtamalari) {
-      final query = supabase
-          .from(DbTables.uretimAtamalari)
-          .select('durum, hedef_bitis, bitis_tarihi')
-          .eq('uretim_dali', asama.tekstilDali)
-          .eq('asama_kodu', asama.asamaKodu);
-      final response =
-          firmaId == null ? await query : await query.eq('firma_id', firmaId);
-      return List<Map<String, dynamic>>.from(response);
-    }
-
-    try {
-      final query = supabase.from(tablo).select('durum, model_id');
-      final response =
-          firmaId == null ? await query : await query.eq('firma_id', firmaId);
-      final rows = List<Map<String, dynamic>>.from(response);
-      await _trikoTerminleriniEkle(rows, firmaId);
-      return rows;
-    } catch (_) {
-      if (firmaId != null) {
-        // Tenant filtresi uygulanamayan tabloları izinsiz genis sorgu ile okumayiz.
-        return const <Map<String, dynamic>>[];
-      }
-
-      final response = await supabase.from(tablo).select('durum, model_id');
-      final rows = List<Map<String, dynamic>>.from(response);
-      await _trikoTerminleriniEkle(rows, null);
-      return rows;
-    }
-  }
-
-  static Future<void> _trikoTerminleriniEkle(
-    List<Map<String, dynamic>> rows,
-    String? firmaId,
-  ) async {
-    final modelIds = rows
-        .map((row) => row['model_id'])
-        .where((id) => id != null)
-        .toSet()
-        .toList();
-
-    if (modelIds.isEmpty) return;
-
-    var query = Supabase.instance.client
-        .from(DbTables.trikoTakip)
-        .select('id, termin_tarihi')
-        .inFilter('id', modelIds);
-
-    if (firmaId != null) {
-      query = query.eq('firma_id', firmaId);
-    }
-
-    final response = await query;
-
-    final modeller = {
-      for (final model in List<Map<String, dynamic>>.from(response))
-        model['id']: model,
-    };
-
-    for (final row in rows) {
-      row[DbTables.trikoTakip] = modeller[row['model_id']];
-    }
-  }
-}
-
-class _KartUyari extends StatelessWidget {
-  final String label;
-
-  const _KartUyari({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 76,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFFC2410C),
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+  Widget _detaySatiri(String baslik, String deger) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 125,
+            child:
+                Text(baslik, style: const TextStyle(color: Color(0xFF64748B))),
+          ),
+          Expanded(
+              child: Text(deger,
+                  style: const TextStyle(fontWeight: FontWeight.w700))),
+        ],
       ),
     );
   }
-}
 
-class _AsamaIstatistik {
-  final int bekleyen;
-  final int onaylanan;
-  final int islemde;
-  final int tamamlanan;
-  final int geciken;
-  final bool hataVar;
+  void _filtreleriTemizle() {
+    _aramaController.clear();
+    setState(() {
+      _arama = '';
+      _asama = 'Tümü';
+      _tedarikci = 'Tümü';
+      _durum = 'Aktif';
+    });
+  }
 
-  const _AsamaIstatistik({
-    this.bekleyen = 0,
-    this.onaylanan = 0,
-    this.islemde = 0,
-    this.tamamlanan = 0,
-    this.geciken = 0,
-    this.hataVar = false,
-  });
+  Map<String, dynamic> _mevcutAsamaVerisi(Map<String, dynamic> model) {
+    final asamalar = model['asamalar'];
+    if (asamalar is! Map) return const <String, dynamic>{};
+    final asama = asamalar[_metin(model['mevcut_asama'])];
+    return asama is Map
+        ? Map<String, dynamic>.from(asama)
+        : const <String, dynamic>{};
+  }
 
-  int get toplamIs => bekleyen + onaylanan + islemde + tamamlanan;
+  int _asamaAdedi(Map<String, dynamic> model) {
+    final asama = _mevcutAsamaVerisi(model);
+    return _sayi(
+      asama['talep_edilen_adet'] ??
+          asama['kontrol_edilecek_adet'] ??
+          asama['kabul_edilen_adet'] ??
+          asama['adet'] ??
+          model['adet'],
+    );
+  }
 
-  factory _AsamaIstatistik.fromRows(List<Map<String, dynamic>> rows) {
-    var bekleyen = 0;
-    var onaylanan = 0;
-    var islemde = 0;
-    var tamamlanan = 0;
-    var geciken = 0;
+  bool _gecikmisMi(Map<String, dynamic> model) {
+    final termin = DateTime.tryParse(_metin(model['termin_tarihi']));
+    if (termin == null) return false;
+    final tamamlandi = _metin(model['mevcut_asama']) == 'tamamlandi' ||
+        model['tamamlandi'] == true;
     final bugun = DateTime.now();
     final bugunBaslangic = DateTime(bugun.year, bugun.month, bugun.day);
-
-    for (final row in rows) {
-      final durum = row['durum']?.toString();
-
-      if (_bekleyenDurumlar.contains(durum)) {
-        bekleyen++;
-      } else if (_onaylananDurumlar.contains(durum)) {
-        onaylanan++;
-      } else if (_islemdeDurumlar.contains(durum)) {
-        islemde++;
-      } else if (_tamamlananDurumlar.contains(durum)) {
-        tamamlanan++;
-      }
-
-      final termin = _terminTarihi(row);
-      if (termin != null &&
-          termin.isBefore(bugunBaslangic) &&
-          !_tamamlananDurumlar.contains(durum)) {
-        geciken++;
-      }
-    }
-
-    return _AsamaIstatistik(
-      bekleyen: bekleyen,
-      onaylanan: onaylanan,
-      islemde: islemde,
-      tamamlanan: tamamlanan,
-      geciken: geciken,
-    );
+    return !tamamlandi && termin.isBefore(bugunBaslangic);
   }
 
-  static _AsamaIstatistik toplam(List<_AsamaIstatistik> istatistikler) {
-    return _AsamaIstatistik(
-      bekleyen: istatistikler.fold(0, (sum, item) => sum + item.bekleyen),
-      onaylanan: istatistikler.fold(0, (sum, item) => sum + item.onaylanan),
-      islemde: istatistikler.fold(0, (sum, item) => sum + item.islemde),
-      tamamlanan: istatistikler.fold(0, (sum, item) => sum + item.tamamlanan),
-      geciken: istatistikler.fold(0, (sum, item) => sum + item.geciken),
-    );
+  static String _metin(dynamic value, [String varsayilan = '']) {
+    final sonuc = value?.toString().trim() ?? '';
+    return sonuc.isEmpty ? varsayilan : sonuc;
   }
 
-  static DateTime? _terminTarihi(Map<String, dynamic> row) {
-    final model = row[DbTables.trikoTakip] as Map<String, dynamic>?;
-    final value = row['hedef_bitis'] ??
-        row['bitis_tarihi'] ??
-        row['planlanan_bitis_tarihi'] ??
-        model?['termin_tarihi'];
-    if (value == null) return null;
-    return DateTime.tryParse(value.toString());
+  static int _sayi(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
-  static const _bekleyenDurumlar = {
-    null,
-    'bekleyen',
-    'beklemede',
-    'atandi',
-    'firma_onay_bekliyor',
-    'kontrol_bekliyor',
-  };
-  static const _onaylananDurumlar = {'onaylandi', 'kabul_edildi'};
-  static const _islemdeDurumlar = {
-    'uretimde',
-    'devam_ediyor',
-    'baslatildi',
-    'basladi',
-    'kismi_tamamlandi',
-  };
-  static const _tamamlananDurumlar = {'tamamlandi'};
-}
-
-class _GenelUretimAramaDelegate extends SearchDelegate<_UretimAramaSonucu?> {
-  _GenelUretimAramaDelegate()
-      : super(
-          searchFieldLabel: 'Marka, model veya renk ara',
-          keyboardType: TextInputType.text,
-        );
-
-  @override
-  List<Widget>? buildActions(BuildContext context) {
-    return [
-      if (query.isNotEmpty)
-        IconButton(
-          tooltip: 'Temizle',
-          onPressed: () => query = '',
-          icon: const Icon(Icons.clear),
-        ),
-    ];
+  static String _durumAnahtari(dynamic value) {
+    return _metin(value)
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'[\s-]+'), '_');
   }
 
-  @override
-  Widget? buildLeading(BuildContext context) {
-    return IconButton(
-      tooltip: 'Geri',
-      onPressed: () => close(context, null),
-      icon: const Icon(Icons.arrow_back),
-    );
-  }
-
-  @override
-  Widget buildResults(BuildContext context) => _buildSonuclar(context);
-
-  @override
-  Widget buildSuggestions(BuildContext context) => _buildSonuclar(context);
-
-  Widget _buildSonuclar(BuildContext context) {
-    final arama = query.trim();
-    if (arama.length < 2) {
-      return const _StateView(
-        icon: Icons.search,
-        title: 'Model ara',
-        message: 'Arama yapmak için en az 2 karakter yazın.',
-      );
-    }
-
-    final tenant = context.read<TenantProvider>();
-    final aktifDallar = tenant.aktifUretimDallari;
-
-    return FutureBuilder<List<_UretimAramaSonucu>>(
-      future: _UretimAramaServisi.sonuclariGetir(
-        arama: arama,
-        aktifDallar: aktifDallar,
-        firmaId: tenant.firmaId,
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return _StateView(
-            icon: Icons.error_outline,
-            title: 'Arama yapılamadı',
-            message: snapshot.error.toString(),
-          );
-        }
-
-        final sonuclar = snapshot.data ?? const <_UretimAramaSonucu>[];
-        if (sonuclar.isEmpty) {
-          return const _StateView(
-            icon: Icons.search_off,
-            title: 'Sonuç yok',
-            message: 'Bu arama için eşleşen üretim işi bulunamadı.',
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: sonuclar.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final sonuc = sonuclar[index];
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: sonuc.asama.renk.withValues(alpha: 0.12),
-                child: Icon(sonuc.asama.ikon, color: sonuc.asama.renk),
-              ),
-              title: Text(
-                '${sonuc.marka} - ${sonuc.modelKodu}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                '${_dalEtiketi(sonuc.asama.tekstilDali)} / ${sonuc.asama.asamaAdi} • ${sonuc.renk} • ${sonuc.durumEtiketi}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                close(context, sonuc);
-                _asamaPanelineGit(
-                  context,
-                  sonuc.asama,
-                  initialTabIndex: sonuc.tabIndex,
-                  initialSearchQuery: sonuc.modelKodu,
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _UretimAramaServisi {
-  const _UretimAramaServisi._();
-
-  static Future<List<_UretimAramaSonucu>> sonuclariGetir({
-    required String arama,
-    required List<String> aktifDallar,
-    required String? firmaId,
-  }) async {
-    final asamalar = [
-      for (final dal in aktifDallar) ...AsamaRegistry.dashboardAsamalari(dal),
-    ];
-
-    final tumSonuclar = await Future.wait(
-      asamalar.map((asama) => _asamaSonuclariGetir(asama, firmaId)),
-    );
-
-    final aramaKucuk = arama.toLowerCase();
-    final sonuclar = tumSonuclar
-        .expand((liste) => liste)
-        .where((sonuc) => sonuc.aramaMetni.contains(aramaKucuk))
-        .toList()
-      ..sort((a, b) => a.marka.compareTo(b.marka));
-
-    return sonuclar.take(80).toList();
-  }
-
-  static Future<List<_UretimAramaSonucu>> _asamaSonuclariGetir(
-    AsamaTanim asama,
-    String? firmaId,
-  ) async {
-    try {
-      final supabase = Supabase.instance.client;
-      final tablo = asama.atamaTablosu;
-
-      if (tablo == DbTables.uretimAtamalari) {
-        final query = supabase
-            .from(DbTables.uretimAtamalari)
-            .select(
-                'durum, asama_kodu, uretim_dali, modeller(id, marka, item_no, renk)')
-            .eq('uretim_dali', asama.tekstilDali)
-            .eq('asama_kodu', asama.asamaKodu);
-        final response =
-            firmaId == null ? await query : await query.eq('firma_id', firmaId);
-        return _sonuclariMaple(asama, List<Map<String, dynamic>>.from(response),
-            modelKey: DbTables.modeller);
-      }
-
-      final query = supabase.from(tablo).select('durum, model_id');
-      final response =
-          firmaId == null ? await query : await query.eq('firma_id', firmaId);
-      final rows = List<Map<String, dynamic>>.from(response);
-      await _trikoModelBilgileriniEkle(rows, firmaId);
-      return _sonuclariMaple(asama, rows, modelKey: DbTables.trikoTakip);
-    } catch (e) {
-      debugPrint('${asama.asamaAdi} arama sonuçları yüklenemedi: $e');
-      return const <_UretimAramaSonucu>[];
-    }
-  }
-
-  static Future<void> _trikoModelBilgileriniEkle(
-    List<Map<String, dynamic>> rows,
-    String? firmaId,
-  ) async {
-    final modelIds = rows
-        .map((row) => row['model_id'])
-        .where((id) => id != null)
-        .toSet()
-        .toList();
-
-    if (modelIds.isEmpty) return;
-
-    var query = Supabase.instance.client
-        .from(DbTables.trikoTakip)
-        .select('id, marka, item_no, renk')
-        .inFilter('id', modelIds);
-
-    if (firmaId != null) {
-      query = query.eq('firma_id', firmaId);
-    }
-
-    final response = await query;
-
-    final modeller = {
-      for (final model in List<Map<String, dynamic>>.from(response))
-        model['id']: model,
+  static String _asamaEtiketi(String kod) {
+    const etiketler = {
+      'dokuma': 'Dokuma',
+      'nakis': 'Nakış',
+      'konfeksiyon': 'Konfeksiyon',
+      'yikama': 'Yıkama',
+      'ilik_dugme': 'İlik / Düğme',
+      'utu': 'Ütü',
+      'kalite_kontrol': 'Kalite Kontrol',
+      'paketleme': 'Paketleme',
+      'sevkiyat': 'Sevkiyat',
+      'tamamlandi': 'Tamamlandı',
+      'beklemede': 'Henüz Başlamadı',
+      'Tümü': 'Tüm Aşamalar',
     };
-
-    for (final row in rows) {
-      row[DbTables.trikoTakip] = modeller[row['model_id']];
-    }
+    return etiketler[kod] ?? kod.replaceAll('_', ' ');
   }
 
-  static List<_UretimAramaSonucu> _sonuclariMaple(
-    AsamaTanim asama,
-    List<Map<String, dynamic>> rows, {
-    required String modelKey,
-  }) {
-    return rows.map((row) {
-      final model = row[modelKey] as Map<String, dynamic>? ?? const {};
-      final durum = row['durum']?.toString();
-      return _UretimAramaSonucu(
-        asama: asama,
-        marka: (model['marka'] ?? 'Bilinmeyen Marka').toString(),
-        modelKodu: (model['item_no'] ?? model['id'] ?? '-').toString(),
-        renk: (model['renk'] ?? '-').toString(),
-        durum: durum,
-      );
-    }).toList();
-  }
-}
-
-class _UretimAramaSonucu {
-  final AsamaTanim asama;
-  final String marka;
-  final String modelKodu;
-  final String renk;
-  final String? durum;
-
-  const _UretimAramaSonucu({
-    required this.asama,
-    required this.marka,
-    required this.modelKodu,
-    required this.renk,
-    required this.durum,
-  });
-
-  String get aramaMetni => '$marka $modelKodu $renk'.toLowerCase();
-
-  int get tabIndex {
-    if (_AsamaIstatistik._bekleyenDurumlar.contains(durum)) return 0;
-    if (_AsamaIstatistik._onaylananDurumlar.contains(durum)) return 1;
-    if (_AsamaIstatistik._islemdeDurumlar.contains(durum)) return 2;
-    return 3;
+  static String _durumEtiketi(dynamic value) {
+    final durum = _durumAnahtari(value);
+    const etiketler = {
+      'bekleyen': 'Bekleyen',
+      'beklemede': 'Bekleyen',
+      'atandi': 'Atandı',
+      'onaylandi': 'Onaylandı',
+      'uretimde': 'İşlemde',
+      'baslandi': 'İşlemde',
+      'baslatildi': 'İşlemde',
+      'devam_ediyor': 'İşlemde',
+      'kontrolde': 'Kontrolde',
+      'kismi_tamamlandi': 'Kısmi Tamamlandı',
+      'tamamlandi': 'Tamamlandı',
+      'reddedildi': 'Reddedildi',
+      'iptal': 'İptal',
+    };
+    return etiketler[durum] ??
+        (durum.isEmpty ? 'Bekleyen' : durum.replaceAll('_', ' '));
   }
 
-  String get durumEtiketi {
-    if (_AsamaIstatistik._bekleyenDurumlar.contains(durum)) return 'Bekleyen';
-    if (_AsamaIstatistik._onaylananDurumlar.contains(durum)) return 'Onaylanan';
-    if (_AsamaIstatistik._islemdeDurumlar.contains(durum)) return 'İşlemde';
-    if (_AsamaIstatistik._tamamlananDurumlar.contains(durum)) {
-      return 'Tamamlandı';
-    }
-    return durum ?? 'Durum yok';
+  static String _modelEtiketi(Map<String, dynamic> model) {
+    final marka = _metin(model['marka']);
+    final item = _metin(model['item_no'] ?? model['model_adi'], 'Model');
+    return [marka, item].where((value) => value.isNotEmpty).join(' • ');
   }
-}
 
-void _asamaPanelineGit(
-  BuildContext context,
-  AsamaTanim asama, {
-  int initialTabIndex = 0,
-  String? initialSearchQuery,
-}) {
-  if (asama.asamaKodu == 'utu' || asama.asamaKodu == 'paketleme') {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const UtuPaketDashboard()),
+  static String _adetFormatla(int adet) =>
+      NumberFormat.decimalPattern('tr_TR').format(adet);
+
+  static String _tarihMetni(dynamic value) {
+    final tarih = DateTime.tryParse(_metin(value));
+    return tarih == null
+        ? 'Belirtilmedi'
+        : DateFormat('dd.MM.yyyy', 'tr_TR').format(tarih);
+  }
+
+  static Widget _adetMetni(int adet) {
+    return Text(
+      _adetFormatla(adet),
+      style: const TextStyle(
+          color: Color(0xFF102A43), fontWeight: FontWeight.w800),
     );
-    return;
   }
-
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => UretimAsamaDashboard(
-        asamaAdi: asama.asamaKodu,
-        asamaDisplayName: asama.asamaAdi,
-        atamaTablosu: asama.atamaTablosu,
-        modelDurumKolonu: asama.eskiDurumKolonu ?? '${asama.asamaKodu}_durumu',
-        asamaRengi: asama.renk,
-        asamaIconu: asama.ikon,
-        initialTabIndex: initialTabIndex,
-        initialSearchQuery: initialSearchQuery,
-      ),
-    ),
-  );
 }
 
-class _BilgiEtiketi extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class _TabloBasligi extends StatelessWidget {
+  final String text;
 
-  const _BilgiEtiketi({
+  const _TabloBasligi(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF475569),
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.35,
+      ),
+    );
+  }
+}
+
+class _OzetKarti extends StatelessWidget {
+  final double width;
+  final IconData icon;
+  final String baslik;
+  final String deger;
+  final String altMetin;
+  final Color renk;
+
+  const _OzetKarti({
+    required this.width,
     required this.icon,
-    required this.label,
+    required this.baslik,
+    required this.deger,
+    required this.altMetin,
+    required this.renk,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      width: width,
+      height: 96,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDDE6EF)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: const Color(0xFF475569)),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF334155),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: renk.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: renk, size: 23),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(baslik,
+                    style: const TextStyle(
+                        color: Color(0xFF64748B), fontSize: 11)),
+                Text(
+                  deger,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Color(0xFF102A43),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  altMetin,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
+                ),
+              ],
             ),
           ),
         ],
@@ -1505,120 +974,130 @@ class _BilgiEtiketi extends StatelessWidget {
   }
 }
 
+class _AsamaRozeti extends StatelessWidget {
+  final String kod;
+  final String etiket;
+
+  const _AsamaRozeti({required this.kod, required this.etiket});
+
+  @override
+  Widget build(BuildContext context) {
+    final renk = _renk(kod);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: renk.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: renk.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        etiket,
+        style:
+            TextStyle(color: renk, fontSize: 11, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  static Color _renk(String kod) {
+    const renkler = {
+      'dokuma': Color(0xFF8B5E34),
+      'nakis': Color(0xFFDB2777),
+      'konfeksiyon': Color(0xFFEA580C),
+      'yikama': Color(0xFF0891B2),
+      'ilik_dugme': Color(0xFF4F46E5),
+      'utu': Color(0xFF059669),
+      'kalite_kontrol': Color(0xFF0F766E),
+      'paketleme': Color(0xFF7C3AED),
+      'sevkiyat': Color(0xFF2563EB),
+      'tamamlandi': Color(0xFF16A34A),
+    };
+    return renkler[kod] ?? const Color(0xFF64748B);
+  }
+}
+
 class _DurumRozeti extends StatelessWidget {
-  final String label;
-  final Color color;
+  final String durum;
+
+  const _DurumRozeti({required this.durum});
+
+  @override
+  Widget build(BuildContext context) {
+    final anahtar = _GenelUretimDashboardState._durumAnahtari(durum);
+    final tamam = {'tamamlandi', 'sevk_edildi'}.contains(anahtar);
+    final red = {'reddedildi', 'iptal', 'kalite_red'}.contains(anahtar);
+    final islem = {
+      'uretimde',
+      'baslandi',
+      'baslatildi',
+      'devam_ediyor',
+      'kontrolde',
+      'kismi_tamamlandi',
+    }.contains(anahtar);
+    final renk = tamam
+        ? const Color(0xFF15803D)
+        : red
+            ? const Color(0xFFB91C1C)
+            : islem
+                ? const Color(0xFF1D4ED8)
+                : const Color(0xFFB45309);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: renk.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        _GenelUretimDashboardState._durumEtiketi(durum),
+        style:
+            TextStyle(color: renk, fontSize: 10, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _DurumGorunumu extends StatelessWidget {
+  final IconData icon;
+  final String baslik;
+  final String aciklama;
+  final String butonMetni;
+  final VoidCallback onPressed;
   final bool compact;
 
-  const _DurumRozeti({
-    required this.label,
-    required this.color,
+  const _DurumGorunumu({
+    required this.icon,
+    required this.baslik,
+    required this.aciklama,
+    required this.butonMetni,
+    required this.onPressed,
     this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _StateView extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  const _StateView({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 44, color: Colors.grey.shade500),
-              const SizedBox(height: 12),
-              Text(
-                title,
+        padding: EdgeInsets.all(compact ? 28 : 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: compact ? 48 : 60, color: const Color(0xFF94A3B8)),
+            const SizedBox(height: 12),
+            Text(baslik,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(aciklama,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium,
-              ),
-              if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: onAction,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(actionLabel!),
-                ),
-              ],
-            ],
-          ),
+                style: const TextStyle(color: Color(0xFF64748B))),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onPressed,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(butonMetni),
+            ),
+          ],
         ),
       ),
     );
   }
-}
-
-String _dalEtiketi(String dalKodu) {
-  const etiketler = {
-    'triko': 'Triko',
-    'konfeksiyon': 'Konfeksiyon',
-    'dokuma_kumas': 'Dokuma Kumaş',
-    'orme_kumas': 'Örme Kumaş',
-    'boya_terbiye': 'Boya & Terbiye',
-    'baski_desen': 'Baskı & Desen',
-    'iplik_uretim': 'İplik Üretim',
-    'teknik_tekstil': 'Teknik Tekstil',
-  };
-  return etiketler[dalKodu] ?? dalKodu;
-}
-
-IconData _dalIkonu(String dalKodu) {
-  const ikonlar = {
-    'triko': Icons.checkroom,
-    'konfeksiyon': Icons.content_cut,
-    'dokuma_kumas': Icons.linear_scale,
-    'orme_kumas': Icons.layers,
-    'boya_terbiye': Icons.color_lens,
-    'baski_desen': Icons.print,
-    'iplik_uretim': Icons.category,
-    'teknik_tekstil': Icons.precision_manufacturing,
-  };
-  return ikonlar[dalKodu] ?? Icons.factory_outlined;
 }

@@ -1622,11 +1622,19 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
                 final redNotu = '[RED SEBEBİ] ${sebebController.text}';
 
-                await supabase.from(widget.atamaTablosu).update({
-                  'durum': 'reddedildi',
-                  'notlar': redNotu,
-                  if (_eskiAtamaAciklamaKolonuVar) 'aciklama': redNotu,
-                }).eq('id', atama['id']);
+                await _workflowTransitionService.applyTransition(
+                  tableName: widget.atamaTablosu,
+                  recordId: atama['id'],
+                  firmaId: TenantManager.instance.requireFirmaId,
+                  fromStatus: atama['durum']?.toString(),
+                  toStatus: 'reddedildi',
+                  idempotencyKey:
+                      '${widget.atamaTablosu}:${atama['id']}:reddedildi:${atama['updated_at'] ?? ''}',
+                  extraFields: {
+                    'notlar': redNotu,
+                    if (_eskiAtamaAciklamaKolonuVar) 'aciklama': redNotu,
+                  },
+                );
 
                 if (!context.mounted) return;
                 Navigator.pop(context);
@@ -1852,8 +1860,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
 
       // Modeller tablosundaki durumu da güncelle (triko_takip)
       try {
-        await supabase.from(DbTables.trikoTakip).update(
-            {widget.modelDurumKolonu: yeniDurum}).eq('id', atama['model_id']);
+        await supabase
+            .from(DbTables.trikoTakip)
+            .update({widget.modelDurumKolonu: yeniDurum})
+            .eq('id', atama['model_id'])
+            .eq('firma_id', firmaId);
       } catch (e) {
         debugPrint('⚠️ Model durumu güncellenemedi (triko_takip): $e');
       }
@@ -2131,12 +2142,11 @@ extension _AksiyonlarAsamaExt on _UretimAsamaDashboardState {
             })
             .eq('id', atama['id'])
             .eq('firma_id', TenantManager.instance.requireFirmaId);
-      } catch (_) {
-        await supabase.from(widget.atamaTablosu).update({
-          'red_sebebi': result,
-          'notlar': redNotu,
-          if (_eskiAtamaAciklamaKolonuVar) 'aciklama': redNotu,
-        }).eq('id', atama['id']);
+      } catch (e) {
+        debugPrint('Red sebebi firma kapsamında güncellenemedi: $e');
+        if (mounted) {
+          context.showErrorSnackBar('Red sebebi kaydedilemedi: $e');
+        }
       }
     }
   }

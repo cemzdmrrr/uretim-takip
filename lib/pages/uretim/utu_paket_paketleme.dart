@@ -1191,7 +1191,7 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
   ) async {
     try {
       final firmaId = TenantManager.instance.requireFirmaId;
-      var useFirmaFilter = true;
+      const useFirmaFilter = true;
       var paketlemeBedenKolonuVar = true;
 
       // Aynı model için paketleme ataması var mı kontrol et
@@ -1219,8 +1219,10 @@ extension _PaketlemeExt on _UtuPaketDashboardState {
             continue;
           }
           if (missingColumn == 'firma_id' && useFirmaFilter) {
-            useFirmaFilter = false;
-            continue;
+            throw StateError(
+              '${DbTables.paketlemeAtamalari} tablosunda firma_id kolonu '
+              'bulunamadı. Firma kapsamı kaldırılarak sorgu çalıştırılamaz.',
+            );
           }
           rethrow;
         }
