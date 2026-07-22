@@ -332,6 +332,14 @@ Notlar:
 3. Uretim zinciri etkileniyorsa beden/durum/sonraki asama akisini manuel kontrol et.
 4. Finans/personel ekranlari etkileniyorsa mobil scroll ve tablo yatay scroll kontrol et.
 
+## Production Web Deploy
+
+- Supabase yapilandirmasi Flutter web build sirasinda `--dart-define-from-file` ile derlemeye gomulur. Env dosyasi olmadan alinan build production'a kesinlikle deploy edilmez.
+- Production build ve Vercel deploy icin tek guvenli komut: `.\scripts\build_web.ps1 -Env production -Deploy`.
+- Betik `SUPABASE_URL` ve `SUPABASE_ANON_KEY` degerlerini build baslamadan dogrular; degerleri loga yazmaz.
+- Vercel Git build ortaminda Flutter SDK yoktur. Bu nedenle `flutter build web` Vercel sunucusunda calistirilmaz; yerel build `.vercel/output/static` altina aktarilip `vercel deploy --prebuilt --prod` ile yayinlanir.
+- Production web build `--pwa-strategy=none` ile alinir. `main.dart.js`, `flutter.js`, bootstrap, service worker, index ve version dosyalari Vercel'de `no-cache` sunulur; eski env'siz JS paketinin service worker cache'inden tekrar acilmasi engellenir.
+
 ## Hafiza Guncelleme Kurali
 
 Asagidaki durumlardan biri olursa bu dosyayi guncelle:
