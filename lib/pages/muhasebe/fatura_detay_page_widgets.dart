@@ -186,8 +186,8 @@ extension _WidgetExt on _FaturaDetayPageState {
                 ),
               )
             else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
+              ResponsiveHorizontalTable(
+                minWidth: 1450,
                 child: DataTable(
                   dataRowMinHeight: 64,
                   dataRowMaxHeight: 82,

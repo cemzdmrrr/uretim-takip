@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/models/puantaj_model.dart';
 import 'package:uretim_takip/services/puantaj_service.dart';
 import 'package:uretim_takip/models/personel_model.dart';
 import 'package:uretim_takip/services/personel_service.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 class MesaiPuantajPage extends StatefulWidget {
   const MesaiPuantajPage({super.key});
@@ -18,7 +19,7 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
   bool yukleniyor = true;
   int seciliAy = DateTime.now().month;
   int seciliYil = DateTime.now().year;
-  
+
   final puantajService = PuantajService();
   final personelService = PersonelService();
 
@@ -30,27 +31,27 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
 
   Future<void> _loadData() async {
     setState(() => yukleniyor = true);
-    
+
     try {
       // Personel listesini yükle
       personeller = await personelService.getPersoneller();
-      
+
       // Puantaj verilerini yükle
-      puantajlar = await puantajService.getPuantajlar(ay: seciliAy, yil: seciliYil);
-      
+      puantajlar =
+          await puantajService.getPuantajlar(ay: seciliAy, yil: seciliYil);
+
       // Eğer seçili ay/yıl için puantaj yoksa, personeller için otomatik oluştur
       if (puantajlar.isEmpty && personeller.isNotEmpty) {
         await _createDefaultPuantaj();
       }
-      
     } catch (e) {
       debugPrint('Puantaj verisi yükleme hatası: $e');
     }
-    
+
     if (!mounted) return;
     setState(() => yukleniyor = false);
   }
-  
+
   Future<void> _createDefaultPuantaj() async {
     try {
       for (final personel in personeller) {
@@ -66,12 +67,13 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
           eksikGun: 0,
           devamsizlik: 0,
         );
-        
+
         await puantajService.addPuantaj(puantaj, sendId: false);
       }
-      
+
       // Verileri yeniden yükle
-      puantajlar = await puantajService.getPuantajlar(ay: seciliAy, yil: seciliYil);
+      puantajlar =
+          await puantajService.getPuantajlar(ay: seciliAy, yil: seciliYil);
     } catch (e) {
       debugPrint('Varsayılan puantaj oluşturma hatası: $e');
     }
@@ -81,7 +83,8 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Puantaj Yönetimi', style: TextStyle(color: Colors.white)),
+        title: const Text('Puantaj Yönetimi',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.blue,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -113,7 +116,8 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
                     children: [
                       const Icon(Icons.calendar_month, color: Colors.blue),
                       const SizedBox(width: 12),
-                      const Text('Dönem:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text('Dönem:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(width: 12),
                       DropdownButton<int>(
                         value: seciliAy,
@@ -151,14 +155,16 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
                       const Spacer(),
                       ElevatedButton.icon(
                         icon: const Icon(Icons.add, color: Colors.white),
-                        label: const Text('Yeni Puantaj', style: TextStyle(color: Colors.white)),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                        label: const Text('Yeni Puantaj',
+                            style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green),
                         onPressed: () => _showPuantajDialog(),
                       ),
                     ],
                   ),
                 ),
-                
+
                 // Puantaj Tablosu
                 Expanded(
                   child: puantajlar.isEmpty
@@ -166,49 +172,83 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.table_chart, size: 64, color: Colors.grey),
+                              Icon(Icons.table_chart,
+                                  size: 64, color: Colors.grey),
                               SizedBox(height: 16),
                               Text(
                                 'Bu dönem için puantaj kaydı bulunamadı.',
-                                style: TextStyle(fontSize: 16, color: Colors.grey),
+                                style:
+                                    TextStyle(fontSize: 16, color: Colors.grey),
                               ),
                             ],
                           ),
                         )
                       : SingleChildScrollView(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
+                          child: ResponsiveHorizontalTable(
+                            minWidth: 1050,
                             child: DataTable(
                               columns: const [
-                                DataColumn(label: Text('Personel', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Çalışma Günü', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Çalışma Saati', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Fazla Mesai', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Eksik Gün', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Devamsızlık', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('İşlemler', style: TextStyle(fontWeight: FontWeight.bold))),
+                                DataColumn(
+                                    label: Text('Personel',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold))),
+                                DataColumn(
+                                    label: Text('Çalışma Günü',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold))),
+                                DataColumn(
+                                    label: Text('Çalışma Saati',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold))),
+                                DataColumn(
+                                    label: Text('Fazla Mesai',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold))),
+                                DataColumn(
+                                    label: Text('Eksik Gün',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold))),
+                                DataColumn(
+                                    label: Text('Devamsızlık',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold))),
+                                DataColumn(
+                                    label: Text('İşlemler',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold))),
                               ],
                               rows: puantajlar.map((puantaj) {
                                 return DataRow(
                                   cells: [
                                     DataCell(Text(puantaj.ad)),
                                     DataCell(Text('${puantaj.gun} gün')),
-                                    DataCell(Text('${puantaj.calismaSaati} saat')),
-                                    DataCell(Text('${puantaj.fazlaMesai} saat', style: const TextStyle(color: Colors.green))),
-                                    DataCell(Text('${puantaj.eksikGun} gün', style: const TextStyle(color: Colors.orange))),
-                                    DataCell(Text('${puantaj.devamsizlik} gün', style: const TextStyle(color: Colors.red))),
+                                    DataCell(
+                                        Text('${puantaj.calismaSaati} saat')),
+                                    DataCell(Text('${puantaj.fazlaMesai} saat',
+                                        style: const TextStyle(
+                                            color: Colors.green))),
+                                    DataCell(Text('${puantaj.eksikGun} gün',
+                                        style: const TextStyle(
+                                            color: Colors.orange))),
+                                    DataCell(Text('${puantaj.devamsizlik} gün',
+                                        style: const TextStyle(
+                                            color: Colors.red))),
                                     DataCell(
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           IconButton(
-                                            icon: const Icon(Icons.edit, color: Colors.blue),
-                                            onPressed: () => _showPuantajDialog(puantaj: puantaj),
+                                            icon: const Icon(Icons.edit,
+                                                color: Colors.blue),
+                                            onPressed: () => _showPuantajDialog(
+                                                puantaj: puantaj),
                                             tooltip: 'Düzenle',
                                           ),
                                           IconButton(
-                                            icon: const Icon(Icons.delete, color: Colors.red),
-                                            onPressed: () => _deletePuantaj(puantaj),
+                                            icon: const Icon(Icons.delete,
+                                                color: Colors.red),
+                                            onPressed: () =>
+                                                _deletePuantaj(puantaj),
                                             tooltip: 'Sil',
                                           ),
                                         ],
@@ -225,15 +265,25 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
             ),
     );
   }
-  
+
   String _getAyAdi(int ay) {
     const aylar = [
-      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık'
     ];
     return aylar[ay - 1];
   }
-  
+
   void _showPuantajDialog({PuantajModel? puantaj}) {
     final isEdit = puantaj != null;
     String seciliPersonelId = puantaj?.personelId ?? '';
@@ -242,7 +292,7 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
     int fazlaMesai = puantaj?.fazlaMesai ?? 0;
     int eksikGun = puantaj?.eksikGun ?? 0;
     int devamsizlik = puantaj?.devamsizlik ?? 0;
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -254,12 +304,15 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
               children: [
                 if (!isEdit)
                   DropdownButtonFormField<String>(
-                    initialValue: seciliPersonelId.isEmpty ? null : seciliPersonelId,
+                    initialValue:
+                        seciliPersonelId.isEmpty ? null : seciliPersonelId,
                     decoration: const InputDecoration(labelText: 'Personel'),
-                    items: personeller.map((p) => DropdownMenuItem(
-                      value: p.userId,
-                      child: Text('${p.ad} ${p.soyad}'),
-                    )).toList(),
+                    items: personeller
+                        .map((p) => DropdownMenuItem(
+                              value: p.userId,
+                              child: Text('${p.ad} ${p.soyad}'),
+                            ))
+                        .toList(),
                     onChanged: (value) {
                       setDialogState(() => seciliPersonelId = value ?? '');
                     },
@@ -276,28 +329,34 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
                   initialValue: calismaSaati.toString(),
                   decoration: const InputDecoration(labelText: 'Çalışma Saati'),
                   keyboardType: TextInputType.number,
-                  onChanged: (value) => calismaSaati = int.tryParse(value) ?? calismaSaati,
+                  onChanged: (value) =>
+                      calismaSaati = int.tryParse(value) ?? calismaSaati,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   initialValue: fazlaMesai.toString(),
-                  decoration: const InputDecoration(labelText: 'Fazla Mesai (saat)'),
+                  decoration:
+                      const InputDecoration(labelText: 'Fazla Mesai (saat)'),
                   keyboardType: TextInputType.number,
-                  onChanged: (value) => fazlaMesai = int.tryParse(value) ?? fazlaMesai,
+                  onChanged: (value) =>
+                      fazlaMesai = int.tryParse(value) ?? fazlaMesai,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   initialValue: eksikGun.toString(),
                   decoration: const InputDecoration(labelText: 'Eksik Gün'),
                   keyboardType: TextInputType.number,
-                  onChanged: (value) => eksikGun = int.tryParse(value) ?? eksikGun,
+                  onChanged: (value) =>
+                      eksikGun = int.tryParse(value) ?? eksikGun,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   initialValue: devamsizlik.toString(),
-                  decoration: const InputDecoration(labelText: 'Devamsızlık (gün)'),
+                  decoration:
+                      const InputDecoration(labelText: 'Devamsızlık (gün)'),
                   keyboardType: TextInputType.number,
-                  onChanged: (value) => devamsizlik = int.tryParse(value) ?? devamsizlik,
+                  onChanged: (value) =>
+                      devamsizlik = int.tryParse(value) ?? devamsizlik,
                 ),
               ],
             ),
@@ -313,10 +372,12 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
                   context.showSnackBar('Lütfen personel seçiniz');
                   return;
                 }
-                
+
                 try {
-                  final personelAd = personeller.firstWhere((p) => p.userId == seciliPersonelId).ad;
-                  
+                  final personelAd = personeller
+                      .firstWhere((p) => p.userId == seciliPersonelId)
+                      .ad;
+
                   final yeniPuantaj = PuantajModel(
                     id: puantaj?.id ?? '',
                     personelId: seciliPersonelId,
@@ -329,20 +390,23 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
                     eksikGun: eksikGun,
                     devamsizlik: devamsizlik,
                   );
-                  
+
                   if (isEdit) {
                     await puantajService.updatePuantaj(yeniPuantaj);
                   } else {
                     await puantajService.addPuantaj(yeniPuantaj, sendId: false);
                   }
-                  
+
                   if (!context.mounted) return;
                   Navigator.pop(context);
                   _loadData();
-                  
+
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(isEdit ? 'Puantaj güncellendi' : 'Puantaj eklendi')),
+                    SnackBar(
+                        content: Text(isEdit
+                            ? 'Puantaj güncellendi'
+                            : 'Puantaj eklendi')),
                   );
                 } catch (e) {
                   if (!context.mounted) return;
@@ -356,13 +420,14 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
       ),
     );
   }
-  
+
   Future<void> _deletePuantaj(PuantajModel puantaj) async {
     final onay = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Puantaj Sil'),
-        content: Text('${puantaj.ad} personelinin puantaj kaydını silmek istediğinize emin misiniz?'),
+        content: Text(
+            '${puantaj.ad} personelinin puantaj kaydını silmek istediğinize emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -376,7 +441,7 @@ class _MesaiPuantajPageState extends State<MesaiPuantajPage> {
         ],
       ),
     );
-    
+
     if (onay == true) {
       try {
         await puantajService.deletePuantaj(puantaj.id);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 import 'package:flutter/gestures.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -2545,8 +2546,8 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
                     );
                   }
 
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                  return ResponsiveHorizontalTable(
+                    minWidth: 1100,
                     child: DataTable(
                       headingRowColor:
                           WidgetStateProperty.all(const Color(0xFFF8FAFC)),

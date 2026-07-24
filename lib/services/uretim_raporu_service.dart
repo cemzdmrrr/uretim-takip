@@ -131,7 +131,7 @@ class UretimRaporuService {
         tedarikciler = List<Map<String, dynamic>>.from(
           await _supabase
               .from(DbTables.tedarikciler)
-              .select('id, firma_adi')
+              .select('id, sirket, ad, soyad')
               .eq('firma_id', _firmaId),
         );
       } catch (e) {
@@ -202,8 +202,13 @@ class UretimRaporuService {
     // Tedarikçi index
     final tedarikciIndex = <String, String>{};
     for (final t in tedarikciler) {
+      final sirket = t['sirket']?.toString().trim() ?? '';
+      final adSoyad = [t['ad'], t['soyad']]
+          .map((deger) => deger?.toString().trim() ?? '')
+          .where((deger) => deger.isNotEmpty)
+          .join(' ');
       tedarikciIndex[t['id']?.toString() ?? ''] =
-          t['firma_adi']?.toString() ?? '';
+          sirket.isNotEmpty ? sirket : adSoyad;
     }
 
     final zenginModeller = <Map<String, dynamic>>[];

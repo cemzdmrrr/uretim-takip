@@ -18,6 +18,7 @@ Bu dosya, uretim_takip projesinde context kaybini azaltmak icin kalici mimari ha
 - Dinamik uretim asamalari icin `AsamaRegistry` kullanilmali; firma konfiguasyonuna duyarsiz sabit asama listeleri yeni kodda tercih edilmemeli.
 - Uretim zincirinde durum, adet ve beden bilgisi birbirine baglidir. Birini degistirirken digerlerini kontrol et.
 - UI degisikliklerinde ERP tarzina uygun, yogun ama okunabilir ekranlar hedeflenir. Mobilde butun ana sayfalar asagi kaydirilabilir olmalidir.
+- Yatay kaydirilan masaustu tablolarinda genis ekranda bos sag alan birakmamak icin `ResponsiveHorizontalTable` kullanilir. Widget mevcut alani doldurur, tanimlanan minimum genisligin altinda yatay kaydirmayi korur.
 
 ## Kritik Servisler
 

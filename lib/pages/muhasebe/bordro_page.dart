@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/widgets/donem_secici.dart';
 import 'package:uretim_takip/services/supabase_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 class Personel {
   final String id;
@@ -1016,8 +1017,8 @@ class _BordroPageState extends State<BordroPage> {
                   .toList(),
             )
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            ResponsiveHorizontalTable(
+              minWidth: 900,
               child: DataTable(
                 headingRowColor:
                     WidgetStateProperty.all(const Color(0xFFF8FAFC)),

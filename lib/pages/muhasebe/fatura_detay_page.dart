@@ -11,6 +11,7 @@ import 'package:uretim_takip/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:uretim_takip/utils/decimal_parser.dart';
 import 'package:uretim_takip/utils/currency_utils.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 part 'fatura_detay_page_widgets.dart';
 

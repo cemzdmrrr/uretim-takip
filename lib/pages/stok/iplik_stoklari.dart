@@ -814,48 +814,58 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-            dataRowMinHeight: 58,
-            dataRowMaxHeight: 104,
-            columnSpacing: 22,
-            horizontalMargin: 16,
-            columns: const [
-              DataColumn(label: Text('İplik')),
-              DataColumn(label: Text('Renk')),
-              DataColumn(label: Text('Lot')),
-              DataColumn(label: Text('Miktar')),
-              DataColumn(label: Text('Durum')),
-              DataColumn(label: Text('Tedarikçi')),
-              DataColumn(label: Text('Birim Fiyat')),
-              DataColumn(label: Text('İşlem')),
-            ],
-            rows: filtreliStoklar.map((stok) {
-              final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
-              final durum = _stokDurumBilgisi(miktar);
-              return DataRow(
-                cells: [
-                  DataCell(_tableText(stok['ad']?.toString() ?? '-',
-                      width: 240, bold: true, maxLines: 3)),
-                  DataCell(_tableText(stok['renk']?.toString() ?? '-',
-                      width: 240, maxLines: 3)),
-                  DataCell(_tableText(stok['lot_no']?.toString() ?? '-',
-                      width: 140, maxLines: 2)),
-                  DataCell(Text(
-                      '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}')),
-                  DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
-                  DataCell(_tableText(_tedarikciAdi(stok), width: 170)),
-                  DataCell(Text(_formatFiyat(stok))),
-                  DataCell(_buildStokAksiyonlari(stok, compact: true)),
-                ],
-              );
-            }).toList(),
-          ),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabloGenisligi =
+              constraints.maxWidth < 1180 ? 1180.0 : constraints.maxWidth;
+          return Scrollbar(
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tabloGenisligi,
+                child: DataTable(
+                  headingRowColor:
+                      WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                  dataRowMinHeight: 58,
+                  dataRowMaxHeight: 104,
+                  columnSpacing: 22,
+                  horizontalMargin: 16,
+                  columns: const [
+                    DataColumn(label: Text('İplik')),
+                    DataColumn(label: Text('Renk')),
+                    DataColumn(label: Text('Lot')),
+                    DataColumn(label: Text('Miktar')),
+                    DataColumn(label: Text('Durum')),
+                    DataColumn(label: Text('Tedarikçi')),
+                    DataColumn(label: Text('Birim Fiyat')),
+                    DataColumn(label: Text('İşlem')),
+                  ],
+                  rows: filtreliStoklar.map((stok) {
+                    final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
+                    final durum = _stokDurumBilgisi(miktar);
+                    return DataRow(
+                      cells: [
+                        DataCell(_tableText(stok['ad']?.toString() ?? '-',
+                            width: 240, bold: true, maxLines: 3)),
+                        DataCell(_tableText(stok['renk']?.toString() ?? '-',
+                            width: 240, maxLines: 3)),
+                        DataCell(_tableText(stok['lot_no']?.toString() ?? '-',
+                            width: 140, maxLines: 2)),
+                        DataCell(Text(
+                            '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}')),
+                        DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
+                        DataCell(_tableText(_tedarikciAdi(stok), width: 170)),
+                        DataCell(Text(_formatFiyat(stok))),
+                        DataCell(_buildStokAksiyonlari(stok, compact: true)),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1852,52 +1862,65 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-          columnSpacing: 20,
-          horizontalMargin: 14,
-          columns: const [
-            DataColumn(label: Text('Sipariş')),
-            DataColumn(label: Text('İplik / Renk')),
-            DataColumn(label: Text('Tedarikçi')),
-            DataColumn(label: Text('Miktar')),
-            DataColumn(label: Text('Termin')),
-            DataColumn(label: Text('Durum')),
-          ],
-          rows: siparisler.map((siparis) {
-            final durum = _siparisDurumBilgisi(siparis);
-            final birim = siparis['birim']?.toString().trim().isNotEmpty == true
-                ? siparis['birim'].toString()
-                : 'kg';
-            return DataRow(
-              cells: [
-                DataCell(
-                  _tableText(
-                    siparis['siparis_no']?.toString() ?? '-',
-                    width: 125,
-                    bold: true,
-                  ),
-                ),
-                DataCell(
-                  _tableText(
-                    '${siparis['iplik_adi'] ?? '-'} / ${_siparisRengi(siparis)}',
-                    width: 210,
-                  ),
-                ),
-                DataCell(
-                  _tableText(_siparisTedarikciAdi(siparis), width: 170),
-                ),
-                DataCell(
-                  Text('${_formatKg(_siparisNum(siparis['miktar']))} $birim'),
-                ),
-                DataCell(Text(_formatSiparisTarih(siparis['termin_tarihi']))),
-                DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
-              ],
-            );
-          }).toList(),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabloGenisligi =
+              constraints.maxWidth < 900 ? 900.0 : constraints.maxWidth;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: tabloGenisligi,
+              child: DataTable(
+                headingRowColor:
+                    WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                columnSpacing: 20,
+                horizontalMargin: 14,
+                columns: const [
+                  DataColumn(label: Text('Sipariş')),
+                  DataColumn(label: Text('İplik / Renk')),
+                  DataColumn(label: Text('Tedarikçi')),
+                  DataColumn(label: Text('Miktar')),
+                  DataColumn(label: Text('Termin')),
+                  DataColumn(label: Text('Durum')),
+                ],
+                rows: siparisler.map((siparis) {
+                  final durum = _siparisDurumBilgisi(siparis);
+                  final birim =
+                      siparis['birim']?.toString().trim().isNotEmpty == true
+                          ? siparis['birim'].toString()
+                          : 'kg';
+                  return DataRow(
+                    cells: [
+                      DataCell(
+                        _tableText(
+                          siparis['siparis_no']?.toString() ?? '-',
+                          width: 125,
+                          bold: true,
+                        ),
+                      ),
+                      DataCell(
+                        _tableText(
+                          '${siparis['iplik_adi'] ?? '-'} / ${_siparisRengi(siparis)}',
+                          width: 210,
+                        ),
+                      ),
+                      DataCell(
+                        _tableText(_siparisTedarikciAdi(siparis), width: 170),
+                      ),
+                      DataCell(
+                        Text(
+                            '${_formatKg(_siparisNum(siparis['miktar']))} $birim'),
+                      ),
+                      DataCell(
+                          Text(_formatSiparisTarih(siparis['termin_tarihi']))),
+                      DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

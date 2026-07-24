@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 class MuhasebeYonetimiPage extends StatefulWidget {
   const MuhasebeYonetimiPage({super.key});
@@ -11,14 +12,15 @@ class MuhasebeYonetimiPage extends StatefulWidget {
   State<MuhasebeYonetimiPage> createState() => _MuhasebeYonetimiPageState();
 }
 
-class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with SingleTickerProviderStateMixin {
+class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage>
+    with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
   final _currencyFormat = NumberFormat.currency(locale: 'tr_TR', symbol: '₺');
   late TabController _tabController;
-  
+
   bool _isLoading = true;
   DateTime _selectedDate = DateTime.now();
-  
+
   Map<String, dynamic> _muhasebeData = {
     'yevmiye_kayitlari': <Map<String, dynamic>>[],
     'hesap_plani': <Map<String, dynamic>>[],
@@ -42,7 +44,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
 
   Future<void> _loadMuhasebeData() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final results = await Future.wait([
         _loadYevmiyeKayitlari(),
@@ -51,7 +53,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
         _loadKarZarar(),
         _loadBilanco(),
       ]);
-      
+
       setState(() {
         _muhasebeData = {
           'yevmiye_kayitlari': results[0],
@@ -73,10 +75,16 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
       final response = await _supabase
           .from(DbTables.yevmiyeKayitlari)
           .select('*')
-          .gte('tarih', DateTime(_selectedDate.year, _selectedDate.month, 1).toIso8601String())
-          .lt('tarih', DateTime(_selectedDate.year, _selectedDate.month + 1, 1).toIso8601String())
+          .gte(
+              'tarih',
+              DateTime(_selectedDate.year, _selectedDate.month, 1)
+                  .toIso8601String())
+          .lt(
+              'tarih',
+              DateTime(_selectedDate.year, _selectedDate.month + 1, 1)
+                  .toIso8601String())
           .order('tarih', ascending: false);
-      
+
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       return [];
@@ -89,7 +97,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
           .from(DbTables.hesapPlani)
           .select('*')
           .order('hesap_kodu', ascending: true);
-      
+
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       return [];
@@ -101,9 +109,15 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
       final response = await _supabase
           .from(DbTables.mizanView)
           .select('*')
-          .gte('tarih', DateTime(_selectedDate.year, _selectedDate.month, 1).toIso8601String())
-          .lt('tarih', DateTime(_selectedDate.year, _selectedDate.month + 1, 1).toIso8601String());
-      
+          .gte(
+              'tarih',
+              DateTime(_selectedDate.year, _selectedDate.month, 1)
+                  .toIso8601String())
+          .lt(
+              'tarih',
+              DateTime(_selectedDate.year, _selectedDate.month + 1, 1)
+                  .toIso8601String());
+
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       return [];
@@ -118,7 +132,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
           .gte('tarih', DateTime(_selectedDate.year, 1, 1).toIso8601String())
           .lt('tarih', DateTime(_selectedDate.year + 1, 1, 1).toIso8601String())
           .single();
-      
+
       return response;
     } catch (e) {
       return {};
@@ -132,7 +146,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
           .select('*')
           .eq('tarih', _selectedDate.toIso8601String().substring(0, 10))
           .single();
-      
+
       return response;
     } catch (e) {
       return {};
@@ -162,9 +176,10 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
   Future<void> _yeniYevmiyeKaydi() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => _YevmiyeKaydiDialog(hesapPlani: _muhasebeData['hesap_plani']),
+      builder: (context) =>
+          _YevmiyeKaydiDialog(hesapPlani: _muhasebeData['hesap_plani']),
     );
-    
+
     if (result != null) {
       try {
         await _supabase.from(DbTables.yevmiyeKayitlari).insert(result);
@@ -181,7 +196,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
       context: context,
       builder: (context) => const _HesapEkleDialog(),
     );
-    
+
     if (result != null) {
       try {
         await _supabase.from(DbTables.hesapPlani).insert(result);
@@ -194,8 +209,9 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
   }
 
   Widget _buildYevmiyeTab() {
-    final yevmiyeKayitlari = _muhasebeData['yevmiye_kayitlari'] as List<Map<String, dynamic>>;
-    
+    final yevmiyeKayitlari =
+        _muhasebeData['yevmiye_kayitlari'] as List<Map<String, dynamic>>;
+
     return Column(
       children: [
         Container(
@@ -205,7 +221,8 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
               Expanded(
                 child: Text(
                   'Yevmiye Defteri - ${DateFormat('MMMM yyyy', 'tr_TR').format(_selectedDate)}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
               IconButton(
@@ -260,7 +277,8 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  DateFormat('dd/MM/yyyy').format(DateTime.parse(kayit['tarih'])),
+                  DateFormat('dd/MM/yyyy')
+                      .format(DateTime.parse(kayit['tarih'])),
                   style: const TextStyle(color: Colors.grey),
                 ),
               ],
@@ -274,11 +292,14 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Borç', style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text('${kayit['borc_hesap_adi']} (${kayit['borc_hesap_kodu']})'),
+                      const Text('Borç',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                          '${kayit['borc_hesap_adi']} (${kayit['borc_hesap_kodu']})'),
                       Text(
                         _currencyFormat.format(kayit['tutar']),
-                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.red, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -288,11 +309,14 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Alacak', style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text('${kayit['alacak_hesap_adi']} (${kayit['alacak_hesap_kodu']})'),
+                      const Text('Alacak',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                          '${kayit['alacak_hesap_adi']} (${kayit['alacak_hesap_kodu']})'),
                       Text(
                         _currencyFormat.format(kayit['tutar']),
-                        style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.green, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -306,8 +330,9 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
   }
 
   Widget _buildHesapPlaniTab() {
-    final hesapPlani = _muhasebeData['hesap_plani'] as List<Map<String, dynamic>>;
-    
+    final hesapPlani =
+        _muhasebeData['hesap_plani'] as List<Map<String, dynamic>>;
+
     return Column(
       children: [
         Container(
@@ -355,7 +380,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
   Widget _buildHesapCard(Map<String, dynamic> hesap) {
     final seviye = (hesap['hesap_kodu'] as String).length;
     final indent = (seviye - 1) * 20.0;
-    
+
     return Card(
       margin: EdgeInsets.only(left: indent, bottom: 8),
       child: ListTile(
@@ -363,7 +388,8 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
           backgroundColor: _getHesapRengi(hesap['hesap_tipi']),
           child: Text(
             hesap['hesap_kodu'].substring(0, 1),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
         title: Text(
@@ -371,7 +397,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(hesap['hesap_tipi']),
-        trailing: hesap['aktif'] == true 
+        trailing: hesap['aktif'] == true
             ? const Icon(Icons.check_circle, color: Colors.green)
             : const Icon(Icons.cancel, color: Colors.red),
       ),
@@ -395,7 +421,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
 
   Widget _buildMizanTab() {
     final mizan = _muhasebeData['mizan'] as List<Map<String, dynamic>>;
-    
+
     return Column(
       children: [
         Container(
@@ -417,8 +443,8 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
                     ],
                   ),
                 )
-              : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+              : ResponsiveHorizontalTable(
+                  minWidth: 760,
                   child: DataTable(
                     columns: const [
                       DataColumn(label: Text('Hesap Kodu')),
@@ -431,7 +457,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
                       final borc = (item['borc_toplam'] ?? 0.0).toDouble();
                       final alacak = (item['alacak_toplam'] ?? 0.0).toDouble();
                       final bakiye = borc - alacak;
-                      
+
                       return DataRow(
                         cells: [
                           DataCell(Text(item['hesap_kodu'] ?? '')),
@@ -459,7 +485,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
 
   Widget _buildKarZararTab() {
     final karZarar = _muhasebeData['kar_zarar'] as Map<String, dynamic>;
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -470,22 +496,34 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
-          _buildKarZararCard('Satış Gelirleri', karZarar['satis_gelirleri'] ?? 0, Colors.green),
-          _buildKarZararCard('Satışların Maliyeti', karZarar['satis_maliyeti'] ?? 0, Colors.red),
+          _buildKarZararCard('Satış Gelirleri',
+              karZarar['satis_gelirleri'] ?? 0, Colors.green),
+          _buildKarZararCard('Satışların Maliyeti',
+              karZarar['satis_maliyeti'] ?? 0, Colors.red),
           const Divider(),
-          _buildKarZararCard('Brüt Kar', (karZarar['satis_gelirleri'] ?? 0) - (karZarar['satis_maliyeti'] ?? 0), Colors.blue),
-          _buildKarZararCard('Faaliyet Giderleri', karZarar['faaliyet_giderleri'] ?? 0, Colors.red),
+          _buildKarZararCard(
+              'Brüt Kar',
+              (karZarar['satis_gelirleri'] ?? 0) -
+                  (karZarar['satis_maliyeti'] ?? 0),
+              Colors.blue),
+          _buildKarZararCard('Faaliyet Giderleri',
+              karZarar['faaliyet_giderleri'] ?? 0, Colors.red),
           const Divider(),
-          _buildKarZararCard('Faaliyet Karı', karZarar['faaliyet_kari'] ?? 0, Colors.purple),
-          _buildKarZararCard('Finansman Giderleri', karZarar['finansman_giderleri'] ?? 0, Colors.red),
+          _buildKarZararCard(
+              'Faaliyet Karı', karZarar['faaliyet_kari'] ?? 0, Colors.purple),
+          _buildKarZararCard('Finansman Giderleri',
+              karZarar['finansman_giderleri'] ?? 0, Colors.red),
           const Divider(thickness: 2),
-          _buildKarZararCard('Net Kar/Zarar', karZarar['net_kar'] ?? 0, Colors.indigo, isBold: true),
+          _buildKarZararCard(
+              'Net Kar/Zarar', karZarar['net_kar'] ?? 0, Colors.indigo,
+              isBold: true),
         ],
       ),
     );
   }
 
-  Widget _buildKarZararCard(String title, double amount, Color color, {bool isBold = false}) {
+  Widget _buildKarZararCard(String title, double amount, Color color,
+      {bool isBold = false}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -516,7 +554,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
 
   Widget _buildBilancoTab() {
     final bilanco = _muhasebeData['bilanco'] as Map<String, dynamic>;
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -536,13 +574,18 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
                   children: [
                     const Text(
                       'AKTİF',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
-                    _buildBilancoKart('Dönen Varlıklar', bilanco['donen_varliklar'] ?? 0),
-                    _buildBilancoKart('Duran Varlıklar', bilanco['duran_varliklar'] ?? 0),
+                    _buildBilancoKart(
+                        'Dönen Varlıklar', bilanco['donen_varliklar'] ?? 0),
+                    _buildBilancoKart(
+                        'Duran Varlıklar', bilanco['duran_varliklar'] ?? 0),
                     const Divider(),
-                    _buildBilancoKart('TOPLAM AKTİF', bilanco['toplam_aktif'] ?? 0, isBold: true),
+                    _buildBilancoKart(
+                        'TOPLAM AKTİF', bilanco['toplam_aktif'] ?? 0,
+                        isBold: true),
                   ],
                 ),
               ),
@@ -553,14 +596,19 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
                   children: [
                     const Text(
                       'PASİF',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
-                    _buildBilancoKart('Kısa Vadeli Yükümlülükler', bilanco['kisa_vadeli_yukumlulukler'] ?? 0),
-                    _buildBilancoKart('Uzun Vadeli Yükümlülükler', bilanco['uzun_vadeli_yukumlulukler'] ?? 0),
+                    _buildBilancoKart('Kısa Vadeli Yükümlülükler',
+                        bilanco['kisa_vadeli_yukumlulukler'] ?? 0),
+                    _buildBilancoKart('Uzun Vadeli Yükümlülükler',
+                        bilanco['uzun_vadeli_yukumlulukler'] ?? 0),
                     _buildBilancoKart('Özkaynak', bilanco['ozkaynak'] ?? 0),
                     const Divider(),
-                    _buildBilancoKart('TOPLAM PASİF', bilanco['toplam_pasif'] ?? 0, isBold: true),
+                    _buildBilancoKart(
+                        'TOPLAM PASİF', bilanco['toplam_pasif'] ?? 0,
+                        isBold: true),
                   ],
                 ),
               ),
@@ -608,7 +656,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    
+
     if (picked != null) {
       setState(() {
         _selectedDate = picked;
@@ -654,7 +702,7 @@ class _MuhasebeYonetimiPageState extends State<MuhasebeYonetimiPage> with Single
 
 class _YevmiyeKaydiDialog extends StatefulWidget {
   final List<Map<String, dynamic>> hesapPlani;
-  
+
   const _YevmiyeKaydiDialog({required this.hesapPlani});
 
   @override
@@ -666,7 +714,7 @@ class _YevmiyeKaydiDialogState extends State<_YevmiyeKaydiDialog> {
   final _fisNoController = TextEditingController();
   final _aciklamaController = TextEditingController();
   final _tutarController = TextEditingController();
-  
+
   DateTime _selectedDate = DateTime.now();
   String? _selectedBorcHesap;
   String? _selectedAlacakHesap;
@@ -742,7 +790,8 @@ class _YevmiyeKaydiDialogState extends State<_YevmiyeKaydiDialog> {
                 items: widget.hesapPlani.map((hesap) {
                   return DropdownMenuItem<String>(
                     value: hesap['hesap_kodu'],
-                    child: Text('${hesap['hesap_kodu']} - ${hesap['hesap_adi']}'),
+                    child:
+                        Text('${hesap['hesap_kodu']} - ${hesap['hesap_adi']}'),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -767,7 +816,8 @@ class _YevmiyeKaydiDialogState extends State<_YevmiyeKaydiDialog> {
                 items: widget.hesapPlani.map((hesap) {
                   return DropdownMenuItem<String>(
                     value: hesap['hesap_kodu'],
-                    child: Text('${hesap['hesap_kodu']} - ${hesap['hesap_adi']}'),
+                    child:
+                        Text('${hesap['hesap_kodu']} - ${hesap['hesap_adi']}'),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -858,10 +908,10 @@ class _HesapEkleDialogState extends State<_HesapEkleDialog> {
   final _formKey = GlobalKey<FormState>();
   final _hesapKoduController = TextEditingController();
   final _hesapAdiController = TextEditingController();
-  
+
   String _selectedHesapTipi = 'Aktif';
   bool _aktif = true;
-  
+
   final List<String> _hesapTipleri = ['Aktif', 'Pasif', 'Gelir', 'Gider'];
 
   @override

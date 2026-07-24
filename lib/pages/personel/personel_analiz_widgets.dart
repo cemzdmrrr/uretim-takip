@@ -762,8 +762,8 @@ extension _WidgetsExt on _PersonelAnalizPageState {
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                  ResponsiveHorizontalTable(
+                    minWidth: 850,
                     child: DataTable(
                       columns: const [
                         DataColumn(
@@ -1129,8 +1129,8 @@ extension _WidgetsExt on _PersonelAnalizPageState {
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                  ResponsiveHorizontalTable(
+                    minWidth: 1050,
                     child: DataTable(
                       columns: const [
                         DataColumn(

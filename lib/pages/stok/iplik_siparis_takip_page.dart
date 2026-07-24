@@ -7,6 +7,7 @@ import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 class IplikSiparisTakipPage extends StatefulWidget {
   const IplikSiparisTakipPage({super.key});
@@ -738,48 +739,46 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-            dataRowMinHeight: 58,
-            dataRowMaxHeight: 92,
-            columnSpacing: 20,
-            horizontalMargin: 16,
-            columns: const [
-              DataColumn(label: Text('Sipariş')),
-              DataColumn(label: Text('İplik / Renk')),
-              DataColumn(label: Text('Tedarikçi')),
-              DataColumn(label: Text('Termin')),
-              DataColumn(label: Text('Miktar')),
-              DataColumn(label: Text('Teslim')),
-              DataColumn(label: Text('Durum')),
-              DataColumn(label: Text('Kalite')),
-              DataColumn(label: Text('İşlem')),
-            ],
-            rows: data.map((siparis) {
-              final durum = _getDurumBilgi(siparis['takip_durumu']);
-              return DataRow(
-                cells: [
-                  DataCell(_tableText(
-                      siparis['siparis_no']?.toString() ?? '-', 120, true)),
-                  DataCell(_buildIplikRenkHucre(siparis)),
-                  DataCell(_tableText(
-                      siparis['tedarikci_adi']?.toString() ?? '-', 170, false)),
-                  DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
-                  DataCell(Text(
-                      '${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}')),
-                  DataCell(_buildTeslimHucre(siparis, width: 150)),
-                  DataCell(_durumEtiketi(durum.metin, durum.renk)),
-                  DataCell(_durumEtiketi(_kaliteMetni(siparis['kalite_durumu']),
-                      _kaliteRengi(siparis['kalite_durumu']))),
-                  DataCell(_buildAksiyonlar(siparis, compact: true)),
-                ],
-              );
-            }).toList(),
-          ),
+      child: ResponsiveHorizontalTable(
+        minWidth: 1320,
+        showScrollbar: true,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+          dataRowMinHeight: 58,
+          dataRowMaxHeight: 92,
+          columnSpacing: 20,
+          horizontalMargin: 16,
+          columns: const [
+            DataColumn(label: Text('Sipariş')),
+            DataColumn(label: Text('İplik / Renk')),
+            DataColumn(label: Text('Tedarikçi')),
+            DataColumn(label: Text('Termin')),
+            DataColumn(label: Text('Miktar')),
+            DataColumn(label: Text('Teslim')),
+            DataColumn(label: Text('Durum')),
+            DataColumn(label: Text('Kalite')),
+            DataColumn(label: Text('İşlem')),
+          ],
+          rows: data.map((siparis) {
+            final durum = _getDurumBilgi(siparis['takip_durumu']);
+            return DataRow(
+              cells: [
+                DataCell(_tableText(
+                    siparis['siparis_no']?.toString() ?? '-', 120, true)),
+                DataCell(_buildIplikRenkHucre(siparis)),
+                DataCell(_tableText(
+                    siparis['tedarikci_adi']?.toString() ?? '-', 170, false)),
+                DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
+                DataCell(Text(
+                    '${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}')),
+                DataCell(_buildTeslimHucre(siparis, width: 150)),
+                DataCell(_durumEtiketi(durum.metin, durum.renk)),
+                DataCell(_durumEtiketi(_kaliteMetni(siparis['kalite_durumu']),
+                    _kaliteRengi(siparis['kalite_durumu']))),
+                DataCell(_buildAksiyonlar(siparis, compact: true)),
+              ],
+            );
+          }).toList(),
         ),
       ),
     );

@@ -444,30 +444,38 @@ class _GenelUretimDashboardState extends State<GenelUretimDashboard> {
           ),
         ],
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 1120),
-          child: DataTable(
-            headingRowHeight: 50,
-            dataRowMinHeight: 62,
-            dataRowMaxHeight: 70,
-            headingRowColor: const WidgetStatePropertyAll(Color(0xFFF1F5F9)),
-            dividerThickness: 0.6,
-            columnSpacing: 24,
-            columns: const [
-              DataColumn(label: _TabloBasligi('MODEL')),
-              DataColumn(label: _TabloBasligi('RENK')),
-              DataColumn(numeric: true, label: _TabloBasligi('ADET')),
-              DataColumn(label: _TabloBasligi('MEVCUT AŞAMA')),
-              DataColumn(numeric: true, label: _TabloBasligi('AŞAMA ADEDİ')),
-              DataColumn(label: _TabloBasligi('TEDARİKÇİ')),
-              DataColumn(label: _TabloBasligi('DURUM')),
-              DataColumn(label: _TabloBasligi('TERMİN')),
-            ],
-            rows: modeller.map(_tabloSatiri).toList(),
-          ),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabloGenisligi =
+              constraints.maxWidth < 1120 ? 1120.0 : constraints.maxWidth;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: tabloGenisligi,
+              child: DataTable(
+                headingRowHeight: 50,
+                dataRowMinHeight: 62,
+                dataRowMaxHeight: 70,
+                headingRowColor:
+                    const WidgetStatePropertyAll(Color(0xFFF1F5F9)),
+                dividerThickness: 0.6,
+                columnSpacing: 24,
+                columns: const [
+                  DataColumn(label: _TabloBasligi('MODEL')),
+                  DataColumn(label: _TabloBasligi('RENK')),
+                  DataColumn(numeric: true, label: _TabloBasligi('ADET')),
+                  DataColumn(label: _TabloBasligi('MEVCUT AŞAMA')),
+                  DataColumn(
+                      numeric: true, label: _TabloBasligi('AŞAMA ADEDİ')),
+                  DataColumn(label: _TabloBasligi('TEDARİKÇİ')),
+                  DataColumn(label: _TabloBasligi('DURUM')),
+                  DataColumn(label: _TabloBasligi('TERMİN')),
+                ],
+                rows: modeller.map(_tabloSatiri).toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

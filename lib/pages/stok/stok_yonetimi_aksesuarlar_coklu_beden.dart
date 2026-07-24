@@ -8,6 +8,7 @@ import 'package:uretim_takip/utils/web_download.dart';
 import 'package:flutter/painting.dart' show Border, BorderSide;
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 import 'dart:math' as math;
 
 part 'stok_yonetimi_aksesuarlar_dialog.dart';
@@ -2107,107 +2108,102 @@ class _StokYonetimiAksesuarlarCokluBedenState
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-            columnSpacing: 20,
-            horizontalMargin: 16,
-            columns: const [
-              DataColumn(label: Text('Tarih')),
-              DataColumn(label: Text('Aksesuar')),
-              DataColumn(label: Text('SKU')),
-              DataColumn(label: Text('Beden')),
-              DataColumn(label: Text('Model')),
-              DataColumn(label: Text('Tedarikçi')),
-              DataColumn(label: Text('Adet'), numeric: true),
-              DataColumn(label: Text('Açıklama')),
-              DataColumn(label: Text('İşlem')),
-            ],
-            rows: kayitlar.map((k) {
-              final aksAd =
-                  k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ??
-                      '-';
-              final aksSku =
-                  k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ??
-                      '-';
-              final beden = k['aksesuar_bedenler']?['beden']?.toString() ?? '-';
-              final miktar = (k['miktar'] as int?) ?? 0;
-              final aciklama = k['aciklama']?.toString() ?? '';
-              final tarih = _formatTarih(k['created_at']?.toString());
-              final modelMarka = k['triko_takip']?['marka']?.toString() ?? '';
-              final modelItemNo =
-                  k['triko_takip']?['item_no']?.toString() ?? '';
-              final modelLabel = [modelMarka, modelItemNo]
-                  .where((s) => s.isNotEmpty)
-                  .join(' - ');
-              final tedLabel = k['tedarikci_adi']?.toString() ?? '-';
+      child: ResponsiveHorizontalTable(
+        minWidth: 1320,
+        showScrollbar: true,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+          columnSpacing: 20,
+          horizontalMargin: 16,
+          columns: const [
+            DataColumn(label: Text('Tarih')),
+            DataColumn(label: Text('Aksesuar')),
+            DataColumn(label: Text('SKU')),
+            DataColumn(label: Text('Beden')),
+            DataColumn(label: Text('Model')),
+            DataColumn(label: Text('Tedarikçi')),
+            DataColumn(label: Text('Adet'), numeric: true),
+            DataColumn(label: Text('Açıklama')),
+            DataColumn(label: Text('İşlem')),
+          ],
+          rows: kayitlar.map((k) {
+            final aksAd =
+                k['aksesuar_bedenler']?['aksesuarlar']?['ad']?.toString() ??
+                    '-';
+            final aksSku =
+                k['aksesuar_bedenler']?['aksesuarlar']?['sku']?.toString() ??
+                    '-';
+            final beden = k['aksesuar_bedenler']?['beden']?.toString() ?? '-';
+            final miktar = (k['miktar'] as int?) ?? 0;
+            final aciklama = k['aciklama']?.toString() ?? '';
+            final tarih = _formatTarih(k['created_at']?.toString());
+            final modelMarka = k['triko_takip']?['marka']?.toString() ?? '';
+            final modelItemNo = k['triko_takip']?['item_no']?.toString() ?? '';
+            final modelLabel = [modelMarka, modelItemNo]
+                .where((s) => s.isNotEmpty)
+                .join(' - ');
+            final tedLabel = k['tedarikci_adi']?.toString() ?? '-';
 
-              return DataRow(cells: [
-                DataCell(Text(tarih, style: const TextStyle(fontSize: 12))),
-                DataCell(SizedBox(
-                  width: 160,
-                  child: Text(aksAd,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                )),
-                DataCell(Text(aksSku)),
-                DataCell(Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(beden,
-                      style: TextStyle(
-                          color: _primaryColor,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12)),
-                )),
-                DataCell(SizedBox(
-                  width: 130,
-                  child: modelLabel.isEmpty
-                      ? const Text('-', style: TextStyle(color: Colors.grey))
-                      : Text(modelLabel,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600)),
-                )),
-                DataCell(SizedBox(
-                  width: 120,
-                  child: Text(tedLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12)),
-                )),
-                DataCell(Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _dangerColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text('$miktar',
-                      style: TextStyle(
-                          color: _dangerColor, fontWeight: FontWeight.w800)),
-                )),
-                DataCell(SizedBox(
-                  width: 140,
-                  child: Text(aciklama,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF64748B))),
-                )),
-                DataCell(_buildSarfIslemButonlari(k)),
-              ]);
-            }).toList(),
-          ),
+            return DataRow(cells: [
+              DataCell(Text(tarih, style: const TextStyle(fontSize: 12))),
+              DataCell(SizedBox(
+                width: 160,
+                child: Text(aksAd,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              )),
+              DataCell(Text(aksSku)),
+              DataCell(Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(beden,
+                    style: TextStyle(
+                        color: _primaryColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12)),
+              )),
+              DataCell(SizedBox(
+                width: 130,
+                child: modelLabel.isEmpty
+                    ? const Text('-', style: TextStyle(color: Colors.grey))
+                    : Text(modelLabel,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+              )),
+              DataCell(SizedBox(
+                width: 120,
+                child: Text(tedLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12)),
+              )),
+              DataCell(Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _dangerColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('$miktar',
+                    style: TextStyle(
+                        color: _dangerColor, fontWeight: FontWeight.w800)),
+              )),
+              DataCell(SizedBox(
+                width: 140,
+                child: Text(aciklama,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF64748B))),
+              )),
+              DataCell(_buildSarfIslemButonlari(k)),
+            ]);
+          }).toList(),
         ),
       ),
     );

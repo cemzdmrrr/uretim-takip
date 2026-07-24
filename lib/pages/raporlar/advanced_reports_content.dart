@@ -1,4 +1,4 @@
-﻿// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member
 part of 'advanced_reports_page.dart';
 
 /// Advanced reports - rapor icerikleri ve export islemleri
@@ -32,7 +32,8 @@ extension _ContentExt on _AdvancedReportsPageState {
           _buildSummaryCards([
             {
               'title': 'Toplam Satış',
-              'value': '₺${_reportData['total_sales']?.toStringAsFixed(2) ?? '0'}',
+              'value':
+                  '₺${_reportData['total_sales']?.toStringAsFixed(2) ?? '0'}',
               'icon': Icons.trending_up,
               'color': Colors.green,
             },
@@ -44,13 +45,15 @@ extension _ContentExt on _AdvancedReportsPageState {
             },
             {
               'title': 'Ortalama Fatura',
-              'value': '₺${_reportData['average_invoice']?.toStringAsFixed(2) ?? '0'}',
+              'value':
+                  '₺${_reportData['average_invoice']?.toStringAsFixed(2) ?? '0'}',
               'icon': Icons.analytics,
               'color': Colors.orange,
             },
             {
               'title': 'KDV Toplamı',
-              'value': '₺${_reportData['total_tax']?.toStringAsFixed(2) ?? '0'}',
+              'value':
+                  '₺${_reportData['total_tax']?.toStringAsFixed(2) ?? '0'}',
               'icon': Icons.account_balance,
               'color': Colors.purple,
             },
@@ -65,14 +68,14 @@ extension _ContentExt on _AdvancedReportsPageState {
   Widget _buildFinancialReportContent() {
     final double netProfit = _reportData['net_profit'] ?? 0;
     final Color profitColor = netProfit >= 0 ? Colors.green : Colors.red;
-    
+
     final double totalRevenue = _reportData['total_revenue'] ?? 0;
     final double productionCost = _reportData['production_cost'] ?? 0;
     final double materialCost = _reportData['material_cost'] ?? 0;
     final double fireCost = _reportData['fire_cost'] ?? 0;
     final double personnelCosts = _reportData['personnel_costs'] ?? 0;
     final double otherExpenses = _reportData['other_expenses'] ?? 0;
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -89,29 +92,33 @@ extension _ContentExt on _AdvancedReportsPageState {
             },
             {
               'title': 'Brüt Kar',
-              'value': '₺${(_reportData['gross_profit'] ?? 0).toStringAsFixed(2)}',
-              'subtitle': '%${(_reportData['gross_margin'] ?? 0).toStringAsFixed(1)} marj',
+              'value':
+                  '₺${(_reportData['gross_profit'] ?? 0).toStringAsFixed(2)}',
+              'subtitle':
+                  '%${(_reportData['gross_margin'] ?? 0).toStringAsFixed(1)} marj',
               'icon': Icons.monetization_on,
               'color': Colors.blue,
             },
             {
               'title': 'Net Kar/Zarar',
               'value': '₺${netProfit.toStringAsFixed(2)}',
-              'subtitle': '%${(_reportData['profit_margin'] ?? 0).toStringAsFixed(1)} marj',
+              'subtitle':
+                  '%${(_reportData['profit_margin'] ?? 0).toStringAsFixed(1)} marj',
               'icon': Icons.account_balance_wallet,
               'color': profitColor,
             },
             {
               'title': 'Toplam Gider',
-              'value': '₺${(_reportData['total_expenses'] ?? 0).toStringAsFixed(2)}',
+              'value':
+                  '₺${(_reportData['total_expenses'] ?? 0).toStringAsFixed(2)}',
               'subtitle': 'Tüm giderler',
               'icon': Icons.trending_down,
               'color': Colors.red,
             },
           ]),
-          
+
           const SizedBox(height: 24),
-          
+
           // Gider Detayları Başlığı
           const Row(
             children: [
@@ -124,7 +131,7 @@ extension _ContentExt on _AdvancedReportsPageState {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Gider Detay Kartları
           GridView.count(
             crossAxisCount: 2,
@@ -178,20 +185,21 @@ extension _ContentExt on _AdvancedReportsPageState {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Kar/Zarar Özeti
           Card(
             elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: LinearGradient(
-                  colors: netProfit >= 0 
-                    ? [Colors.green.shade50, Colors.green.shade100]
-                    : [Colors.red.shade50, Colors.red.shade100],
+                  colors: netProfit >= 0
+                      ? [Colors.green.shade50, Colors.green.shade100]
+                      : [Colors.red.shade50, Colors.red.shade100],
                 ),
               ),
               padding: const EdgeInsets.all(20),
@@ -200,7 +208,9 @@ extension _ContentExt on _AdvancedReportsPageState {
                   Row(
                     children: [
                       Icon(
-                        netProfit >= 0 ? Icons.trending_up : Icons.trending_down,
+                        netProfit >= 0
+                            ? Icons.trending_up
+                            : Icons.trending_down,
                         color: profitColor,
                         size: 32,
                       ),
@@ -219,32 +229,38 @@ extension _ContentExt on _AdvancedReportsPageState {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Toplam Gelir:', style: TextStyle(fontSize: 16)),
-                      Text('₺${totalRevenue.toStringAsFixed(2)}', 
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const Text('Toplam Gelir:',
+                          style: TextStyle(fontSize: 16)),
+                      Text('₺${totalRevenue.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Toplam Gider:', style: TextStyle(fontSize: 16)),
-                      Text('₺${(_reportData['total_expenses'] ?? 0).toStringAsFixed(2)}', 
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const Text('Toplam Gider:',
+                          style: TextStyle(fontSize: 16)),
+                      Text(
+                          '₺${(_reportData['total_expenses'] ?? 0).toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const Divider(height: 20, thickness: 1),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Net Kar/Zarar:', 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text('₺${netProfit.toStringAsFixed(2)}', 
-                        style: TextStyle(
-                          fontSize: 20, 
-                          fontWeight: FontWeight.bold,
-                          color: profitColor,
-                        )),
+                      const Text('Net Kar/Zarar:',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('₺${netProfit.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: profitColor,
+                          )),
                     ],
                   ),
                 ],
@@ -255,10 +271,12 @@ extension _ContentExt on _AdvancedReportsPageState {
       ),
     );
   }
-  
-  Widget _buildExpenseCard(String title, double amount, double totalRevenue, IconData icon, Color color) {
-    final double percentage = totalRevenue > 0 ? (amount / totalRevenue) * 100 : 0;
-    
+
+  Widget _buildExpenseCard(String title, double amount, double totalRevenue,
+      IconData icon, Color color) {
+    final double percentage =
+        totalRevenue > 0 ? (amount / totalRevenue) * 100 : 0;
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -307,7 +325,8 @@ extension _ContentExt on _AdvancedReportsPageState {
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
@@ -337,7 +356,8 @@ extension _ContentExt on _AdvancedReportsPageState {
           _buildSummaryCards([
             {
               'title': 'Toplam Stok Değeri',
-              'value': '₺${_reportData['total_value']?.toStringAsFixed(2) ?? '0'}',
+              'value':
+                  '₺${_reportData['total_value']?.toStringAsFixed(2) ?? '0'}',
               'icon': Icons.inventory,
               'color': Colors.blue,
             },
@@ -355,7 +375,8 @@ extension _ContentExt on _AdvancedReportsPageState {
             },
             {
               'title': 'Düşük Stoklar',
-              'value': '${(_reportData['low_stock_items'] as List?)?.length ?? 0}',
+              'value':
+                  '${(_reportData['low_stock_items'] as List?)?.length ?? 0}',
               'icon': Icons.warning,
               'color': Colors.red,
             },
@@ -393,7 +414,8 @@ extension _ContentExt on _AdvancedReportsPageState {
             },
             {
               'title': 'Mesai Saatleri',
-              'value': '${_reportData['total_overtime_hours']?.toStringAsFixed(1) ?? '0'}',
+              'value':
+                  '${_reportData['total_overtime_hours']?.toStringAsFixed(1) ?? '0'}',
               'icon': Icons.access_time,
               'color': Colors.purple,
             },
@@ -418,7 +440,8 @@ extension _ContentExt on _AdvancedReportsPageState {
                 children: [
                   Text(
                     _reportTypes[_selectedReportType] ?? 'Rapor',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -518,7 +541,7 @@ extension _ContentExt on _AdvancedReportsPageState {
 
   Widget _buildTopCustomersChart() {
     final topCustomers = _reportData['top_customers'] as List? ?? [];
-    
+
     if (topCustomers.isEmpty) {
       return const Card(
         child: Padding(
@@ -553,7 +576,8 @@ extension _ContentExt on _AdvancedReportsPageState {
                     ),
                     Text(
                       '₺${customer.value.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.green, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -567,7 +591,7 @@ extension _ContentExt on _AdvancedReportsPageState {
 
   Widget _buildLowStockTable() {
     final lowStockItems = _reportData['low_stock_items'] as List? ?? [];
-    
+
     if (lowStockItems.isEmpty) {
       return const Card(
         child: Padding(
@@ -588,8 +612,8 @@ extension _ContentExt on _AdvancedReportsPageState {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            ResponsiveHorizontalTable(
+              minWidth: 680,
               child: DataTable(
                 columns: const [
                   DataColumn(label: Text('Ürün Adı')),
@@ -616,8 +640,9 @@ extension _ContentExt on _AdvancedReportsPageState {
   }
 
   Widget _buildDepartmentChart() {
-    final departmentDist = _reportData['department_distribution'] as Map<String, dynamic>? ?? {};
-    
+    final departmentDist =
+        _reportData['department_distribution'] as Map<String, dynamic>? ?? {};
+
     if (departmentDist.isEmpty) {
       return const Card(
         child: Padding(
@@ -649,7 +674,8 @@ extension _ContentExt on _AdvancedReportsPageState {
                       style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.blue.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),

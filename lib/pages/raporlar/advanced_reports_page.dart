@@ -1,12 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/widgets/model_maliyet_rapor_widget.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 part 'advanced_reports_content.dart';
-
 
 class AdvancedReportsPage extends StatefulWidget {
   const AdvancedReportsPage({super.key});
@@ -17,7 +17,7 @@ class AdvancedReportsPage extends StatefulWidget {
 class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
   final _supabase = Supabase.instance.client;
   String get _firmaId => TenantManager.instance.requireFirmaId;
-  
+
   String _selectedReportType = 'sales';
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime _endDate = DateTime.now();
@@ -45,10 +45,10 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
 
   Future<void> _generateReport() async {
     setState(() => _isLoading = true);
-    
+
     try {
       Map<String, dynamic> data = {};
-      
+
       switch (_selectedReportType) {
         case 'sales':
           data = await _generateSalesReport();
@@ -82,7 +82,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           data = {'type': 'model_cost'};
           break;
       }
-      
+
       setState(() {
         _reportData = data;
         _isLoading = false;
@@ -116,16 +116,19 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
     for (var fatura in faturalar) {
       totalSales += (fatura['toplam_tutar'] ?? 0).toDouble();
       totalTax += (fatura['kdv_tutari'] ?? 0).toDouble();
-      
+
       // Müşteri bazlı satışlar
-      String customerName = '${fatura[DbTables.musteriler]?['ad'] ?? ''} ${fatura[DbTables.musteriler]?['soyad'] ?? ''}';
+      String customerName =
+          '${fatura[DbTables.musteriler]?['ad'] ?? ''} ${fatura[DbTables.musteriler]?['soyad'] ?? ''}';
       if (fatura[DbTables.musteriler]?['sirket'] != null) {
         customerName = fatura[DbTables.musteriler]['sirket'];
       }
-      customerSales[customerName] = (customerSales[customerName] ?? 0) + (fatura['toplam_tutar'] ?? 0).toDouble();
-      
+      customerSales[customerName] = (customerSales[customerName] ?? 0) +
+          (fatura['toplam_tutar'] ?? 0).toDouble();
+
       // Aylık satışlar
-      final String month = DateTime.parse(fatura['fatura_tarihi']).toString().substring(0, 7);
+      final String month =
+          DateTime.parse(fatura['fatura_tarihi']).toString().substring(0, 7);
       monthlySales[month] = (monthlySales[month] ?? 0) + 1;
     }
 
@@ -140,7 +143,8 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
       'top_customers': topCustomers.take(10).toList(),
       'monthly_sales': monthlySales,
       'invoices': faturalar,
-      'average_invoice': faturalar.isNotEmpty ? totalSales / faturalar.length : 0,
+      'average_invoice':
+          faturalar.isNotEmpty ? totalSales / faturalar.length : 0,
     };
   }
 
@@ -163,12 +167,14 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
 
     for (var fatura in faturalar) {
       totalPurchases += (fatura['toplam_tutar'] ?? 0).toDouble();
-      
-      String supplierName = '${fatura[DbTables.tedarikciler]?['ad'] ?? ''} ${fatura[DbTables.tedarikciler]?['soyad'] ?? ''}';
+
+      String supplierName =
+          '${fatura[DbTables.tedarikciler]?['ad'] ?? ''} ${fatura[DbTables.tedarikciler]?['soyad'] ?? ''}';
       if (fatura[DbTables.tedarikciler]?['sirket'] != null) {
         supplierName = fatura[DbTables.tedarikciler]['sirket'];
       }
-      supplierPurchases[supplierName] = (supplierPurchases[supplierName] ?? 0) + (fatura['toplam_tutar'] ?? 0).toDouble();
+      supplierPurchases[supplierName] = (supplierPurchases[supplierName] ?? 0) +
+          (fatura['toplam_tutar'] ?? 0).toDouble();
     }
 
     final topSuppliers = supplierPurchases.entries.toList()
@@ -179,7 +185,8 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
       'total_invoices': faturalar.length,
       'top_suppliers': topSuppliers.take(10).toList(),
       'invoices': faturalar,
-      'average_purchase': faturalar.isNotEmpty ? totalPurchases / faturalar.length : 0,
+      'average_purchase':
+          faturalar.isNotEmpty ? totalPurchases / faturalar.length : 0,
     };
   }
 
@@ -188,7 +195,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
         .from(DbTables.iplikStoklari)
         .select('*')
         .eq('firma_id', _firmaId);
-    
+
     final aksesuarlar = await _supabase
         .from(DbTables.aksesuarlar)
         .select('*')
@@ -200,9 +207,10 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
 
     // İplik stokları analizi
     for (var iplik in iplikStoklar) {
-      final double value = ((iplik['miktar'] ?? 0) * (iplik['birim_fiyat'] ?? 0)).toDouble();
+      final double value =
+          ((iplik['miktar'] ?? 0) * (iplik['birim_fiyat'] ?? 0)).toDouble();
       totalInventoryValue += value;
-      
+
       if ((iplik['miktar'] ?? 0) < 10) {
         lowStockItems.add({
           'name': iplik['ad'],
@@ -211,7 +219,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           'unit': iplik['birim'],
         });
       }
-      
+
       if (value > 1000) {
         highValueItems.add({
           'name': iplik['ad'],
@@ -224,9 +232,11 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
 
     // Aksesuar analizi
     for (var aksesuar in aksesuarlar) {
-      final double value = ((aksesuar['stok_adet'] ?? 0) * (aksesuar['birim_fiyat'] ?? 0)).toDouble();
+      final double value =
+          ((aksesuar['stok_adet'] ?? 0) * (aksesuar['birim_fiyat'] ?? 0))
+              .toDouble();
       totalInventoryValue += value;
-      
+
       if ((aksesuar['stok_adet'] ?? 0) < 5) {
         lowStockItems.add({
           'name': aksesuar['ad'],
@@ -242,7 +252,8 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
       'total_yarn_items': iplikStoklar.length,
       'total_accessories': aksesuarlar.length,
       'low_stock_items': lowStockItems,
-      'high_value_items': highValueItems..sort((a, b) => b['value'].compareTo(a['value'])),
+      'high_value_items': highValueItems
+        ..sort((a, b) => b['value'].compareTo(a['value'])),
     };
   }
 
@@ -254,7 +265,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
     double personnelCosts = 0;
     double otherExpenses = 0;
     int completedOrdersCount = 0;
-    
+
     // 1. Tamamlanan siparişlerden gelir hesapla
     try {
       final tamamlananSiparisler = await _supabase
@@ -264,14 +275,14 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           .eq('tamamlandi', true)
           .gte('created_at', _startDate.toIso8601String())
           .lte('created_at', _endDate.toIso8601String());
-      
+
       completedOrdersCount = tamamlananSiparisler.length;
-      
+
       for (var siparis in tamamlananSiparisler) {
         final int adet = siparis['adet'] ?? 0;
         final double satisFiyati = (siparis['satis_fiyati'] ?? 0).toDouble();
         final double maliyet = (siparis['maliyet'] ?? 0).toDouble();
-        
+
         totalRevenue += (adet * satisFiyati);
         totalProductionCost += (adet * maliyet);
       }
@@ -289,7 +300,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           .eq('islem_turu', 'cikis')
           .gte('created_at', _startDate.toIso8601String())
           .lte('created_at', _endDate.toIso8601String());
-      
+
       for (var hareket in iplikCikislar) {
         final double miktar = (hareket['miktar'] ?? 0).toDouble();
         final double fiyat = (hareket['birim_fiyat'] ?? 0).toDouble();
@@ -307,7 +318,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           .eq('firma_id', _firmaId)
           .gte('created_at', _startDate.toIso8601String())
           .lte('created_at', _endDate.toIso8601String());
-      
+
       for (var kullanim in aksesuarKullanimlari) {
         final double miktar = (kullanim['miktar'] ?? 0).toDouble();
         final double fiyat = (kullanim['birim_fiyat'] ?? 0).toDouble();
@@ -319,9 +330,15 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
 
     // 3. Fire maliyetleri (tüm aşamalardan)
     try {
-      final asamalar = [DbTables.dokumaAtamalari, DbTables.konfeksiyonAtamalari, DbTables.yikamaAtamalari, 
-                       DbTables.utuAtamalari, DbTables.ilikDugmeAtamalari, DbTables.kaliteKontrolAtamalari];
-      
+      final asamalar = [
+        DbTables.dokumaAtamalari,
+        DbTables.konfeksiyonAtamalari,
+        DbTables.yikamaAtamalari,
+        DbTables.utuAtamalari,
+        DbTables.ilikDugmeAtamalari,
+        DbTables.kaliteKontrolAtamalari
+      ];
+
       for (var asama in asamalar) {
         try {
           final fireData = await _supabase
@@ -330,7 +347,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
               .eq('firma_id', _firmaId)
               .gte('created_at', _startDate.toIso8601String())
               .lte('created_at', _endDate.toIso8601String());
-          
+
           for (var data in fireData) {
             final int fireAdet = data['fire_adet'] ?? 0;
             if (fireAdet > 0 && data['model_id'] != null) {
@@ -341,9 +358,10 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
                     .select('maliyet')
                     .eq('id', data['model_id'])
                     .maybeSingle();
-                
+
                 if (model != null) {
-                  final double birimMaliyet = (model['maliyet'] ?? 0).toDouble();
+                  final double birimMaliyet =
+                      (model['maliyet'] ?? 0).toDouble();
                   totalFireCost += (fireAdet * birimMaliyet);
                 }
               } catch (e) {
@@ -367,8 +385,9 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           .eq('firma_id', _firmaId)
           .gte('created_at', _startDate.toIso8601String())
           .lte('created_at', _endDate.toIso8601String());
-      
-      personnelCosts = bordro.fold(0, (sum, item) => sum + (item['net_maas'] ?? 0).toDouble());
+
+      personnelCosts = bordro.fold(
+          0, (sum, item) => sum + (item['net_maas'] ?? 0).toDouble());
     } catch (e) {
       debugPrint('Bordro verileri alınamadı: $e');
     }
@@ -382,22 +401,30 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           .eq('fatura_turu', 'alis')
           .gte('fatura_tarihi', _startDate.toIso8601String().substring(0, 10))
           .lte('fatura_tarihi', _endDate.toIso8601String().substring(0, 10));
-      
-      otherExpenses = giderFaturalar.fold(0, (sum, item) => sum + (item['toplam_tutar'] ?? 0).toDouble());
+
+      otherExpenses = giderFaturalar.fold(
+          0, (sum, item) => sum + (item['toplam_tutar'] ?? 0).toDouble());
     } catch (e) {
       debugPrint('Gider faturaları alınamadı: $e');
     }
 
     // Toplam giderler
-    final double totalExpenses = totalProductionCost + totalMaterialCost + totalFireCost + personnelCosts + otherExpenses;
-    
+    final double totalExpenses = totalProductionCost +
+        totalMaterialCost +
+        totalFireCost +
+        personnelCosts +
+        otherExpenses;
+
     // Net kar/zarar
     final double netProfit = totalRevenue - totalExpenses;
-    final double profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-    
+    final double profitMargin =
+        totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
     // Brüt kar (sadece üretim maliyeti düşüldükten sonra)
-    final double grossProfit = totalRevenue - totalProductionCost - totalMaterialCost;
-    final double grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+    final double grossProfit =
+        totalRevenue - totalProductionCost - totalMaterialCost;
+    final double grossMargin =
+        totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
     return {
       'total_revenue': totalRevenue,
@@ -425,8 +452,16 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
         .from(DbTables.izinler)
         .select('*')
         .eq('firma_id', _firmaId)
-        .gte('baslama_tarihi', _startDate.toIso8601String().substring(0, 10)) // Database column: baslama_tarihi
-        .lte('bitis_tarihi', _endDate.toIso8601String().substring(0, 10)); // Database column: bitis_tarihi
+        .gte(
+            'baslama_tarihi',
+            _startDate
+                .toIso8601String()
+                .substring(0, 10)) // Database column: baslama_tarihi
+        .lte(
+            'bitis_tarihi',
+            _endDate
+                .toIso8601String()
+                .substring(0, 10)); // Database column: bitis_tarihi
 
     final mesailer = await _supabase
         .from(DbTables.mesai)
@@ -447,7 +482,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
       // Departman dağılımı
       final String departman = personel['departman'] ?? 'Belirtilmemiş';
       departmanDagilimi[departman] = (departmanDagilimi[departman] ?? 0) + 1;
-      
+
       // Maaş aralıkları
       final double maas = (personel['brut_maas'] ?? 0).toDouble();
       if (maas < 5000) {
@@ -464,10 +499,12 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
     return {
       'total_employees': personeller.length,
       'total_leaves': izinler.length,
-      'total_overtime_hours': mesailer.fold(0.0, (sum, item) => sum + (item['saat'] ?? 0).toDouble()),
+      'total_overtime_hours': mesailer.fold(
+          0.0, (sum, item) => sum + (item['saat'] ?? 0).toDouble()),
       'department_distribution': departmanDagilimi,
       'salary_ranges': maasAraliklari,
-      'active_employees': personeller.where((p) => p['durum'] == 'aktif').length,
+      'active_employees':
+          personeller.where((p) => p['durum'] == 'aktif').length,
     };
   }
 
@@ -488,9 +525,9 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
 
     for (var siparis in siparisler) {
       final String customerId = siparis['musteri_id']?.toString() ?? 'unknown';
-      final String customerName = siparis[DbTables.musteriler]?['sirket'] ?? 
+      final String customerName = siparis[DbTables.musteriler]?['sirket'] ??
           '${siparis[DbTables.musteriler]?['ad'] ?? ''} ${siparis[DbTables.musteriler]?['soyad'] ?? ''}';
-      
+
       if (!customerAnalysis.containsKey(customerId)) {
         customerAnalysis[customerId] = {
           'name': customerName,
@@ -499,7 +536,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
           'completed_orders': 0,
         };
       }
-      
+
       customerAnalysis[customerId]!['order_count']++;
       customerAnalysis[customerId]!['total_pieces'] += (siparis['adet'] ?? 0);
       if (siparis['tamamlandi'] == true) {
@@ -514,8 +551,9 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
       'total_customers': musteriler.length,
       'active_customers': customerAnalysis.length,
       'customer_analysis': topCustomers.take(10).toList(),
-      'new_customers': musteriler.where((m) => 
-          DateTime.parse(m['kayit_tarihi']).isAfter(_startDate)).length,
+      'new_customers': musteriler
+          .where((m) => DateTime.parse(m['kayit_tarihi']).isAfter(_startDate))
+          .length,
     };
   }
 
@@ -527,8 +565,10 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
 
     return {
       'total_suppliers': tedarikciler.length,
-      'active_suppliers': tedarikciler.where((t) => t['durum'] == 'aktif').length,
-      'supplier_types': tedarikciler.fold<Map<String, int>>({}, (map, supplier) {
+      'active_suppliers':
+          tedarikciler.where((t) => t['durum'] == 'aktif').length,
+      'supplier_types':
+          tedarikciler.fold<Map<String, int>>({}, (map, supplier) {
         final String type = supplier['tedarikci_tipi'] ?? 'Diğer';
         map[type] = (map[type] ?? 0) + 1;
         return map;
@@ -545,14 +585,18 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
         .lte('created_at', _endDate.toIso8601String());
 
     final int totalOrders = siparisler.length;
-    final int completedOrders = siparisler.where((s) => s['tamamlandi'] == true).length;
-    final int totalPieces = siparisler.fold(0, (sum, item) => sum + ((item['adet'] ?? 0) as int));
-    final int producedPieces = siparisler.fold(0, (sum, item) => sum + ((item['yuklenen_adet'] ?? 0) as int));
+    final int completedOrders =
+        siparisler.where((s) => s['tamamlandi'] == true).length;
+    final int totalPieces =
+        siparisler.fold(0, (sum, item) => sum + ((item['adet'] ?? 0) as int));
+    final int producedPieces = siparisler.fold(
+        0, (sum, item) => sum + ((item['yuklenen_adet'] ?? 0) as int));
 
     final Map<String, int> brandAnalysis = {};
     for (var siparis in siparisler) {
       final String brand = siparis['marka'] ?? 'Belirtilmemiş';
-      brandAnalysis[brand] = (brandAnalysis[brand] ?? 0) + ((siparis['adet'] ?? 0) as int);
+      brandAnalysis[brand] =
+          (brandAnalysis[brand] ?? 0) + ((siparis['adet'] ?? 0) as int);
     }
 
     final topBrands = brandAnalysis.entries.toList()
@@ -561,10 +605,12 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
     return {
       'total_orders': totalOrders,
       'completed_orders': completedOrders,
-      'completion_rate': totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0,
+      'completion_rate':
+          totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0,
       'total_pieces': totalPieces,
       'produced_pieces': producedPieces,
-      'production_rate': totalPieces > 0 ? (producedPieces / totalPieces) * 100 : 0,
+      'production_rate':
+          totalPieces > 0 ? (producedPieces / totalPieces) * 100 : 0,
       'top_brands': topBrands.take(10).toList(),
     };
   }
@@ -607,9 +653,7 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
         children: [
           _buildFilters(),
           Expanded(
-            child: _isLoading
-                ? const LoadingWidget()
-                : _buildReportContent(),
+            child: _isLoading ? const LoadingWidget() : _buildReportContent(),
           ),
         ],
       ),
@@ -699,5 +743,4 @@ class _AdvancedReportsPageState extends State<AdvancedReportsPage> {
       ),
     );
   }
-
 }

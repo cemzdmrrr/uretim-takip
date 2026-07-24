@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 part 'personel_analiz_widgets.dart';
 
