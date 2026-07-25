@@ -174,20 +174,47 @@ extension _TopluIslemExt on _ModelListeleState {
           final eskiSema = _eskiAtamaSemasi(tabloAdi);
           final now = DateTime.now().toIso8601String();
 
-          // Önce mevcut atama var mı kontrol et (birden fazla olabilir, sadece ilkini al)
+          // Birden fazla kayıt varsa en yeni aktif atamayı güncelle.
           final mevcutAtamaList = await supabase
               .from(tabloAdi)
-              .select('id')
+              .select('id, durum')
               .eq('model_id', modelId)
-              .limit(1);
+              .eq('firma_id', TenantManager.instance.requireFirmaId)
+              .order('updated_at', ascending: false)
+              .limit(25);
+          final aktifDurumlar = {
+            'bekleyen',
+            'beklemede',
+            'atandi',
+            'onaylandi',
+            'kabul_edildi',
+            'baslandi',
+            'baslatildi',
+            'devam_ediyor',
+            'uretimde',
+            'isleniyor',
+            'kismi_tamamlandi',
+            'kontrol_bekliyor',
+          };
+          Map<String, dynamic>? mevcutAtama;
+          for (final kayit in mevcutAtamaList) {
+            final durum = (kayit['durum'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase()
+                .replaceAll(' ', '_');
+            if (aktifDurumlar.contains(durum)) {
+              mevcutAtama = Map<String, dynamic>.from(kayit);
+              break;
+            }
+          }
 
-          if (mevcutAtamaList.isNotEmpty) {
+          if (mevcutAtama != null) {
             // Güncelle
             final updateData = eskiSema
                 ? {
                     'tedarikci_id':
                         int.tryParse(result['tedarikciId'].toString()),
-                    'durum': 'atandi',
                     'aciklama': result['notlar'],
                     'updated_at': now,
                     'son_guncelleme_tarihi': now,
@@ -195,7 +222,6 @@ extension _TopluIslemExt on _ModelListeleState {
                 : {
                     'tedarikci_id':
                         int.tryParse(result['tedarikciId'].toString()),
-                    'durum': 'atandi',
                     'notlar': result['notlar'],
                     'updated_at': now,
                   };
@@ -203,7 +229,8 @@ extension _TopluIslemExt on _ModelListeleState {
             await supabase
                 .from(tabloAdi)
                 .update(updateData)
-                .eq('id', mevcutAtamaList[0]['id']);
+                .eq('id', mevcutAtama['id'])
+                .eq('firma_id', TenantManager.instance.requireFirmaId);
           } else {
             // Yeni kayıt ekle
             final insertData = eskiSema
@@ -213,6 +240,7 @@ extension _TopluIslemExt on _ModelListeleState {
                         int.tryParse(result['tedarikciId'].toString()),
                     'durum': 'atandi',
                     'aciklama': result['notlar'],
+                    'firma_id': TenantManager.instance.requireFirmaId,
                     'created_at': now,
                     'updated_at': now,
                     'son_guncelleme_tarihi': now,

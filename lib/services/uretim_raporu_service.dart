@@ -83,10 +83,6 @@ class UretimRaporuService {
           .order('created_at', ascending: false);
       final modelListesi = List<Map<String, dynamic>>.from(modeller);
 
-      // 1.1 Yükleme kayıtlarından gönderilen/kalan adetleri hesapla
-      final yuklenenAdetler = await _yuklenenAdetleriGetir(modelListesi);
-      final utuFireKaynaklari = await _utuFireKaynaklariniGetir(modelListesi);
-
       // 2. Tüm aşama tablolarını paralel olarak çek
       final asamaVerileri = <String, List<Map<String, dynamic>>>{};
 
@@ -125,6 +121,32 @@ class UretimRaporuService {
         asamaVerileri[result.key] = result.value;
       }
 
+      // Genel Üretim yalnızca gerçekten üretim ataması bulunan modelleri
+      // gösterir. İptal/reddedilmiş tek kaydı olan modeller aktif atama
+      // olarak kabul edilmez.
+      final atanmisModelIdleri = <String>{};
+      for (final atamalar in asamaVerileri.values) {
+        for (final atama in atamalar) {
+          final modelId = atama['model_id']?.toString();
+          final durum = _durumAnahtari(atama['durum']);
+          if (modelId != null &&
+              modelId.isNotEmpty &&
+              durum != 'iptal' &&
+              durum != 'reddedildi') {
+            atanmisModelIdleri.add(modelId);
+          }
+        }
+      }
+      final atanmisModeller = modelListesi
+          .where(
+              (model) => atanmisModelIdleri.contains(model['id']?.toString()))
+          .toList();
+
+      // Yalnızca listelenecek modellerin yükleme ve fire verilerini getir.
+      final yuklenenAdetler = await _yuklenenAdetleriGetir(atanmisModeller);
+      final utuFireKaynaklari =
+          await _utuFireKaynaklariniGetir(atanmisModeller);
+
       // 3. Tedarikçileri çek
       List<Map<String, dynamic>> tedarikciler = [];
       try {
@@ -140,7 +162,7 @@ class UretimRaporuService {
 
       // 4. Modelleri aşama verileriyle zenginleştir
       final zenginModeller = _modelleriZenginlestir(
-        modelListesi,
+        atanmisModeller,
         asamaVerileri,
         tedarikciler,
         yuklenenAdetler,
@@ -149,7 +171,7 @@ class UretimRaporuService {
 
       // 5. Marka listesini oluştur
       final markalar = <String>{'Tümü'};
-      for (var model in modeller) {
+      for (var model in atanmisModeller) {
         if (model['marka'] != null && model['marka'].toString().isNotEmpty) {
           markalar.add(model['marka'].toString());
         }

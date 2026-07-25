@@ -320,6 +320,7 @@ Notlar:
 - Buton ikonlari icin mevcut Material Icons veya yerel ikon setleri kullanilmali; gorunmeyen ikonlar kontrol edilmelidir.
 - ERP ekranlari genelde kompakt KPI satirlari, filtre paneli, tablo/kart listesi ve aksiyon butonlariyla tasarlanir.
 - Genel Uretim sayfasi model bazli operasyon tablosudur. Her kayitta toplam adet, mevcut asama, asamadaki adet, mevcut asamanin tedarikcisi, durum ve termin birlikte gosterilir; mobilde ayni veri kart gorunumune donusur.
+- Genel Uretim listesine yalnizca en az bir iptal/reddedilmemis uretim atama kaydi bulunan modeller alinir. Tedarikci toplu atamasi ayni modelin en yeni aktif atama kaydini `firma_id` kapsaminda gunceller.
 - Uretim asama ve kalite kontrol panellerinde KPI/filtre basligi ile sekme listeleri `NestedScrollView` uzerinden tek dikey kaydirma yuzeyi kullanir; durum sekmesi kaydirma sirasinda sabit kalir.
 - Legacy sema uyumlulugu gerekcesiyle `firma_id` filtresi kaldirilarak sorgu tekrar calistirilmaz. Firma kolonu eksikse migration/sema hatasi acikca raporlanir.
 - Mobil AppBar'da ikincil islemler (rapor, cikis vb.) tasma yaratmayacak sekilde acilir menuye alinabilir; ana arama, filtre ve yenileme aksiyonlari gorunur tutulur.
@@ -339,6 +340,7 @@ Notlar:
 - Production build ve Vercel deploy icin tek guvenli komut: `.\scripts\build_web.ps1 -Env production -Deploy`.
 - Betik `SUPABASE_URL` ve `SUPABASE_ANON_KEY` degerlerini build baslamadan dogrular; degerleri loga yazmaz.
 - Vercel Git build ortaminda Flutter SDK yoktur. Bu nedenle `flutter build web` Vercel sunucusunda calistirilmaz; yerel build `.vercel/output/static` altina aktarilip `vercel deploy --prebuilt --prod` ile yayinlanir.
+- `vercel.json` icinde `git.deploymentEnabled=false` tutulur; GitHub push sonrasi Flutter SDK bulunmayan Vercel Git build'i otomatik tetiklenmez.
 - Production web build `--pwa-strategy=none` ile alinir. `main.dart.js`, `flutter.js`, bootstrap, service worker, index ve version dosyalari Vercel'de `no-cache` sunulur; eski env'siz JS paketinin service worker cache'inden tekrar acilmasi engellenir.
 
 ## Hafiza Guncelleme Kurali
