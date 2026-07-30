@@ -33,7 +33,7 @@ if ([string]::IsNullOrWhiteSpace($envFile)) {
 $envValues = @{}
 Get-Content -LiteralPath $envFile | ForEach-Object {
     if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
-        $envValues[$matches[1]] = $matches[2].Trim()
+        $envValues[$matches[1]] = $matches[2].Trim().Trim('"').Trim("'")
     }
 }
 foreach ($requiredKey in @("SUPABASE_URL", "SUPABASE_ANON_KEY")) {
@@ -69,6 +69,15 @@ flutter build web `
     --pwa-strategy=none
 
 if ($LASTEXITCODE -ne 0) { Write-Host "HATA: flutter build web basarisiz" -ForegroundColor Red; exit 1 }
+
+# Env degerlerinin gercekten derlenen JavaScript paketine gomuldugunu dogrula.
+$compiledJs = Get-Content -LiteralPath (Join-Path $projectRoot "build\web\main.dart.js") -Raw
+foreach ($requiredKey in @("SUPABASE_URL", "SUPABASE_ANON_KEY")) {
+    if (-not $compiledJs.Contains($envValues[$requiredKey])) {
+        Write-Host "HATA: $requiredKey derlenen main.dart.js icinde bulunamadi; deploy iptal edildi." -ForegroundColor Red
+        exit 1
+    }
+}
 
 # Build bilgileri
 $buildDir = Join-Path $projectRoot "build\web"

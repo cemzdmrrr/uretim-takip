@@ -60,7 +60,20 @@
           );
         })
         .catch(function () {})
-        .then(loadFlutter);
+        .then(function () {
+          // Kaydi silinen eski worker bu sayfayi yeniden yuklenene kadar kontrol
+          // etmeye devam eder. Bir kez yenileyerek eski env'siz bundle'in cache
+          // uzerinden acilmasini kesin olarak engelle.
+          var resetKey = 'texpilot-service-worker-reset-v1';
+          if (navigator.serviceWorker.controller &&
+              sessionStorage.getItem(resetKey) !== 'done') {
+            sessionStorage.setItem(resetKey, 'done');
+            window.location.reload();
+            return;
+          }
+          sessionStorage.removeItem(resetKey);
+          loadFlutter();
+        });
     })();
   </script>
 </body>
