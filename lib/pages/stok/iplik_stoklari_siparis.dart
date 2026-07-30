@@ -800,11 +800,18 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     final dokumaController = TextEditingController();
     final markaController = TextEditingController();
     final iplikAdiController = TextEditingController();
+    final kalinlikController = TextEditingController();
+    final karisimController = TextEditingController();
     final renkController = TextEditingController();
     final renkKoduController = TextEditingController();
+    final lotController = TextEditingController();
     final miktarController = TextEditingController();
     final birimFiyatController = TextEditingController();
     final aciklamaController = TextEditingController();
+    final tahsisControllers = <String, TextEditingController>{
+      for (final model in iplikModelleri)
+        model['id'].toString(): TextEditingController(),
+    };
     String paraBirimi = 'TL';
     DateTime siparisTarihi = DateTime.now();
     DateTime? terminTarihi;
@@ -869,6 +876,30 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                       children: [
                         Expanded(
                           child: TextField(
+                            controller: kalinlikController,
+                            decoration: const InputDecoration(
+                              labelText: 'İplik kalınlığı',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: karisimController,
+                            decoration: const InputDecoration(
+                              labelText: 'İplik karışımı',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
                             controller: renkController,
                             decoration: const InputDecoration(
                               labelText: 'Renk',
@@ -887,6 +918,14 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: lotController,
+                      decoration: const InputDecoration(
+                        labelText: 'Lot / Parti No',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -966,6 +1005,34 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
                       ),
                       maxLines: 3,
                     ),
+                    if (iplikModelleri.isNotEmpty)
+                      ExpansionTile(
+                        title: const Text('Model tahsisleri (opsiyonel)'),
+                        children: iplikModelleri
+                            .map(
+                              (model) => ListTile(
+                                title: Text(
+                                  '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                                ),
+                                trailing: SizedBox(
+                                  width: 120,
+                                  child: TextField(
+                                    controller: tahsisControllers[
+                                        model['id'].toString()],
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                    decoration: const InputDecoration(
+                                      labelText: 'kg',
+                                      isDense: true,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
                   ],
                 ),
               ),
@@ -986,14 +1053,35 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
       );
 
       if (kaydet != true) return;
-      await _manuelSiparisKaydet(
+      final miktar = _parseDecimal(miktarController.text);
+      final tahsisler = <Map<String, dynamic>>[];
+      for (final model in iplikModelleri) {
+        final tahsis = _parseDecimal(
+              tahsisControllers[model['id'].toString()]!.text,
+            ) ??
+            0;
+        if (tahsis > 0) {
+          tahsisler.add({
+            'model_id': model['id'],
+            'tahsis_miktari': tahsis,
+          });
+        }
+      }
+      if (miktar != null &&
+          IplikModelTahsisService.toplamTahsis(tahsisler) > miktar) {
+        throw 'Model tahsisleri sipariş miktarını aşamaz';
+      }
+      final yeniSiparisId = await _manuelSiparisKaydet(
         siparisNo: siparisNoController.text,
         tedarikciAdi: tedarikciController.text,
         dokumaFirmasiAdi: dokumaController.text,
         marka: markaController.text,
         iplikAdi: iplikAdiController.text,
+        iplikKalinligi: kalinlikController.text,
+        iplikKarisimi: karisimController.text,
         renk: renkController.text,
         renkKodu: renkKoduController.text,
+        lotNo: lotController.text,
         miktar: miktarController.text,
         birimFiyat: birimFiyatController.text,
         paraBirimi: paraBirimi,
@@ -1001,17 +1089,30 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
         siparisTarihi: siparisTarihi,
         aciklama: aciklamaController.text,
       );
+      if (yeniSiparisId != null && tahsisler.isNotEmpty) {
+        await IplikModelTahsisService.siparisTahsisleriniKaydet(
+          yeniSiparisId,
+          tahsisler,
+        );
+        await _verileriYukle();
+      }
     } finally {
       siparisNoController.dispose();
       tedarikciController.dispose();
       dokumaController.dispose();
       markaController.dispose();
       iplikAdiController.dispose();
+      kalinlikController.dispose();
+      karisimController.dispose();
       renkController.dispose();
       renkKoduController.dispose();
+      lotController.dispose();
       miktarController.dispose();
       birimFiyatController.dispose();
       aciklamaController.dispose();
+      for (final controller in tahsisControllers.values) {
+        controller.dispose();
+      }
     }
   }
 
@@ -1624,14 +1725,17 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     );
   }
 
-  Future<void> _manuelSiparisKaydet({
+  Future<String?> _manuelSiparisKaydet({
     required String siparisNo,
     required String tedarikciAdi,
     required String dokumaFirmasiAdi,
     required String marka,
     required String iplikAdi,
+    required String iplikKalinligi,
+    required String iplikKarisimi,
     required String renk,
     required String renkKodu,
+    required String lotNo,
     required String miktar,
     required String birimFiyat,
     required String paraBirimi,
@@ -1640,12 +1744,8 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
     required String aciklama,
   }) async {
     try {
-      if (tedarikciAdi.trim().isEmpty ||
-          dokumaFirmasiAdi.trim().isEmpty ||
-          marka.trim().isEmpty ||
-          iplikAdi.trim().isEmpty ||
-          miktar.trim().isEmpty) {
-        throw 'Tedarikçi, dokuma firması, marka, iplik adı ve miktar zorunludur';
+      if (iplikAdi.trim().isEmpty || miktar.trim().isEmpty) {
+        throw 'İplik adı ve miktar zorunludur';
       }
 
       final miktarSayi = _parseDecimal(miktar);
@@ -1655,14 +1755,6 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
 
       final birimFiyatSayi =
           birimFiyat.trim().isNotEmpty ? _parseDecimal(birimFiyat) : null;
-      String? renkBilgisi;
-      if (renk.trim().isNotEmpty || renkKodu.trim().isNotEmpty) {
-        renkBilgisi = [
-          if (renk.trim().isNotEmpty) renk.trim(),
-          if (renkKodu.trim().isNotEmpty) renkKodu.trim(),
-        ].join(' / ');
-      }
-
       final tedarikci = _tedarikciAdiIleEsles(tedarikciAdi);
       final dokumaFirmasi = _tedarikciAdiIleEsles(dokumaFirmasiAdi);
       final temizAciklama = aciklama.trim();
@@ -1678,7 +1770,13 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
         'orgu_firmasi_id': dokumaFirmasi?['id'],
         'marka': marka.trim(),
         'iplik_adi': iplikAdi.trim(),
-        'renk': renkBilgisi,
+        'iplik_kalinligi':
+            iplikKalinligi.trim().isEmpty ? null : iplikKalinligi.trim(),
+        'iplik_karisimi':
+            iplikKarisimi.trim().isEmpty ? null : iplikKarisimi.trim(),
+        'renk': renk.trim().isEmpty ? null : renk.trim(),
+        'renk_kodu': renkKodu.trim().isEmpty ? null : renkKodu.trim(),
+        'lot_no': lotNo.trim().isEmpty ? null : lotNo.trim(),
         'miktar': miktarSayi,
         'birim': 'kg',
         'birim_fiyat': birimFiyatSayi,
@@ -1694,13 +1792,19 @@ extension _IplikSiparisExt on _IplikStoklariPageState {
         siparisData['toplam_tutar'] = miktarSayi * birimFiyatSayi;
       }
 
-      await supabase.from(DbTables.iplikSiparisleri).insert(siparisData);
-      if (!mounted) return;
+      final inserted = await supabase
+          .from(DbTables.iplikSiparisleri)
+          .insert(siparisData)
+          .select('id')
+          .single();
+      if (!mounted) return null;
       await _verileriYukle();
-      if (!mounted) return;
+      if (!mounted) return null;
       context.showSuccessSnackBar('Sipariş $siparisNo başarıyla oluşturuldu');
+      return inserted['id']?.toString();
     } catch (e) {
       if (mounted) context.showErrorSnackBar('Hata: $e');
+      return null;
     }
   }
 

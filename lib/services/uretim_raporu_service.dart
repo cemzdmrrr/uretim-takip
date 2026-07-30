@@ -15,6 +15,51 @@ class UretimRaporuService {
   UretimRaporuService({SupabaseClient? supabase})
       : _supabase = supabase ?? Supabase.instance.client;
 
+  /// Model listesindeki rozetler icin guncel uretim asamasini getirir.
+  Future<Map<String, Map<String, String>>> modelUretimDurumlariniGetir(
+    Iterable<String> modelIds,
+  ) async {
+    final ids = modelIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return {};
+
+    final sonKayitlar = <String, Map<String, Map<String, dynamic>>>{};
+    final futures = _asamaTablolari.entries.map((entry) async {
+      try {
+        final rows = await _supabase
+            .from(entry.value['tablo']!)
+            .select('model_id, durum, created_at, updated_at, tamamlama_tarihi')
+            .eq('firma_id', _firmaId)
+            .inFilter('model_id', ids);
+        return MapEntry(entry.key, List<Map<String, dynamic>>.from(rows));
+      } catch (e) {
+        AppLogger.debug('${entry.key} liste durumu yuklenemedi: $e');
+        return MapEntry(entry.key, <Map<String, dynamic>>[]);
+      }
+    });
+
+    for (final entry in await Future.wait(futures)) {
+      for (final row in entry.value) {
+        final modelId = row['model_id']?.toString();
+        if (modelId == null || modelId.isEmpty) continue;
+        final asamalar = sonKayitlar.putIfAbsent(modelId, () => {});
+        final mevcut = asamalar[entry.key];
+        final yeniTarih = _kayitZamani(row);
+        final mevcutTarih = mevcut == null ? null : _kayitZamani(mevcut);
+        if (mevcut == null ||
+            (yeniTarih != null &&
+                (mevcutTarih == null || yeniTarih.isAfter(mevcutTarih)))) {
+          asamalar[entry.key] = row;
+        }
+      }
+    }
+
+    return sonKayitlar.map((modelId, asamalar) {
+      final asama = _mevcutAsamayiBelirle(asamalar);
+      final durum = asamalar[asama]?['durum']?.toString() ?? 'beklemede';
+      return MapEntry(modelId, {'asama': asama, 'durum': durum});
+    });
+  }
+
   /// Tüm aşama tablolarının adları ve select alanları
   static const _asamaTablolari = {
     'dokuma': {

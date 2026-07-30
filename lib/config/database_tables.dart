@@ -37,6 +37,13 @@ class DbTables {
   static const iplikSiparisleri = 'iplik_siparisleri';
   static const iplikSiparisTeslimatlar = 'iplik_siparis_teslimatlar';
   static const iplikStokHareketleri = 'iplik_stok_hareketleri';
+  static const iplikStokModelTahsisleri = 'iplik_stok_model_tahsisleri';
+  static const iplikSiparisModelTahsisleri = 'iplik_siparis_model_tahsisleri';
+  static const iplikLokasyonlari = 'iplik_lokasyonlari';
+  static const iplikStokLokasyonlari = 'iplik_stok_lokasyonlari';
+  static const iplikSayimOturumlari = 'iplik_sayim_oturumlari';
+  static const iplikSayimOturumLokasyonlari = 'iplik_sayim_oturum_lokasyonlari';
+  static const iplikSayimSatirlari = 'iplik_sayim_satirlari';
   static const stokHareketleri = 'stok_hareketleri';
 
   // ─── Aksesuar ───

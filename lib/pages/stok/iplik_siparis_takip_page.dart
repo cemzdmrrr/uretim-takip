@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/iplik_model_tahsis_service.dart';
+import 'package:uretim_takip/services/iplik_lokasyon_sayim_service.dart';
 import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
@@ -22,6 +24,8 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
 
   List<Map<String, dynamic>> siparisler = [];
   List<Map<String, dynamic>> tedarikciler = [];
+  List<Map<String, dynamic>> modeller = [];
+  List<Map<String, dynamic>> lokasyonlar = [];
   bool _yukleniyor = false;
 
   String aramaMetni = '';
@@ -31,6 +35,14 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   String kaliteFiltresi = 'tum';
   String teslimFiltresi = 'tum';
   String siralama = 'termin';
+  String? kalinlikFiltresi;
+  String? karisimFiltresi;
+  String? renkFiltresi;
+  String? renkKoduFiltresi;
+  String? lotFiltresi;
+  String? modelFiltresi;
+  final minFiyatController = TextEditingController();
+  final maxFiyatController = TextEditingController();
 
   static const Color _primaryColor = Color(0xFF2563EB);
   static const Color _successColor = Color(0xFF059669);
@@ -47,6 +59,8 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   @override
   void dispose() {
     aramaController.dispose();
+    minFiyatController.dispose();
+    maxFiyatController.dispose();
     super.dispose();
   }
 
@@ -56,6 +70,16 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     try {
       final firmaId = TenantManager.instance.requireFirmaId;
       final yeniTedarikciler = await _tedarikcileriYukle(firmaId);
+      List<Map<String, dynamic>> yeniModeller = [];
+      List<Map<String, dynamic>> yeniLokasyonlar = [];
+      try {
+        yeniModeller = await IplikModelTahsisService.modelleriGetir();
+      } catch (_) {}
+      try {
+        yeniLokasyonlar = await IplikLokasyonSayimService.lokasyonlariGetir(
+          sadeceAktif: true,
+        );
+      } catch (_) {}
       final tedarikciMap = {
         for (final tedarikci in yeniTedarikciler)
           if (tedarikci['id'] != null) tedarikci['id'].toString(): tedarikci,
@@ -84,10 +108,22 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       yeniSiparisler = yeniSiparisler
           .map((siparis) => _normalizeSiparis(siparis, tedarikciMap))
           .toList();
+      for (final siparis in yeniSiparisler) {
+        try {
+          siparis['model_tahsisleri'] =
+              await IplikModelTahsisService.siparisTahsisleriGetir(
+            siparis['id'].toString(),
+          );
+        } catch (_) {
+          siparis['model_tahsisleri'] = <Map<String, dynamic>>[];
+        }
+      }
 
       setState(() {
         tedarikciler = yeniTedarikciler;
         siparisler = yeniSiparisler;
+        modeller = yeniModeller;
+        lokasyonlar = yeniLokasyonlar;
       });
 
       debugPrint('Sipariş takip verileri yüklendi: ${siparisler.length} adet');
@@ -176,7 +212,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       final termin = _parseDate(siparis['termin_tarihi']);
       final teslimYuzdesi = _num(siparis['teslim_yuzdesi']);
       final metin =
-          '${siparis['siparis_no']} ${siparis['iplik_adi']} ${siparis['renk']} ${siparis['tedarikci_adi']} ${siparis['marka']}'
+          '${siparis['siparis_no']} ${siparis['iplik_adi']} ${siparis['iplik_kalinligi']} ${siparis['iplik_karisimi']} ${siparis['renk']} ${siparis['renk_kodu']} ${siparis['lot_no']} ${siparis['tedarikci_adi']} ${siparis['marka']} ${_siparisModelEtiketleri(siparis)}'
               .toLowerCase();
 
       final aramaUygun = arama.isEmpty || metin.contains(arama);
@@ -203,12 +239,26 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         _ => true,
       };
 
+      final fiyat = siparis['birim_fiyat'] is num
+          ? (siparis['birim_fiyat'] as num).toDouble()
+          : null;
+      final minFiyat = _parseDecimal(minFiyatController.text);
+      final maxFiyat = _parseDecimal(maxFiyatController.text);
       return aramaUygun &&
           durumUygun &&
           tedarikciUygun &&
           kaliteUygun &&
           teslimUygun &&
-          terminUygun;
+          terminUygun &&
+          _alanUyar(siparis['iplik_kalinligi'], kalinlikFiltresi) &&
+          _alanUyar(siparis['iplik_karisimi'], karisimFiltresi) &&
+          _alanUyar(siparis['renk'], renkFiltresi) &&
+          _alanUyar(siparis['renk_kodu'], renkKoduFiltresi) &&
+          _alanUyar(siparis['lot_no'], lotFiltresi) &&
+          (modelFiltresi == null ||
+              _siparisModelIdleri(siparis).contains(modelFiltresi)) &&
+          (minFiyat == null || (fiyat != null && fiyat >= minFiyat)) &&
+          (maxFiyat == null || (fiyat != null && fiyat <= maxFiyat));
     }).toList();
 
     result.sort((a, b) {
@@ -240,6 +290,34 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     return result;
   }
 
+  bool _alanUyar(dynamic value, String? filtre) =>
+      filtre == null || value?.toString() == filtre;
+
+  List<String> _siparisModelIdleri(Map<String, dynamic> siparis) =>
+      ((siparis['model_tahsisleri'] as List?) ?? const [])
+          .map((item) => (item as Map)['model_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+  String _siparisModelEtiketleri(Map<String, dynamic> siparis) =>
+      ((siparis['model_tahsisleri'] as List?) ?? const [])
+          .map((item) {
+            final model = (item as Map)['triko_takip'] as Map?;
+            return '${model?['marka'] ?? ''} ${model?['item_no'] ?? ''}'.trim();
+          })
+          .where((text) => text.isNotEmpty)
+          .join(', ');
+
+  List<String> _alanDegerleri(String alan) {
+    final values = siparisler
+        .map((item) => item[alan]?.toString().trim() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort();
+    return values;
+  }
+
   Future<void> _siparisTakipExcelIndir() async {
     final filtreliSiparisler = _filtreliSiparisler;
     if (filtreliSiparisler.isEmpty) {
@@ -256,7 +334,11 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           'siparis_no': siparis['siparis_no'],
           'marka': siparis['marka'],
           'iplik_adi': siparis['iplik_adi'],
-          'renk': _siparisRengi(siparis),
+          'iplik_kalinligi': siparis['iplik_kalinligi'],
+          'iplik_karisimi': siparis['iplik_karisimi'],
+          'renk': siparis['renk'],
+          'renk_kodu': siparis['renk_kodu'],
+          'modeller': _siparisModelEtiketleri(siparis),
           'tedarikci': siparis['tedarikci_adi'],
           'siparis_miktari': siparisMiktari,
           'birim': siparis['birim'] ?? 'kg',
@@ -286,7 +368,11 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           'siparis_no': 'Sipariş No',
           'marka': 'Marka',
           'iplik_adi': 'İplik Adı',
+          'iplik_kalinligi': 'İplik Kalınlığı',
+          'iplik_karisimi': 'İplik Karışımı',
           'renk': 'Renk',
+          'renk_kodu': 'Renk Kodu',
+          'modeller': 'Modeller',
           'tedarikci': 'Tedarikçi',
           'siparis_miktari': 'Sipariş Miktarı',
           'birim': 'Birim',
@@ -600,6 +686,98 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                   onChanged: (v) => setState(() => durumFiltresi = v),
                 ),
               ),
+              for (final filter in [
+                ('Kalınlık', 'iplik_kalinligi', kalinlikFiltresi),
+                ('Karışım', 'iplik_karisimi', karisimFiltresi),
+                ('Renk', 'renk', renkFiltresi),
+                ('Renk kodu', 'renk_kodu', renkKoduFiltresi),
+                ('Lot', 'lot_no', lotFiltresi),
+              ])
+                SizedBox(
+                  width: width,
+                  child: DropdownButtonFormField<String?>(
+                    initialValue: filter.$3,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: filter.$1,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Tümü'),
+                      ),
+                      ..._alanDegerleri(filter.$2).map(
+                        (value) => DropdownMenuItem<String?>(
+                          value: value,
+                          child: Text(value, overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) => setState(() {
+                      switch (filter.$2) {
+                        case 'iplik_kalinligi':
+                          kalinlikFiltresi = value;
+                        case 'iplik_karisimi':
+                          karisimFiltresi = value;
+                        case 'renk':
+                          renkFiltresi = value;
+                        case 'renk_kodu':
+                          renkKoduFiltresi = value;
+                        case 'lot_no':
+                          lotFiltresi = value;
+                      }
+                    }),
+                  ),
+                ),
+              SizedBox(
+                width: width,
+                child: DropdownButtonFormField<String?>(
+                  initialValue: modelFiltresi,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Model',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tüm modeller'),
+                    ),
+                    ...modeller.map(
+                      (model) => DropdownMenuItem<String?>(
+                        value: model['id']?.toString(),
+                        child: Text(
+                          '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => modelFiltresi = value),
+                ),
+              ),
+              for (final item in [
+                ('Min. fiyat', minFiyatController),
+                ('Maks. fiyat', maxFiyatController),
+              ])
+                SizedBox(
+                  width: width,
+                  child: TextField(
+                    controller: item.$2,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: item.$1,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
               SizedBox(
                 width: width,
                 child: DropdownButtonFormField<String?>(
@@ -740,7 +918,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: ResponsiveHorizontalTable(
-        minWidth: 1320,
+        minWidth: 1900,
         showScrollbar: true,
         child: DataTable(
           headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
@@ -750,7 +928,13 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           horizontalMargin: 16,
           columns: const [
             DataColumn(label: Text('Sipariş')),
-            DataColumn(label: Text('İplik / Renk')),
+            DataColumn(label: Text('İplik')),
+            DataColumn(label: Text('Kalınlık')),
+            DataColumn(label: Text('Karışım')),
+            DataColumn(label: Text('Renk')),
+            DataColumn(label: Text('Renk Kodu')),
+            DataColumn(label: Text('Lot')),
+            DataColumn(label: Text('Modeller')),
             DataColumn(label: Text('Tedarikçi')),
             DataColumn(label: Text('Termin')),
             DataColumn(label: Text('Miktar')),
@@ -765,7 +949,24 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
               cells: [
                 DataCell(_tableText(
                     siparis['siparis_no']?.toString() ?? '-', 120, true)),
-                DataCell(_buildIplikRenkHucre(siparis)),
+                DataCell(_tableText(
+                    siparis['iplik_adi']?.toString() ?? '-', 180, true)),
+                DataCell(_tableText(
+                    siparis['iplik_kalinligi']?.toString() ?? '-', 120, false)),
+                DataCell(_tableText(
+                    siparis['iplik_karisimi']?.toString() ?? '-', 170, false)),
+                DataCell(
+                    _tableText(siparis['renk']?.toString() ?? '-', 130, false)),
+                DataCell(_tableText(
+                    siparis['renk_kodu']?.toString() ?? '-', 120, false)),
+                DataCell(_tableText(
+                    siparis['lot_no']?.toString() ?? '-', 120, false)),
+                DataCell(_tableText(
+                    _siparisModelEtiketleri(siparis).isEmpty
+                        ? '-'
+                        : _siparisModelEtiketleri(siparis),
+                    200,
+                    false)),
                 DataCell(_tableText(
                     siparis['tedarikci_adi']?.toString() ?? '-', 170, false)),
                 DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
@@ -934,6 +1135,9 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             case 'teslimat':
               _teslimatEkle(siparis);
               break;
+            case 'tahsis':
+              _siparisModelTahsisDialogu(siparis);
+              break;
             case 'tamamla':
               _siparisiBitir(siparis);
               break;
@@ -946,6 +1150,17 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
               dense: true,
               leading: Icon(Icons.visibility_outlined),
               title: Text('Detay'),
+              contentPadding: EdgeInsets.zero,
+              minLeadingWidth: 28,
+            ),
+          ),
+          PopupMenuItem(
+            value: 'tahsis',
+            enabled: duzenlenebilir,
+            child: const ListTile(
+              dense: true,
+              leading: Icon(Icons.link),
+              title: Text('Model tahsisleri'),
               contentPadding: EdgeInsets.zero,
               minLeadingWidth: 28,
             ),
@@ -1011,6 +1226,127 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     return teslimatlar.isEmpty;
   }
 
+  Future<void> _siparisModelTahsisDialogu(
+    Map<String, dynamic> siparis,
+  ) async {
+    final mevcut = List<Map<String, dynamic>>.from(
+      siparis['model_tahsisleri'] as List? ?? const [],
+    );
+    final controllers = <String, TextEditingController>{};
+    for (final model in modeller) {
+      final id = model['id'].toString();
+      var text = '';
+      for (final item in mevcut) {
+        if (item['model_id']?.toString() == id) {
+          text = item['tahsis_miktari']?.toString() ?? '';
+          break;
+        }
+      }
+      controllers[id] = TextEditingController(text: text);
+    }
+    final limit = _num(siparis['miktar']);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final toplam = controllers.values.fold<double>(
+            0,
+            (sum, item) => sum + (_parseDecimal(item.text) ?? 0),
+          );
+          return AlertDialog(
+            title: Text('Model Tahsisleri - ${siparis['siparis_no'] ?? ''}'),
+            content: SizedBox(
+              width: 620,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Sipariş: ${limit.toStringAsFixed(2)} kg • '
+                    'Tahsis: ${toplam.toStringAsFixed(2)} kg • '
+                    'Kalan: ${(limit - toplam).clamp(0, double.infinity).toStringAsFixed(2)} kg',
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: modeller.length,
+                      itemBuilder: (_, index) {
+                        final model = modeller[index];
+                        return ListTile(
+                          title: Text(
+                            '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                          ),
+                          trailing: SizedBox(
+                            width: 130,
+                            child: TextField(
+                              controller: controllers[model['id'].toString()],
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              decoration: const InputDecoration(
+                                labelText: 'Tahsis (kg)',
+                                isDense: true,
+                              ),
+                              onChanged: (_) => setDialogState(() {}),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('İptal'),
+              ),
+              FilledButton(
+                onPressed: toplam > limit
+                    ? null
+                    : () async {
+                        final tahsisler = <Map<String, dynamic>>[];
+                        for (final model in modeller) {
+                          final miktar = _parseDecimal(
+                                controllers[model['id'].toString()]!.text,
+                              ) ??
+                              0;
+                          if (miktar > 0) {
+                            tahsisler.add({
+                              'model_id': model['id'],
+                              'tahsis_miktari': miktar,
+                            });
+                          }
+                        }
+                        try {
+                          await IplikModelTahsisService
+                              .siparisTahsisleriniKaydet(
+                            siparis['id'].toString(),
+                            tahsisler,
+                          );
+                          if (!dialogContext.mounted) return;
+                          Navigator.pop(dialogContext);
+                          await _verileriYukle();
+                        } catch (e) {
+                          if (!dialogContext.mounted) return;
+                          dialogContext.showErrorSnackBar('Tahsis hatası: $e');
+                        }
+                      },
+                child: const Text('Kaydet'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
+  }
+
   Future<void> _siparisDuzenle(Map<String, dynamic> siparis) async {
     if (!await _siparisTeslimatsizMi(siparis)) {
       if (mounted) {
@@ -1027,8 +1363,16 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         TextEditingController(text: siparis['marka']?.toString() ?? '');
     final iplikAdiController =
         TextEditingController(text: siparis['iplik_adi']?.toString() ?? '');
+    final kalinlikController = TextEditingController(
+        text: siparis['iplik_kalinligi']?.toString() ?? '');
+    final karisimController = TextEditingController(
+        text: siparis['iplik_karisimi']?.toString() ?? '');
     final renkController =
         TextEditingController(text: siparis['renk']?.toString() ?? '');
+    final renkKoduController =
+        TextEditingController(text: siparis['renk_kodu']?.toString() ?? '');
+    final lotController =
+        TextEditingController(text: siparis['lot_no']?.toString() ?? '');
     final miktarController = TextEditingController(
       text: _num(siparis['miktar']).toStringAsFixed(1),
     );
@@ -1082,9 +1426,41 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                     ),
                     const SizedBox(height: 10),
                     TextField(
+                      controller: kalinlikController,
+                      decoration: const InputDecoration(
+                        labelText: 'İplik kalınlığı',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: karisimController,
+                      decoration: const InputDecoration(
+                        labelText: 'İplik karışımı',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
                       controller: renkController,
                       decoration: const InputDecoration(
                         labelText: 'Renk',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: renkKoduController,
+                      decoration: const InputDecoration(
+                        labelText: 'Renk kodu',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: lotController,
+                      decoration: const InputDecoration(
+                        labelText: 'Lot / Parti No',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -1217,11 +1593,10 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       final siparisNo = siparisNoController.text.trim();
       final miktar = _parseDecimal(miktarController.text);
       if (siparisNo.isEmpty ||
-          markaController.text.trim().isEmpty ||
           iplikAdiController.text.trim().isEmpty ||
           miktar == null ||
           miktar <= 0) {
-        throw 'Sipariş no, marka, iplik adı ve geçerli miktar zorunludur';
+        throw 'Sipariş no, iplik adı ve geçerli miktar zorunludur';
       }
       final birimFiyat = birimFiyatController.text.trim().isNotEmpty
           ? _parseDecimal(birimFiyatController.text)
@@ -1247,9 +1622,21 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             'siparis_no': siparisNo,
             'marka': markaController.text.trim(),
             'iplik_adi': iplikAdiController.text.trim(),
+            'iplik_kalinligi': kalinlikController.text.trim().isEmpty
+                ? null
+                : kalinlikController.text.trim(),
+            'iplik_karisimi': karisimController.text.trim().isEmpty
+                ? null
+                : karisimController.text.trim(),
             'renk': renkController.text.trim().isNotEmpty
                 ? renkController.text.trim()
                 : null,
+            'renk_kodu': renkKoduController.text.trim().isEmpty
+                ? null
+                : renkKoduController.text.trim(),
+            'lot_no': lotController.text.trim().isEmpty
+                ? null
+                : lotController.text.trim(),
             'miktar': miktar,
             'birim_fiyat': birimFiyat,
             'para_birimi': paraBirimi,
@@ -1274,7 +1661,11 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
       siparisNoController.dispose();
       markaController.dispose();
       iplikAdiController.dispose();
+      kalinlikController.dispose();
+      karisimController.dispose();
       renkController.dispose();
+      renkKoduController.dispose();
+      lotController.dispose();
       miktarController.dispose();
       birimFiyatController.dispose();
       aciklamaController.dispose();
@@ -1360,6 +1751,8 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     final aciklamaController = TextEditingController();
     DateTime teslimatTarihi = DateTime.now();
     String kaliteDurumu = 'onaylandi';
+    String? lokasyonId =
+        lokasyonlar.isEmpty ? null : lokasyonlar.first['id']?.toString();
 
     try {
       await showDialog(
@@ -1449,6 +1842,22 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                             () => kaliteDurumu = value ?? 'onaylandi'),
                       ),
                       const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: lokasyonId,
+                        decoration: const InputDecoration(
+                          labelText: 'İplik Lokasyonu *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: lokasyonlar
+                            .map((item) => DropdownMenuItem(
+                                  value: item['id']?.toString(),
+                                  child: Text('${item['kod']} - ${item['ad']}'),
+                                ))
+                            .toList(),
+                        onChanged: (value) =>
+                            setDialogState(() => lokasyonId = value),
+                      ),
+                      const SizedBox(height: 12),
                       InkWell(
                         onTap: () async {
                           final tarih = await showDatePicker(
@@ -1496,6 +1905,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                       if (miktar == null || miktar <= 0) {
                         throw 'Geçerli bir miktar girin';
                       }
+                      if (lokasyonId == null) throw 'Lokasyon seçin';
                       final lotNo = lotNoController.text.trim().isNotEmpty
                           ? lotNoController.text.trim()
                           : null;
@@ -1508,6 +1918,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
                         aciklama: aciklamaController.text.trim().isNotEmpty
                             ? aciklamaController.text.trim()
                             : null,
+                        lokasyonId: lokasyonId!,
                       );
 
                       if (!context.mounted) return;
@@ -1582,10 +1993,11 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
     required String kaliteDurumu,
     required DateTime teslimatTarihi,
     String? aciklama,
+    required String lokasyonId,
   }) async {
     try {
       await supabase.rpc(
-        'iplik_siparis_teslimat_kaydet',
+        'iplik_lokasyonlu_siparis_teslimat_kaydet',
         params: {
           'p_firma_id': TenantManager.instance.requireFirmaId,
           'p_siparis_id': siparis['id'],
@@ -1594,22 +2006,15 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
           'p_kalite_durumu': kaliteDurumu,
           'p_teslimat_tarihi': teslimatTarihi.toIso8601String().split('T')[0],
           'p_aciklama': aciklama,
+          'p_lokasyon_id': lokasyonId,
         },
       );
     } catch (rpcError) {
-      debugPrint(
-          'İplik teslimat RPC kullanılamadı, klasik teslimat deneniyor: $rpcError');
-      await _teslimatFallbackKaydet(
-        siparis: siparis,
-        miktar: miktar,
-        lotNo: lotNo,
-        kaliteDurumu: kaliteDurumu,
-        teslimatTarihi: teslimatTarihi,
-        aciklama: aciklama,
-      );
+      throw Exception('Lokasyonlu teslimat kaydedilemedi: $rpcError');
     }
   }
 
+  // ignore: unused_element
   Future<void> _teslimatFallbackKaydet({
     required Map<String, dynamic> siparis,
     required double miktar,
@@ -1964,6 +2369,12 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             runSpacing: 10,
             children: [
               _detayBilgi('İplik', siparis['iplik_adi']),
+              _detayBilgi('İplik kalınlığı', siparis['iplik_kalinligi']),
+              _detayBilgi('İplik karışımı', siparis['iplik_karisimi']),
+              _detayBilgi('Renk', siparis['renk']),
+              _detayBilgi('Renk kodu', siparis['renk_kodu']),
+              _detayBilgi('Lot', siparis['lot_no']),
+              _detayBilgi('Modeller', _siparisModelEtiketleri(siparis)),
               _detayBilgi('Renk', _siparisRengi(siparis)),
               _detayBilgi('Marka', siparis['marka']),
               _detayBilgi('Tedarikçi', siparis['tedarikci_adi']),
@@ -2126,41 +2537,6 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w500),
-      ),
-    );
-  }
-
-  Widget _buildIplikRenkHucre(Map<String, dynamic> siparis) {
-    final iplikAdi = siparis['iplik_adi']?.toString().trim() ?? '';
-    final renk = _siparisRengi(siparis).trim();
-    final tamMetin = '${iplikAdi.isEmpty ? '-' : iplikAdi}\n'
-        'Renk: ${renk.isEmpty ? '-' : renk}';
-
-    return Tooltip(
-      message: tamMetin,
-      child: SizedBox(
-        width: 300,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              iplikAdi.isEmpty ? '-' : iplikAdi,
-              softWrap: true,
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Renk: ${renk.isEmpty ? '-' : renk}',
-              softWrap: true,
-              style: const TextStyle(
-                color: Color(0xFF475569),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

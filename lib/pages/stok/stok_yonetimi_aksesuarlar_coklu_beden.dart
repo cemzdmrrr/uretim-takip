@@ -9,6 +9,9 @@ import 'package:flutter/painting.dart' show Border, BorderSide;
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
+import 'package:uretim_takip/services/aksesuar_siparis_mail_service.dart';
+import 'package:uretim_takip/services/sistem_ayarlari_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:math' as math;
 
 part 'stok_yonetimi_aksesuarlar_dialog.dart';
@@ -28,6 +31,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
   late TabController _pageTabController;
 
   List<Map<String, dynamic>> aksesuarlar = [];
+  List<Map<String, dynamic>> _tedarikciler = [];
   // Aksesuar ID -> Model kullanım listesi (model_adi, toplam_adet, adet_per_model)
   Map<String, List<Map<String, dynamic>>> _modelKullanimlari = {};
   // Aksesuar ID -> toplam sarf miktarı (hareket_tipi='cikis')
@@ -139,6 +143,13 @@ class _StokYonetimiAksesuarlarCokluBedenState
           .eq('durum', 'aktif')
           .order('created_at', ascending: false);
 
+      final tedarikciResponse = await supabase
+          .from(DbTables.tedarikciler)
+          .select('id, ad, soyad, sirket, email')
+          .eq('firma_id', firmaId)
+          .eq('durum', 'aktif')
+          .order('sirket');
+
       // Model-aksesuar ilişkilerini yükle
       final modelAksesuarResponse = await supabase
           .from(DbTables.modelAksesuar)
@@ -239,6 +250,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
 
       setState(() {
         aksesuarlar = List<Map<String, dynamic>>.from(response);
+        _tedarikciler = List<Map<String, dynamic>>.from(tedarikciResponse);
         _modelKullanimlari = kullanimMap;
         _sarfToplamlari = sarfToplamMap;
         _bedenSarfToplamlari = bedenSarfToplamMap;
@@ -548,6 +560,12 @@ class _StokYonetimiAksesuarlarCokluBedenState
       runSpacing: 2,
       children: [
         IconButton(
+          icon: const Icon(Icons.email_outlined),
+          color: _primaryColor,
+          onPressed: () => _showSiparisMailDialog(aksesuar),
+          tooltip: 'Sipariş e-postası oluştur',
+        ),
+        IconButton(
           icon: const Icon(Icons.output_rounded),
           color: _warningColor,
           onPressed: () => _showSarfDialog(aksesuar),
@@ -567,6 +585,137 @@ class _StokYonetimiAksesuarlarCokluBedenState
         ),
       ],
     );
+  }
+
+  Map<String, dynamic>? _aksesuarTedarikcisi(Map<String, dynamic> aksesuar) {
+    final id = aksesuar['tedarikci_id']?.toString();
+    if (id == null || id.isEmpty) return null;
+    for (final tedarikci in _tedarikciler) {
+      if (tedarikci['id']?.toString() == id) return tedarikci;
+    }
+    return null;
+  }
+
+  String _tedarikciEtiketi(Map<String, dynamic>? tedarikci) {
+    if (tedarikci == null) return 'Seçilmemiş';
+    final sirket = tedarikci['sirket']?.toString().trim() ?? '';
+    final adSoyad = [tedarikci['ad'], tedarikci['soyad']]
+        .map((e) => e?.toString().trim() ?? '')
+        .where((e) => e.isNotEmpty)
+        .join(' ');
+    return sirket.isNotEmpty
+        ? sirket
+        : (adSoyad.isEmpty ? 'Tedarikçi' : adSoyad);
+  }
+
+  Future<void> _showSiparisMailDialog(Map<String, dynamic> aksesuar) async {
+    final mevcutStok = _getTotalStock(aksesuar);
+    final minimumStok = (aksesuar['minimum_stok'] as num?)?.toInt() ?? 10;
+    final varsayilanMiktar =
+        mevcutStok < minimumStok ? minimumStok - mevcutStok : 1;
+    final miktarController =
+        TextEditingController(text: varsayilanMiktar.toString());
+    final tedarikci = _aksesuarTedarikcisi(aksesuar);
+    final firmaEmail = await SistemAyarlariService.getMetinAyarDegeri(
+      'AKSESUAR_SIPARIS_MAIL_ADRESI',
+    );
+    if (!mounted) {
+      miktarController.dispose();
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(children: [
+          Icon(Icons.email_outlined),
+          SizedBox(width: 8),
+          Expanded(child: Text('Sipariş E-postası')),
+        ]),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDetayBilgi('Ürün', aksesuar['ad'] ?? '-'),
+                _buildDetayBilgi('SKU', aksesuar['sku'] ?? '-'),
+                _buildDetayBilgi('Renk', aksesuar['renk'] ?? '-'),
+                _buildDetayBilgi('Mevcut / Minimum',
+                    '$mevcutStok / $minimumStok ${aksesuar['birim'] ?? 'adet'}'),
+                _buildDetayBilgi('Tedarikçi', _tedarikciEtiketi(tedarikci)),
+                _buildDetayBilgi(
+                    'Tedarikçi e-postası', tedarikci?['email'] ?? 'Boş'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: miktarController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Sipariş miktarı',
+                    suffixText: aksesuar['birim']?.toString() ?? 'adet',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                if ((tedarikci?['email']?.toString().trim() ?? '').isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: Text(
+                      'Tedarikçi e-postası kayıtlı değil. Taslak alıcısız açılacaktır.',
+                      style: TextStyle(color: _warningColor),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('İptal'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.open_in_new),
+            label: const Text('Posta Oluştur'),
+            onPressed: () async {
+              final miktar = int.tryParse(miktarController.text.trim());
+              if (miktar == null || miktar <= 0) {
+                dialogContext.showErrorSnackBar(
+                    'Sipariş miktarı sıfırdan büyük olmalıdır');
+                return;
+              }
+              final taslak = AksesuarSiparisMailService.taslakOlustur(
+                aksesuar: aksesuar,
+                siparisMiktari: miktar,
+                mevcutStok: mevcutStok,
+                minimumStok: minimumStok,
+                tedarikciAdi: _tedarikciEtiketi(tedarikci),
+                tedarikciEmail: tedarikci?['email']?.toString(),
+                firmaSiparisEmail: firmaEmail,
+              );
+              try {
+                final acildi = await launchUrl(
+                  taslak.uri,
+                  mode: LaunchMode.externalApplication,
+                );
+                if (!dialogContext.mounted) return;
+                if (!acildi) {
+                  dialogContext.showErrorSnackBar(
+                      'Varsayılan posta uygulaması açılamadı');
+                  return;
+                }
+                Navigator.pop(dialogContext);
+              } catch (_) {
+                if (!dialogContext.mounted) return;
+                dialogContext
+                    .showErrorSnackBar('Varsayılan posta uygulaması açılamadı');
+              }
+            },
+          ),
+        ],
+      ),
+    );
+    miktarController.dispose();
   }
 
   void _showAksesuarDetayModal(Map<String, dynamic> aksesuar) {
@@ -1916,7 +2065,7 @@ class _StokYonetimiAksesuarlarCokluBedenState
                       ..sort();
                     if (modelList.isEmpty) return const SizedBox.shrink();
                     return SizedBox(
-                      width: dar ? cs.maxWidth : 220,
+                      width: dar ? cs.maxWidth : 360,
                       child: DropdownButtonFormField<String>(
                         value: _sarfModelFiltre,
                         isExpanded: true,
@@ -1925,12 +2074,38 @@ class _StokYonetimiAksesuarlarCokluBedenState
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
+                        selectedItemBuilder: (context) => [
+                          const Text('Tümü'),
+                          ...modelList.map(
+                            (model) => Tooltip(
+                              message: model,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  model,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                         items: [
                           const DropdownMenuItem(
                               value: null, child: Text('Tümü')),
-                          ...modelList.map((m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(m, overflow: TextOverflow.ellipsis))),
+                          ...modelList.map(
+                            (model) => DropdownMenuItem(
+                              value: model,
+                              child: Tooltip(
+                                message: model,
+                                child: Text(
+                                  model,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                         onChanged: (v) => setState(() => _sarfModelFiltre = v),
                       ),

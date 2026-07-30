@@ -10,6 +10,8 @@ import 'package:uretim_takip/theme/app_theme.dart';
 import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:uretim_takip/widgets/model_kritikleri_dialog.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/services/uretim_raporu_service.dart';
+import 'package:uretim_takip/config/asama_registry.dart';
 
 part 'model_listele_toplu.dart';
 part 'model_listele_export.dart';
@@ -75,6 +77,7 @@ class _ModelListeleState extends State<ModelListele> {
   }
 
   Future<void> _initializeData() async {
+    await AsamaRegistry.yukle();
     await _getCurrentUserRole();
     await modelleriGetir();
   }
@@ -274,6 +277,18 @@ class _ModelListeleState extends State<ModelListele> {
       }
 
       debugPrint('📊 Gelen veri sayısı: ${response.length}');
+
+      final uretimDurumlari = await UretimRaporuService()
+          .modelUretimDurumlariniGetir(
+              response.map((model) => model['id']?.toString() ?? ''));
+      for (final model in response) {
+        final uretim = uretimDurumlari[model['id']?.toString()];
+        if (uretim == null || uretim['asama'] == 'beklemede') continue;
+        final asamaKodu = uretim['asama']!;
+        model['liste_durumu'] =
+            AsamaRegistry.asamaBul('triko', asamaKodu)?.asamaAdi ?? asamaKodu;
+        model['uretim_durumu'] = uretim['durum'];
+      }
 
       setState(() {
         modeller = response;
@@ -1343,14 +1358,15 @@ class _ModelListeleState extends State<ModelListele> {
   }
 
   Widget _durumBadge(Map<String, dynamic> model) {
-    final color = _getDurumRengi(model['durum']);
+    final durum = model['liste_durumu'] ?? model['durum'];
+    final color = _getDurumRengi(model['uretim_durumu'] ?? model['durum']);
     return Align(
         alignment: Alignment.centerLeft,
         child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
                 color: color, borderRadius: BorderRadius.circular(4)),
-            child: Text(model['durum']?.toString() ?? 'Beklemede',
+            child: Text(durum?.toString() ?? 'Beklemede',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -1592,9 +1608,7 @@ class _ModelListeleState extends State<ModelListele> {
   // Seçili modellerin ürün bilgilerini Excel'e aktar
   void _setupRealtimeSubscription() {
     // Model tablosu değişikliklerini dinle
-    _realtimeChannel = supabase
-        .channel('model_changes')
-        .onPostgresChanges(
+    var channel = supabase.channel('model_list_changes').onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: DbTables.trikoTakip,
@@ -1605,8 +1619,27 @@ class _ModelListeleState extends State<ModelListele> {
               modelleriGetir();
             }
           },
-        )
-        .subscribe();
+        );
+    for (final table in const [
+      DbTables.dokumaAtamalari,
+      DbTables.konfeksiyonAtamalari,
+      DbTables.nakisAtamalari,
+      DbTables.yikamaAtamalari,
+      DbTables.ilikDugmeAtamalari,
+      DbTables.utuAtamalari,
+      DbTables.kaliteKontrolAtamalari,
+      DbTables.paketlemeAtamalari,
+    ]) {
+      channel = channel.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: table,
+        callback: (_) {
+          if (mounted) modelleriGetir();
+        },
+      );
+    }
+    _realtimeChannel = channel.subscribe();
 
     debugPrint('✅ Model listesi realtime subscription kuruldu');
   }

@@ -31,6 +31,45 @@ class SistemAyarlariService {
     }
   }
 
+  static Future<String> getMetinAyarDegeri(
+    String ayarKodu, {
+    String varsayilan = '',
+  }) async {
+    try {
+      final response = await _client
+          .from(DbTables.sistemAyarlari)
+          .select('deger')
+          .eq('firma_id', _firmaId)
+          .eq('anahtar', ayarKodu)
+          .maybeSingle();
+      return response?['deger']?.toString() ?? varsayilan;
+    } catch (e) {
+      debugPrint('Metin ayari getirme hatasi: $e');
+      return varsayilan;
+    }
+  }
+
+  static Future<bool> updateMetinAyarDegeri(
+    String ayarKodu,
+    String yeniDeger, {
+    String? aciklama,
+  }) async {
+    try {
+      await _client.from(DbTables.sistemAyarlari).upsert({
+        'firma_id': _firmaId,
+        'anahtar': ayarKodu,
+        'deger': yeniDeger.trim(),
+        'aciklama': aciklama ?? ayarKodu,
+        'tip': 'metin',
+        'guncelleme_tarihi': DateTime.now().toIso8601String(),
+      }, onConflict: 'firma_id,anahtar');
+      return true;
+    } catch (e) {
+      debugPrint('Metin ayari guncelleme hatasi: $e');
+      return false;
+    }
+  }
+
   static Future<bool> updateAyarDegeri(
     String ayarKodu,
     double yeniDeger,

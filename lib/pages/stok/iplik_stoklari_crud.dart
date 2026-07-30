@@ -3,6 +3,11 @@ part of 'iplik_stoklari.dart';
 
 /// CRUD operations (add, edit, delete, transfer) for _IplikStoklariPageState.
 extension _IplikCrudExt on _IplikStoklariPageState {
+  bool _iplikRpcEksikMi(Object error) {
+    // Lokasyon dagilimi zorunlu oldugu icin legacy yazma yolu kullanilamaz.
+    return false;
+  }
+
   Future<Map<String, dynamic>?> _stokHareketiKaydet({
     String? iplikId,
     Map<String, dynamic>? stokData,
@@ -10,9 +15,11 @@ extension _IplikCrudExt on _IplikStoklariPageState {
     required double miktar,
     String? aciklama,
     String? modelId,
+    String? kaynakLokasyonId,
+    String? hedefLokasyonId,
   }) async {
     final response = await supabase.rpc(
-      'iplik_stok_hareket_kaydet',
+      'iplik_lokasyonlu_stok_hareket_kaydet',
       params: {
         'p_firma_id': TenantManager.instance.requireFirmaId,
         'p_iplik_id': iplikId,
@@ -21,8 +28,28 @@ extension _IplikCrudExt on _IplikStoklariPageState {
         'p_miktar': miktar,
         'p_aciklama': aciklama,
         'p_model_id': modelId,
+        'p_kaynak_lokasyon_id': kaynakLokasyonId,
+        'p_hedef_lokasyon_id': hedefLokasyonId,
       },
     );
+
+    if (iplikId == null && stokData != null && response is Map) {
+      final yeniId = response['iplik_id']?.toString();
+      if (yeniId != null) {
+        await supabase
+            .from(DbTables.iplikStoklari)
+            .update({
+              'iplik_kalinligi': stokData['iplik_kalinligi'],
+              'iplik_karisimi': stokData['iplik_karisimi'],
+              'renk_kodu': stokData['renk_kodu'],
+            })
+            .eq('firma_id', TenantManager.instance.requireFirmaId)
+            .eq(
+              'id',
+              yeniId,
+            );
+      }
+    }
 
     if (response is Map<String, dynamic>) return response;
     if (response is Map) return Map<String, dynamic>.from(response);
@@ -31,11 +58,25 @@ extension _IplikCrudExt on _IplikStoklariPageState {
 
   Future<void> _yeniIplikGirisi() async {
     final adController = TextEditingController();
+    final kalinlikController = TextEditingController();
+    final karisimController = TextEditingController();
     final renkController = TextEditingController();
+    final renkKoduController = TextEditingController();
     final lotController = TextEditingController();
     final miktarController = TextEditingController();
     final birimFiyatController = TextEditingController();
+    final tahsisControllers = <String, TextEditingController>{
+      for (final model in iplikModelleri)
+        model['id'].toString(): TextEditingController(),
+    };
     Map<String, dynamic>? seciliTedarikci;
+    String? seciliLokasyonId;
+    for (final item in iplikLokasyonlari) {
+      if (item['aktif'] != false && item['id'] != null) {
+        seciliLokasyonId = item['id'].toString();
+        break;
+      }
+    }
     String seciliParaBirimi = 'TL'; // Varsayılan para birimi
 
     // İplik firması olan tedarikçileri filtrele
@@ -72,9 +113,33 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                 ),
                 const SizedBox(height: 8),
                 TextField(
+                  controller: kalinlikController,
+                  decoration: const InputDecoration(
+                    labelText: 'İplik Kalınlığı',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: karisimController,
+                  decoration: const InputDecoration(
+                    labelText: 'İplik Karışımı',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
                   controller: renkController,
                   decoration: const InputDecoration(
                     labelText: 'Renk',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: renkKoduController,
+                  decoration: const InputDecoration(
+                    labelText: 'Renk Kodu',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -170,6 +235,51 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                     });
                   },
                 ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: seciliLokasyonId,
+                  decoration: const InputDecoration(
+                    labelText: 'İplik Lokasyonu *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: iplikLokasyonlari
+                      .where((item) => item['aktif'] != false)
+                      .map((item) => DropdownMenuItem(
+                            value: item['id']?.toString(),
+                            child: Text('${item['kod']} - ${item['ad']}'),
+                          ))
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => seciliLokasyonId = value),
+                ),
+                if (iplikModelleri.isNotEmpty)
+                  ExpansionTile(
+                    title: const Text('Model tahsisleri (opsiyonel)'),
+                    children: iplikModelleri
+                        .map(
+                          (model) => ListTile(
+                            title: Text(
+                              '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                            ),
+                            trailing: SizedBox(
+                              width: 120,
+                              child: TextField(
+                                controller:
+                                    tahsisControllers[model['id'].toString()],
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                decoration: const InputDecoration(
+                                  labelText: 'kg',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
 
                 // İplik firması yoksa uyarı göster
                 if (iplikTedarikcileri.isEmpty)
@@ -221,8 +331,9 @@ extension _IplikCrudExt on _IplikStoklariPageState {
               onPressed: () async {
                 try {
                   if (adController.text.trim().isEmpty ||
-                      miktarController.text.trim().isEmpty) {
-                    throw 'İplik adı ve miktar zorunludur';
+                      miktarController.text.trim().isEmpty ||
+                      seciliLokasyonId == null) {
+                    throw 'İplik adı, miktar ve lokasyon zorunludur';
                   }
 
                   final miktar = _parseDecimal(miktarController.text);
@@ -237,9 +348,18 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                   // İplik stok kaydı ekle
                   final stokData = {
                     'ad': adController.text.trim(),
+                    'iplik_kalinligi': kalinlikController.text.trim().isEmpty
+                        ? null
+                        : kalinlikController.text.trim(),
+                    'iplik_karisimi': karisimController.text.trim().isEmpty
+                        ? null
+                        : karisimController.text.trim(),
                     'renk': renkController.text.trim().isNotEmpty
                         ? renkController.text.trim()
                         : null,
+                    'renk_kodu': renkKoduController.text.trim().isEmpty
+                        ? null
+                        : renkKoduController.text.trim(),
                     'lot_no': lotController.text.trim().isNotEmpty
                         ? lotController.text.trim()
                         : null,
@@ -255,14 +375,36 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                     stokData['toplam_deger'] = miktar * birimFiyat;
                   }
 
+                  final tahsisler = <Map<String, dynamic>>[];
+                  for (final model in iplikModelleri) {
+                    final tahsis = _parseDecimal(
+                          tahsisControllers[model['id'].toString()]!.text,
+                        ) ??
+                        0;
+                    if (tahsis > 0) {
+                      tahsisler.add({
+                        'model_id': model['id'],
+                        'tahsis_miktari': tahsis,
+                      });
+                    }
+                  }
+                  if (IplikModelTahsisService.toplamTahsis(tahsisler) >
+                      miktar) {
+                    throw 'Model tahsisleri stok miktarını aşamaz';
+                  }
+
+                  String? yeniStokId;
                   try {
-                    await _stokHareketiKaydet(
+                    final sonuc = await _stokHareketiKaydet(
                       stokData: stokData,
                       hareketTipi: 'giris',
                       miktar: miktar,
                       aciklama: 'İlk stok girişi',
+                      hedefLokasyonId: seciliLokasyonId,
                     );
+                    yeniStokId = sonuc?['iplik_id']?.toString();
                   } catch (rpcError) {
+                    if (!_iplikRpcEksikMi(rpcError)) rethrow;
                     debugPrint(
                         'İplik stok RPC kullanılamadı, klasik kayıt deneniyor: $rpcError');
                     final stokResponse = await supabase
@@ -270,6 +412,7 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                         .insert(stokData)
                         .select('id')
                         .single();
+                    yeniStokId = stokResponse['id']?.toString();
 
                     await supabase.from(DbTables.iplikHareketleri).insert({
                       'iplik_id': stokResponse['id'],
@@ -278,6 +421,13 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                       'aciklama': 'İlk stok girişi',
                       'firma_id': TenantManager.instance.requireFirmaId,
                     });
+                  }
+
+                  if (yeniStokId != null && tahsisler.isNotEmpty) {
+                    await IplikModelTahsisService.stokTahsisleriniKaydet(
+                      yeniStokId,
+                      tahsisler,
+                    );
                   }
 
                   if (context.mounted) {
@@ -305,6 +455,12 @@ extension _IplikCrudExt on _IplikStoklariPageState {
     final aciklamaController = TextEditingController();
     String hareketTipi = 'cikis';
     Map<String, dynamic>? seciliModel;
+    final stokLokasyonlari = _stokLokasyonlari(stok)
+        .where((item) => ((item['miktar'] as num?)?.toDouble() ?? 0) > 0)
+        .toList();
+    String? seciliKaynakLokasyon = stokLokasyonlari.isEmpty
+        ? null
+        : stokLokasyonlari.first['lokasyon_id']?.toString();
 
     // Modelleri yükle
     List<Map<String, dynamic>> modeller = [];
@@ -359,14 +515,28 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                   ),
                   items: const [
                     DropdownMenuItem(value: 'cikis', child: Text('Çıkış/Sarf')),
-                    DropdownMenuItem(
-                        value: 'transfer', child: Text('Transfer')),
-                    DropdownMenuItem(
-                        value: 'sayim', child: Text('Sayım Düzeltmesi')),
                   ],
                   onChanged: (value) {
                     setState(() => hareketTipi = value ?? 'cikis');
                   },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: seciliKaynakLokasyon,
+                  decoration: const InputDecoration(
+                    labelText: 'Kaynak Lokasyon *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: stokLokasyonlari
+                      .map((item) => DropdownMenuItem(
+                            value: item['lokasyon_id']?.toString(),
+                            child: Text(
+                              '${_lokasyonEtiketi(item['lokasyon_id'])} (${item['miktar']} kg)',
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => seciliKaynakLokasyon = value),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -422,6 +592,9 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                   if (miktar == null || miktar <= 0) {
                     throw 'Geçerli bir miktar giriniz';
                   }
+                  if (seciliKaynakLokasyon == null) {
+                    throw 'Kaynak lokasyon seçin';
+                  }
 
                   final mevcutMiktar = (stok['miktar'] as num).toDouble();
                   if (hareketTipi != 'sayim' && miktar > mevcutMiktar) {
@@ -447,8 +620,10 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                       miktar: miktar,
                       aciklama: aciklama,
                       modelId: seciliModel?['id']?.toString(),
+                      kaynakLokasyonId: seciliKaynakLokasyon,
                     );
                   } catch (rpcError) {
+                    if (!_iplikRpcEksikMi(rpcError)) rethrow;
                     debugPrint(
                         'İplik stok RPC kullanılamadı, klasik hareket deneniyor: $rpcError');
                     // Stok miktarını güncelle
@@ -512,7 +687,13 @@ extension _IplikCrudExt on _IplikStoklariPageState {
 
   Future<void> _stokDuzenle(Map<String, dynamic> stok) async {
     final adController = TextEditingController(text: stok['ad']);
+    final kalinlikController =
+        TextEditingController(text: stok['iplik_kalinligi'] ?? '');
+    final karisimController =
+        TextEditingController(text: stok['iplik_karisimi'] ?? '');
     final renkController = TextEditingController(text: stok['renk'] ?? '');
+    final renkKoduController =
+        TextEditingController(text: stok['renk_kodu'] ?? '');
     final lotController = TextEditingController(text: stok['lot_no'] ?? '');
     final miktarController =
         TextEditingController(text: stok['miktar'].toString());
@@ -542,9 +723,33 @@ extension _IplikCrudExt on _IplikStoklariPageState {
               ),
               const SizedBox(height: 8),
               TextField(
+                controller: kalinlikController,
+                decoration: const InputDecoration(
+                  labelText: 'İplik Kalınlığı',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: karisimController,
+                decoration: const InputDecoration(
+                  labelText: 'İplik Karışımı',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
                 controller: renkController,
                 decoration: const InputDecoration(
                   labelText: 'Renk',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: renkKoduController,
+                decoration: const InputDecoration(
+                  labelText: 'Renk Kodu',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -614,18 +819,38 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                 if (miktar == null || miktar < 0) {
                   throw 'Geçerli bir miktar girin';
                 }
+                final rezerve = IplikModelTahsisService.toplamTahsis(
+                  List<Map<String, dynamic>>.from(
+                    stok['model_tahsisleri'] as List? ?? const [],
+                  ),
+                );
+                if (miktar < rezerve) {
+                  throw 'Stok miktarı rezerve edilen ${rezerve.toStringAsFixed(2)} kg altına indirilemez';
+                }
 
                 final birimFiyat = birimFiyatController.text.trim().isNotEmpty
                     ? _parseDecimal(birimFiyatController.text)
                     : null;
                 final eskiMiktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
                 final miktarDegisti = (miktar - eskiMiktar).abs() > 0.0001;
+                if (miktarDegisti) {
+                  throw 'Stok miktarı doğrudan değiştirilemez. Sayım modülünü kullanın.';
+                }
 
                 final updateData = {
                   'ad': adController.text.trim(),
+                  'iplik_kalinligi': kalinlikController.text.trim().isEmpty
+                      ? null
+                      : kalinlikController.text.trim(),
+                  'iplik_karisimi': karisimController.text.trim().isEmpty
+                      ? null
+                      : karisimController.text.trim(),
                   'renk': renkController.text.trim().isNotEmpty
                       ? renkController.text.trim()
                       : null,
+                  'renk_kodu': renkKoduController.text.trim().isEmpty
+                      ? null
+                      : renkKoduController.text.trim(),
                   'lot_no': lotController.text.trim().isNotEmpty
                       ? lotController.text.trim()
                       : null,
@@ -652,6 +877,7 @@ extension _IplikCrudExt on _IplikStoklariPageState {
                           'Stok düzenleme sayım düzeltmesi: ${eskiMiktar.toStringAsFixed(2)} kg -> ${miktar.toStringAsFixed(2)} kg',
                     );
                   } catch (rpcError) {
+                    if (!_iplikRpcEksikMi(rpcError)) rethrow;
                     debugPrint(
                         'İplik stok RPC kullanılamadı, klasik sayım deneniyor: $rpcError');
                     await supabase

@@ -101,6 +101,13 @@ extension _IplikDetayExt on _IplikStoklariPageState {
                                               'Renk', stok['renk'] ?? '-'),
                                           _buildKompaktDetayRow(
                                               'Lot No', stok['lot_no'] ?? '-'),
+                                          _buildKompaktDetayRow(
+                                            'Lokasyonlar',
+                                            _stokLokasyonlari(stok)
+                                                .map((item) =>
+                                                    '${_lokasyonEtiketi(item['lokasyon_id'])}: ${item['miktar']} kg')
+                                                .join(', '),
+                                          ),
                                         ],
                                       );
                                       final sagKolon = Column(

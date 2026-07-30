@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
 import 'package:uretim_takip/config/database_tables.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,15 +12,24 @@ class SistemAyarlariPage extends StatefulWidget {
 }
 
 class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
+  static const _aksesuarSiparisMailAnahtari = 'AKSESUAR_SIPARIS_MAIL_ADRESI';
   List<Map<String, dynamic>> ayarlar = [];
   bool yukleniyor = true;
   String? currentUserRole;
+  final _aksesuarSiparisMailController = TextEditingController();
+  bool _mailAyariKaydediliyor = false;
 
   @override
   void initState() {
     super.initState();
     _getCurrentUserRole();
     _getAyarlar();
+  }
+
+  @override
+  void dispose() {
+    _aksesuarSiparisMailController.dispose();
+    super.dispose();
   }
 
   Future<void> _getCurrentUserRole() async {
@@ -38,15 +47,38 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
 
   Future<void> _getAyarlar() async {
     setState(() => yukleniyor = true);
-    final ayarlarListesi = await SistemAyarlariService.getTumAyarlar();
+    final sonuclar = await Future.wait([
+      SistemAyarlariService.getTumAyarlar(),
+      SistemAyarlariService.getMetinAyarDegeri(_aksesuarSiparisMailAnahtari),
+    ]);
+    final ayarlarListesi = sonuclar[0] as List<Map<String, dynamic>>;
+    _aksesuarSiparisMailController.text = sonuclar[1] as String;
+    if (!mounted) return;
     setState(() {
       ayarlar = ayarlarListesi;
       yukleniyor = false;
     });
   }
 
+  Future<void> _mailAyariniKaydet() async {
+    setState(() => _mailAyariKaydediliyor = true);
+    final basarili = await SistemAyarlariService.updateMetinAyarDegeri(
+      _aksesuarSiparisMailAnahtari,
+      _aksesuarSiparisMailController.text,
+      aciklama: 'Aksesuar sipariş e-postalarında CC olarak kullanılan adres',
+    );
+    if (!mounted) return;
+    setState(() => _mailAyariKaydediliyor = false);
+    if (basarili) {
+      context.showSuccessSnackBar('Sipariş e-posta adresi kaydedildi');
+    } else {
+      context.showErrorSnackBar('Sipariş e-posta adresi kaydedilemedi');
+    }
+  }
+
   Future<void> _updateAyar(String ayarKodu, double yeniDeger) async {
-    final basarili = await SistemAyarlariService.updateAyarDegeri(ayarKodu, yeniDeger);
+    final basarili =
+        await SistemAyarlariService.updateAyarDegeri(ayarKodu, yeniDeger);
     if (basarili) {
       if (!mounted) return;
       context.showSnackBar('Ayar başarıyla güncellendi');
@@ -58,16 +90,19 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
   }
 
   void _showEditDialog(Map<String, dynamic> ayar) {
-    final controller = TextEditingController(text: ayar['ayar_degeri'].toString());
-    
+    final ayarKodu = (ayar['anahtar'] ?? ayar['ayar_kodu']).toString();
+    final controller = TextEditingController(
+        text: (ayar['deger'] ?? ayar['ayar_degeri'] ?? '').toString());
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${ayar['ayar_adi']} Düzenle'),
+        title: Text('$ayarKodu Düzenle'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(ayar['aciklama'] ?? '', style: TextStyle(color: Colors.grey[600])),
+            Text(ayar['aciklama'] ?? '',
+                style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -88,7 +123,7 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
             onPressed: () async {
               final yeniDeger = double.tryParse(controller.text);
               if (yeniDeger != null) {
-                await _updateAyar(ayar['ayar_kodu'], yeniDeger);
+                await _updateAyar(ayarKodu, yeniDeger);
                 if (!context.mounted) return;
                 Navigator.pop(context);
               } else {
@@ -121,7 +156,8 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sistem Ayarları', style: TextStyle(color: Colors.white)),
+        title: const Text('Sistem Ayarları',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.blue,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -144,7 +180,8 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
                               SizedBox(width: 8),
                               Text(
                                 'Yemek Ücretleri',
-                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                    fontSize: 20, fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),
@@ -154,6 +191,57 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
                             style: TextStyle(color: Colors.grey),
                           ),
                         ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final alan = TextField(
+                            controller: _aksesuarSiparisMailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              labelText: 'Aksesuar Sipariş E-posta Adresi',
+                              helperText:
+                                  'Hazırlanan sipariş taslaklarına CC olarak eklenir.',
+                              prefixIcon: Icon(Icons.alternate_email),
+                              border: OutlineInputBorder(),
+                            ),
+                          );
+                          final buton = FilledButton.icon(
+                            onPressed: _mailAyariKaydediliyor
+                                ? null
+                                : _mailAyariniKaydet,
+                            icon: _mailAyariKaydediliyor
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
+                            label: const Text('Kaydet'),
+                          );
+                          if (constraints.maxWidth < 620) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                alan,
+                                const SizedBox(height: 12),
+                                buton,
+                              ],
+                            );
+                          }
+                          return Row(children: [
+                            Expanded(child: alan),
+                            const SizedBox(width: 12),
+                            buton,
+                          ]);
+                        },
                       ),
                     ),
                   ),
@@ -168,22 +256,26 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
                             leading: CircleAvatar(
                               backgroundColor: Colors.blue.shade100,
                               child: Icon(
-                                ayar['ayar_kodu'] == 'PAZAR_YEMEK_UCRETI' 
+                                (ayar['anahtar'] ?? ayar['ayar_kodu']) ==
+                                        'PAZAR_YEMEK_UCRETI'
                                     ? Icons.weekend
                                     : Icons.celebration,
                                 color: Colors.blue,
                               ),
                             ),
                             title: Text(
-                              ayar['ayar_adi'],
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              (ayar['anahtar'] ?? ayar['ayar_adi'] ?? 'Ayar')
+                                  .toString(),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             subtitle: Text(ayar['aciklama'] ?? ''),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  '${ayar['ayar_degeri']} ${ayar['birim']}',
+                                  (ayar['deger'] ?? ayar['ayar_degeri'] ?? '')
+                                      .toString(),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -192,7 +284,8 @@ class _SistemAyarlariPageState extends State<SistemAyarlariPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                  icon: const Icon(Icons.edit,
+                                      color: Colors.blue),
                                   onPressed: () => _showEditDialog(ayar),
                                 ),
                               ],

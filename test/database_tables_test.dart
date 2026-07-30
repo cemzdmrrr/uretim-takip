@@ -30,6 +30,10 @@ void main() {
     test('stok and siparis tables', () {
       expect(DbTables.iplikStoklari, 'iplik_stoklari');
       expect(DbTables.iplikSiparisleri, 'iplik_siparisleri');
+      expect(DbTables.iplikLokasyonlari, 'iplik_lokasyonlari');
+      expect(DbTables.iplikStokLokasyonlari, 'iplik_stok_lokasyonlari');
+      expect(DbTables.iplikSayimOturumlari, 'iplik_sayim_oturumlari');
+      expect(DbTables.iplikSayimSatirlari, 'iplik_sayim_satirlari');
     });
 
     test('user and role tables', () {

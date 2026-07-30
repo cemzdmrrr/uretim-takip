@@ -212,6 +212,7 @@ class FaturaService {
     String? faturaTuru,
     String? durum,
     String? odemeDurumu,
+    String? paraBirimi,
     DateTime? baslangicTarihi,
     DateTime? bitisTarihi,
     String? kategori,
@@ -248,6 +249,10 @@ class FaturaService {
         query = query.eq('odeme_durumu', odemeDurumu);
       }
 
+      if (paraBirimi != null && paraBirimi.isNotEmpty) {
+        query = query.eq('kur', normalizeCurrencyCode(paraBirimi));
+      }
+
       if (baslangicTarihi != null) {
         query = query.gte('fatura_tarihi', baslangicTarihi.toIso8601String());
       }
@@ -281,6 +286,7 @@ class FaturaService {
     String? faturaTuru,
     String? durum,
     String? odemeDurumu,
+    String? paraBirimi,
     DateTime? baslangicTarihi,
     DateTime? bitisTarihi,
     String? kategori,
@@ -310,6 +316,9 @@ class FaturaService {
       if (odemeDurumu != null && odemeDurumu.isNotEmpty) {
         query = query.eq('odeme_durumu', odemeDurumu);
       }
+      if (paraBirimi != null && paraBirimi.isNotEmpty) {
+        query = query.eq('kur', normalizeCurrencyCode(paraBirimi));
+      }
       if (baslangicTarihi != null) {
         query = query.gte('fatura_tarihi', baslangicTarihi.toIso8601String());
       }
@@ -334,6 +343,7 @@ class FaturaService {
     String? faturaTuru,
     String? durum,
     String? odemeDurumu,
+    String? paraBirimi,
     DateTime? baslangicTarihi,
     DateTime? bitisTarihi,
     String? kategori,
@@ -384,6 +394,9 @@ class FaturaService {
         }
         if (odemeDurumu != null && odemeDurumu.isNotEmpty) {
           query = query.eq('odeme_durumu', odemeDurumu);
+        }
+        if (paraBirimi != null && paraBirimi.isNotEmpty) {
+          query = query.eq('kur', normalizeCurrencyCode(paraBirimi));
         }
         if (baslangicTarihi != null) {
           query = query.gte('fatura_tarihi', baslangicTarihi.toIso8601String());

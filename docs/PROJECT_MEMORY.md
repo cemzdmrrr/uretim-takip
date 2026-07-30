@@ -164,6 +164,14 @@ Notlar:
 - Utu sekmesinde `Tamamla`, kalan beden adedi varsa isi kapatir ve kalanlari `fire_kayitlari.asama='kayip'` olarak yazar; yeni islemde kayit acmaz. Kalan adet uretimde devam edecekse kullanici `Kismi Kaydet` kullanmalidir.
 - Utu tamamla modalinda tamamlanan adet hedef adedi asabilir; fazla girilen adet fire veya kayip sayilmaz. Kalan hesaplamasi `max(hedef - tamamlanan - fire, 0)` olarak kalir ve UI fazla adedi bilgi olarak gosterir.
 
+## Aksesuar Siparis E-postasi
+
+- Aksesuar stok kartlarindaki e-posta aksiyonu stok seviyesinden bagimsiz olarak her zaman kullanilabilir.
+- Her aksesuarin opsiyonel tek varsayilan tedarikcisi `aksesuarlar.tedarikci_id` ile tutulur; tedarikci ayni firmaya ait olmalidir.
+- Siparis taslagi `AksesuarSiparisMailService` ile `mailto:` URI olarak hazirlanir ve varsayilan posta uygulamasinda acilir. Tedarikci e-postasi yoksa alici bos kalir ama taslak yine acilir.
+- `AKSESUAR_SIPARIS_MAIL_ADRESI` firma ayari taslaga CC olarak eklenir. `mailto:` protokolu gonderen hesabi belirleyemez; gonderen hesap posta uygulamasindan secilir.
+- Uygulama mailin gercekten gonderilip gonderilmedigini takip etmez ve bu aksiyon otomatik siparis kaydi olusturmaz.
+
 ## Finans ve Fatura Hafizasi
 
 Ilgili tablolar:
@@ -186,6 +194,7 @@ Notlar:
 - Fatura gider/alis kategorileri fatura basliginda degil `fatura_kalemleri.kategori` alaninda tutulur. Tek faturada birden fazla kategori olabilir; kategori ozetleri ve filtreler kalemlerden hesaplanir. Gecerli kategoriler: `iplik`, `aksesuar`, `fason_uretim`, `genel_gider`, `nakliye`, `personel`, `diger`.
 - Fatura detay ekraninda kalem kategorileri tek tek veya toplu guncellenebilir. Toplu kategori islemi sadece ilgili `fatura_id + firma_id` kapsamindaki `fatura_kalemleri.kategori` alanini degistirir; fatura tutarlarini degistirmez.
 - Faturalar sayfasi KPI kartlari (`Satis/Alis Faturasi`, `Satis/Alis Tutari`) listeye getirilen ilk sayfa uzerinden degil, aktif filtrelerle eslesen tum aktif (`durum != iptal`) faturalari kapsayan servis ozetiyle hesaplanmalidir.
+- Faturalar sayfasindaki para birimi filtresi `faturalar.kur` alanina uygulanir; liste ve finans KPI ozeti ayni para birimi filtresini kullanmalidir.
 - Faturalar sayfasi arama filtresi hem `faturalar` ust bilgilerini (`fatura_no`, `cari_unvan`, vergi/adres/aciklama alanlari) hem de `fatura_kalemleri` satirlarini (`urun_adi`, `urun_kodu`, `aciklama`, `kategori`) kapsar. Kalem eslesmeleri once `fatura_id` listesine cevrilir, sonra ana fatura sorgusundaki ust bilgi aramasiyla OR mantiginda birlestirilir.
 - Uyumsoft gelen faturalar mevcut `faturalar` tablosuna dogrudan yazilmaz. Once `uyumsoft_gelen_faturalar` ve `uyumsoft_gelen_fatura_kalemleri` onay kuyruguna alinir; admin onaylarsa mevcut fatura sistemine `fatura_turu='alis'` ve `durum='taslak'` olarak aktarilir. Reddedilen veya bekleyen kayitlar normal fatura listesinde gorunmez.
 - Uyumsoft XML/UBL yukleme Flutter tarafinda `UyumsoftFaturaService.xmlUblDosyasiYukle()` ile kuyruga eklenir. API senkronizasyonu `uyumsoft-gelen-faturalar-sync` Edge Function uzerinden tasarlanmistir; credential istemciye gomulmemelidir.
@@ -295,6 +304,16 @@ Ilgili tablolar:
 - `iplik_hareketleri`
 - `iplik_siparisleri`
 - `iplik_stok_hareketleri`
+
+Iplik depo notlari:
+
+- Iplik stogu ve siparisinde `iplik_kalinligi`, `iplik_karisimi`, `renk`, `renk_kodu`, `lot_no`, birim fiyat/para birimi ve tedarikci ayri alanlarda tutulur; eski birlesik renk metni otomatik parcalanmaz.
+- Stok ve siparisler modellere miktar bazli coklu olarak `iplik_stok_model_tahsisleri` ve `iplik_siparis_model_tahsisleri` ile baglanir. Tahsis toplami kaynak miktarini asamaz.
+- Model tahsisleri rezervasyondur. Modelsiz cikis yalnizca rezerve edilmemis miktardan, modelli cikis ilgili model tahsisinden yapilir. Uygulama `iplik_rezervasyonlu_stok_hareket_kaydet` RPC'sini kullanir.
+- Siparis teslimatinda siparis ozellikleri olusan stoga tasinir ve model tahsisleri teslim orani kadar stok tahsisine aktarilir; tam teslimatta kalan yuvarlama farki kapatilir.
+- Iplik fiziksel yerlesimi firma tarafindan ad/kod ile tanimlanan `iplik_lokasyonlari` ve miktar bazli `iplik_stok_lokasyonlari` ile tutulur. Stok toplam miktari lokasyon dagilimlarinin toplamidir; eski stoklar firma sistem lokasyonu `LOKASYONSUZ` altina aktarilir.
+- Yeni iplik girisi, cikis ve siparis teslimatinda lokasyon zorunludur. Lokasyon transferi toplam stogu degistirmez ve `iplik_lokasyonlu_stok_hareket_kaydet` RPC'siyle transaction icinde yapilir.
+- Iplik sayimi `iplik_sayim_oturumlari` ve `iplik_sayim_satirlari` ile coklu lokasyonlu kor sayim olarak calisir. Yalniz firma sahibi/admin oturum acar-kapatir; farklar kapanista topluca uygulanir ve model rezervasyonunun altina dusen sayim kapanmaz.
 - `aksesuarlar`
 - `aksesuar_stok`
 - `aksesuar_kullanim`

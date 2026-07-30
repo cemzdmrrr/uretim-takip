@@ -10,10 +10,13 @@ import 'package:uretim_takip/pages/stok/iplik_siparis_takip_page.dart';
 import 'package:uretim_takip/services/bildirim_service.dart';
 import 'package:uretim_takip/services/tenant_manager.dart';
 import 'package:uretim_takip/services/user_role_service.dart';
+import 'package:uretim_takip/services/iplik_model_tahsis_service.dart';
+import 'package:uretim_takip/services/iplik_lokasyon_sayim_service.dart';
 
 part 'iplik_stoklari_crud.dart';
 part 'iplik_stoklari_detay.dart';
 part 'iplik_stoklari_siparis.dart';
+part 'iplik_stoklari_lokasyon_sayim.dart';
 
 class IplikStoklariPage extends StatefulWidget {
   const IplikStoklariPage({super.key});
@@ -33,6 +36,9 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   List<Map<String, dynamic>> iplikHareketleri = [];
   List<Map<String, dynamic>> tedarikciler = [];
   List<Map<String, dynamic>> iplikSiparisleri = [];
+  List<Map<String, dynamic>> iplikModelleri = [];
+  List<Map<String, dynamic>> iplikLokasyonlari = [];
+  List<Map<String, dynamic>> iplikStokLokasyonlari = [];
 
   // Yükleniyor durumu
   bool _yukleniyor = false;
@@ -46,6 +52,15 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   String hareketTipiFiltresi = 'tum';
   String hareketTarihFiltresi = 'tum';
   String hareketSiralama = 'son_kayit';
+  String? iplikKalinlikFiltresi;
+  String? iplikKarisimFiltresi;
+  String? iplikRenkFiltresi;
+  String? iplikRenkKoduFiltresi;
+  String? iplikLotFiltresi;
+  String? iplikModelFiltresi;
+  String? iplikLokasyonFiltresi;
+  final minFiyatController = TextEditingController();
+  final maxFiyatController = TextEditingController();
 
   int seciliMenu =
       0; // 0: İplik Stokları, 1: İplik Hareketleri, 2: İplik Siparişi
@@ -73,6 +88,8 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   void dispose() {
     stokAramaController.dispose();
     hareketAramaController.dispose();
+    minFiyatController.dispose();
+    maxFiyatController.dispose();
     super.dispose();
   }
 
@@ -99,6 +116,9 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       List<Map<String, dynamic>> yeniStoklar = [];
       List<Map<String, dynamic>> yeniHareketler = [];
       List<Map<String, dynamic>> yeniSiparisler = [];
+      List<Map<String, dynamic>> yeniModeller = [];
+      List<Map<String, dynamic>> yeniLokasyonlar = [];
+      List<Map<String, dynamic>> yeniStokLokasyonlari = [];
 
       // Tedarikçiler önce yüklenir; stok kayıtları ekranda tedarikçi adıyla zenginleştirilir.
       try {
@@ -120,6 +140,19 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
           if (tedarikci['id'] != null) tedarikci['id'].toString(): tedarikci,
       };
 
+      try {
+        yeniModeller = await IplikModelTahsisService.modelleriGetir();
+      } catch (e) {
+        debugPrint('Iplik model listesi yuklenemedi: $e');
+      }
+      try {
+        yeniLokasyonlar = await IplikLokasyonSayimService.lokasyonlariGetir();
+        yeniStokLokasyonlari =
+            await IplikLokasyonSayimService.stokDagilimlariGetir();
+      } catch (e) {
+        debugPrint('Iplik lokasyonlari yuklenemedi: $e');
+      }
+
       // İplik stokları
       try {
         final stokVeri = await supabase
@@ -136,6 +169,16 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
             'tedarikci_adi': _tedarikciAdi(stok, tedarikci: tedarikci),
           };
         }).toList();
+        for (final stok in yeniStoklar) {
+          try {
+            stok['model_tahsisleri'] =
+                await IplikModelTahsisService.stokTahsisleriGetir(
+              stok['id'].toString(),
+            );
+          } catch (_) {
+            stok['model_tahsisleri'] = <Map<String, dynamic>>[];
+          }
+        }
 
         debugPrint('İplik stokları yüklendi: ${yeniStoklar.length} adet');
       } catch (e) {
@@ -151,8 +194,13 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                 id,
                 ad,
                 renk,
+                renk_kodu,
+                iplik_kalinligi,
+                iplik_karisimi,
                 lot_no,
-                birim
+                birim,
+                birim_fiyat,
+                tedarikci_id
               )
             ''').eq('firma_id', firmaId).order('created_at', ascending: false);
 
@@ -196,6 +244,16 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
             .order('created_at', ascending: false);
 
         yeniSiparisler = List<Map<String, dynamic>>.from(siparisVeri);
+        for (final siparis in yeniSiparisler) {
+          try {
+            siparis['model_tahsisleri'] =
+                await IplikModelTahsisService.siparisTahsisleriGetir(
+              siparis['id'].toString(),
+            );
+          } catch (_) {
+            siparis['model_tahsisleri'] = <Map<String, dynamic>>[];
+          }
+        }
 
         debugPrint('İplik siparişleri yüklendi: ${yeniSiparisler.length} adet');
       } catch (e) {
@@ -207,6 +265,9 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         iplikStoklari = yeniStoklar;
         iplikHareketleri = yeniHareketler;
         iplikSiparisleri = yeniSiparisler;
+        iplikModelleri = yeniModeller;
+        iplikLokasyonlari = yeniLokasyonlar;
+        iplikStokLokasyonlari = yeniStokLokasyonlari;
       });
       _stokFiltrele(stokAramaController.text);
     } catch (e) {
@@ -234,7 +295,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
       final tedarikciId = stok['tedarikci_id']?.toString();
       final metin =
-          '${stok['ad']} ${stok['renk']} ${stok['lot_no']} ${stok['tedarikci_adi']}'
+          '${stok['ad']} ${stok['iplik_kalinligi']} ${stok['iplik_karisimi']} ${stok['renk']} ${stok['renk_kodu']} ${stok['lot_no']} ${stok['tedarikci_adi']} ${_modelEtiketleri(stok)}'
               .toLowerCase();
       final aramaUygun = aramaLower.isEmpty || metin.contains(aramaLower);
       final tedarikciUygun = seciliTedarikciFiltresi == null ||
@@ -245,7 +306,24 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         'var' => miktar >= 10,
         _ => true,
       };
-      return aramaUygun && tedarikciUygun && durumUygun;
+      final fiyat = (stok['birim_fiyat'] as num?)?.toDouble();
+      final minFiyat = _parseDecimal(minFiyatController.text);
+      final maxFiyat = _parseDecimal(maxFiyatController.text);
+      return aramaUygun &&
+          tedarikciUygun &&
+          durumUygun &&
+          _alanFiltresineUyar(stok['iplik_kalinligi'], iplikKalinlikFiltresi) &&
+          _alanFiltresineUyar(stok['iplik_karisimi'], iplikKarisimFiltresi) &&
+          _alanFiltresineUyar(stok['renk'], iplikRenkFiltresi) &&
+          _alanFiltresineUyar(stok['renk_kodu'], iplikRenkKoduFiltresi) &&
+          _alanFiltresineUyar(stok['lot_no'], iplikLotFiltresi) &&
+          (iplikModelFiltresi == null ||
+              _modelIdleri(stok).contains(iplikModelFiltresi)) &&
+          (iplikLokasyonFiltresi == null ||
+              _stokLokasyonlari(stok).any((item) =>
+                  item['lokasyon_id']?.toString() == iplikLokasyonFiltresi)) &&
+          (minFiyat == null || (fiyat != null && fiyat >= minFiyat)) &&
+          (maxFiyat == null || (fiyat != null && fiyat <= maxFiyat));
     }).toList();
 
     sonuc.sort((a, b) {
@@ -285,7 +363,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
     final sonuc = iplikHareketleri.where((kayit) {
       final stok = _hareketIplikBilgisi(kayit);
       final metin =
-          '${stok['ad']} ${stok['renk']} ${stok['lot_no']} ${kayit['hareket_tipi']} ${kayit['aciklama']}'
+          '${stok['ad']} ${stok['iplik_kalinligi']} ${stok['iplik_karisimi']} ${stok['renk']} ${stok['renk_kodu']} ${stok['lot_no']} ${kayit['hareket_tipi']} ${kayit['aciklama']}'
               .toLowerCase();
       final aramaUygun = arama.isEmpty || metin.contains(arama);
       final tipUygun = hareketTipiFiltresi == 'tum' ||
@@ -298,7 +376,29 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         'ay' => tarih != null && !tarih.isBefore(ayBaslangic),
         _ => true,
       };
-      return aramaUygun && tipUygun && tarihUygun;
+      return aramaUygun &&
+          tipUygun &&
+          tarihUygun &&
+          _alanFiltresineUyar(stok['iplik_kalinligi'], iplikKalinlikFiltresi) &&
+          _alanFiltresineUyar(stok['iplik_karisimi'], iplikKarisimFiltresi) &&
+          _alanFiltresineUyar(stok['renk'], iplikRenkFiltresi) &&
+          _alanFiltresineUyar(stok['renk_kodu'], iplikRenkKoduFiltresi) &&
+          _alanFiltresineUyar(stok['lot_no'], iplikLotFiltresi) &&
+          (seciliTedarikciFiltresi == null ||
+              stok['tedarikci_id']?.toString() == seciliTedarikciFiltresi) &&
+          (iplikModelFiltresi == null ||
+              kayit['model_id']?.toString() == iplikModelFiltresi) &&
+          (iplikLokasyonFiltresi == null ||
+              kayit['kaynak_lokasyon_id']?.toString() ==
+                  iplikLokasyonFiltresi ||
+              kayit['hedef_lokasyon_id']?.toString() ==
+                  iplikLokasyonFiltresi) &&
+          (_parseDecimal(minFiyatController.text) == null ||
+              ((stok['birim_fiyat'] as num?)?.toDouble() ?? -1) >=
+                  _parseDecimal(minFiyatController.text)!) &&
+          (_parseDecimal(maxFiyatController.text) == null ||
+              ((stok['birim_fiyat'] as num?)?.toDouble() ?? double.infinity) <=
+                  _parseDecimal(maxFiyatController.text)!);
     }).toList();
 
     sonuc.sort((a, b) {
@@ -331,6 +431,34 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       if (stok['id'] == kayit['iplik_id']) return stok;
     }
     return const {};
+  }
+
+  bool _alanFiltresineUyar(dynamic value, String? filtre) =>
+      filtre == null || value?.toString() == filtre;
+
+  List<String> _modelIdleri(Map<String, dynamic> kaynak) =>
+      ((kaynak['model_tahsisleri'] as List?) ?? const [])
+          .map((item) => (item as Map)['model_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+  String _modelEtiketleri(Map<String, dynamic> kaynak) =>
+      ((kaynak['model_tahsisleri'] as List?) ?? const [])
+          .map((item) {
+            final model = (item as Map)['triko_takip'] as Map?;
+            return '${model?['marka'] ?? ''} ${model?['item_no'] ?? ''}'.trim();
+          })
+          .where((text) => text.isNotEmpty)
+          .join(', ');
+
+  List<String> _benzersizAlanDegerleri(String alan) {
+    final values = iplikStoklari
+        .map((item) => item[alan]?.toString().trim() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort();
+    return values;
   }
 
   double? _parseDecimal(String value) {
@@ -400,6 +528,8 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       (1, Icons.timeline, 'Hareketler'),
       (2, Icons.add_shopping_cart, 'Sipariş Oluştur'),
       (3, Icons.local_shipping_outlined, 'Sipariş Takip'),
+      (4, Icons.fact_check_outlined, 'Sayım'),
+      (5, Icons.location_on_outlined, 'Lokasyonlar'),
     ];
 
     return Container(
@@ -499,6 +629,8 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
     if (seciliMenu == 1) return _buildHareketlerSayfasi();
     if (seciliMenu == 2) return _buildSiparisOlusturSayfasi();
     if (seciliMenu == 3) return const IplikSiparisTakipPage();
+    if (seciliMenu == 4) return _buildSayimSayfasi();
+    if (seciliMenu == 5) return _buildLokasyonSayfasi();
     return const Center(child: Text('Bilinmeyen sayfa'));
   }
 
@@ -756,6 +888,117 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               ),
             ),
             SizedBox(
+              width: narrow ? constraints.maxWidth : 220,
+              child: DropdownButtonFormField<String?>(
+                initialValue: iplikLokasyonFiltresi,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Lokasyon',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Tüm lokasyonlar'),
+                  ),
+                  ...iplikLokasyonlari.map((item) => DropdownMenuItem<String?>(
+                        value: item['id']?.toString(),
+                        child: Text('${item['kod']} - ${item['ad']}'),
+                      )),
+                ],
+                onChanged: (value) {
+                  iplikLokasyonFiltresi = value;
+                  _stokFiltrele(stokAramaController.text);
+                },
+              ),
+            ),
+            _iplikAlanFiltresi(
+              label: 'İplik kalınlığı',
+              value: iplikKalinlikFiltresi,
+              values: _benzersizAlanDegerleri('iplik_kalinligi'),
+              width: narrow ? constraints.maxWidth : 190,
+              onChanged: (value) => iplikKalinlikFiltresi = value,
+            ),
+            _iplikAlanFiltresi(
+              label: 'İplik karışımı',
+              value: iplikKarisimFiltresi,
+              values: _benzersizAlanDegerleri('iplik_karisimi'),
+              width: narrow ? constraints.maxWidth : 210,
+              onChanged: (value) => iplikKarisimFiltresi = value,
+            ),
+            _iplikAlanFiltresi(
+              label: 'Renk',
+              value: iplikRenkFiltresi,
+              values: _benzersizAlanDegerleri('renk'),
+              width: narrow ? constraints.maxWidth : 170,
+              onChanged: (value) => iplikRenkFiltresi = value,
+            ),
+            _iplikAlanFiltresi(
+              label: 'Renk kodu',
+              value: iplikRenkKoduFiltresi,
+              values: _benzersizAlanDegerleri('renk_kodu'),
+              width: narrow ? constraints.maxWidth : 170,
+              onChanged: (value) => iplikRenkKoduFiltresi = value,
+            ),
+            _iplikAlanFiltresi(
+              label: 'Lot',
+              value: iplikLotFiltresi,
+              values: _benzersizAlanDegerleri('lot_no'),
+              width: narrow ? constraints.maxWidth : 170,
+              onChanged: (value) => iplikLotFiltresi = value,
+            ),
+            SizedBox(
+              width: narrow ? constraints.maxWidth : 220,
+              child: DropdownButtonFormField<String?>(
+                initialValue: iplikModelFiltresi,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Model',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Tüm modeller'),
+                  ),
+                  ...iplikModelleri.map(
+                    (model) => DropdownMenuItem<String?>(
+                      value: model['id']?.toString(),
+                      child: Text(
+                        '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  iplikModelFiltresi = value;
+                  _stokFiltrele(stokAramaController.text);
+                },
+              ),
+            ),
+            for (final item in [
+              ('Min. fiyat', minFiyatController),
+              ('Maks. fiyat', maxFiyatController),
+            ])
+              SizedBox(
+                width: narrow ? constraints.maxWidth : 135,
+                child: TextField(
+                  controller: item.$2,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: item.$1,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => _stokFiltrele(stokAramaController.text),
+                ),
+              ),
+            SizedBox(
               width: narrow ? constraints.maxWidth : 180,
               child: DropdownButtonFormField<String>(
                 initialValue: stokSiralama,
@@ -806,6 +1049,40 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
     );
   }
 
+  Widget _iplikAlanFiltresi({
+    required String label,
+    required String? value,
+    required List<String> values,
+    required double width,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return SizedBox(
+      width: width,
+      child: DropdownButtonFormField<String?>(
+        initialValue: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: [
+          const DropdownMenuItem<String?>(value: null, child: Text('Tümü')),
+          ...values.map(
+            (item) => DropdownMenuItem<String?>(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+        ],
+        onChanged: (newValue) {
+          onChanged(newValue);
+          _stokFiltrele(stokAramaController.text);
+        },
+      ),
+    );
+  }
+
   Widget _buildStokTablosu() {
     return Container(
       width: double.infinity,
@@ -817,7 +1094,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final tabloGenisligi =
-              constraints.maxWidth < 1180 ? 1180.0 : constraints.maxWidth;
+              constraints.maxWidth < 1800 ? 1800.0 : constraints.maxWidth;
           return Scrollbar(
             thumbVisibility: true,
             child: SingleChildScrollView(
@@ -833,9 +1110,16 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                   horizontalMargin: 16,
                   columns: const [
                     DataColumn(label: Text('İplik')),
+                    DataColumn(label: Text('Kalınlık')),
+                    DataColumn(label: Text('Karışım')),
                     DataColumn(label: Text('Renk')),
+                    DataColumn(label: Text('Renk Kodu')),
                     DataColumn(label: Text('Lot')),
                     DataColumn(label: Text('Miktar')),
+                    DataColumn(label: Text('Rezerve')),
+                    DataColumn(label: Text('Kullanılabilir')),
+                    DataColumn(label: Text('Modeller')),
+                    DataColumn(label: Text('Lokasyonlar')),
                     DataColumn(label: Text('Durum')),
                     DataColumn(label: Text('Tedarikçi')),
                     DataColumn(label: Text('Birim Fiyat')),
@@ -844,16 +1128,45 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                   rows: filtreliStoklar.map((stok) {
                     final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
                     final durum = _stokDurumBilgisi(miktar);
+                    final rezerve = IplikModelTahsisService.toplamTahsis(
+                      List<Map<String, dynamic>>.from(
+                        stok['model_tahsisleri'] as List? ?? const [],
+                      ),
+                    );
                     return DataRow(
                       cells: [
                         DataCell(_tableText(stok['ad']?.toString() ?? '-',
                             width: 240, bold: true, maxLines: 3)),
+                        DataCell(_tableText(
+                            stok['iplik_kalinligi']?.toString() ?? '-')),
+                        DataCell(_tableText(
+                            stok['iplik_karisimi']?.toString() ?? '-')),
                         DataCell(_tableText(stok['renk']?.toString() ?? '-',
                             width: 240, maxLines: 3)),
+                        DataCell(
+                            _tableText(stok['renk_kodu']?.toString() ?? '-')),
                         DataCell(_tableText(stok['lot_no']?.toString() ?? '-',
                             width: 140, maxLines: 2)),
                         DataCell(Text(
                             '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}')),
+                        DataCell(Text('${rezerve.toStringAsFixed(2)} kg')),
+                        DataCell(Text(
+                            '${(miktar - rezerve).clamp(0, double.infinity).toStringAsFixed(2)} kg')),
+                        DataCell(_tableText(
+                          _modelEtiketleri(stok).isEmpty
+                              ? '-'
+                              : _modelEtiketleri(stok),
+                          width: 220,
+                          maxLines: 3,
+                        )),
+                        DataCell(_tableText(
+                          _stokLokasyonlari(stok)
+                              .map((item) =>
+                                  '${_lokasyonEtiketi(item['lokasyon_id'])}: ${item['miktar']} kg')
+                              .join(', '),
+                          width: 260,
+                          maxLines: 3,
+                        )),
                         DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
                         DataCell(_tableText(_tedarikciAdi(stok), width: 170)),
                         DataCell(Text(_formatFiyat(stok))),
@@ -911,6 +1224,15 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
               _miniBilgi('Lot', stok['lot_no']?.toString() ?? '-'),
               _miniBilgi('Miktar',
                   '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}'),
+              _miniBilgi(
+                'Lokasyonlar',
+                _stokLokasyonlari(stok)
+                    .map((item) =>
+                        '${_lokasyonEtiketi(item['lokasyon_id'])}: ${item['miktar']} kg')
+                    .join(', '),
+                width: 300,
+                maxLines: 3,
+              ),
               _miniBilgi('Tedarikçi', _tedarikciAdi(stok)),
               _miniBilgi('Fiyat', _formatFiyat(stok)),
             ],
@@ -937,6 +1259,20 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         color: _dangerColor,
         onPressed: () => _cikisModalGoster(stok),
         tooltip: 'Çıkış / sarf yap',
+        visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+      ),
+      IconButton(
+        icon: const Icon(Icons.link),
+        color: _warningColor,
+        onPressed: () => _stokModelTahsisDialogu(stok),
+        tooltip: 'Model tahsisleri',
+        visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+      ),
+      IconButton(
+        icon: const Icon(Icons.swap_horiz),
+        color: _successColor,
+        onPressed: () => _lokasyonTransferDialogu(stok),
+        tooltip: 'Lokasyonlar arası transfer',
         visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
       ),
       if (_adminMi)
@@ -971,6 +1307,126 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       mainAxisSize: MainAxisSize.min,
       children: aksiyonlar,
     );
+  }
+
+  Future<void> _stokModelTahsisDialogu(Map<String, dynamic> stok) async {
+    final mevcut = List<Map<String, dynamic>>.from(
+      stok['model_tahsisleri'] as List? ?? const [],
+    );
+    final controllers = <String, TextEditingController>{};
+    for (final model in iplikModelleri) {
+      final id = model['id'].toString();
+      var text = '';
+      for (final item in mevcut) {
+        if (item['model_id']?.toString() == id) {
+          text = item['tahsis_miktari']?.toString() ?? '';
+          break;
+        }
+      }
+      controllers[id] = TextEditingController(text: text);
+    }
+    final stokMiktari = (stok['miktar'] as num?)?.toDouble() ?? 0;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final toplam = controllers.values.fold<double>(
+            0,
+            (sum, controller) => sum + (_parseDecimal(controller.text) ?? 0),
+          );
+          return AlertDialog(
+            title: Text('Model Tahsisleri - ${stok['ad'] ?? ''}'),
+            content: SizedBox(
+              width: 620,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Stok: ${stokMiktari.toStringAsFixed(2)} kg • '
+                    'Tahsis: ${toplam.toStringAsFixed(2)} kg • '
+                    'Kalan: ${(stokMiktari - toplam).clamp(0, double.infinity).toStringAsFixed(2)} kg',
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: iplikModelleri.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final model = iplikModelleri[index];
+                        final id = model['id'].toString();
+                        return ListTile(
+                          title: Text(
+                            '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                          ),
+                          trailing: SizedBox(
+                            width: 130,
+                            child: TextField(
+                              controller: controllers[id],
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              decoration: const InputDecoration(
+                                labelText: 'Tahsis (kg)',
+                                isDense: true,
+                              ),
+                              onChanged: (_) => setDialogState(() {}),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('İptal'),
+              ),
+              FilledButton(
+                onPressed: toplam > stokMiktari
+                    ? null
+                    : () async {
+                        final tahsisler = <Map<String, dynamic>>[];
+                        for (final model in iplikModelleri) {
+                          final miktar = _parseDecimal(
+                                controllers[model['id'].toString()]!.text,
+                              ) ??
+                              0;
+                          if (miktar > 0) {
+                            tahsisler.add({
+                              'model_id': model['id'],
+                              'tahsis_miktari': miktar,
+                            });
+                          }
+                        }
+                        try {
+                          await IplikModelTahsisService.stokTahsisleriniKaydet(
+                            stok['id'].toString(),
+                            tahsisler,
+                          );
+                          if (!dialogContext.mounted) return;
+                          Navigator.pop(dialogContext);
+                          await _verileriYukle();
+                        } catch (e) {
+                          if (!dialogContext.mounted) return;
+                          dialogContext.showErrorSnackBar('Tahsis hatası: $e');
+                        }
+                      },
+                child: const Text('Kaydet'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
   }
 
   Widget _buildHareketlerSayfasi() {
@@ -1085,6 +1541,120 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                   ),
                 ),
               ),
+              _iplikAlanFiltresi(
+                label: 'İplik kalınlığı',
+                value: iplikKalinlikFiltresi,
+                values: _benzersizAlanDegerleri('iplik_kalinligi'),
+                width: dar ? constraints.maxWidth : 190,
+                onChanged: (value) => iplikKalinlikFiltresi = value,
+              ),
+              _iplikAlanFiltresi(
+                label: 'İplik karışımı',
+                value: iplikKarisimFiltresi,
+                values: _benzersizAlanDegerleri('iplik_karisimi'),
+                width: dar ? constraints.maxWidth : 210,
+                onChanged: (value) => iplikKarisimFiltresi = value,
+              ),
+              _iplikAlanFiltresi(
+                label: 'Renk',
+                value: iplikRenkFiltresi,
+                values: _benzersizAlanDegerleri('renk'),
+                width: dar ? constraints.maxWidth : 170,
+                onChanged: (value) => iplikRenkFiltresi = value,
+              ),
+              _iplikAlanFiltresi(
+                label: 'Renk kodu',
+                value: iplikRenkKoduFiltresi,
+                values: _benzersizAlanDegerleri('renk_kodu'),
+                width: dar ? constraints.maxWidth : 170,
+                onChanged: (value) => iplikRenkKoduFiltresi = value,
+              ),
+              _iplikAlanFiltresi(
+                label: 'Lot',
+                value: iplikLotFiltresi,
+                values: _benzersizAlanDegerleri('lot_no'),
+                width: dar ? constraints.maxWidth : 170,
+                onChanged: (value) => iplikLotFiltresi = value,
+              ),
+              SizedBox(
+                width: dar ? constraints.maxWidth : 220,
+                child: DropdownButtonFormField<String?>(
+                  initialValue: iplikModelFiltresi,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Model',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tüm modeller'),
+                    ),
+                    ...iplikModelleri.map(
+                      (model) => DropdownMenuItem<String?>(
+                        value: model['id']?.toString(),
+                        child: Text(
+                          '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(
+                    () => iplikModelFiltresi = value,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: dar ? constraints.maxWidth : 220,
+                child: DropdownButtonFormField<String?>(
+                  initialValue: seciliTedarikciFiltresi,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Tedarikçi',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tüm tedarikçiler'),
+                    ),
+                    ...tedarikciler.map(
+                      (item) => DropdownMenuItem<String?>(
+                        value: item['id']?.toString(),
+                        child: Text(
+                          '${item['sirket'] ?? item['ad'] ?? '-'}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(
+                    () => seciliTedarikciFiltresi = value,
+                  ),
+                ),
+              ),
+              for (final item in [
+                ('Min. fiyat', minFiyatController),
+                ('Maks. fiyat', maxFiyatController),
+              ])
+                SizedBox(
+                  width: dar ? constraints.maxWidth : 140,
+                  child: TextField(
+                    controller: item.$2,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: item.$1,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
               SizedBox(
                 width: alan,
                 child: DropdownButtonFormField<String>(
@@ -1131,6 +1701,33 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                   ),
                 ),
               ),
+              SizedBox(
+                width: dar ? constraints.maxWidth : 220,
+                child: DropdownButtonFormField<String?>(
+                  initialValue: iplikLokasyonFiltresi,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Lokasyon',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tüm lokasyonlar'),
+                    ),
+                    ...iplikLokasyonlari.map(
+                      (item) => DropdownMenuItem<String?>(
+                        value: item['id']?.toString(),
+                        child: Text('${item['kod']} - ${item['ad']}'),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(
+                    () => iplikLokasyonFiltresi = value,
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -1152,6 +1749,18 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
     final iplikAdi = iplik['ad'] ?? bulunanIplik?['ad'] ?? 'İplik';
     final iplikRenk = iplik['renk'] ?? bulunanIplik?['renk'] ?? 'Renk Yok';
     final iplikLot = iplik['lot_no'] ?? bulunanIplik?['lot_no'] ?? '-';
+    final iplikKalinlik =
+        iplik['iplik_kalinligi'] ?? bulunanIplik?['iplik_kalinligi'] ?? '-';
+    final iplikKarisim =
+        iplik['iplik_karisimi'] ?? bulunanIplik?['iplik_karisimi'] ?? '-';
+    final iplikRenkKodu =
+        iplik['renk_kodu'] ?? bulunanIplik?['renk_kodu'] ?? '-';
+    final hareketModeli = iplikModelleri.where(
+      (model) => model['id']?.toString() == kayit['model_id']?.toString(),
+    );
+    final modelEtiketi = hareketModeli.isEmpty
+        ? '-'
+        : '${hareketModeli.first['marka'] ?? '-'} - ${hareketModeli.first['item_no'] ?? '-'}';
     final iplikBirim = iplik['birim'] ?? bulunanIplik?['birim'] ?? 'kg';
     final tarih = DateTime.tryParse(kayit['created_at']?.toString() ?? '');
     final renk = _getHareketRenk(kayit['hareket_tipi'] ?? '');
@@ -1189,6 +1798,24 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: Color(0xFF475569)),
+                ),
+                Text(
+                  'Kalınlık: $iplikKalinlik | Karışım: $iplikKarisim | '
+                  'Renk kodu: $iplikRenkKodu | Model: $modelEtiketi',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  'Lokasyon: ${_lokasyonEtiketi(kayit['kaynak_lokasyon_id'])}'
+                  '${kayit['hedef_lokasyon_id'] != null ? ' → ${_lokasyonEtiketi(kayit['hedef_lokasyon_id'])}' : ''}',
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 12,
+                  ),
                 ),
                 if (kayit['aciklama'] != null &&
                     kayit['aciklama'].toString().isNotEmpty)

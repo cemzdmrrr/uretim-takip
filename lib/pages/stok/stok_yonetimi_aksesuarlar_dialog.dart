@@ -69,6 +69,8 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
         TextEditingController(text: aksesuar?['aciklama'] ?? '');
     final minimumStokController = TextEditingController(
         text: aksesuar?['minimum_stok']?.toString() ?? '10');
+    int? seciliTedarikciId =
+        int.tryParse(aksesuar?['tedarikci_id']?.toString() ?? '');
 
     // Beden listesi
     final List<Map<String, dynamic>> bedenListesi = [];
@@ -209,6 +211,32 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
                       helperText:
                           'Toplam stok bu değerin altına düştüğünde uyarı verilir',
                     ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  DropdownButtonFormField<int?>(
+                    initialValue: seciliTedarikciId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Varsayılan Tedarikçi (Opsiyonel)',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Tedarikçi seçilmedi'),
+                      ),
+                      ..._tedarikciler
+                          .map((tedarikci) => DropdownMenuItem<int?>(
+                                value: int.tryParse(tedarikci['id'].toString()),
+                                child: Text(
+                                  _tedarikciEtiketi(tedarikci),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              )),
+                    ],
+                    onChanged: (value) =>
+                        setStateModal(() => seciliTedarikciId = value),
                   ),
                   const SizedBox(height: 12),
 
@@ -357,6 +385,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
               malzemeController,
               aciklamaController,
               minimumStokController,
+              seciliTedarikciId,
               bedenListesi,
             ),
             child: Text(isEdit ? 'Güncelle' : 'Kaydet'),
@@ -516,6 +545,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
     TextEditingController malzemeController,
     TextEditingController aciklamaController,
     TextEditingController minimumStokController,
+    int? tedarikciId,
     List<Map<String, dynamic>> bedenListesi,
   ) async {
     if (skuController.text.trim().isEmpty || adController.text.trim().isEmpty) {
@@ -556,6 +586,7 @@ extension _DialogExt on _StokYonetimiAksesuarlarCokluBedenState {
             ? aciklamaController.text.trim()
             : null,
         'minimum_stok': int.tryParse(minimumStokController.text) ?? 10,
+        'tedarikci_id': tedarikciId,
         'durum': 'aktif',
         'updated_at': DateTime.now().toIso8601String(),
         if (!isEdit) 'firma_id': firmaId,

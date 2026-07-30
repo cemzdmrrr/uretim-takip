@@ -33,6 +33,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
   String _secilenDurum = '';
   String _secilenOdemeDurumu = '';
   String _secilenKategori = '';
+  String _secilenParaBirimi = '';
   DateTime? _baslangicTarihi;
   DateTime? _bitisTarihi;
 
@@ -78,6 +79,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
         faturaTuru: _secilenFaturaTuru.isEmpty ? null : _secilenFaturaTuru,
         durum: _secilenDurum.isEmpty ? null : _secilenDurum,
         odemeDurumu: _secilenOdemeDurumu.isEmpty ? null : _secilenOdemeDurumu,
+        paraBirimi: _secilenParaBirimi.isEmpty ? null : _secilenParaBirimi,
         kategori: _secilenKategori.isEmpty ? null : _secilenKategori,
         baslangicTarihi: _baslangicTarihi,
         bitisTarihi: _bitisTarihi,
@@ -89,6 +91,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
         faturaTuru: _secilenFaturaTuru.isEmpty ? null : _secilenFaturaTuru,
         durum: _secilenDurum.isEmpty ? null : _secilenDurum,
         odemeDurumu: _secilenOdemeDurumu.isEmpty ? null : _secilenOdemeDurumu,
+        paraBirimi: _secilenParaBirimi.isEmpty ? null : _secilenParaBirimi,
         kategori: _secilenKategori.isEmpty ? null : _secilenKategori,
         baslangicTarihi: _baslangicTarihi,
         bitisTarihi: _bitisTarihi,
@@ -203,6 +206,7 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
       _secilenDurum = '';
       _secilenOdemeDurumu = '';
       _secilenKategori = '';
+      _secilenParaBirimi = '';
       _baslangicTarihi = null;
       _bitisTarihi = null;
     });
@@ -353,7 +357,29 @@ class _FaturaListesiPageState extends State<FaturaListesiPage> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    const Expanded(child: SizedBox.shrink()),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _secilenParaBirimi.isEmpty
+                            ? null
+                            : _secilenParaBirimi,
+                        decoration: const InputDecoration(
+                          labelText: 'Para Birimi',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: '', child: Text('Tümü')),
+                          DropdownMenuItem(value: 'TRY', child: Text('TRY')),
+                          DropdownMenuItem(value: 'USD', child: Text('USD')),
+                          DropdownMenuItem(value: 'EUR', child: Text('EUR')),
+                          DropdownMenuItem(value: 'GBP', child: Text('GBP')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _secilenParaBirimi = value ?? '';
+                          });
+                        },
+                      ),
+                    ),
                     const SizedBox(width: 16),
                     const Expanded(child: SizedBox.shrink()),
                   ],
