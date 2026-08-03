@@ -40,6 +40,32 @@ void main() {
     expect(taslak.uri.queryParameters['subject'], contains('FR-1'));
   });
 
+  test('mailto konu ve govdesinde bosluklari arti isaretine cevirmez', () {
+    final taslak = AksesuarSiparisMailService.taslakOlustur(
+      aksesuar: {
+        'ad': 'Koli + Maliyet',
+        'sku': 'BSKSZ2',
+        'birim': 'adet',
+      },
+      siparisMiktari: 2,
+      mevcutStok: 10,
+      minimumStok: 5,
+    );
+
+    final mailto = taslak.uri.toString();
+    expect(mailto, isNot(contains('+')));
+    expect(mailto, contains('%20'));
+    expect(mailto, contains('%2B'));
+    expect(
+      taslak.uri.queryParameters['subject'],
+      'Aksesuar Siparişi - BSKSZ2 - Koli + Maliyet',
+    );
+    expect(
+      taslak.uri.queryParameters['body'],
+      contains('Aşağıdaki ürün için sipariş oluşturulmasını rica ederiz:'),
+    );
+  });
+
   test('gecersiz siparis miktarini reddeder', () {
     expect(
       () => AksesuarSiparisMailService.taslakOlustur(

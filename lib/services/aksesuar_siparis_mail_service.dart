@@ -66,10 +66,21 @@ class AksesuarSiparisMailService {
       'body': govde,
       if (firmaEmail.isNotEmpty) 'cc': firmaEmail,
     };
+    // `Uri.queryParameters` bosluklari form kodlamasindaki `+` karakterine
+    // cevirir. Outlook mailto baglantilarinda bu karakteri bosluk olarak
+    // cozmedigi icin konu ve govdede artı isaretleri gorunur. Mailto sorgusunu
+    // RFC 3986 yuzde kodlamasiyla olusturarak bosluklari `%20`, metindeki
+    // gercek artı karakterlerini ise `%2B` olarak koruyoruz.
+    final encodedQuery = query.entries
+        .map(
+          (entry) =>
+              '${Uri.encodeComponent(entry.key)}=${Uri.encodeComponent(entry.value)}',
+        )
+        .join('&');
     final uri = Uri(
       scheme: 'mailto',
       path: _temiz(tedarikciEmail),
-      queryParameters: query,
+      query: encodedQuery,
     );
     return AksesuarSiparisMailTaslagi(konu: konu, govde: govde, uri: uri);
   }

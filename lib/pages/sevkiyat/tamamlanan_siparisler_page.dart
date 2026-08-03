@@ -6,6 +6,7 @@ import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:uretim_takip/services/tenant_manager.dart';
+import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 class TamamlananSiparislerPage extends StatefulWidget {
   const TamamlananSiparislerPage({Key? key}) : super(key: key);
@@ -46,11 +47,13 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
           .eq('firma_id', TenantManager.instance.requireFirmaId);
 
       final List<Map<String, dynamic>> liste =
-          List<Map<String, dynamic>>.from(response)
-              .where(_tamamlanmisModelMi)
-              .toList();
+          List<Map<String, dynamic>>.from(response);
 
       await _yuklemeKayitlariniEkle(liste);
+      liste.removeWhere(
+        (model) =>
+            (model[DbTables.yuklemeKayitlari] as List? ?? const []).isEmpty,
+      );
 
       debugPrint('========== TAMAMLANAN SİPARİŞLER ==========');
       debugPrint('Tamamlanan siparişler sayısı: ${liste.length}');
@@ -98,8 +101,20 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
       }
 
       for (final model in modeller) {
-        model[DbTables.yuklemeKayitlari] =
-            kayitlarByModel[model['id'].toString()] ?? [];
+        final modelKayitlari =
+            kayitlarByModel[model['id'].toString()] ?? <Map<String, dynamic>>[];
+        modelKayitlari.sort(
+          (a, b) => (b['tarih'] ?? '').toString().compareTo(
+                (a['tarih'] ?? '').toString(),
+              ),
+        );
+        model[DbTables.yuklemeKayitlari] = modelKayitlari;
+        model['yuklenen_adet'] = modelKayitlari.fold<int>(
+          0,
+          (toplam, kayit) => toplam + ((kayit['adet'] as num?)?.toInt() ?? 0),
+        );
+        model['yukleme_tarihi'] =
+            modelKayitlari.isEmpty ? null : modelKayitlari.first['tarih'];
       }
     } catch (e) {
       debugPrint('Yükleme kayıtları eklenemedi: $e');
@@ -107,21 +122,6 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
         model[DbTables.yuklemeKayitlari] = <Map<String, dynamic>>[];
       }
     }
-  }
-
-  bool _tamamlanmisModelMi(Map<String, dynamic> model) {
-    final tamamlandi = model['tamamlandi'];
-    if (tamamlandi is bool && tamamlandi) return true;
-    if (tamamlandi is int && tamamlandi == 1) return true;
-    if (tamamlandi is String) {
-      final normalized = tamamlandi.toLowerCase().trim();
-      if (normalized == 'true' || normalized == '1' || normalized == 'evet') {
-        return true;
-      }
-    }
-
-    final durum = model['durum']?.toString().toLowerCase().trim();
-    return durum == 'tamamlandi' || durum == 'tamamlandı';
   }
 
   Future<void> exportToExcel(List<Map<String, dynamic>> data,
@@ -283,6 +283,171 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
     }).toList();
   }
 
+  String _tarihMetni(dynamic value) {
+    final tarih = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    return tarih == null ? '-' : DateFormat('dd.MM.yyyy').format(tarih);
+  }
+
+  int _siparisAdedi(Map<String, dynamic> model) =>
+      (model['adet'] as num?)?.toInt() ?? 0;
+
+  int _yuklenenAdet(Map<String, dynamic> model) =>
+      (model['yuklenen_adet'] as num?)?.toInt() ?? 0;
+
+  Future<void> _yuklemeDetaylariniGoster(
+    Map<String, dynamic> model,
+  ) async {
+    final kayitlar = List<Map<String, dynamic>>.from(
+      model[DbTables.yuklemeKayitlari] as List? ?? const [],
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}'),
+        content: SizedBox(
+          width: 520,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: kayitlar.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final kayit = kayitlar[index];
+              return ListTile(
+                dense: true,
+                leading: const Icon(Icons.local_shipping_outlined),
+                title: Text('${kayit['adet'] ?? 0} adet'),
+                trailing: Text(_tarihMetni(kayit['tarih'])),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTamamlananlarListesi() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 820) {
+          return ListView.separated(
+            itemCount: filtreli.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final model = filtreli[index];
+              final siparis = _siparisAdedi(model);
+              final yuklenen = _yuklenenAdet(model);
+              return Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Checkbox(
+                    value: seciliModelIdler.contains(model['id'].toString()),
+                    onChanged: (value) => _modelSeciminiDegistir(model, value),
+                  ),
+                  title: Text(
+                    '${model['marka'] ?? '-'} - ${model['item_no'] ?? '-'}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    'Yüklenen: $yuklenen adet • Sipariş: $siparis adet\n'
+                    'Son yükleme: ${_tarihMetni(model['yukleme_tarihi'])}',
+                  ),
+                  isThreeLine: true,
+                  trailing: IconButton(
+                    tooltip: 'Yükleme detayları',
+                    icon: const Icon(Icons.visibility_outlined),
+                    onPressed: () => _yuklemeDetaylariniGoster(model),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+
+        return SingleChildScrollView(
+          child: ResponsiveHorizontalTable(
+            minWidth: 1250,
+            showScrollbar: true,
+            child: DataTable(
+              headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+              columns: const [
+                DataColumn(label: Text('Seç')),
+                DataColumn(label: Text('Marka')),
+                DataColumn(label: Text('Model / Item No')),
+                DataColumn(label: Text('Renk')),
+                DataColumn(label: Text('Sipariş Adedi'), numeric: true),
+                DataColumn(label: Text('Yüklenen Adet'), numeric: true),
+                DataColumn(label: Text('Kalan'), numeric: true),
+                DataColumn(label: Text('Yükleme Sayısı'), numeric: true),
+                DataColumn(label: Text('Son Yükleme')),
+                DataColumn(label: Text('İşlem')),
+              ],
+              rows: filtreli.map((model) {
+                final siparis = _siparisAdedi(model);
+                final yuklenen = _yuklenenAdet(model);
+                final kayitSayisi =
+                    (model[DbTables.yuklemeKayitlari] as List? ?? const [])
+                        .length;
+                return DataRow(
+                  selected: seciliModelIdler.contains(model['id'].toString()),
+                  cells: [
+                    DataCell(
+                      Checkbox(
+                        value:
+                            seciliModelIdler.contains(model['id'].toString()),
+                        onChanged: (value) =>
+                            _modelSeciminiDegistir(model, value),
+                      ),
+                    ),
+                    DataCell(Text(model['marka']?.toString() ?? '-')),
+                    DataCell(Text(model['item_no']?.toString() ?? '-')),
+                    DataCell(Text(model['renk']?.toString() ?? '-')),
+                    DataCell(Text('$siparis')),
+                    DataCell(
+                      Text(
+                        '$yuklenen',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    DataCell(Text('${(siparis - yuklenen).clamp(0, siparis)}')),
+                    DataCell(Text('$kayitSayisi')),
+                    DataCell(Text(_tarihMetni(model['yukleme_tarihi']))),
+                    DataCell(
+                      IconButton(
+                        tooltip: 'Yükleme detayları',
+                        icon: const Icon(Icons.visibility_outlined),
+                        onPressed: () => _yuklemeDetaylariniGoster(model),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _modelSeciminiDegistir(
+    Map<String, dynamic> model,
+    bool? secili,
+  ) {
+    setState(() {
+      final id = model['id'].toString();
+      if (secili == true) {
+        seciliModelIdler.add(id);
+      } else {
+        seciliModelIdler.remove(id);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Toplam model ve toplam adet hesapla
@@ -298,7 +463,7 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: kIsWeb ? 700 : double.infinity,
+            maxWidth: kIsWeb ? 1600 : double.infinity,
           ),
           child: Padding(
             padding: const EdgeInsets.all(kIsWeb ? 32 : 12),
@@ -482,129 +647,7 @@ class _TamamlananSiparislerPageState extends State<TamamlananSiparislerPage> {
                       : filtreli.isEmpty
                           ? const Center(
                               child: Text('Tamamlanan sipariş bulunamadı'))
-                          : ListView.builder(
-                              itemCount: filtreli.length,
-                              itemBuilder: (context, index) {
-                                final m = filtreli[index];
-                                return Card(
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  child: ExpansionTile(
-                                    leading: Checkbox(
-                                      value: seciliModelIdler
-                                          .contains(m['id'].toString()),
-                                      onChanged: (v) {
-                                        setState(() {
-                                          if (v == true) {
-                                            seciliModelIdler
-                                                .add(m['id'].toString());
-                                          } else {
-                                            seciliModelIdler
-                                                .remove(m['id'].toString());
-                                          }
-                                        });
-                                      },
-                                    ),
-                                    // Renk bilgisi de başlıkta göster
-                                    title: Text(
-                                        "${m['marka']} - ${m['item_no']} (${m['renk'] ?? '-'})"),
-                                    subtitle: Text(
-                                        "Toplam Adet: ${m['adet']} | Yüklenen: ${m['yuklenen_adet']}",
-                                        maxLines: 2),
-                                    children: [
-                                      if (m[DbTables.yuklemeKayitlari] != null)
-                                        ...List<Map<String, dynamic>>.from(
-                                                m[DbTables.yuklemeKayitlari])
-                                            .map((yukleme) {
-                                          final yuklemeTarihi =
-                                              DateTime.tryParse(
-                                                      yukleme['tarih'])
-                                                  ?.toLocal();
-                                          return ListTile(
-                                            dense: true,
-                                            leading: const Icon(
-                                                Icons.local_shipping,
-                                                size: 20),
-                                            title: Text(
-                                              "Adet: ${yukleme['adet']}",
-                                              style:
-                                                  const TextStyle(fontSize: 14),
-                                            ),
-                                            trailing: Text(
-                                              yuklemeTarihi != null
-                                                  ? DateFormat('dd.MM.yyyy')
-                                                      .format(yuklemeTarihi)
-                                                  : '-',
-                                              style:
-                                                  const TextStyle(fontSize: 14),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      const Divider(),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.undo,
-                                                color: Colors.orange),
-                                            tooltip: 'Modeli geri al',
-                                            onPressed: () async {
-                                              final onay =
-                                                  await showDialog<bool>(
-                                                context: context,
-                                                builder: (_) => AlertDialog(
-                                                  title: const Text(
-                                                      'Geri Alma Onayı'),
-                                                  content: const Text(
-                                                      'Bu modeli aktif listeye geri almak istiyor musunuz?'),
-                                                  actions: [
-                                                    TextButton(
-                                                        onPressed: () =>
-                                                            Navigator.pop(
-                                                                context, false),
-                                                        child: const Text(
-                                                            'İptal')),
-                                                    TextButton(
-                                                        onPressed: () =>
-                                                            Navigator.pop(
-                                                                context, true),
-                                                        child:
-                                                            const Text('Evet')),
-                                                  ],
-                                                ),
-                                              );
-
-                                              if (onay == true) {
-                                                await supabase
-                                                    .from(DbTables.trikoTakip)
-                                                    .update({
-                                                      'tamamlandi': false,
-                                                      'durum': 'Beklemede',
-                                                      'updated_at': DateTime
-                                                              .now()
-                                                          .toIso8601String(),
-                                                    })
-                                                    .eq(
-                                                        'firma_id',
-                                                        TenantManager.instance
-                                                            .requireFirmaId)
-                                                    .eq('id', m['id']);
-
-                                                if (!context.mounted) return;
-                                                context.showSnackBar(
-                                                    'Model geri alındı');
-
-                                                await tamamlananlariGetir(); // listeyi yenile
-                                              }
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+                          : _buildTamamlananlarListesi(),
                 ),
               ],
             ),

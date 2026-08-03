@@ -1094,7 +1094,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final tabloGenisligi =
-              constraints.maxWidth < 1800 ? 1800.0 : constraints.maxWidth;
+              constraints.maxWidth < 2300 ? 2300.0 : constraints.maxWidth;
           return Scrollbar(
             thumbVisibility: true,
             child: SingleChildScrollView(
@@ -1110,6 +1110,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                   horizontalMargin: 16,
                   columns: const [
                     DataColumn(label: Text('İplik')),
+                    DataColumn(label: Text('İşlem')),
                     DataColumn(label: Text('Kalınlık')),
                     DataColumn(label: Text('Karışım')),
                     DataColumn(label: Text('Renk')),
@@ -1123,7 +1124,6 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                     DataColumn(label: Text('Durum')),
                     DataColumn(label: Text('Tedarikçi')),
                     DataColumn(label: Text('Birim Fiyat')),
-                    DataColumn(label: Text('İşlem')),
                   ],
                   rows: filtreliStoklar.map((stok) {
                     final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
@@ -1137,6 +1137,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                       cells: [
                         DataCell(_tableText(stok['ad']?.toString() ?? '-',
                             width: 240, bold: true, maxLines: 3)),
+                        DataCell(_buildStokAksiyonlari(stok, compact: true)),
                         DataCell(_tableText(
                             stok['iplik_kalinligi']?.toString() ?? '-')),
                         DataCell(_tableText(
@@ -1170,7 +1171,6 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
                         DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
                         DataCell(_tableText(_tedarikciAdi(stok), width: 170)),
                         DataCell(Text(_formatFiyat(stok))),
-                        DataCell(_buildStokAksiyonlari(stok, compact: true)),
                       ],
                     );
                   }).toList(),

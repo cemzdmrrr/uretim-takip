@@ -163,6 +163,7 @@ Notlar:
 - Utu tamamla/kismi kaydet fire girisleri `fire_kayitlari` tablosuna yazilir. Mevcut semada `asama` alani fire kaynak asamasi olarak kullanilir; uretim raporu utu fire kaynak verisini once bu tablodan okur, kayit yoksa eski not fallback'ini kullanir.
 - Utu sekmesinde `Tamamla`, kalan beden adedi varsa isi kapatir ve kalanlari `fire_kayitlari.asama='kayip'` olarak yazar; yeni islemde kayit acmaz. Kalan adet uretimde devam edecekse kullanici `Kismi Kaydet` kullanmalidir.
 - Utu tamamla modalinda tamamlanan adet hedef adedi asabilir; fazla girilen adet fire veya kayip sayilmaz. Kalan hesaplamasi `max(hedef - tamamlanan - fire, 0)` olarak kalir ve UI fazla adedi bilgi olarak gosterir.
+- Tamamlanan Siparisler sayfasi yalniz `tamamlandi` durumuna guvenmez; firma modellerine bagli gercek `yukleme_kayitlari` bulunan modelleri listeler. Yuklenen adet modeldeki eski ozet alandan degil, yukleme satirlarinin toplami olarak hesaplanir. Masaustunde tablo, mobilde kart gorunumu kullanilir.
 
 ## Aksesuar Siparis E-postasi
 
@@ -324,6 +325,7 @@ Notlar:
 - Iplik depoda ayni renk kodu ve lot numarasina sahip girisler stok deposunda birlestirilmelidir.
 - Iplik siparis teslimatinda girilen miktar siparis miktarini veya kalan miktari asabilir. Fazla teslimatin tamami stoga ve teslimat gecmisine islenir; teslim yuzdesi 100 uzerinde korunur, kalan miktar sifirin altina dusmez.
 - Iplik Stok Deposu sekmesinde baslik, KPI, filtreler ve stok kayitlari tek dikey scroll yuzeyinde birlikte kayar. Masaustu stok tablosu yalnizca yatay kaydirma kullanir; kayit listesi icin ayri dikey scroll olusturulmaz.
+- Iplik Stok Deposu masaustu tablosunda islem butonlari son sutuna birakilmaz; yatay kaydirma yapmadan erisilebilmesi icin iplik adinin hemen yanindaki `Islem` sutununda gosterilir.
 - Iplik Siparis Takip Excel aktarimi ekrandaki aktif arama, filtre ve siralama sonucunu kullanir; siparis, teslim, kalan/fazla teslim, durum, kalite, tarih, lot ve fiyat alanlarini raporlar.
 - Model aksesuar kullaniminda model basina adet 0.025 gibi ondalikli degerleri desteklemelidir.
 - Model detay aksesuar sekmesinde aksesuar birim maliyeti `model basina kullanilacak adet * aksesuar birim fiyat` olarak hesaplanir; siparis maliyeti bu birim maliyetin siparis adediyle carpimidir.
