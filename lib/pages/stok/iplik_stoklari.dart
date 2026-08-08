@@ -62,6 +62,26 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   final minFiyatController = TextEditingController();
   final maxFiyatController = TextEditingController();
 
+  // Masaustu stok tablosunda kullanici tarafindan suruklenerek ayarlanir.
+  final List<double> _stokKolonGenislikleri = [
+    240,
+    240,
+    170,
+    250,
+    130,
+    190,
+    48,
+  ];
+  static const List<double> _stokKolonMinGenislikleri = [
+    150,
+    150,
+    110,
+    160,
+    85,
+    125,
+    44,
+  ];
+
   int seciliMenu =
       0; // 0: İplik Stokları, 1: İplik Hareketleri, 2: İplik Siparişi
 
@@ -1093,45 +1113,183 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return DataTable(
-            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-            dataRowMinHeight: 58,
-            dataRowMaxHeight: 104,
-            columnSpacing: constraints.maxWidth >= 1500 ? 18 : 10,
-            horizontalMargin: 12,
-            columns: const [
-              DataColumn(label: Text('İplik')),
-              DataColumn(label: Text('İşlem')),
-              DataColumn(label: Text('Renk / Lot')),
-              DataColumn(label: Text('Stok')),
-              DataColumn(label: Text('Model / Lokasyon')),
-              DataColumn(label: Text('Durum')),
-              DataColumn(label: Text('Tedarikçi / Fiyat')),
-            ],
-            rows: filtreliStoklar.map((stok) {
-              final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
-              final durum = _stokDurumBilgisi(miktar);
-              final rezerve = IplikModelTahsisService.toplamTahsis(
-                List<Map<String, dynamic>>.from(
-                  stok['model_tahsisleri'] as List? ?? const [],
+          final toplam = _stokKolonGenislikleri.reduce((a, b) => a + b);
+          final olcek = constraints.maxWidth / toplam;
+          final genislikler = _stokKolonGenislikleri
+              .map((genislik) => genislik * olcek)
+              .toList();
+          const basliklar = [
+            'İplik / Özellikler',
+            'Renk / Lot',
+            'Stok',
+            'Model / Lokasyon',
+            'Durum',
+            'Tedarikçi / Fiyat',
+            'İşlem',
+          ];
+
+          return Column(
+            children: [
+              Container(
+                height: 52,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF1F5F9),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFFCBD5E1)),
+                  ),
                 ),
-              );
-              return DataRow(
-                cells: [
-                  DataCell(_tableText(stok['ad']?.toString() ?? '-',
-                      width: 210, bold: true, maxLines: 2)),
-                  DataCell(_buildStokAksiyonlari(stok, compact: true)),
-                  DataCell(_buildRenkLotHucre(stok)),
-                  DataCell(_buildStokMiktarHucre(stok, miktar, rezerve)),
-                  DataCell(_buildModelLokasyonHucre(stok)),
-                  DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
-                  DataCell(_buildTedarikciFiyatHucre(stok)),
-                ],
-              );
-            }).toList(),
+                child: Row(
+                  children: List.generate(
+                    basliklar.length,
+                    (index) => _buildStokTabloBaslik(
+                      baslik: basliklar[index],
+                      width: genislikler[index],
+                      index: index,
+                      olcek: olcek,
+                    ),
+                  ),
+                ),
+              ),
+              ...filtreliStoklar.map((stok) {
+                final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
+                final durum = _stokDurumBilgisi(miktar);
+                final rezerve = IplikModelTahsisService.toplamTahsis(
+                  List<Map<String, dynamic>>.from(
+                    stok['model_tahsisleri'] as List? ?? const [],
+                  ),
+                );
+                final hucreler = <Widget>[
+                  _buildIplikOzellikHucre(stok),
+                  _buildRenkLotHucre(stok),
+                  _buildStokMiktarHucre(stok, miktar, rezerve),
+                  _buildModelLokasyonHucre(stok),
+                  _buildDurumEtiketi(durum.$1, durum.$2),
+                  _buildTedarikciFiyatHucre(stok),
+                  _buildStokIslemMenusu(stok),
+                ];
+                return Container(
+                  constraints: const BoxConstraints(minHeight: 96),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: List.generate(
+                      hucreler.length,
+                      (index) => SizedBox(
+                        width: genislikler[index],
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: index == hucreler.length - 1 ? 4 : 12,
+                            vertical: 10,
+                          ),
+                          child: hucreler[index],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
           );
         },
       ),
+    );
+  }
+
+  Widget _buildStokTabloBaslik({
+    required String baslik,
+    required double width,
+    required int index,
+    required double olcek,
+  }) {
+    final yenidenBoyutlanabilir = index < _stokKolonGenislikleri.length - 1;
+    return SizedBox(
+      width: width,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Align(
+                alignment: index == _stokKolonGenislikleri.length - 1
+                    ? Alignment.center
+                    : Alignment.centerLeft,
+                child: Text(
+                  baslik,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ),
+          if (yenidenBoyutlanabilir)
+            Positioned(
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 10,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeColumn,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (details) =>
+                      _stokKolonBoyutlandir(index, details.delta.dx / olcek),
+                  child: Center(
+                    child: Container(
+                      width: 2,
+                      height: 24,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _stokKolonBoyutlandir(int index, double delta) {
+    final mevcut = _stokKolonGenislikleri[index];
+    final sonraki = _stokKolonGenislikleri[index + 1];
+    final minMevcut = _stokKolonMinGenislikleri[index];
+    final minSonraki = _stokKolonMinGenislikleri[index + 1];
+    final sinirliDelta = delta.clamp(minMevcut - mevcut, sonraki - minSonraki);
+    if (sinirliDelta == 0) return;
+    setState(() {
+      _stokKolonGenislikleri[index] = mevcut + sinirliDelta;
+      _stokKolonGenislikleri[index + 1] = sonraki - sinirliDelta;
+    });
+  }
+
+  Widget _buildIplikOzellikHucre(Map<String, dynamic> stok) {
+    final kalinlik = stok['iplik_kalinligi']?.toString().trim() ?? '';
+    final karisim = stok['iplik_karisimi']?.toString().trim() ?? '';
+    final detay = [kalinlik, karisim]
+        .where((value) => value.isNotEmpty && value != '-')
+        .join(' • ');
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          stok['ad']?.toString() ?? '-',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        if (detay.isNotEmpty)
+          Text(
+            detay,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+      ],
     );
   }
 
@@ -1139,23 +1297,20 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
     final renk = stok['renk']?.toString().trim() ?? '';
     final renkKodu = stok['renk_kodu']?.toString().trim() ?? '';
     final lot = stok['lot_no']?.toString().trim() ?? '';
-    return SizedBox(
-      width: 230,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            [renk, renkKodu].where((value) => value.isNotEmpty).join(' • '),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            'Lot: ${lot.isEmpty ? '-' : lot}',
-            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          [renk, renkKodu].where((value) => value.isNotEmpty).join(' • '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          'Lot: ${lot.isEmpty ? '-' : lot}',
+          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+        ),
+      ],
     );
   }
 
@@ -1166,22 +1321,19 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
   ) {
     final birim = stok['birim'] ?? 'kg';
     final kullanilabilir = (miktar - rezerve).clamp(0, double.infinity);
-    return SizedBox(
-      width: 145,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('${miktar.toStringAsFixed(2)} $birim',
-              style: const TextStyle(fontWeight: FontWeight.w800)),
-          Text(
-            'Rezerve: ${rezerve.toStringAsFixed(2)} • Kullanılabilir: ${kullanilabilir.toStringAsFixed(2)}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${miktar.toStringAsFixed(2)} $birim',
+            style: const TextStyle(fontWeight: FontWeight.w800)),
+        Text(
+          'Rezerve: ${rezerve.toStringAsFixed(2)} • Kullanılabilir: ${kullanilabilir.toStringAsFixed(2)}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+        ),
+      ],
     );
   }
 
@@ -1191,46 +1343,40 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
         .map((item) =>
             '${_lokasyonEtiketi(item['lokasyon_id'])}: ${item['miktar']} kg')
         .join(', ');
-    return SizedBox(
-      width: 230,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            modeller.isEmpty ? 'Model: -' : 'Model: $modeller',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            lokasyonlar.isEmpty ? 'Lokasyon: -' : lokasyonlar,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          modeller.isEmpty ? 'Model: -' : 'Model: $modeller',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          lokasyonlar.isEmpty ? 'Lokasyon: -' : lokasyonlar,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+        ),
+      ],
     );
   }
 
   Widget _buildTedarikciFiyatHucre(Map<String, dynamic> stok) {
-    return SizedBox(
-      width: 150,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _tedarikciAdi(stok),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            _formatFiyat(stok),
-            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tedarikciAdi(stok),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          _formatFiyat(stok),
+          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+        ),
+      ],
     );
   }
 
@@ -1290,6 +1436,98 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
           ),
           const SizedBox(height: 10),
           _buildStokAksiyonlari(stok),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStokIslemMenusu(Map<String, dynamic> stok) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: PopupMenuButton<String>(
+        tooltip: 'İşlemler',
+        padding: EdgeInsets.zero,
+        icon: const Icon(Icons.more_vert, color: Color(0xFF475569)),
+        onSelected: (value) {
+          switch (value) {
+            case 'detay':
+              _iplikDetayGoster(stok);
+              break;
+            case 'cikis':
+              _cikisModalGoster(stok);
+              break;
+            case 'tahsis':
+              _stokModelTahsisDialogu(stok);
+              break;
+            case 'transfer':
+              _lokasyonTransferDialogu(stok);
+              break;
+            case 'duzenle':
+              _stokDuzenle(stok);
+              break;
+            case 'sil':
+              _stokSil(stok);
+              break;
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'detay',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.info_outline, color: _primaryColor),
+              title: Text('İplik detayları'),
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'cikis',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.call_made, color: _dangerColor),
+              title: Text('Çıkış / sarf yap'),
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'tahsis',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.link, color: _warningColor),
+              title: Text('Model tahsisleri'),
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'transfer',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.swap_horiz, color: _successColor),
+              title: Text('Lokasyon transferi'),
+            ),
+          ),
+          if (_adminMi) const PopupMenuDivider(),
+          if (_adminMi)
+            const PopupMenuItem(
+              value: 'duzenle',
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.edit_outlined, color: _primaryColor),
+                title: Text('Düzenle'),
+              ),
+            ),
+          if (_adminMi)
+            const PopupMenuItem(
+              value: 'sil',
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.delete_outline, color: _dangerColor),
+                title: Text('Sil'),
+              ),
+            ),
         ],
       ),
     );
