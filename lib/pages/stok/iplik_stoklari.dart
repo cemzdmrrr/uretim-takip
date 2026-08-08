@@ -745,7 +745,7 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 820) {
+        if (constraints.maxWidth < 1450) {
           return ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1093,92 +1093,143 @@ class _IplikStoklariPageState extends State<IplikStoklariPage> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final tabloGenisligi =
-              constraints.maxWidth < 2300 ? 2300.0 : constraints.maxWidth;
-          return Scrollbar(
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tabloGenisligi,
-                child: DataTable(
-                  headingRowColor:
-                      WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-                  dataRowMinHeight: 58,
-                  dataRowMaxHeight: 104,
-                  columnSpacing: 22,
-                  horizontalMargin: 16,
-                  columns: const [
-                    DataColumn(label: Text('İplik')),
-                    DataColumn(label: Text('İşlem')),
-                    DataColumn(label: Text('Kalınlık')),
-                    DataColumn(label: Text('Karışım')),
-                    DataColumn(label: Text('Renk')),
-                    DataColumn(label: Text('Renk Kodu')),
-                    DataColumn(label: Text('Lot')),
-                    DataColumn(label: Text('Miktar')),
-                    DataColumn(label: Text('Rezerve')),
-                    DataColumn(label: Text('Kullanılabilir')),
-                    DataColumn(label: Text('Modeller')),
-                    DataColumn(label: Text('Lokasyonlar')),
-                    DataColumn(label: Text('Durum')),
-                    DataColumn(label: Text('Tedarikçi')),
-                    DataColumn(label: Text('Birim Fiyat')),
-                  ],
-                  rows: filtreliStoklar.map((stok) {
-                    final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
-                    final durum = _stokDurumBilgisi(miktar);
-                    final rezerve = IplikModelTahsisService.toplamTahsis(
-                      List<Map<String, dynamic>>.from(
-                        stok['model_tahsisleri'] as List? ?? const [],
-                      ),
-                    );
-                    return DataRow(
-                      cells: [
-                        DataCell(_tableText(stok['ad']?.toString() ?? '-',
-                            width: 240, bold: true, maxLines: 3)),
-                        DataCell(_buildStokAksiyonlari(stok, compact: true)),
-                        DataCell(_tableText(
-                            stok['iplik_kalinligi']?.toString() ?? '-')),
-                        DataCell(_tableText(
-                            stok['iplik_karisimi']?.toString() ?? '-')),
-                        DataCell(_tableText(stok['renk']?.toString() ?? '-',
-                            width: 240, maxLines: 3)),
-                        DataCell(
-                            _tableText(stok['renk_kodu']?.toString() ?? '-')),
-                        DataCell(_tableText(stok['lot_no']?.toString() ?? '-',
-                            width: 140, maxLines: 2)),
-                        DataCell(Text(
-                            '${miktar.toStringAsFixed(2)} ${stok['birim'] ?? 'kg'}')),
-                        DataCell(Text('${rezerve.toStringAsFixed(2)} kg')),
-                        DataCell(Text(
-                            '${(miktar - rezerve).clamp(0, double.infinity).toStringAsFixed(2)} kg')),
-                        DataCell(_tableText(
-                          _modelEtiketleri(stok).isEmpty
-                              ? '-'
-                              : _modelEtiketleri(stok),
-                          width: 220,
-                          maxLines: 3,
-                        )),
-                        DataCell(_tableText(
-                          _stokLokasyonlari(stok)
-                              .map((item) =>
-                                  '${_lokasyonEtiketi(item['lokasyon_id'])}: ${item['miktar']} kg')
-                              .join(', '),
-                          width: 260,
-                          maxLines: 3,
-                        )),
-                        DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
-                        DataCell(_tableText(_tedarikciAdi(stok), width: 170)),
-                        DataCell(Text(_formatFiyat(stok))),
-                      ],
-                    );
-                  }).toList(),
+          return DataTable(
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+            dataRowMinHeight: 58,
+            dataRowMaxHeight: 104,
+            columnSpacing: constraints.maxWidth >= 1500 ? 18 : 10,
+            horizontalMargin: 12,
+            columns: const [
+              DataColumn(label: Text('İplik')),
+              DataColumn(label: Text('İşlem')),
+              DataColumn(label: Text('Renk / Lot')),
+              DataColumn(label: Text('Stok')),
+              DataColumn(label: Text('Model / Lokasyon')),
+              DataColumn(label: Text('Durum')),
+              DataColumn(label: Text('Tedarikçi / Fiyat')),
+            ],
+            rows: filtreliStoklar.map((stok) {
+              final miktar = (stok['miktar'] as num?)?.toDouble() ?? 0.0;
+              final durum = _stokDurumBilgisi(miktar);
+              final rezerve = IplikModelTahsisService.toplamTahsis(
+                List<Map<String, dynamic>>.from(
+                  stok['model_tahsisleri'] as List? ?? const [],
                 ),
-              ),
-            ),
+              );
+              return DataRow(
+                cells: [
+                  DataCell(_tableText(stok['ad']?.toString() ?? '-',
+                      width: 210, bold: true, maxLines: 2)),
+                  DataCell(_buildStokAksiyonlari(stok, compact: true)),
+                  DataCell(_buildRenkLotHucre(stok)),
+                  DataCell(_buildStokMiktarHucre(stok, miktar, rezerve)),
+                  DataCell(_buildModelLokasyonHucre(stok)),
+                  DataCell(_buildDurumEtiketi(durum.$1, durum.$2)),
+                  DataCell(_buildTedarikciFiyatHucre(stok)),
+                ],
+              );
+            }).toList(),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildRenkLotHucre(Map<String, dynamic> stok) {
+    final renk = stok['renk']?.toString().trim() ?? '';
+    final renkKodu = stok['renk_kodu']?.toString().trim() ?? '';
+    final lot = stok['lot_no']?.toString().trim() ?? '';
+    return SizedBox(
+      width: 230,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            [renk, renkKodu].where((value) => value.isNotEmpty).join(' • '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            'Lot: ${lot.isEmpty ? '-' : lot}',
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStokMiktarHucre(
+    Map<String, dynamic> stok,
+    double miktar,
+    double rezerve,
+  ) {
+    final birim = stok['birim'] ?? 'kg';
+    final kullanilabilir = (miktar - rezerve).clamp(0, double.infinity);
+    return SizedBox(
+      width: 145,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${miktar.toStringAsFixed(2)} $birim',
+              style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(
+            'Rezerve: ${rezerve.toStringAsFixed(2)} • Kullanılabilir: ${kullanilabilir.toStringAsFixed(2)}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelLokasyonHucre(Map<String, dynamic> stok) {
+    final modeller = _modelEtiketleri(stok);
+    final lokasyonlar = _stokLokasyonlari(stok)
+        .map((item) =>
+            '${_lokasyonEtiketi(item['lokasyon_id'])}: ${item['miktar']} kg')
+        .join(', ');
+    return SizedBox(
+      width: 230,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            modeller.isEmpty ? 'Model: -' : 'Model: $modeller',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            lokasyonlar.isEmpty ? 'Lokasyon: -' : lokasyonlar,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTedarikciFiyatHucre(Map<String, dynamic> stok) {
+    return SizedBox(
+      width: 150,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _tedarikciAdi(stok),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            _formatFiyat(stok),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+        ],
       ),
     );
   }

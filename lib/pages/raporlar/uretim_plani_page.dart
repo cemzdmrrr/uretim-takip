@@ -1032,7 +1032,10 @@ class _UretimPlaniPageState extends State<UretimPlaniPage> {
     required DateTime finalTarih,
   }) async {
     final alanlar = ['final_tarihi', 'final_tarih', 'teslim_tarihi'];
-    final tarihDegeri = finalTarih.toIso8601String();
+    // Bu alanlar veritabaninda DATE tipindedir. Saat bilgisi iceren ISO-8601
+    // degeri gondermek, ozellikle mevcut `teslim_tarihi` fallback alaninda
+    // "invalid input syntax for type date" hatasina neden olur.
+    final tarihDegeri = DateFormat('yyyy-MM-dd').format(finalTarih);
 
     for (final alan in alanlar) {
       try {

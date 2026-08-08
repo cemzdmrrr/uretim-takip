@@ -9,7 +9,6 @@ import 'package:uretim_takip/services/iplik_model_tahsis_service.dart';
 import 'package:uretim_takip/services/iplik_lokasyon_sayim_service.dart';
 import 'package:uretim_takip/utils/excel_export.dart';
 import 'package:uretim_takip/widgets/common_widgets.dart';
-import 'package:uretim_takip/widgets/responsive_horizontal_table.dart';
 
 class IplikSiparisTakipPage extends StatefulWidget {
   const IplikSiparisTakipPage({super.key});
@@ -409,7 +408,7 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
   Widget build(BuildContext context) {
     final filtreliSiparisler = _filtreliSiparisler;
     return LayoutBuilder(builder: (context, constraints) {
-      final isMobile = constraints.maxWidth < 900;
+      final isMobile = constraints.maxWidth < 1100;
       final content = [
         _buildHeader(),
         const SizedBox(height: 12),
@@ -917,30 +916,22 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: ResponsiveHorizontalTable(
-        minWidth: 1900,
-        showScrollbar: true,
-        child: DataTable(
+      child: LayoutBuilder(
+        builder: (context, constraints) => DataTable(
           headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
           dataRowMinHeight: 58,
           dataRowMaxHeight: 92,
-          columnSpacing: 20,
-          horizontalMargin: 16,
+          columnSpacing: constraints.maxWidth >= 1500 ? 18 : 10,
+          horizontalMargin: 12,
           columns: const [
             DataColumn(label: Text('Sipariş')),
             DataColumn(label: Text('İplik')),
-            DataColumn(label: Text('Kalınlık')),
-            DataColumn(label: Text('Karışım')),
-            DataColumn(label: Text('Renk')),
-            DataColumn(label: Text('Renk Kodu')),
-            DataColumn(label: Text('Lot')),
             DataColumn(label: Text('Modeller')),
             DataColumn(label: Text('Tedarikçi')),
             DataColumn(label: Text('Termin')),
             DataColumn(label: Text('Miktar')),
             DataColumn(label: Text('Teslim')),
             DataColumn(label: Text('Durum')),
-            DataColumn(label: Text('Kalite')),
             DataColumn(label: Text('İşlem')),
           ],
           rows: data.map((siparis) {
@@ -948,39 +939,88 @@ class _IplikSiparisTakipPageState extends State<IplikSiparisTakipPage> {
             return DataRow(
               cells: [
                 DataCell(_tableText(
-                    siparis['siparis_no']?.toString() ?? '-', 120, true)),
-                DataCell(_tableText(
-                    siparis['iplik_adi']?.toString() ?? '-', 180, true)),
-                DataCell(_tableText(
-                    siparis['iplik_kalinligi']?.toString() ?? '-', 120, false)),
-                DataCell(_tableText(
-                    siparis['iplik_karisimi']?.toString() ?? '-', 170, false)),
-                DataCell(
-                    _tableText(siparis['renk']?.toString() ?? '-', 130, false)),
-                DataCell(_tableText(
-                    siparis['renk_kodu']?.toString() ?? '-', 120, false)),
-                DataCell(_tableText(
-                    siparis['lot_no']?.toString() ?? '-', 120, false)),
+                    siparis['siparis_no']?.toString() ?? '-', 105, true)),
+                DataCell(_buildIplikTabloHucre(siparis)),
                 DataCell(_tableText(
                     _siparisModelEtiketleri(siparis).isEmpty
                         ? '-'
                         : _siparisModelEtiketleri(siparis),
-                    200,
+                    150,
                     false)),
                 DataCell(_tableText(
-                    siparis['tedarikci_adi']?.toString() ?? '-', 170, false)),
+                    siparis['tedarikci_adi']?.toString() ?? '-', 140, false)),
                 DataCell(Text(_formatTarih(siparis['termin_tarihi']))),
                 DataCell(Text(
                     '${_num(siparis['miktar']).toStringAsFixed(1)} ${siparis['birim'] ?? 'kg'}')),
-                DataCell(_buildTeslimHucre(siparis, width: 150)),
-                DataCell(_durumEtiketi(durum.metin, durum.renk)),
-                DataCell(_durumEtiketi(_kaliteMetni(siparis['kalite_durumu']),
-                    _kaliteRengi(siparis['kalite_durumu']))),
+                DataCell(_buildTeslimHucre(siparis, width: 130)),
+                DataCell(_buildDurumTabloHucre(siparis, durum)),
                 DataCell(_buildAksiyonlar(siparis, compact: true)),
               ],
             );
           }).toList(),
         ),
+      ),
+    );
+  }
+
+  Widget _buildIplikTabloHucre(Map<String, dynamic> siparis) {
+    final detaylar = [
+      siparis['iplik_kalinligi'],
+      siparis['iplik_karisimi'],
+      siparis['renk'],
+      siparis['renk_kodu'],
+      siparis['lot_no'],
+    ]
+        .map((value) => value?.toString().trim() ?? '')
+        .where((value) => value.isNotEmpty && value != '-')
+        .join(' • ');
+    return SizedBox(
+      width: 230,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            siparis['iplik_adi']?.toString() ?? '-',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          if (detaylar.isNotEmpty)
+            Text(
+              detaylar,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDurumTabloHucre(
+    Map<String, dynamic> siparis,
+    _DurumBilgi durum,
+  ) {
+    return SizedBox(
+      width: 120,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _durumEtiketi(durum.metin, durum.renk),
+          const SizedBox(height: 3),
+          Text(
+            'Kalite: ${_kaliteMetni(siparis['kalite_durumu'])}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              color: _kaliteRengi(siparis['kalite_durumu']),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
